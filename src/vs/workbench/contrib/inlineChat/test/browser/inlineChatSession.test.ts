@@ -26,8 +26,7 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
-import { HunkState, Session } from '../../browser/inlineChatSession.js';
+import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -50,7 +49,7 @@ import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatWidgetHistoryService, ChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestExtensionService, TestContextService } from '../../../../test/common/workbenchTestServices.js';
-import { IChatAgentService, ChatAgentService, ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { IChatAgentService, ChatAgentService } from '../../../chat/common/chatAgents.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
@@ -61,6 +60,10 @@ import { ILanguageModelToolsService } from '../../../chat/common/languageModelTo
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { IObservable, constObservable } from '../../../../../base/common/observable.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 
 suite('InlineChatSession', function () {
 
@@ -87,6 +90,7 @@ suite('InlineChatSession', function () {
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
@@ -95,11 +99,6 @@ suite('InlineChatSession', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
-			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
-				override markChanged(session: Session): void {
-					// noop
-				}
-			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -108,6 +107,9 @@ suite('InlineChatSession', function () {
 						done() { },
 					};
 				}
+			}],
+			[IChatEditingService, new class extends mock<IChatEditingService>() {
+				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
@@ -139,6 +141,7 @@ suite('InlineChatSession', function () {
 			name: 'testAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
+			modes: [ChatMode.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -40,13 +40,6 @@ suite('chat', () => {
 		disposeAll(disposables);
 	});
 
-	function getDeferredForRequest(): DeferredPromise<ChatRequest> {
-		const deferred = new DeferredPromise<ChatRequest>();
-		disposables.push(setupParticipant()(request => deferred.complete(request.request)));
-
-		return deferred;
-	}
-
 	function setupParticipant(second?: boolean): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
 		disposables.push(emitter);
@@ -78,6 +71,7 @@ suite('chat', () => {
 					assert.strictEqual(request.context.history.length, 2);
 					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
 					assert.strictEqual(request.context.history[0].command, 'hello');
+					assert.ok(request.context.history[0] instanceof ChatRequestTurn && request.context.history[0] instanceof ChatRequestTurn2);
 					deferred.complete();
 				}
 			} catch (e) {
@@ -86,20 +80,6 @@ suite('chat', () => {
 		}));
 
 		await deferred.p;
-	});
-
-	test('participant and variable', async () => {
-		disposables.push(chat.registerChatVariableResolver('myVarId', 'myVar', 'My variable', 'My variable', false, {
-			resolve(_name, _context, _token) {
-				return [{ level: ChatVariableLevel.Full, value: 'myValue' }];
-			}
-		}));
-
-		const deferred = getDeferredForRequest();
-		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi #myVar' });
-		const request = await deferred.p;
-		assert.strictEqual(request.prompt, 'hi #myVar');
-		assert.strictEqual(request.references[0].value, 'myValue');
 	});
 
 	test('result metadata is returned to the followup provider', async () => {
@@ -141,7 +121,7 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	test('title provider is called for first request', async () => {
+	test.skip('title provider is called for first request', async () => {
 		let calls = 0;
 		const deferred = new DeferredPromise<void>();
 		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {

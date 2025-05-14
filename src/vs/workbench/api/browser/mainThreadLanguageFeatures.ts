@@ -614,7 +614,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[]): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -632,16 +632,52 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
 				}
 			},
+			handleEndOfLifetime: async (completions, item, reason) => {
+
+				function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
+					if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+						return {
+							...reason,
+							supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
+						};
+					}
+					return reason;
+				}
+
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+				}
+			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			},
+			handleRejection: async (completions, item): Promise<void> => {
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionRejection(handle, completions.pid, item.idx);
+				}
+			},
 			groupId: extensionId,
 			yieldsToGroupIds: yieldsToExtensionIds,
+			debounceDelayMs,
+			displayName,
 			toString() {
 				return `InlineCompletionsProvider(${extensionId})`;
-			}
+			},
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineCompletions = emitter.event;
+		}
+	}
+
+	$emitInlineCompletionsChange(handle: number): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
 	}
 
 	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
@@ -1032,7 +1068,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 		if (metadata.supportsCopy) {
 			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
-				const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+				const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -1044,7 +1080,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 				const dataTransferOut = new VSDataTransfer();
 				for (const [type, item] of newDataTransfer.items) {
-					dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
+					dataTransferOut.replace(type, createStringDataTransferItem(item.asString, item.id));
 				}
 				return dataTransferOut;
 			};
@@ -1054,7 +1090,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, context: languages.DocumentPasteContext, token: CancellationToken) => {
 				const request = this.dataTransfers.add(dataTransfer);
 				try {
-					const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+					const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 					if (token.isCancellationRequested) {
 						return;
 					}
@@ -1088,6 +1124,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		if (metadata.supportsResolve) {
 			this.resolveDocumentPasteEdit = async (edit: languages.DocumentPasteEdit, token: CancellationToken) => {
 				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IPasteEditDto>edit)._cacheId!, token);
+				if (typeof resolved.insertText !== 'undefined') {
+					edit.insertText = resolved.insertText;
+				}
+
 				if (resolved.additionalEdit) {
 					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
 				}
@@ -1134,7 +1174,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEditsSession | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
-			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			const dataTransferDto = await typeConvert.DataTransfer.fromList(dataTransfer);
 			if (token.isCancellationRequested) {
 				return;
 			}

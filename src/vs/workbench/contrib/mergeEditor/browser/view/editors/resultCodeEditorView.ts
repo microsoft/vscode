@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { LineRange } from '../../model/lineRange.js';
+import { MergeEditorLineRange } from '../../model/lineRange.js';
 import { applyObservableDecorations, join } from '../../utils.js';
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors.js';
 import { EditorGutter } from '../editorGutter.js';
@@ -141,9 +141,9 @@ export class ResultCodeEditorView extends CodeEditorView {
 		const baseRangeWithStoreAndTouchingDiffs = join(
 			model.modifiedBaseRanges.read(reader),
 			model.baseResultDiffs.read(reader),
-			(baseRange, diff) => baseRange.baseRange.touches(diff.inputRange)
+			(baseRange, diff) => baseRange.baseRange.intersectsOrTouches(diff.inputRange)
 				? CompareResult.neitherLessOrGreaterThan
-				: LineRange.compareByStart(
+				: MergeEditorLineRange.compareByStart(
 					baseRange.baseRange,
 					diff.inputRange
 				)

@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Range } from '../../../core/range.js';
 import { MarkdownToken } from './markdownToken.js';
+import { IRange, Range } from '../../../core/range.js';
 import { assert } from '../../../../../base/common/assert.js';
 
 /**
@@ -28,13 +27,13 @@ export class MarkdownLink extends MarkdownToken {
 		 */
 		columnNumber: number,
 		/**
-		 * The caprtion of the link, including the square brackets.
+		 * The caption of the original link, including the square brackets.
 		 */
-		private readonly caption: string,
+		public readonly caption: string,
 		/**
-		 * The reference of the link, including the parentheses.
+		 * The reference of the original link, including the parentheses.
 		 */
-		private readonly reference: string,
+		public readonly reference: string,
 	) {
 		assert(
 			!isNaN(lineNumber),
@@ -91,24 +90,31 @@ export class MarkdownLink extends MarkdownToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
+	 * Get the range of the `link part` of the token.
 	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
+	public get linkRange(): IRange | undefined {
+		if (this.path.length === 0) {
+			return undefined;
 		}
 
-		if (!(other instanceof MarkdownLink)) {
-			return false;
-		}
+		const { range } = this;
 
-		return this.text === other.text;
+		// note! '+1' for opening `(` of the link
+		const startColumn = range.startColumn + this.caption.length + 1;
+		const endColumn = startColumn + this.path.length;
+
+		return new Range(
+			range.startLineNumber,
+			startColumn,
+			range.endLineNumber,
+			endColumn,
+		);
 	}
 
 	/**
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-link("${this.text}")${this.range}`;
+		return `md-link("${this.shortText()}")${this.range}`;
 	}
 }

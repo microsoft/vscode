@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions } from 'electron';
-import { DeferredPromise, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
+import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -26,14 +26,14 @@ import { IFileService } from '../../files/common/files.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IApplicationStorageMainService, IStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
@@ -44,6 +44,8 @@ import { IUserDataProfilesMainService } from '../../userDataProfile/electron-mai
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { errorHandler } from '../../../base/common/errors.js';
+import { FocusMode } from '../../native/common/native.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -104,6 +106,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
 	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<boolean>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -111,14 +116,34 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
+	private maximizedWindowState: IWindowState | undefined;
+
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 
 		// Window Events
-		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
-		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
+			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._win) {
+				const [x, y] = this._win.getPosition();
+				const [width, height] = this._win.getSize();
+
+				this.maximizedWindowState = { mode: WindowMode.Maximized, width, height, x, y };
+				this.logService.debug(`Saved maximized window ${this.id} display state:`, this.maximizedWindowState);
+			}
+
+			this._onDidMaximize.fire();
+		}));
+		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => {
+			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this.maximizedWindowState) {
+				this.maximizedWindowState = undefined;
+
+				this.logService.debug(`Cleared maximized window ${this.id} state`);
+			}
+
+			this._onDidUnmaximize.fire();
+		}));
 		this._register(Event.fromNodeEventEmitter(win, 'closed')(() => {
 			this._onDidClose.fire();
 
@@ -129,6 +154,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'always-on-top-changed', (_, alwaysOnTop) => alwaysOnTop)(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire(alwaysOnTop)));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
@@ -137,7 +163,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && (useWindowControlsOverlay(this.configurationService) || isMacintosh)) {
+		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -146,23 +172,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Windows Custom System Context Menu
-		// See https://github.com/electron/electron/issues/24893
-		//
-		// The purpose of this is to allow for the context menu in the Windows Title Bar
-		//
-		// Currently, all mouse events in the title bar are captured by the OS
-		// thus we need to capture them here with a window hook specific to Windows
-		// and then forward them to the correct window.
+		// Setup windows system context menu so it only is allowed in certain cases
 		if (isWindows && useCustomTitleStyle) {
-			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-			win.hookWindowMessage(WM_INITMENU, () => {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.getCursorScreenPoint();
-				const cx = cursorPos.x - x;
-				const cy = cursorPos.y - y;
+				const cursorPos = electron.screen.screenToDipPoint(e.point);
+				const cx = Math.floor(cursorPos.x) - x;
+				const cy = Math.floor(cursorPos.y) - y;
 
 				// In some cases, show the default system context menu
 				// 1) The mouse position is not within the title bar
@@ -180,16 +196,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				};
 
 				if (!shouldTriggerDefaultSystemContextMenu()) {
-
-					// This is necessary to make sure the native system context menu does not show up.
-					win.setEnabled(false);
-					win.setEnabled(true);
+					e.event.preventDefault();
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
-
-				return 0;
-			});
+			}));
 		}
 
 		// Open devtools if instructed from command line args
@@ -206,6 +217,24 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this._register(this.onDidLeaveFullScreen(() => {
 				this.joinNativeFullScreenTransition?.complete(true);
 			}));
+		}
+
+		if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
+			// Handles the display-added event on Windows RDP multi-monitor scenarios.
+			// This helps restore maximized windows to their correct monitor after RDP reconnection.
+			// Refs https://github.com/electron/electron/issues/47016
+			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+				this.onDisplayAdded(e.display);
+			}));
+		}
+	}
+
+	private onDisplayAdded(display: Display): void {
+		const state = this.maximizedWindowState;
+		if (state && this._win && WindowStateValidator.validateWindowStateOnDisplay(state, display)) {
+			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
+
+			this._win.setBounds(state);
 		}
 	}
 
@@ -232,7 +261,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || electron.BrowserWindow.getAllWindows().length === 1)) {
+		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || getAllWindowsExcludingOffscreen().length === 1)) {
 			if ([state.width, state.height, state.x, state.y].every(value => typeof value === 'number')) {
 				this._win?.setBounds({
 					width: state.width,
@@ -297,11 +326,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(options?: { force: boolean }): void {
-		if (isMacintosh && options?.force) {
-			electron.app.focus({ steal: true });
-		}
+	focus(options?: { mode: FocusMode }): void {
+		switch (options?.mode ?? FocusMode.Transfer) {
+			case FocusMode.Transfer:
+				this.doFocusWindow();
+				break;
 
+			case FocusMode.Notify:
+				if (isMacintosh) {
+					electron.app.dock?.bounce('informational');
+				} else if (isWindows) {
+					// On Windows, this just flashes the taskbar icon, which is desired
+					// https://github.com/electron/electron/issues/2867
+					this.win?.focus();
+				}
+				break;
+
+			case FocusMode.Force:
+				if (isMacintosh) {
+					electron.app.focus({ steal: true });
+				}
+				this.doFocusWindow();
+				break;
+		}
+	}
+
+	private doFocusWindow() {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -318,8 +368,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
-	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
-
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
 		const win = this.win;
 		if (!win) {
@@ -331,8 +379,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows/Linux: window control overlay (WCO)
-		if (this.hasWindowControlOverlay) {
+		// Windows/Linux: update window controls via setTitleBarOverlay()
+		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -340,13 +388,18 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			});
 		}
 
-		// macOS: traffic lights
+		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
+			// The traffic lights have a height of 12px. There's an invisible margin
+			// of 2px at the top and bottom, and 1px on the left and right. Therefore,
+			// the height for centering is 12px + 2 * 2px = 16px. When the position
+			// is set, the horizontal margin is offset to ensure the distance between
+			// the traffic lights and the window frame is equal in both directions.
+			const offset = Math.floor((options.height - 16) / 2);
+			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
 	}
@@ -533,9 +586,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private customZoomLevel: number | undefined = undefined;
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+	private readonly configObjectUrl: IIPCObjectUrl<INativeWindowConfiguration>;
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
+
+	private readonly jsCallStackMap: Map<string, number>;
+	private readonly jsCallStackEffectiveSampleCount: number;
+	private readonly jsCallStackCollector: Delayer<void>;
+	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -555,7 +613,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -564,6 +622,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		//#region create browser window
 		{
+			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;
@@ -588,6 +648,25 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
+		//#endregion
+
+		//#region JS Callstack Collector
+
+		let sampleInterval = parseInt(this.environmentMainService.args['unresponsive-sample-interval'] || '1000');
+		let samplePeriod = parseInt(this.environmentMainService.args['unresponsive-sample-period'] || '15000');
+		if (sampleInterval <= 0 || samplePeriod <= 0 || sampleInterval > samplePeriod) {
+			this.logService.warn(`Invalid unresponsive sample interval (${sampleInterval}ms) or period (${samplePeriod}ms), using defaults.`);
+			sampleInterval = 1000;
+			samplePeriod = 15000;
+		}
+
+		this.jsCallStackMap = new Map<string, number>();
+		this.jsCallStackEffectiveSampleCount = Math.round(samplePeriod / sampleInterval);
+		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
+		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
+			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
+		}, samplePeriod));
+
 		//#endregion
 
 		// respect configured menu bar visibility
@@ -650,6 +729,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Window error conditions to handle
 		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win, 'responsive')(() => this.onWindowError(WindowError.RESPONSIVE)));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
@@ -700,7 +780,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
 
 		// Inject headers when requests are incoming
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		const urls = ['https://*.vsassets.io/*'];
+		if (this.productService.extensionsGallery?.serviceUrl) {
+			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
+			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
+		}
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
 
@@ -725,6 +809,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
+	private async onWindowError(error: WindowError.RESPONSIVE): Promise<void>;
 	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason?: string; exitCode?: number }): Promise<void> {
@@ -735,6 +820,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
+				break;
+			case WindowError.RESPONSIVE:
+				this.logService.error('CodeWindow: recovered from unresponsive');
 				break;
 			case WindowError.LOAD:
 				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
@@ -794,6 +882,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 						return;
 					}
 
+					// Interrupt V8 and collect JavaScript stack
+					this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+					// Stack collection will stop under any of the following conditions:
+					// - The window becomes responsive again
+					// - The window is destroyed i-e reopen or closed
+					// - sampling period is complete, default is 15s
+					this.jsCallStackCollectorStopScheduler.schedule();
+
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
@@ -810,6 +906,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					// Handle choice
 					if (response !== 2 /* keep waiting */) {
 						const reopen = response === 0;
+						this.stopCollectingJScallStacks();
 						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
@@ -841,6 +938,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					const reopen = response === 0;
 					await this.destroyWindow(reopen, checkboxChecked);
 				}
+				break;
+			case WindowError.RESPONSIVE:
+				this.stopCollectingJScallStacks();
 				break;
 		}
 	}
@@ -1014,7 +1114,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this.focus({ force: true });
+					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000)).schedule();
@@ -1066,7 +1166,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
-		configuration.partsSplash = this.themeMainService.getWindowSplash();
+		configuration.partsSplash = this.themeMainService.getWindowSplash(configuration.workspace);
 		configuration.zoomLevel = this.getZoomLevel();
 		configuration.isCustomZoomLevel = typeof this.customZoomLevel === 'number';
 		if (configuration.isCustomZoomLevel && configuration.partsSplash) {
@@ -1116,10 +1216,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
-		configuration.loggers = {
-			window: this.loggerMainService.getRegisteredLoggers(this.id),
-			global: this.loggerMainService.getRegisteredLoggers()
-		};
+		configuration.loggers = this.loggerMainService.getGlobalLoggers();
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1447,6 +1544,50 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return segments;
 	}
 
+	private async startCollectingJScallStacks(): Promise<void> {
+		if (!this.jsCallStackCollector.isTriggered()) {
+			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+
+			// Increment the count for this stack trace
+			if (stack) {
+				const count = this.jsCallStackMap.get(stack) || 0;
+				this.jsCallStackMap.set(stack, count + 1);
+			}
+
+			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+		}
+	}
+
+	private stopCollectingJScallStacks(): void {
+		this.jsCallStackCollectorStopScheduler.cancel();
+		this.jsCallStackCollector.cancel();
+
+		if (this.jsCallStackMap.size) {
+			let logMessage = `CodeWindow unresponsive samples:\n`;
+			let samples = 0;
+
+			const sortedEntries = Array.from(this.jsCallStackMap.entries())
+				.sort((a, b) => b[1] - a[1]);
+
+			for (const [stack, count] of sortedEntries) {
+				samples += count;
+				// If the stack appears more than 20 percent of the time, log it
+				// to the error telemetry as UnresponsiveSampleError.
+				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
+					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					errorHandler.onUnexpectedError(fakeError);
+				}
+				logMessage += `<${count}> ${stack}\n`;
+			}
+
+			logMessage += `Total Samples: ${samples}\n`;
+			logMessage += 'For full overview of the unresponsive period, capture cpu profile via https://aka.ms/vscode-tracing-cpu-profile';
+			this.logService.error(logMessage);
+		}
+
+		this.jsCallStackMap.clear();
+	}
+
 	matches(webContents: electron.WebContents): boolean {
 		return this._win?.webContents.id === webContents.id;
 	}
@@ -1456,5 +1597,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Deregister the loggers for this window
 		this.loggerMainService.deregisterLoggers(this.id);
+	}
+}
+
+class UnresponsiveError extends Error {
+
+	constructor(sample: string, windowId: number, pid: number = 0) {
+		// Since the stacks are available via the sample
+		// we can avoid collecting them when constructing the error.
+		const stackTraceLimit = Error.stackTraceLimit;
+		Error.stackTraceLimit = 0;
+		super(`UnresponsiveSampleError: from window with ID ${windowId} belonging to process with pid ${pid}`);
+		Error.stackTraceLimit = stackTraceLimit;
+		this.name = 'UnresponsiveSampleError';
+		this.stack = sample;
 	}
 }

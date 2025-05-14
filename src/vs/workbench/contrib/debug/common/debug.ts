@@ -368,7 +368,7 @@ export interface IDebugLocationReferenced {
 	source: Source;
 }
 
-export interface IDebugSession extends ITreeElement {
+export interface IDebugSession extends ITreeElement, IDisposable {
 
 	readonly configuration: IConfig;
 	readonly unresolvedConfiguration: IConfig | undefined;
@@ -412,6 +412,8 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: INewReplElementData): void;
+	/** Cancel any associated test run set through the DebugSessionOptions */
+	cancelCorrelatedTestRun(): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
@@ -473,7 +475,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
+	completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse | undefined>;
 	setExpression(frameId: number, expression: string, value: string): Promise<DebugProtocol.SetExpressionResponse | undefined>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse | undefined>;
@@ -807,6 +809,7 @@ export interface IDebugConfiguration {
 		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 		acceptSuggestionOnEnter: 'off' | 'on';
+		maximumLines: number;
 	};
 	focusWindowOnBreak: boolean;
 	focusEditorOnBreak: boolean;

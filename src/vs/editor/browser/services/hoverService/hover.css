@@ -18,12 +18,24 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+.monaco-workbench .workbench-hover .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 13px;
+	height: 13px;
+}
+
 .monaco-workbench .workbench-hover hr {
 	border-bottom: none;
 }
 
 .monaco-workbench .workbench-hover.compact {
 	font-size: 12px;
+}
+
+.monaco-workbench .workbench-hover.compact .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 12px;
+	height: 12px;
 }
 
 .monaco-workbench .workbench-hover.compact .hover-contents {
@@ -33,12 +45,8 @@
 .monaco-workbench .workbench-hover-container.locked .workbench-hover {
 	outline: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus,
-.monaco-workbench .workbench-hover-lock:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-.monaco-workbench .workbench-hover-container.locked .workbench-hover-lock:hover {
-	background: var(--vscode-toolbar-hoverBackground);
+.monaco-workbench .workbench-hover-container:focus-within.locked .workbench-hover {
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .workbench-hover-pointer {
@@ -57,11 +65,15 @@
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .locked .workbench-hover-pointer:after {
+.monaco-workbench .workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
 	width: 4px;
 	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
+}
+.monaco-workbench .workbench-hover-container:focus-within .workbench-hover-pointer:after {
+	border-right: 1px solid var(--vscode-focusBorder);
+	border-bottom: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
@@ -94,6 +106,11 @@
 	outline-offset: -1px;
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .workbench-hover a.codicon:focus,
+.monaco-workbench .workbench-hover a.monaco-button:focus {
+	text-decoration: none;
 }
 
 .monaco-workbench .workbench-hover a:hover,

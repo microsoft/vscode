@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import { Readable } from 'stream';
 import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
-import * as yauzl from 'yauzl';
-import * as crypto from 'crypto';
+import yauzl from 'yauzl';
+import crypto from 'crypto';
 import { retry } from './retry';
 import { CosmosClient } from '@azure/cosmos';
-import * as cp from 'child_process';
-import * as os from 'os';
+import cp from 'child_process';
+import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
-import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
-import * as jws from 'jws';
+import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
+import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {
@@ -320,7 +320,8 @@ class ESRPReleaseService {
 		clientId: string,
 		authCertificatePfx: string,
 		requestSigningCertificatePfx: string,
-		containerClient: ContainerClient
+		containerClient: ContainerClient,
+		stagingSasToken: string
 	) {
 		const authKey = getKeyFromPFX(authCertificatePfx);
 		const authCertificate = getCertificatesFromPFX(authCertificatePfx)[0];
@@ -343,7 +344,7 @@ class ESRPReleaseService {
 			scopes: ['https://api.esrp.microsoft.com/.default']
 		});
 
-		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient);
+		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
 	}
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
@@ -354,7 +355,8 @@ class ESRPReleaseService {
 		private readonly accessToken: string,
 		private readonly requestSigningCertificates: string[],
 		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient
+		private readonly containerClient: ContainerClient,
+		private readonly stagingSasToken: string
 	) { }
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
@@ -411,6 +413,7 @@ class ESRPReleaseService {
 	): Promise<ReleaseSubmitResponse> {
 		const size = fs.statSync(filePath).size;
 		const hash = await hashStream('sha256', fs.createReadStream(filePath));
+		const blobUrl = `${blobClient.url}?${this.stagingSasToken}`;
 
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
@@ -443,11 +446,11 @@ class ESRPReleaseService {
 			files: [{
 				name: path.basename(filePath),
 				friendlyFileName,
-				tenantFileLocation: blobClient.url,
+				tenantFileLocation: blobUrl,
 				tenantFileLocationType: 'AzureBlob',
 				sourceLocation: {
 					type: 'azureBlob',
-					blobUrl: blobClient.url
+					blobUrl
 				},
 				hashType: 'sha256',
 				hash: Array.from(hash),
@@ -477,11 +480,11 @@ class ESRPReleaseService {
 	private async getReleaseStatus(releaseId: string): Promise<ReleaseResultMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -494,11 +497,11 @@ class ESRPReleaseService {
 	private async getReleaseDetails(releaseId: string): Promise<ReleaseDetailsMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -580,12 +583,12 @@ const azdoFetchOptions = {
 	}
 };
 
-async function requestAZDOAPI<T>(path: string): Promise<T> {
+export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
 	try {
-		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
@@ -597,7 +600,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 	}
 }
 
-interface Artifact {
+export interface Artifact {
 	readonly name: string;
 	readonly resource: {
 		readonly downloadUrl: string;
@@ -617,6 +620,7 @@ interface Timeline {
 		readonly name: string;
 		readonly type: string;
 		readonly state: string;
+		readonly result: string;
 	}[];
 }
 
@@ -691,7 +695,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string, isLegacy: boolean): string {
+function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -736,12 +740,12 @@ function getPlatform(product: string, os: string, arch: string, type: string, is
 						case 'client':
 							return `linux-${arch}`;
 						case 'server':
-							return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
+							return `server-linux-${arch}`;
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
 							}
-							return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
+							return `server-linux-${arch}-web`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -871,21 +875,29 @@ async function processArtifact(
 			const stagingContainerClient = blobServiceClient.getContainerClient('staging');
 			await stagingContainerClient.createIfNotExists();
 
+			const now = new Date().valueOf();
+			const oneHour = 60 * 60 * 1000;
+			const oneHourAgo = new Date(now - oneHour);
+			const oneHourFromNow = new Date(now + oneHour);
+			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
+			const sasOptions = { containerName: 'staging', permissions: ContainerSASPermissions.from({ read: true }), startsOn: oneHourAgo, expiresOn: oneHourFromNow };
+			const stagingSasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')).toString();
+
 			const releaseService = await ESRPReleaseService.create(
 				log,
 				e('RELEASE_TENANT_ID'),
 				e('RELEASE_CLIENT_ID'),
 				e('RELEASE_AUTH_CERT'),
 				e('RELEASE_REQUEST_SIGNING_CERT'),
-				stagingContainerClient
+				stagingContainerClient,
+				stagingSasToken
 			);
 
 			await releaseService.createRelease(version, filePath, friendlyFileName);
 		}
 
 		const { product, os, arch, unprocessedType } = match.groups!;
-		const isLegacy = artifact.name.includes('_legacy');
-		const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
+		const platform = getPlatform(product, os, arch, unprocessedType);
 		const type = getRealType(unprocessedType);
 		const size = fs.statSync(filePath).size;
 		const stream = fs.createReadStream(filePath);
@@ -931,19 +943,30 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile', 'CompileCLI']);
+	const stages = new Set<string>(['Compile']);
+
+	if (
+		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
+	) {
+		stages.add('CompileCLI');
+	}
+
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') { stages.add('LinuxLegacyServer'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let timeline: Timeline;
+	let artifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -1024,8 +1047,25 @@ async function main() {
 		}
 	}
 
+	// Fail the job if any of the artifacts failed to publish
 	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
+	}
+
+	// Also fail the job if any of the stages did not succeed
+	let shouldFail = false;
+
+	for (const stage of stages) {
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+
+		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			shouldFail = true;
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
+		}
+	}
+
+	if (shouldFail) {
+		throw new Error('Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);

@@ -14,7 +14,7 @@ const noop = () => {
 };
 
 /**
- * Code here is used to ensure the Notebook Model is in sync the the ipynb JSON file.
+ * Code here is used to ensure the Notebook Model is in sync the ipynb JSON file.
  * E.g. assume you add a new cell, this new cell will not have any metadata at all.
  * However when we save the ipynb, the metadata will be an empty object `{}`.
  * Now thats completely different from the metadata os being `empty/undefined` in the model.

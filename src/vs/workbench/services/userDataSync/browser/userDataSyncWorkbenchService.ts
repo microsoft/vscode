@@ -260,7 +260,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
+				this.traceOrInfo('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -269,11 +269,19 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.userDataSyncAccountService.updateAccount(value);
 	}
 
+	private traceOrInfo(msg: string, ...args: any[]): void {
+		if (this.environmentService.isBuilt) {
+			this.logService.info(msg, ...args);
+		} else {
+			this.logService.trace(msg, ...args);
+		}
+	}
+
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.traceOrInfo(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -365,7 +373,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	syncNow(): Promise<void> {
-		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
+		return this.userDataAutoSyncService.triggerSync(['Sync Now'], { immediately: true, disableCache: true });
 	}
 
 	private async doTurnOnSync(token: CancellationToken): Promise<void> {

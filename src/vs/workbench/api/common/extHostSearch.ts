@@ -31,25 +31,35 @@ export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
 
 export class ExtHostSearch implements IExtHostSearch {
 
-	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
-	protected _handlePool: number = 0;
+	protected readonly _proxy: MainThreadSearchShape;
+	protected _handlePool: number;
 
-	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider2>();
-	private readonly _textSearchUsedSchemes = new Set<string>();
+	private readonly _textSearchProvider: Map<number, vscode.TextSearchProvider2>;
+	private readonly _textSearchUsedSchemes: Set<string>;
 
-	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider>();
-	private readonly _aiTextSearchUsedSchemes = new Set<string>();
+	private readonly _aiTextSearchProvider: Map<number, vscode.AITextSearchProvider>;
+	private readonly _aiTextSearchUsedSchemes: Set<string>;
 
-	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider2>();
-	private readonly _fileSearchUsedSchemes = new Set<string>();
+	private readonly _fileSearchProvider: Map<number, vscode.FileSearchProvider2>;
+	private readonly _fileSearchUsedSchemes: Set<string>;
 
-	private readonly _fileSearchManager = new FileSearchManager();
+	private readonly _fileSearchManager: FileSearchManager;
 
 	constructor(
 		@IExtHostRpcService private extHostRpc: IExtHostRpcService,
 		@IURITransformerService protected _uriTransformer: IURITransformerService,
 		@ILogService protected _logService: ILogService,
-	) { }
+	) {
+		this._proxy = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
+		this._handlePool = 0;
+		this._textSearchProvider = new Map<number, vscode.TextSearchProvider2>();
+		this._textSearchUsedSchemes = new Set<string>();
+		this._aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider>();
+		this._aiTextSearchUsedSchemes = new Set<string>();
+		this._fileSearchProvider = new Map<number, vscode.FileSearchProvider2>();
+		this._fileSearchUsedSchemes = new Set<string>();
+		this._fileSearchManager = new FileSearchManager();
+	}
 
 	protected _transformScheme(scheme: string): string {
 		return this._uriTransformer.transformOutgoingScheme(scheme);
@@ -176,7 +186,7 @@ export class ExtHostSearch implements IExtHostSearch {
 
 		const query = reviveQuery(rawQuery);
 		const engine = this.createAITextSearchManager(query, provider);
-		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
+		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token, result => this._proxy.$handleKeywordResult(handle, session, result));
 	}
 
 	$enableExtensionHostSearch(): void { }
@@ -219,4 +229,3 @@ export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTex
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
 	return revive(rawFolderQuery);
 }
-

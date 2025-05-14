@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../assert.js';
 import { Emitter } from '../event.js';
-import { IDisposable } from '../lifecycle.js';
 import { ReadableStream } from '../stream.js';
+import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
-import { TrackedDisposable } from '../trackedDisposable.js';
+import { assert, assertNever } from '../assert.js';
+import { DisposableMap, IDisposable } from '../lifecycle.js';
+import { ObservableDisposable } from '../observableDisposable.js';
 
 /**
  * Event names of {@link ReadableStream} stream.
@@ -24,20 +25,29 @@ export type TStreamListenerNames = 'data' | 'error' | 'end';
 export abstract class BaseDecoder<
 	T extends NonNullable<unknown>,
 	K extends NonNullable<unknown> = NonNullable<unknown>,
-> extends TrackedDisposable implements ReadableStream<T> {
+> extends ObservableDisposable implements ReadableStream<T> {
 	/**
-	 * Flag that indicates if the decoder stream has ended.
+	 * Private attribute to track if the stream has ended.
 	 */
-	protected ended = false;
+	private _ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());
-	protected readonly _onEnd = this._register(new Emitter<void>());
-	protected readonly _onError = this._register(new Emitter<Error>());
+	private readonly _onEnd = this._register(new Emitter<void>());
+	private readonly _onError = this._register(new Emitter<Error>());
 
 	/**
 	 * A store of currently registered event listeners.
 	 */
-	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
+	private readonly _listeners: DisposableMap<
+		TStreamListenerNames,
+		DisposableMap<Function, IDisposable>
+	> = this._register(new DisposableMap());
+
+	/**
+	 * This method is called when a new incoming data
+	 * is received from the input stream.
+	 */
+	protected abstract onStreamData(data: K): void;
 
 	/**
 	 * @param stream The input stream to decode.
@@ -53,32 +63,74 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * This method is called when a new incomming data
-	 * is received from the input stream.
+	 * Private attribute to track if the stream has started.
 	 */
-	protected abstract onStreamData(data: K): void;
+	private started = false;
 
 	/**
-	 * Start receiveing data from the stream.
+	 * Promise that resolves when the stream has ended, either by
+	 * receiving the `end` event or by a disposal, but not when
+	 * the `error` event is received alone.
+	 */
+	private settledPromise = new DeferredPromise<void>();
+
+	/**
+	 * Promise that resolves when the stream has ended, either by
+	 * receiving the `end` event or by a disposal, but not when
+	 * the `error` event is received alone.
+	 *
+	 * @throws If the stream was not yet started to prevent this
+	 * 		   promise to block the consumer calls indefinitely.
+	 */
+	public get settled(): Promise<void> {
+		// if the stream has not started yet, the promise might
+		// block the consumer calls indefinitely if they forget
+		// to call the `start()` method, or if the call happens
+		// after await on the `settled` promise; to forbid this
+		// confusion, we require the stream to be started first
+		assert(
+			this.started,
+			[
+				'Cannot get `settled` promise of a stream that has not been started.',
+				'Please call `start()` first.',
+			].join(' '),
+		);
+
+		return this.settledPromise.p;
+	}
+
+	/**
+	 * Start receiving data from the stream.
 	 * @throws if the decoder stream has already ended.
 	 */
 	public start(): this {
 		assert(
-			!this.ended,
+			this._ended === false,
 			'Cannot start stream that has already ended.',
 		);
-
 		assert(
-			!this.disposed,
+			this.isDisposed === false,
 			'Cannot start stream that has already disposed.',
 		);
 
-		this.stream.on('data', this.tryOnStreamData);
-		this.stream.on('error', this.onStreamError);
+		// if already started, nothing to do
+		if (this.started) {
+			return this;
+		}
+		this.started = true;
+
+		/**
+		 * !NOTE! The order of event subscriptions is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
 		this.stream.on('end', this.onStreamEnd);
+		this.stream.on('error', this.onStreamError);
+		this.stream.on('data', this.tryOnStreamData);
 
 		// this allows to compose decoders together, - if a decoder
-		// instance is passed as a readble stream to this decoder,
+		// instance is passed as a readable stream to this decoder,
 		// then we need to call `start` on it too
 		if (this.stream instanceof BaseDecoder) {
 			this.stream.start();
@@ -91,8 +143,8 @@ export abstract class BaseDecoder<
 	 * Check if the decoder has been ended hence has
 	 * no more data to produce.
 	 */
-	public get isEnded(): boolean {
-		return this.ended;
+	public get ended(): boolean {
+		return this._ended;
 	}
 
 	/**
@@ -122,7 +174,7 @@ export abstract class BaseDecoder<
 			return this.onEnd(callback as () => void);
 		}
 
-		throw new Error(`Invalid event name: ${event}`);
+		assertNever(event, `Invalid event name '${event}'`);
 	}
 
 	/**
@@ -138,7 +190,7 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('data');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('data', currentListeners);
 		}
 
@@ -158,7 +210,7 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('error');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('error', currentListeners);
 		}
 
@@ -178,30 +230,11 @@ export abstract class BaseDecoder<
 		let currentListeners = this._listeners.get('end');
 
 		if (!currentListeners) {
-			currentListeners = new Map();
+			currentListeners = new DisposableMap();
 			this._listeners.set('end', currentListeners);
 		}
 
 		currentListeners.set(callback, this._onEnd.event(callback));
-	}
-
-	/**
-	 * Remove all existing event listeners.
-	 */
-	public removeAllListeners(): void {
-		// remove listeners set up by this class
-		this.stream.removeListener('data', this.tryOnStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
-
-		// remove listeners set up by external consumers
-		for (const [name, listeners] of this._listeners.entries()) {
-			this._listeners.delete(name);
-			for (const [listener, disposable] of listeners) {
-				disposable.dispose();
-				listeners.delete(listener);
-			}
-		}
 	}
 
 	/**
@@ -217,7 +250,7 @@ export abstract class BaseDecoder<
 	 */
 	public resume(): void {
 		assert(
-			!this.ended,
+			this.ended === false,
 			'Cannot resume the stream because it has already ended.',
 		);
 
@@ -232,7 +265,7 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * Removes a priorly-registered event listener for a specified event.
+	 * Removes a previously-registered event listener for a specified event.
 	 *
 	 * Note!
 	 *  - the callback function must be the same as the one that was used when
@@ -240,22 +273,20 @@ export abstract class BaseDecoder<
 	 *    remove the listener
 	 *  - this method is idempotent and results in no-op if the listener is
 	 *    not found, therefore passing incorrect `callback` function may
-	 *    result in silent unexpected behaviour
+	 *    result in silent unexpected behavior
 	 */
-	public removeListener(event: string, callback: Function): void {
-		for (const [nameName, listeners] of this._listeners.entries()) {
-			if (nameName !== event) {
+	public removeListener(eventName: TStreamListenerNames, callback: Function): void {
+		const listeners = this._listeners.get(eventName);
+		if (listeners === undefined) {
+			return;
+		}
+
+		for (const [listener] of listeners) {
+			if (listener !== callback) {
 				continue;
 			}
 
-			for (const [listener, disposable] of listeners) {
-				if (listener !== callback) {
-					continue;
-				}
-
-				disposable.dispose();
-				listeners.delete(listener);
-			}
+			listeners.deleteAndDispose(listener);
 		}
 	}
 
@@ -263,12 +294,13 @@ export abstract class BaseDecoder<
 	 * This method is called when the input stream ends.
 	 */
 	protected onStreamEnd(): void {
-		if (this.ended) {
+		if (this._ended) {
 			return;
 		}
 
-		this.ended = true;
+		this._ended = true;
 		this._onEnd.fire();
+		this.settledPromise.complete();
 	}
 
 	/**
@@ -286,7 +318,7 @@ export abstract class BaseDecoder<
 	 */
 	public async consumeAll(): Promise<T[]> {
 		assert(
-			!this.ended,
+			!this._ended,
 			'Cannot consume all messages of the stream that has already ended.',
 		);
 
@@ -309,7 +341,7 @@ export abstract class BaseDecoder<
 	 */
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		assert(
-			!this.ended,
+			!this._ended,
 			'Cannot iterate on messages of the stream that has already ended.',
 		);
 
@@ -319,14 +351,15 @@ export abstract class BaseDecoder<
 	}
 
 	public override dispose(): void {
-		if (this.disposed) {
-			return;
-		}
+		this.settledPromise.complete();
 
-		this.onStreamEnd();
+		// remove all existing event listeners
+		this._listeners.clearAndDisposeAll();
+		this.stream.removeListener('data', this.tryOnStreamData);
+		this.stream.removeListener('error', this.onStreamError);
+		this.stream.removeListener('end', this.onStreamEnd);
 
 		this.stream.destroy();
-		this.removeAllListeners();
 		super.dispose();
 	}
 }

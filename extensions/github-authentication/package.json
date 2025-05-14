@@ -39,11 +39,12 @@
       }
     ],
     "configuration": [{
-      "title": "GitHub Enterprise Server Authentication Provider",
+      "title": "%config.github-enterprise.title%",
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "GitHub Enterprise Server URI"
+          "markdownDescription": "%config.github-enterprise.uri.description%",
+          "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
         }
       }
     }
@@ -66,7 +67,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {

@@ -45,6 +45,10 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
+	triggerPaste(): Promise<void> | undefined {
+		return undefined;
+	}
+
 	async readImage(): Promise<Uint8Array> {
 		try {
 			const clipboardItems = await navigator.clipboard.read();

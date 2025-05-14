@@ -117,13 +117,15 @@ class Arrow {
 	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
 
 	private readonly _ruleName = Arrow._IdGenerator.nextId();
-	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _decorations: IEditorDecorationsCollection;
 	private _color: string | null = null;
 	private _height: number = -1;
 
 	constructor(
 		private readonly _editor: ICodeEditor
-	) { }
+	) {
+		this._decorations = this._editor.createDecorationsCollection();
+	}
 
 	dispose(): void {
 		this.hide();
@@ -368,7 +370,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		if (this.options.showFrame) {
-			const frameThickness = Math.round(lineHeight / 9);
+			const frameThickness = this.options.frameWidth ?? Math.round(lineHeight / 9);
 			result += 2 * frameThickness;
 		}
 
@@ -497,9 +499,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
-	protected _relayout(_newHeightInLines: number): void {
+	protected _relayout(_newHeightInLines: number, useMax?: boolean): void {
 		const maxHeightInLines = this._getMaximumHeightInLines();
-		const newHeightInLines = maxHeightInLines === undefined ? _newHeightInLines : Math.min(maxHeightInLines, _newHeightInLines);
+		const newHeightInLines = (useMax && (maxHeightInLines !== undefined)) ? Math.min(maxHeightInLines, _newHeightInLines) : _newHeightInLines;
 		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {

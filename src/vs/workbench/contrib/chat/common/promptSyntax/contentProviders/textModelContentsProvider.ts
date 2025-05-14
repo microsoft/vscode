@@ -3,30 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IPromptContentsProvider } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
-import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { ReadableStream } from '../../../../../../base/common/stream.js';
+import { FilePromptContentProvider } from './filePromptContentsProvider.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
+import { ObjectStream } from '../../../../../../editor/common/codecs/utils/objectStream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 
 /**
- * Prompt contents provider for a {@linkcode ITextModel} instance.
+ * Prompt contents provider for a {@link ITextModel} instance.
  */
 export class TextModelContentsProvider extends PromptContentsProviderBase<IModelContentChangedEvent> {
 	/**
 	 * URI component of the prompt associated with this contents provider.
 	 */
-	public readonly uri = this.model.uri;
+	public get uri(): URI {
+		return this.model.uri;
+	}
+
+	public override get sourceName(): string {
+		return 'text-model';
+	}
+
+	public override get languageId(): string {
+		return this.model.getLanguageId();
+	}
 
 	constructor(
 		private readonly model: ITextModel,
+		options: Partial<IPromptContentsProviderOptions>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super();
+		super(options);
 
 		this._register(this.model.onWillDispose(this.dispose.bind(this)));
-		this._register(this.model.onDidChangeContent(this.onChangeEmitter.fire));
+		this._register(
+			this.model.onDidChangeContent(this.onChangeEmitter.fire.bind(this.onChangeEmitter)),
+		);
 	}
 
 	/**
@@ -44,43 +63,32 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
-		const stream = newWriteableStream<VSBuffer>(null);
-		const linesCount = this.model.getLineCount();
+		return ObjectStream.fromTextModel(this.model, cancellationToken);
+	}
 
-		// provide the changed lines to the stream incrementaly and asynchronously
-		// to avoid blocking the main thread and save system resources used
-		let i = 0;
-		const interval = setInterval(() => {
-			if (this.model.isDisposed() || cancellationToken?.isCancellationRequested) {
-				clearInterval(interval);
-				stream.error(new CancellationError());
-				stream.end();
-				return;
-			}
-
-			// write the current line to the stream
-			stream.write(
-				VSBuffer.fromString(this.model.getLineContent(i)),
+	public override createNew(
+		promptContentsSource: TextModel | { uri: URI },
+		options: Partial<IPromptContentsProviderOptions> = {},
+	): IPromptContentsProvider {
+		if (promptContentsSource instanceof TextModel) {
+			return this.instantiationService.createInstance(
+				TextModelContentsProvider,
+				promptContentsSource,
+				options,
 			);
+		}
 
-			// use the next line in the next iteration
-			i++;
-
-			// if we have written all lines, end the stream and stop
-			// the interval timer
-			if (i >= linesCount) {
-				clearInterval(interval);
-				stream.end();
-			}
-		}, 1);
-
-		return stream;
+		return this.instantiationService.createInstance(
+			FilePromptContentProvider,
+			promptContentsSource.uri,
+			options,
+		);
 	}
 
 	/**
 	 * String representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `text-model-prompt-contents-provider:${this.uri.path}`;
 	}
 }

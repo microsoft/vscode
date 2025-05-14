@@ -193,6 +193,10 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;
@@ -368,7 +372,7 @@ export function move(array: unknown[], from: number, to: number): void {
 /**
  * @returns false if the provided object is an array and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
+export function isFalsyOrEmpty(obj: unknown): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
@@ -621,6 +625,17 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
+ * @deprecated do not use, use property access
+ */
+export const pick = <TObject, TKeyName extends keyof TObject>(
+	key: TKeyName,
+) => {
+	return (obj: TObject): TObject[TKeyName] => {
+		return obj[key];
+	};
+};
+
+/**
  * When comparing two values,
  * a negative number indicates that the first value is less than the second,
  * a positive number indicates that the first value is greater than the second,
@@ -684,14 +699,34 @@ export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<T
 	return (a, b) => -comparator(a, b);
 }
 
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
+}
+
 export class ArrayQueue<T> {
+	private readonly items: readonly T[];
 	private firstIdx = 0;
-	private lastIdx = this.items.length - 1;
+	private lastIdx: number;
 
 	/**
 	 * Constructs a queue that is backed by the given array. Runtime is O(1).
 	*/
-	constructor(private readonly items: readonly T[]) { }
+	constructor(items: readonly T[]) {
+		this.items = items;
+		this.lastIdx = this.items.length - 1;
+	}
 
 	get length(): number {
 		return this.lastIdx - this.firstIdx + 1;
@@ -887,4 +922,12 @@ export async function findAsync<T>(array: readonly T[], predicate: (element: T, 
 	));
 
 	return results.find(r => r.ok)?.element;
+}
+
+export function sum(array: readonly number[]): number {
+	return array.reduce((acc, value) => acc + value, 0);
+}
+
+export function sumBy<T>(array: readonly T[], selector: (value: T) => number): number {
+	return array.reduce((acc, value) => acc + selector(value), 0);
 }

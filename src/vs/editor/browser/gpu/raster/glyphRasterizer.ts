@@ -112,6 +112,10 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		this._ctx.save();
 
+		// The sub-pixel x offset is the fractional part of the x pixel coordinate of the cell, this
+		// is used to improve the spacing between rendered characters.
+		const xSubPixelXOffset = (tokenMetadata & 0b1111) / 10;
+
 		const bgId = TokenMetadata.getBackground(tokenMetadata);
 		const bg = colorMap[bgId];
 
@@ -157,7 +161,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			this._ctx.globalAlpha = decorationStyleSet.opacity;
 		}
 
-		this._ctx.fillText(chars, originX, originY);
+		this._ctx.fillText(chars, originX + xSubPixelXOffset, originY);
 		this._ctx.restore();
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);

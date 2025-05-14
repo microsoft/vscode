@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -53,6 +53,10 @@ export function isSCMHistoryItemViewModelTreeElement(element: any): element is S
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
 	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
+}
+
+export function isSCMHistoryItemChangeViewModelTreeElement(element: any): element is SCMHistoryItemChangeViewModelTreeElement {
+	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
 }
 
 const compareActions = (a: IAction, b: IAction) => {

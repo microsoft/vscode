@@ -14,7 +14,11 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { Color } from '../../../../base/common/color.js';
-import { editorErrorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import {
+	darken, editorBackground, editorForeground, listInactiveSelectionBackground, opaque,
+	editorErrorForeground, registerColor, transparent,
+	lighten
+} from '../../../../platform/theme/common/colorRegistry.js';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 
@@ -22,13 +26,24 @@ const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackg
 	dark: '#1B81A8', light: '#2090D3', hcDark: '#1B81A8', hcLight: '#2090D3'
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
+registerColor('editorGutter.modifiedSecondaryBackground',
+	{ dark: darken(editorGutterModifiedBackground, 0.5), light: lighten(editorGutterModifiedBackground, 0.7), hcDark: '#1B81A8', hcLight: '#2090D3' },
+	nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
+
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
 	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#48985D'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
+registerColor('editorGutter.addedSecondaryBackground',
+	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.7), hcDark: '#487E02', hcLight: '#48985D' },
+	nls.localize('editorGutterAddedSecondaryBackground', "Editor gutter secondary background color for lines that are added."));
+
 const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground',
 	editorErrorForeground, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
 
+registerColor('editorGutter.deletedSecondaryBackground',
+	{ dark: darken(editorGutterDeletedBackground, 0.4), light: lighten(editorGutterDeletedBackground, 0.3), hcDark: '#F48771', hcLight: '#B5200D' },
+	nls.localize('editorGutterDeletedSecondaryBackground', "Editor gutter secondary background color for lines that are deleted."));
 export const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground',
 	editorGutterModifiedBackground, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
 
@@ -45,24 +60,30 @@ export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.a
 export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground',
 	transparent(editorGutterDeletedBackground, 0.6), nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
+export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemGlyphForeground',
+	{ dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white },
+	nls.localize('editorGutterItemGlyphForeground', 'Editor gutter decoration color for gutter item glyphs.')
+);
+export const editorGutterItemBackground = registerColor('editorGutter.itemBackground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterItemBackground', 'Editor gutter decoration color for gutter item background. This color should be opaque.'));
+
 export interface QuickDiffProvider {
-	label: string;
-	rootUri: URI | undefined;
-	selector?: LanguageSelector;
-	isSCM: boolean;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly rootUri: URI | undefined;
+	readonly selector?: LanguageSelector;
+	readonly kind: 'primary' | 'secondary' | 'contributed';
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
 export interface QuickDiff {
-	label: string;
-	originalResource: URI;
-	isSCM: boolean;
-	visible: boolean;
+	readonly id: string;
+	readonly label: string;
+	readonly originalResource: URI;
+	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 
 export interface QuickDiffChange {
-	readonly label: string;
+	readonly providerId: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly change: IChange;
@@ -70,7 +91,6 @@ export interface QuickDiffChange {
 }
 
 export interface QuickDiffResult {
-	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly changes: IChange[];
@@ -81,8 +101,11 @@ export interface IQuickDiffService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeQuickDiffProviders: Event<void>;
+	readonly providers: readonly QuickDiffProvider[];
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
 	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
+	toggleQuickDiffProviderVisibility(id: string): void;
+	isQuickDiffProviderVisible(id: string): boolean;
 }
 
 export enum ChangeType {

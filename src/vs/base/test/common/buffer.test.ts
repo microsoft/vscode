@@ -429,7 +429,106 @@ suite('Buffer', () => {
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('ccc')), 15);
 
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('cccb')), -1);
+	});
 
+	test('wrap', () => {
+		const actual = new Uint8Array([1, 2, 3]);
+		const wrapped = VSBuffer.wrap(actual);
+		assert.strictEqual(wrapped.byteLength, 3);
+		assert.deepStrictEqual(Array.from(wrapped.buffer), [1, 2, 3]);
+	});
+
+	test('fromString', () => {
+		const value = 'Hello World';
+		const buff = VSBuffer.fromString(value);
+		assert.strictEqual(buff.toString(), value);
+	});
+
+	test('fromByteArray', () => {
+		const array = [1, 2, 3, 4, 5];
+		const buff = VSBuffer.fromByteArray(array);
+		assert.strictEqual(buff.byteLength, array.length);
+		assert.deepStrictEqual(Array.from(buff.buffer), array);
+	});
+
+	test('concat', () => {
+		const chunks = [
+			VSBuffer.fromString('abc'),
+			VSBuffer.fromString('def'),
+			VSBuffer.fromString('ghi')
+		];
+
+		// Test without total length
+		const result1 = VSBuffer.concat(chunks);
+		assert.strictEqual(result1.toString(), 'abcdefghi');
+
+		// Test with total length
+		const result2 = VSBuffer.concat(chunks, 9);
+		assert.strictEqual(result2.toString(), 'abcdefghi');
+	});
+
+	test('clone', () => {
+		const original = VSBuffer.fromString('test');
+		const clone = original.clone();
+
+		assert.notStrictEqual(original.buffer, clone.buffer);
+		assert.deepStrictEqual(Array.from(original.buffer), Array.from(clone.buffer));
+	});
+
+	test('slice', () => {
+		const buff = VSBuffer.fromString('Hello World');
+
+		const slice1 = buff.slice(0, 5);
+		assert.strictEqual(slice1.toString(), 'Hello');
+
+		const slice2 = buff.slice(6);
+		assert.strictEqual(slice2.toString(), 'World');
+	});
+
+	test('set', () => {
+		const buff = VSBuffer.alloc(5);
+
+		// Test setting from VSBuffer
+		buff.set(VSBuffer.fromString('ab'), 0);
+		assert.strictEqual(buff.toString().substring(0, 2), 'ab');
+
+		// Test setting from Uint8Array
+		buff.set(new Uint8Array([99, 100]), 2); // 'cd'
+		assert.strictEqual(buff.toString().substring(2, 4), 'cd');
+
+		// Test invalid input
+		assert.throws(() => {
+			buff.set({} as any);
+		});
+	});
+
+	test('equals', () => {
+		const buff1 = VSBuffer.fromString('test');
+		const buff2 = VSBuffer.fromString('test');
+		const buff3 = VSBuffer.fromString('different');
+		const buff4 = VSBuffer.fromString('tes1');
+
+		assert.strictEqual(buff1.equals(buff1), true);
+		assert.strictEqual(buff1.equals(buff2), true);
+		assert.strictEqual(buff1.equals(buff3), false);
+		assert.strictEqual(buff1.equals(buff4), false);
+	});
+
+	test('read/write methods', () => {
+		const buff = VSBuffer.alloc(8);
+
+		// Test UInt32BE
+		buff.writeUInt32BE(0x12345678, 0);
+		assert.strictEqual(buff.readUInt32BE(0), 0x12345678);
+
+		// Test UInt32LE
+		buff.writeUInt32LE(0x12345678, 4);
+		assert.strictEqual(buff.readUInt32LE(4), 0x12345678);
+
+		// Test UInt8
+		const buff2 = VSBuffer.alloc(1);
+		buff2.writeUInt8(123, 0);
+		assert.strictEqual(buff2.readUInt8(0), 123);
 	});
 
 	suite('base64', () => {

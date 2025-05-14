@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource, IStatusHandle } from '../../../../platform/notification/common/notification.js';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from '../../../common/notifications.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAction, Action } from '../../../../base/common/actions.js';
@@ -28,6 +28,16 @@ export class NotificationService extends Disposable implements INotificationServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+		this.mapSourceToFilter = (() => {
+			const map = new Map<string, INotificationSourceFilter>();
+
+			for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
+				map.set(sourceFilter.id, sourceFilter);
+			}
+
+			return map;
+		})();
+		this.globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
 
 		this.updateFilters();
 		this.registerListeners();
@@ -81,17 +91,9 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidChangeFilter = this._register(new Emitter<void>());
 	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
-	private globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	private globalFilterEnabled: boolean;
 
-	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter> = (() => {
-		const map = new Map<string, INotificationSourceFilter>();
-
-		for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
-			map.set(sourceFilter.id, sourceFilter);
-		}
-
-		return map;
-	})();
+	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter>;
 
 	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void {
 		if (typeof filter === 'number') {
@@ -344,7 +346,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		return handle;
 	}
 
-	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
 		return this.model.showStatusMessage(message, options);
 	}
 }

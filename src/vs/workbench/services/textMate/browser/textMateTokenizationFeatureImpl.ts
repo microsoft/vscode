@@ -44,22 +44,18 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	public _serviceBrand: undefined;
 
 	private readonly _styleElement: HTMLStyleElement;
-	private readonly _createdModes: string[] = [];
-	private readonly _encounteredLanguages: boolean[] = [];
+	private readonly _createdModes: string[];
+	private readonly _encounteredLanguages: boolean[];
 
-	private _debugMode: boolean = false;
-	private _debugModePrintFunc: (str: string) => void = () => { };
+	private _debugMode: boolean;
+	private _debugModePrintFunc: (str: string) => void;
 
-	private _grammarDefinitions: IValidGrammarDefinition[] | null = null;
-	private _grammarFactory: TMGrammarFactory | null = null;
-	private readonly _tokenizersRegistrations = new DisposableStore();
-	private _currentTheme: IRawTheme | null = null;
-	private _currentTokenColorMap: string[] | null = null;
-	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
-		ThreadedBackgroundTokenizerFactory,
-		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
-		() => this.getAsyncTokenizationEnabled(),
-	);
+	private _grammarDefinitions: IValidGrammarDefinition[] | null;
+	private _grammarFactory: TMGrammarFactory | null;
+	private readonly _tokenizersRegistrations;
+	private _currentTheme: IRawTheme | null;
+	private _currentTokenColorMap: string[] | null;
+	private readonly _threadedBackgroundTokenizerFactory;
 
 	constructor(
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -74,6 +70,21 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._createdModes = [];
+		this._encounteredLanguages = [];
+		this._debugMode = false;
+		this._debugModePrintFunc = () => { };
+		this._grammarDefinitions = null;
+		this._grammarFactory = null;
+		this._tokenizersRegistrations = this._register(new DisposableStore());
+		this._currentTheme = null;
+		this._currentTokenColorMap = null;
+		this._threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
+			ThreadedBackgroundTokenizerFactory,
+			(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
+			() => this.getAsyncTokenizationEnabled(),
+		);
+		this._vscodeOniguruma = null;
 
 		this._styleElement = domStylesheets.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -291,7 +302,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				-1,
 				this._configurationService
 			);
-			const tokenization = new TextMateTokenizationSupport(
+			const store = new DisposableStore();
+			const tokenization = store.add(new TextMateTokenizationSupport(
 				r.grammar,
 				r.initialState,
 				r.containsEmbeddedLanguages,
@@ -301,15 +313,16 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 					this._reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
 				},
 				true,
-			);
-			const disposable = tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+			));
+			store.add(tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
-			});
-			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, disposable, maxTokenizationLineLength);
+			}));
+
+			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, store, maxTokenizationLineLength);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
 				// Don't log this error message
@@ -352,7 +365,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		return grammar;
 	}
 
-	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null = null;
+	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null;
 	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {

@@ -104,6 +104,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
+	'add-mcp': { type: 'string[]', cat: 'o', args: 'json', description: localize('addMcp', "Adds a Model Context Protocol server definition to the user profile. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
+
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
@@ -125,6 +127,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
 	'sandbox': { type: 'boolean' },
+	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
@@ -167,6 +170,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'do-not-sync': { type: 'boolean' },
 	'do-not-include-pack-dependencies': { type: 'boolean' },
 	'trace': { type: 'boolean' },
+	'trace-memory-infra': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'preserve-env': { type: 'boolean' },
@@ -178,9 +182,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
 	'continueOn': { type: 'string' },
-	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
-
 	'enable-coi': { type: 'boolean' },
+	'unresponsive-sample-interval': { type: 'string' },
+	'unresponsive-sample-period': { type: 'string' },
+	'enable-rdp-display-tracking': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -211,6 +216,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'trace-startup-format': { type: 'string' },
 	'trace-startup-file': { type: 'string' },
 	'trace-startup-duration': { type: 'string' },
+	'xdg-portal-required-version': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };
@@ -232,7 +238,8 @@ const ignoringReporter = {
 };
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
-	const firstArg = args.find(a => a.length > 0 && a[0] !== '-');
+	// Find the first non-option arg, which also isn't the value for a previous `--flag`
+	const firstPossibleCommand = args.find((a, i) => a.length > 0 && a[0] !== '-' && options.hasOwnProperty(a) && options[a as T].type === 'subcommand');
 
 	const alias: { [key: string]: string } = {};
 	const stringOptions: string[] = ['_'];
@@ -242,7 +249,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.type === 'subcommand') {
-			if (optionId === firstArg) {
+			if (optionId === firstPossibleCommand) {
 				command = o;
 			}
 		} else {
@@ -266,17 +273,17 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 		}
 	}
-	if (command && firstArg) {
+	if (command && firstPossibleCommand) {
 		const options = globalOptions;
 		for (const optionId in command.options) {
 			options[optionId] = command.options[optionId];
 		}
-		const newArgs = args.filter(a => a !== firstArg);
-		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
+		const newArgs = args.filter(a => a !== firstPossibleCommand);
+		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstPossibleCommand) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
-			[firstArg]: subcommandOptions,
+			[firstPossibleCommand]: subcommandOptions,
 			_: []
 		};
 	}
@@ -408,9 +415,12 @@ function indent(count: number): string {
 function wrapText(text: string, columns: number): string[] {
 	const lines: string[] = [];
 	while (text.length) {
-		const index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		if (index === 0) {
+			index = columns;
+		}
 		const line = text.slice(0, index).trim();
-		text = text.slice(index);
+		text = text.slice(index).trimStart();
 		lines.push(line);
 	}
 	return lines;

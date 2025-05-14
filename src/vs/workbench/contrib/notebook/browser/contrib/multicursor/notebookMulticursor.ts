@@ -31,7 +31,6 @@ import { indentOfLine } from '../../../../../../editor/common/model/textModel.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
-import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -91,28 +90,28 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	static readonly id: string = 'notebook.multiCursorController';
 
-	private word: string = '';
+	private word: string;
 	private startPosition: {
 		cellIndex: number;
 		position: Position;
 	} | undefined;
-	private trackedCells: TrackedCell[] = [];
+	private trackedCells: TrackedCell[];
 
-	private readonly _onDidChangeAnchorCell = this._register(new Emitter<void>());
-	readonly onDidChangeAnchorCell: Event<void> = this._onDidChangeAnchorCell.event;
+	private readonly _onDidChangeAnchorCell;
+	readonly onDidChangeAnchorCell: Event<void>;
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
 
-	private readonly anchorDisposables = this._register(new DisposableStore());
-	private readonly cursorsDisposables = this._register(new DisposableStore());
-	private cursorsControllers: ResourceMap<CursorsController> = new ResourceMap<CursorsController>();
+	private readonly anchorDisposables;
+	private readonly cursorsDisposables;
+	private cursorsControllers: ResourceMap<CursorsController>;
 
-	private state: NotebookMultiCursorState = NotebookMultiCursorState.Idle;
+	private state: NotebookMultiCursorState;
 	public getState(): NotebookMultiCursorState {
 		return this.state;
 	}
 
-	private _nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
-	private _nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
+	private _nbIsMultiSelectSession;
+	private _nbMultiSelectState;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -124,6 +123,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super();
+		this.word = '';
+		this.trackedCells = [];
+		this._onDidChangeAnchorCell = this._register(new Emitter<void>());
+		this.onDidChangeAnchorCell = this._onDidChangeAnchorCell.event;
+		this.anchorDisposables = this._register(new DisposableStore());
+		this.cursorsDisposables = this._register(new DisposableStore());
+		this.cursorsControllers = new ResourceMap<CursorsController>();
+		this.state = NotebookMultiCursorState.Idle;
+		this._nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
+		this._nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
 
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 
@@ -811,6 +820,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	private constructCellEditorOptions(cell: ICellViewModel): EditorConfiguration {
 		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService);
 		const options = cellEditorOptions.getUpdatedValue(cell.internalMetadata, cell.uri);
+		cellEditorOptions.dispose();
 		return new EditorConfiguration(false, MenuId.EditorContent, options, null, this.accessibilityService);
 	}
 
@@ -885,21 +895,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				cell.decorationIds,
 				newDecorations
 			);
-
-			/**
-			 * TODO: @Yoyokrazy debt
-			 * goal: draw decorations for occurrence higlight on the cursor blink cycle
-			 *
-			 * Trigger WH with delay: x ms (x = cursor blink cycle)
-			 * -> start = Date()
-			 * -> WordHighlighter -> compute
-			 * -> end = Date()
-			 * -> delay = x - ((end - start) % x)
-			 */
-			const matchingEditor = this.notebookEditor.codeEditors.find(cellEditor => cellEditor[0] === cell.cellViewModel);
-			if (matchingEditor) {
-				WordHighlighterContribution.get(matchingEditor[1])?.wordHighlighter?.trigger();
-			}
 		});
 	}
 
@@ -1050,7 +1045,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
-			title: localize('addFindMatchToSelection', "Add Selection To Next Find Match"),
+			title: localize('addFindMatchToSelection', "Add Selection to Next Find Match"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,

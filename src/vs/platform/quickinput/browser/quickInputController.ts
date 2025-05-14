@@ -17,18 +17,24 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { QuickInputTree } from './quickInputTree.js';
-import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Platform, platform } from '../../../base/common/platform.js';
+import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
+import { getZoomFactor } from '../../../base/browser/browser.js';
+import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 
 const $ = dom.$;
 
@@ -71,18 +77,23 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 
-	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
-	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
-	private readonly endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(this.contextKeyService);
+	private readonly inQuickInputContext: IContextKey<boolean>;
+	private readonly quickInputTypeContext: IContextKey<QuickInputType>;
+	private readonly endOfQuickInputBoxContext: IContextKey<boolean>;
 
 	constructor(
 		private options: IQuickInputOptions,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
+		this.inQuickInputContext = InQuickInputContextKey.bindTo(contextKeyService);
+		this.quickInputTypeContext = QuickInputTypeContextKey.bindTo(contextKeyService);
+		this.endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(contextKeyService);
+
 		this.idPrefix = options.idPrefix;
 		this._container = options.container;
 		this.styles = options.styles;
@@ -111,7 +122,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	private getUI(showInActiveContainer?: boolean) {
+	private getUI(showInActiveContainer?: boolean): QuickInputUI {
 		if (this.ui) {
 			// In order to support aux windows, re-parent the controller
 			// if the original event is from a different document
@@ -143,14 +154,13 @@ export class QuickInputController extends Disposable {
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
-		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
-		checkAll.type = 'checkbox';
-		checkAll.setAttribute('aria-label', localize('quickInput.checkAll', "Toggle all checkboxes"));
-		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
+		const checkAll = this._register(new Checkbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
+		dom.append(headerContainer, checkAll.domNode);
+		this._register(checkAll.onChange(() => {
 			const checked = checkAll.checked;
 			list.setAllVisibleChecked(checked);
 		}));
-		this._register(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
+		this._register(dom.addDisposableListener(checkAll.domNode, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
 				inputBox.setFocus();
 			}
@@ -258,6 +268,11 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
+			// Allow screenreaders to read what's in the input
+			// Note: this works for arrow keys and selection changes,
+			// but not for deletions since that often triggers a
+			// change in the list.
+			inputBox.removeAttribute('aria-activedescendant');
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -309,21 +324,14 @@ export class QuickInputController extends Disposable {
 							selectors.push('.quick-input-html-widget');
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							// Clear the focus from the list in order to allow
-							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(event, true);
-							list.clearFocus();
-						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
+						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(event, true);
 							stops[0].focus();
 						}
-					}
-					break;
-				case KeyCode.Space:
-					if (event.ctrlKey) {
-						dom.EventHelper.stop(event, true);
-						this.getUI().list.toggleHover();
+						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
+							dom.EventHelper.stop(event, true);
+							stops[stops.length - 1].focus();
+						}
 					}
 					break;
 			}
@@ -681,7 +689,7 @@ export class QuickInputController extends Disposable {
 		ui.title.style.display = visibilities.title ? '' : 'none';
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
-		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
+		ui.checkAll.domNode.style.display = visibilities.checkAll ? '' : 'none';
 		ui.inputContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
@@ -699,16 +707,21 @@ export class QuickInputController extends Disposable {
 	private setEnabled(enabled: boolean) {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
-			for (const item of this.getUI().leftActionBar.viewItems) {
+			const ui = this.getUI();
+			for (const item of ui.leftActionBar.viewItems) {
 				(item as ActionViewItem).action.enabled = enabled;
 			}
-			for (const item of this.getUI().rightActionBar.viewItems) {
+			for (const item of ui.rightActionBar.viewItems) {
 				(item as ActionViewItem).action.enabled = enabled;
 			}
-			this.getUI().checkAll.disabled = !enabled;
-			this.getUI().inputBox.enabled = enabled;
-			this.getUI().ok.enabled = enabled;
-			this.getUI().list.enabled = enabled;
+			if (enabled) {
+				ui.checkAll.enable();
+			} else {
+				ui.checkAll.disable();
+			}
+			ui.inputBox.enabled = enabled;
+			ui.ok.enabled = enabled;
+			ui.list.enabled = enabled;
 		}
 	}
 
@@ -755,6 +768,12 @@ export class QuickInputController extends Disposable {
 	toggle() {
 		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
+		}
+	}
+
+	toggleHover() {
+		if (this.isVisible() && this.controller instanceof QuickPick) {
+			this.getUI().list.toggleHover();
 		}
 	}
 
@@ -900,7 +919,10 @@ class QuickInputDragAndDropController extends Disposable {
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
-	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
+	private readonly _controlsOnLeft: boolean;
+	private readonly _controlsOnRight: boolean;
+
+	private _quickInputAlignmentContext: IContextKey<'center' | 'top' | undefined>;
 
 	constructor(
 		private _container: HTMLElement,
@@ -908,9 +930,17 @@ class QuickInputDragAndDropController extends Disposable {
 		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
 		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		this._quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(contextKeyService);
+		const customWindowControls = getWindowControlsStyle(this.configurationService) === WindowControlsStyle.CUSTOM;
+
+		// Do not allow the widget to overflow or underflow window controls.
+		// Use CSS calculations to avoid having to force layout with `.clientWidth`
+		this._controlsOnLeft = customWindowControls && platform === Platform.Mac;
+		this._controlsOnRight = customWindowControls && (platform === Platform.Windows || platform === Platform.Linux);
 		this._registerLayoutListener();
 		this.registerMouseListeners();
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
@@ -1021,6 +1051,15 @@ class QuickInputDragAndDropController extends Disposable {
 		const snapCoordinateX = this._getCenterXSnapValue();
 		// Make sure the quick input is not moved outside the container
 		topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
+
+		if (topCoordinate < this._layoutService.activeContainerOffset.top) {
+			if (this._controlsOnLeft) {
+				leftCoordinate = Math.max(leftCoordinate, 80 / getZoomFactor(dom.getActiveWindow()));
+			} else if (this._controlsOnRight) {
+				leftCoordinate = Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth - (140 / getZoomFactor(dom.getActiveWindow())));
+			}
+		}
+
 		const snappingToTop = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold;
 		topCoordinate = snappingToTop ? snapCoordinateYTop : topCoordinate;
 		const snappingToCenter = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold;

@@ -73,10 +73,15 @@ declare module 'vscode' {
 	 */
 	export interface MappedEditsRequest {
 		readonly codeBlocks: { code: string; resource: Uri; markdownBeforeBlock?: string }[];
+		readonly location?: string;
+		readonly chatRequestId?: string;
+		readonly chatRequestModel?: string;
+		readonly chatSessionId?: string;
 	}
 
 	export interface MappedEditsResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 	}
 
 	export interface MappedEditsResult {

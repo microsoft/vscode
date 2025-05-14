@@ -25,7 +25,7 @@ import { CancellationToken } from '../../base/common/cancellation.js';
 import { URI } from '../../base/common/uri.js';
 import { streamToBuffer } from '../../base/common/buffer.js';
 import { IProductConfiguration } from '../../base/common/product.js';
-import { isString } from '../../base/common/types.js';
+import { isString, Mutable } from '../../base/common/types.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
@@ -239,6 +239,15 @@ export class WebClientServer {
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		// Prefix routes with basePath for clients
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
 			// We got a connection token as a query parameter.
@@ -259,17 +268,12 @@ export class WebClientServer {
 					newQuery[key] = parsedUrl.query[key];
 				}
 			}
-			const newLocation = url.format({ pathname: parsedUrl.pathname, query: newQuery });
+			const newLocation = url.format({ pathname: basePath, query: newQuery });
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);
 			return void res.end();
 		}
-
-		const getFirstHeader = (headerName: string) => {
-			const val = req.headers[headerName];
-			return Array.isArray(val) ? val[0] : val;
-		};
 
 		const replacePort = (host: string, port: string) => {
 			const index = host?.indexOf(':');
@@ -305,9 +309,6 @@ export class WebClientServer {
 			_wrapWebWorkerExtHostInIframe = false;
 		}
 
-		// Prefix routes with basePath for clients
-		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
-
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			['x-original-host', 'x-forwarded-host', 'x-forwarded-port', 'host'].forEach(header => {
 				const value = getFirstHeader(header);
@@ -332,7 +333,7 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
-		const productConfiguration = {
+		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
 			embedderIdentifier: 'server-distro',
 			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
 				...this._productService.extensionsGallery,
@@ -342,7 +343,13 @@ export class WebClientServer {
 					path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 				}).toString(true)
 			} : undefined
-		} satisfies Partial<IProductConfiguration>;
+		};
+
+		const proposedApi = this._environmentService.args['enable-proposed-api'];
+		if (proposedApi?.length) {
+			productConfiguration.extensionsEnabledWithApiProposalVersion ??= [];
+			productConfiguration.extensionsEnabledWithApiProposalVersion.push(...proposedApi);
+		}
 
 		if (!this._environmentService.isBuilt) {
 			try {

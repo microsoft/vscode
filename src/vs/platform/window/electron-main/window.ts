@@ -9,9 +9,10 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FocusMode } from '../../native/common/native.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
-import { INativeWindowConfiguration } from '../common/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -26,7 +27,7 @@ export interface IBaseWindow extends IDisposable {
 	readonly win: electron.BrowserWindow | null;
 
 	readonly lastFocusTime: number;
-	focus(options?: { force: boolean }): void;
+	focus(options?: { mode: FocusMode }): void;
 
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
@@ -139,8 +140,8 @@ export interface IWindowState {
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
-		width: 1200,
-		height: 800,
+		width: DEFAULT_WINDOW_SIZE.width,
+		height: DEFAULT_WINDOW_SIZE.height,
 		mode
 	};
 };
@@ -154,8 +155,8 @@ export const defaultAuxWindowState = function (): IWindowState {
 	// we need to set not only width and height but also x and y to
 	// a good location on the primary display.
 
-	const width = 1024;
-	const height = 768;
+	const width = DEFAULT_AUX_WINDOW_SIZE.width;
+	const height = DEFAULT_AUX_WINDOW_SIZE.height;
 	const workArea = electron.screen.getPrimaryDisplay().workArea;
 	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
 	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);
@@ -196,5 +197,10 @@ export const enum WindowError {
 	/**
 	 * Maps to the `did-fail-load` event on a `WebContents`.
 	 */
-	LOAD = 3
+	LOAD = 3,
+
+	/**
+	 * Maps to the `responsive` event on a `BrowserWindow`.
+	 */
+	RESPONSIVE = 4,
 }

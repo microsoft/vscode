@@ -26,6 +26,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
@@ -117,6 +118,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	) {
 		super(editor, options);
 		objects.mixin(this.options, defaultOptions, false);
+
+		const e = observableCodeEditor(this.editor);
+		e.openedPeekWidgets.set(e.openedPeekWidgets.get() + 1, undefined);
 	}
 
 	override dispose(): void {
@@ -124,6 +128,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			this.disposed = true; // prevent consumers who dispose on onDidClose from looping
 			super.dispose();
 			this._onDidClose.fire(this);
+
+			const e = observableCodeEditor(this.editor);
+			e.openedPeekWidgets.set(e.openedPeekWidgets.get() - 1, undefined);
 		}
 	}
 
@@ -193,10 +200,10 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._disposables.add(this._actionbarWidget);
 
 		if (!noCloseAction) {
-			this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
+			this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 				this.dispose();
 				return Promise.resolve();
-			}), { label: false, icon: true });
+			})), { label: false, icon: true });
 		}
 	}
 
@@ -248,7 +255,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		}
 
 		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
-		const bodyHeight = Math.round(heightInPixel - (headHeight + 2 /* the border-top/bottom width*/));
+		const bodyHeight = Math.round(heightInPixel - (headHeight + 1 /* the border-top width */));
 
 		this._doLayoutHead(headHeight, widthInPixel);
 		this._doLayoutBody(bodyHeight, widthInPixel);

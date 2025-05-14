@@ -197,7 +197,6 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
 		this._plainTextSearchResult.hidden = false;
-		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
 			this._aiTextSearchResult.add(allRaw, searchInstanceID, silent);

@@ -7,9 +7,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { IDynamicVariable } from '../../../common/chatVariables.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
-import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -23,8 +23,8 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 	 */
 	constructor(
 		public readonly reference: IDynamicVariable,
-		@IInstantiationService initService: IInstantiationService,
-		@IConfigurationService configService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
 		const { data } = reference;
@@ -34,7 +34,7 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 			`Variable data must be an URI, got '${data}'.`,
 		);
 
-		super(data, [], initService, configService, logService);
+		super(data, {}, instantiationService, workspaceService, logService);
 	}
 
 	/**
@@ -57,10 +57,6 @@ export class ChatFileReference extends FilePromptParser implements IDynamicVaria
 
 	public get data(): URI {
 		return this.uri;
-	}
-
-	public get prefix() {
-		return this.reference.prefix;
 	}
 
 	public get isFile() {

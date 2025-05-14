@@ -7,6 +7,7 @@ import { QuickInput } from './quickinput';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 import { IElement } from './driver';
+import { wait } from './playwrightDriver';
 
 export enum Selector {
 	TerminalView = `#terminal`,
@@ -82,7 +83,9 @@ export class Terminal {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
-			await this.code.dispatchKeybinding('enter');
+			await this.code.sendKeybinding('enter');
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
 			await this.quickinput.waitForQuickInputClosed();
 		}
 		switch (commandId) {
@@ -117,10 +120,14 @@ export class Terminal {
 			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
-			await this.code.dispatchKeybinding('Backspace');
+			await this.code.sendKeybinding('Backspace');
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
 		}
 		await this.code.wait(100);
-		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
+		await this.code.sendKeybinding(altKey ? 'Alt+Enter' : 'enter');
+		// TODO https://github.com/microsoft/vscode/issues/242535
+		await wait(100);
 		await this.quickinput.waitForQuickInputClosed();
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
 			await this._waitForTerminal();
@@ -130,7 +137,9 @@ export class Terminal {
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
 		if (!skipEnter) {
-			await this.code.dispatchKeybinding('enter');
+			await this.code.sendKeybinding('enter');
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
 		}
 	}
 
@@ -210,7 +219,7 @@ export class Terminal {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
 				description: description?.textContent
 			};
-			// It's a new group if the the tab does not start with ├ or └
+			// It's a new group if the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
 				groups[groups.length - 1].push(label);
 			} else {

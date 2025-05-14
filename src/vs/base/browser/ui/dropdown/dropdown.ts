@@ -22,12 +22,12 @@ export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
 }
 
-interface IBaseDropdownOptions {
+export interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
 }
 
-class BaseDropdown extends ActionRunner {
+export class BaseDropdown extends ActionRunner {
 	private _element: HTMLElement;
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;
@@ -75,7 +75,7 @@ class BaseDropdown extends ActionRunner {
 			}));
 		}
 
-		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
+		this._register(addDisposableListener(this._label, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true); // https://github.com/microsoft/vscode/issues/57997
@@ -159,6 +159,12 @@ class BaseDropdown extends ActionRunner {
 
 export interface IActionProvider {
 	getActions(): readonly IAction[];
+}
+
+export function isActionProvider(obj: unknown): obj is IActionProvider {
+	const candidate = obj as IActionProvider | undefined;
+
+	return typeof candidate?.getActions === 'function';
 }
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {
