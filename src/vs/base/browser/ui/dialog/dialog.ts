@@ -593,8 +593,8 @@ export class Dialog extends Disposable {
 		// so that when we move them around it's not a problem
 		const buttonMap: ButtonMapEntry[] = buttons.map((label, index) => ({ label, index }));
 
-		if (buttons.length < 2) {
-			return buttonMap; // only need to rearrange if there are 2+ buttons
+		if (buttons.length < 2 || this.options.alignment === DialogContentsAlignment.Vertical) {
+			return buttonMap; // only need to rearrange if there are 2+ buttons and the alignment is left-to-right
 		}
 
 		if (isMacintosh || isLinux) {

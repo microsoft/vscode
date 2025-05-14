@@ -183,7 +183,7 @@
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
 	margin-left: 5px;
 	margin-right: 5px;
-	flex-direction: column-reverse;
+	flex-direction: column;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
