@@ -416,6 +416,12 @@ export const enum SearchSortOrder {
 	CountAscending = 'countAscending'
 }
 
+export const enum SemanticSearchBehavior {
+	Auto = 'auto',
+	Manual = 'manual',
+	RunOnEmpty = 'runOnEmpty',
+}
+
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
@@ -460,7 +466,9 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
-		autoAISearchResults: boolean;
+	};
+	searchView: {
+		autoAISearchResults: string;
 	};
 }
 
