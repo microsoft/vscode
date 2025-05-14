@@ -229,8 +229,8 @@ export class ScreenReaderSupport {
 	}
 
 	private _renderLine(ctx: RenderingContext, lineNumber: number): HTMLDivElement {
-		const positionLineData = ctx.viewportData.getViewLineRenderingData(lineNumber);
 		const viewModel = this._context.viewModel;
+		const positionLineData = viewModel.getViewLineRenderingData(lineNumber);
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
@@ -251,7 +251,6 @@ export class ScreenReaderSupport {
 		} else {
 			renderWhitespace = 'none';
 		}
-		const sb = new StringBuilder(10000);
 		const renderLineInput = new RenderLineInput(
 			useMonospaceOptimizations,
 			fontInfo.canUseHalfwidthRightwardsArrow,
@@ -273,7 +272,15 @@ export class ScreenReaderSupport {
 			useFontLigatures,
 			null
 		);
+		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(lineNumber);
+		const sb = new StringBuilder(10000);
+		sb.appendString('<div style="height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;">');
 		renderViewLine(renderLineInput, sb, true);
+		sb.appendString('</div>');
 		const html = sb.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');

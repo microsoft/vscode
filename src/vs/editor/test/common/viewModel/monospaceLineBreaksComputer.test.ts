@@ -9,6 +9,8 @@ import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { TestConfiguration } from '../../browser/config/testConfiguration.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -89,7 +91,8 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, lineNumber: numbe
 	});
 	const lineBreaksComputer = factory.createLineBreaksComputer(configuration, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
-	lineBreaksComputer.addRequest(lineNumber, text, lineHeight, null, [], previousLineBreakDataClone);
+	const lineTokens = new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
+	lineBreaksComputer.addRequest(lineNumber, text, lineHeight, null, [], lineTokens, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 

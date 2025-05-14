@@ -9,7 +9,7 @@ import * as strings from '../../../base/common/strings.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
 import { EditorFontLigatures, EditorOption, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
-import { InjectedTextOptions, ITextModel } from '../../common/model.js';
+import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
@@ -17,6 +17,7 @@ import { CharacterMapping, RenderLineInput, renderViewLine } from '../../common/
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { InlineDecoration } from '../../common/viewModel.js';
 import { assertIsDefined } from '../../../base/common/types.js';
+import { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -24,29 +25,31 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 
 	private container: HTMLElement | undefined;
 
-	public static create(targetWindow: Window, model: ITextModel): DOMLineBreaksComputerFactory {
-		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow), model);
+	public static create(targetWindow: Window): DOMLineBreaksComputerFactory {
+		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow));
 	}
 
-	constructor(private targetWindow: WeakRef<Window>, private model: ITextModel) { }
+	constructor(private targetWindow: WeakRef<Window>) { }
 
 	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const linesInlineDecorations: InlineDecoration[][] = [];
+		const linesTokens: IViewLineTokens[] = [];
 		const lineNumbers: number[] = [];
 		const lineHeights: number[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
 				linesInlineDecorations.push(inlineDecorations);
 				lineNumbers.push(lineNumber);
 				lineHeights.push(lineHeight);
+				linesTokens.push(lineTokens);
 			},
 			finalize: () => {
 				this.container?.remove();
-				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), this.model, lineNumbers, lineHeights, requests, tabSize, injectedTexts, linesInlineDecorations);
+				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), lineNumbers, lineHeights, requests, tabSize, injectedTexts, linesInlineDecorations, linesTokens);
 				this.container = res.containerDomNode;
 				return res.data;
 			}
@@ -54,7 +57,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 }
 
-function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, model: ITextModel, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecoration[][]): { data: (ModelLineProjectionData | null)[]; containerDomNode: HTMLElement | undefined } {
+function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecoration[][], linesTokens: IViewLineTokens[]): { data: (ModelLineProjectionData | null)[]; containerDomNode: HTMLElement | undefined } {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -149,7 +152,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, mo
 		const lineNumber = lineNumbers[i];
 		const inlineDecorations = linesInlineDecorations[i];
 		const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
-		const tokens = model.tokenization.getLineTokens(lineNumber);
+		const tokens = linesTokens[i];
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);
 		const containsRTL = strings.containsRTL(renderLineContent);
 		const renderLineInput = new RenderLineInput(

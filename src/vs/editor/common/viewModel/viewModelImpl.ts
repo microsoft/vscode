@@ -355,8 +355,9 @@ export class ViewModel extends Disposable implements IViewModel {
 								}
 								const lineNumber = change.fromLineNumber;
 								const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, null);
+								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							}
 							break;
 						}
@@ -367,8 +368,9 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							const lineNumber = change.lineNumber;
 							const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, null);
+							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							break;
 						}
 					}
@@ -811,6 +813,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const inlineDecorations = this._decorations.getInlineDecorationsOnLine(lineNumber);
+		console.log('inlineDecorations', inlineDecorations);
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
 

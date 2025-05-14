@@ -1685,7 +1685,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement), model),
+			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
