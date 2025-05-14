@@ -203,10 +203,14 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly kind: 'promptFile';
 }
 
+export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItem';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry;
+	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
