@@ -38,7 +38,6 @@ import { TestLanguageConfigurationService } from '../../../../editor/test/common
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IQuickDiffModelService } from '../../../contrib/scm/browser/quickDiffModel.js';
 import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
-import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -69,7 +68,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
 		const instantiationService = new TestInstantiationService();
-		const accessibilityService = new TestAccessibilityService();
 		instantiationService.set(ILanguageService, disposables.add(new LanguageService()));
 		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
 		instantiationService.set(IUndoRedoService, undoRedoService);
@@ -79,7 +77,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			undoRedoService,
 			instantiationService
 		);
-		codeEditorService = new TestCodeEditorService(themeService, accessibilityService);
+		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
 			override files = <any>{

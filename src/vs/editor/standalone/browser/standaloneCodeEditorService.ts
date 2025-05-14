@@ -16,7 +16,6 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 
@@ -26,9 +25,8 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
-		super(themeService, accessibilityService);
+		super(themeService);
 		this._register(this.onCodeEditorAdd(() => this._checkContextKey()));
 		this._register(this.onCodeEditorRemove(() => this._checkContextKey()));
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);

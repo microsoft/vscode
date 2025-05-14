@@ -69,7 +69,6 @@ import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFac
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
-import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -201,7 +200,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
-	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService, new TestAccessibilityService())));
+	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
 	instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { override registerOutlineCreator() { return { dispose() { } }; } });
 	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 	instantiationService.stub(INotebookOutlineEntryFactory, instantiationService.createInstance(NotebookOutlineEntryFactory));

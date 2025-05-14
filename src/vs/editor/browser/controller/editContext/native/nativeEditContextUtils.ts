@@ -5,9 +5,9 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';

@@ -343,7 +343,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
 	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : disposables.add(instantiationService.createInstance(TextEditorService));
 	instantiationService.stub(ITextEditorService, textEditorService);
-	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, accessibilityService, configService)));
+	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));

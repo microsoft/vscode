@@ -59,7 +59,6 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { LanguageService } from '../../../../editor/common/services/languageService.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
-import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('MainThreadEditors', () => {
 
@@ -88,7 +87,6 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		const accessibilityService = new TestAccessibilityService();
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -102,7 +100,7 @@ suite('MainThreadEditors', () => {
 		services.set(INotificationService, notificationService);
 		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
-		services.set(ICodeEditorService, new TestCodeEditorService(themeService, accessibilityService));
+		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
 		services.set(IEditorService, disposables.add(new TestEditorService()));

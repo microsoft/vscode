@@ -13,19 +13,17 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../common/editorServic
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
 
 export class CodeEditorService extends AbstractCodeEditorService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(themeService, accessibilityService);
+		super(themeService);
 
 		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditor.bind(this)));
 		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditorFromDiff.bind(this)));
