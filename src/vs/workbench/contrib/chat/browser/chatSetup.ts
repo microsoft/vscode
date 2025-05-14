@@ -1351,7 +1351,6 @@ class ChatSetupController extends Disposable {
 				...existingAdvancedSetting,
 				'authProvider': undefined
 			} : undefined, ConfigurationTarget.USER);
-			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
 		return this.setup({ ...options, forceSignIn: true });
