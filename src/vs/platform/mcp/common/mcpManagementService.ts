@@ -67,7 +67,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 				const content = await this.fileService.readFile(URI.revive(config.manifestLocation));
 				scanned = JSON.parse(content.value.toString());
 			} catch (e) {
-				this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+				this.logService.error('MCP Management Service: failed to read manifest', config.manifestLocation.toString(), e);
 			}
 		}
 
