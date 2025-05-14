@@ -15,7 +15,8 @@
   "activationEvents": [],
   "enabledApiProposals": [
     "idToken",
-    "nativeWindowHandle"
+    "nativeWindowHandle",
+    "authIssuers"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,7 +32,10 @@
     "authentication": [
       {
         "label": "Microsoft",
-        "id": "microsoft"
+        "id": "microsoft",
+        "issuerGlobs": [
+          "https://login.microsoftonline.com/*/v2.0"
+        ]
       },
       {
         "label": "Microsoft Sovereign Cloud",

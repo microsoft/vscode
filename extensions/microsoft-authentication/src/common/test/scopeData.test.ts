@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { ScopeData } from '../scopeData';
+import { Uri } from 'vscode';
 
 suite('ScopeData', () => {
 	test('should include default scopes if not present', () => {
@@ -72,5 +73,23 @@ suite('ScopeData', () => {
 	test('should have tenantId be the value of VSCODE_TENANT scope if set to a specific value', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:some_guid']);
 		assert.strictEqual(scopeData.tenantId, 'some_guid');
+	});
+
+	test('should extract tenant from issuer URL path', () => {
+		const issuer = Uri.parse('https://login.microsoftonline.com/tenant123/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope'], issuer);
+		assert.strictEqual(scopeData.tenant, 'tenant123');
+	});
+
+	test('should fallback to default tenant if issuer URL has no path segments', () => {
+		const issuer = Uri.parse('https://login.microsoftonline.com');
+		const scopeData = new ScopeData(['custom_scope'], issuer);
+		assert.strictEqual(scopeData.tenant, 'organizations');
+	});
+
+	test('should prioritize issuer URL over VSCODE_TENANT scope', () => {
+		const issuer = Uri.parse('https://login.microsoftonline.com/url_tenant/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:scope_tenant'], issuer);
+		assert.strictEqual(scopeData.tenant, 'url_tenant');
 	});
 });

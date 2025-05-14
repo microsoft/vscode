@@ -34,6 +34,7 @@ export interface AuthenticationGetSessionOptions {
 	forceNewSession?: boolean | AuthenticationInteractiveOptions;
 	silent?: boolean;
 	account?: AuthenticationSessionAccount;
+	issuer?: UriComponents;
 }
 
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -45,6 +46,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		public readonly id: string,
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
+		public readonly issuers: ReadonlyArray<URI>,
 		private readonly notificationService: INotificationService,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
@@ -98,7 +100,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
+	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedIssuers: UriComponents[] = []): Promise<void> {
 		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
 			// If telemetry shows that this is not happening much, we can instead throw an error here.
 			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
@@ -111,7 +113,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, emitter);
+		const supportedIssuerUris = supportedIssuers.map(i => URI.revive(i));
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedIssuerUris, this.notificationService, emitter);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -203,7 +206,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true);
+		const issuer = URI.revive(options.issuer);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true, issuer);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
@@ -268,7 +272,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			} else {
 				const accountToCreate: AuthenticationSessionAccount | undefined = options.account ?? matchingAccountPreferenceSession?.account;
 				do {
-					session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, account: accountToCreate });
+					session = await this.authenticationService.createSession(
+						providerId,
+						scopes,
+						{
+							activateImmediate: true,
+							account: accountToCreate,
+							issuer
+						});
 				} while (
 					accountToCreate
 					&& accountToCreate.label !== session.account.label

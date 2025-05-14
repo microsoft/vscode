@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
@@ -154,9 +154,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#region AuthenticationProvider methods
 
-	async getSessions(scopes: string[] | undefined, options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession[]> {
+	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes);
+		const scopeData = new ScopeData(scopes, options?.issuer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -186,7 +186,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes);
+		const scopeData = new ScopeData(scopes, options.issuer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
