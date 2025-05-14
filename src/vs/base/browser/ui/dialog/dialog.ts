@@ -267,7 +267,8 @@ export class Dialog extends Disposable {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
-				if (this.options.buttonOptions?.[buttonMap[index]?.index]?.renderAsLink) {
+				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
+				if (buttonOptions?.renderAsLink) {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 					button.element.classList.add('link-button');
 				} else if (primary && this.options?.primaryButtonDropdown) {
@@ -285,7 +286,7 @@ export class Dialog extends Disposable {
 							}
 						}))
 					}));
-				} else if (this.options.buttonOptions?.[buttonMap[index]?.index]?.sublabel) {
+				} else if (buttonOptions?.sublabel) {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
@@ -293,9 +294,8 @@ export class Dialog extends Disposable {
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
-					const sublabel = this.options.buttonOptions?.[buttonMap[index]?.index]?.sublabel;
-					if (sublabel) {
-						button.description = sublabel;
+					if (buttonOptions?.sublabel) {
+						button.description = buttonOptions?.sublabel;
 					}
 				}
 				this._register(button.onDidClick(e => {
