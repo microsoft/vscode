@@ -200,6 +200,10 @@ export class CreatorOverlayPart extends Part {
 			layoutService,
 		);
 
+		if (this._webviewViewService === undefined) {
+			console.log("WebviewViewService is undefined");
+		}
+
 		this._webviewService =
 			this._instantiationService.createInstance(WebviewService);
 
@@ -441,104 +445,110 @@ export class CreatorOverlayPart extends Part {
 	private openInProgress = false;
 
 	private async open() {
-    // Prevent multiple simultaneous open attempts
-    if (this.openInProgress) {
-        console.log("Open already in progress, skipping");
-        return;
-    }
+		// Prevent multiple simultaneous open attempts
+		if (this.openInProgress) {
+			console.log("Open already in progress, skipping");
+			return;
+		}
 
-    this.openInProgress = true;
+		this.openInProgress = true;
 
-    try {
-        // Removing any other iframes from the overlay container
-        [...(this.overlayContainer?.children || [])].forEach((child) => {
-            child.remove();
-        });
+		try {
+			// Removing any other iframes from the overlay container
+			[...(this.overlayContainer?.children || [])].forEach((child) => {
+				child.remove();
+			});
 
-        // If webview needs reinitialization, do that first
-        if (this.needsReinit) {
-            console.log("Reinitializing webview before opening");
-            await this.initialize(true);
-        } else {
-            // Otherwise just make sure initialization is complete
-            await this.initialize();
-            await this.initializeWebview();
-        }
+			// If webview needs reinitialization, do that first
+			if (this.needsReinit) {
+				console.log("Reinitializing webview before opening");
+				await this.initialize(true);
+			} else {
+				// Otherwise just make sure initialization is complete
+				await this.initialize();
+				await this.initializeWebview();
+			}
 
-        if (!this.webviewElement) {
-            throw new Error("webviewElement is not initialized");
-        }
+			if (!this.webviewElement) {
+				throw new Error("webviewElement is not initialized");
+			}
 
-        if (this.state === "open" || !this.overlayContainer) {
-            this.openInProgress = false;
-            return;
-        }
+			if (this.state === "open" || !this.overlayContainer) {
+				this.openInProgress = false;
+				return;
+			}
 
-        // First, make the overlay container visible but without content
-        console.log("Making overlay container visible");
-        if (this.overlayContainer) {
-            this.overlayContainer.style.display = "block";
-            this.overlayContainer.style.zIndex = "998";
-        }
+			// First, make the overlay container visible but without content
+			console.log("Making overlay container visible");
+			if (this.overlayContainer) {
+				this.overlayContainer.style.display = "block";
+				this.overlayContainer.style.zIndex = "998";
+			}
 
-        this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
+			this.webviewElement.mountTo(this.overlayContainer, getActiveWindow());
 
-        // Set up for messages
-        let messageReceived = false;
+			// Set up for messages
+			let messageReceived = false;
 
-        this.webviewElement.onMessage((e) => {
-            // console.log("Received message from webview:", e.message);
-            if (e.message.messageType === "loaded" || e.message.messageType === "pong") {
-                messageReceived = true;
-            }
-        });
+			this.webviewElement.onMessage((e) => {
+				// console.log("Received message from webview:", e.message);
+				if (
+					e.message.messageType === "loaded" ||
+					e.message.messageType === "pong"
+				) {
+					messageReceived = true;
+				}
+			});
 
-        this.webviewElement.postMessage({ messageType: "ping" });
+			this.webviewElement.postMessage({ messageType: "ping" });
 
-        // Wait briefly for a response + send another ping if it was lost
-        for (let i = 0; i < 100; i++) {
-            if (messageReceived) break;
-						this.webviewElement.postMessage({ messageType: "ping" });
-            await new Promise(resolve => setTimeout(resolve, 5));
-        }
+			// Wait briefly for a response + send another ping if it was lost
+			for (let i = 0; i < 100; i++) {
+				if (messageReceived) break;
+				this.webviewElement.postMessage({ messageType: "ping" });
+				await new Promise((resolve) => setTimeout(resolve, 5));
+			}
 
-        console.log("Webview readiness check completed, messageReceived:", messageReceived);
+			console.log(
+				"Webview readiness check completed, messageReceived:",
+				messageReceived,
+			);
 
-        console.log("Sending theme colors to webview");
-        this.sendThemeColorsToWebview();
-        this.sendStateToWebview("open");
+			console.log("Sending theme colors to webview");
+			this.sendThemeColorsToWebview();
+			this.sendStateToWebview("open");
 
-        // Remove previous click handler if exists
-        if (this.closeHandler) {
-            this.overlayContainer.removeEventListener("click", this.closeHandler);
-        }
+			// Remove previous click handler if exists
+			if (this.closeHandler) {
+				this.overlayContainer.removeEventListener("click", this.closeHandler);
+			}
 
-        // Create and store new click handler
-        this.closeHandler = (event) => {
-            // Only close if clicking directly on the overlay (not on the content)
-            if (!this.isLocked && event.target === this.overlayContainer) {
-                this.close();
-            }
-        };
+			// Create and store new click handler
+			this.closeHandler = (event) => {
+				// Only close if clicking directly on the overlay (not on the content)
+				if (!this.isLocked && event.target === this.overlayContainer) {
+					this.close();
+				}
+			};
 
-        this.overlayContainer.addEventListener("click", this.closeHandler);
+			this.overlayContainer.addEventListener("click", this.closeHandler);
 
-        // Notify that the view is now visible
-        if (this.webviewView) {
-            this.webviewView.show(false);
-        }
+			// Notify that the view is now visible
+			if (this.webviewView) {
+				this.webviewView.show(false);
+			}
 
-        this.focus();
+			this.focus();
 
-        // Add a delay before starting the transition animation
-        await new Promise(resolve => setTimeout(resolve, 50));
+			// Add a delay before starting the transition animation
+			await new Promise((resolve) => setTimeout(resolve, 50));
 
-        // Now start the state transition
-        console.log("Starting state transition to 'open'");
-        await this.handleStateTransition("open");
-    } finally {
-        this.openInProgress = false;
-    }
+			// Now start the state transition
+			console.log("Starting state transition to 'open'");
+			await this.handleStateTransition("open");
+		} finally {
+			this.openInProgress = false;
+		}
 	}
 	/**
 	 * This handles the vscode command to enter creator mode
@@ -876,7 +886,7 @@ export class CreatorOverlayPart extends Part {
 		await new Promise<void>((resolve) => {
 			// Set a single timeout for animation completion
 			setTimeout(() => {
-				resolve()
+				resolve();
 			}, 500); // Match the transition duration
 		});
 
