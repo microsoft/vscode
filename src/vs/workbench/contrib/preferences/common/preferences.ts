@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IExtensionRecommendations } from '../../../../base/common/product.js';
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -109,12 +109,20 @@ export type ExtensionToggleData = {
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
 
-export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+export async function getExperimentalExtensionToggleData(
+	contextKeyService: IContextKeyService,
+	extensionGalleryService: IExtensionGalleryService,
+	productService: IProductService,
+): Promise<ExtensionToggleData | undefined> {
 	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
 		return undefined;
 	}
 
 	if (!extensionGalleryService.isEnabled()) {
+		return undefined;
+	}
+
+	if (contextKeyService.getContextKeyValue<boolean>('chatSetupHidden')) {
 		return undefined;
 	}
 
@@ -137,7 +145,9 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 			// Recommend prerelease if not on Stable.
 			const isStable = productService.quality === 'stable';
 			try {
-				const extensions = await raceTimeout(extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None), EXTENSION_FETCH_TIMEOUT_MS);
+				const extensions = await raceTimeout(
+					extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None),
+					EXTENSION_FETCH_TIMEOUT_MS);
 				if (extensions?.length === 1) {
 					recommendedExtensionsGalleryInfo[key] = extensions[0];
 				} else {
@@ -205,6 +215,7 @@ export function wordifyKey(key: string): string {
 	key = key
 		.replace(/\.([a-z0-9])/g, (_, p1) => ` \u203A ${p1.toUpperCase()}`) // Replace dot with spaced '>'
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
+		.replace(/([A-Z]{1,})([A-Z][a-z])/g, '$1 $2') // Split consecutive capitals letters, AISearch => AI Search
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
 		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
 			return knownAcronyms.has(match.toLowerCase()) ?

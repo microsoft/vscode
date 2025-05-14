@@ -7,13 +7,13 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
 import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
-import { TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
+import { type TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { TestSimpleDecoder } from '../../../../../../../editor/test/common/codecs/simpleDecoder.test.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
@@ -30,7 +30,7 @@ type TEndOfLine = '\n' | '\r\n';
 /**
  * End-of-line utility class for convenience.
  */
-class TestEndOfLine extends Text<NewLine | CarriageReturn> {
+class TestEndOfLine extends Text<(NewLine | CarriageReturn)[]> {
 	/**
 	 * Create a new instance with provided end-of line type and
 	 * a starting position.
@@ -74,7 +74,7 @@ class TestEndOfLine extends Text<NewLine | CarriageReturn> {
 			),
 		));
 
-		return TestEndOfLine.fromTokens(tokens);
+		return new TestEndOfLine(tokens);
 	}
 }
 
@@ -180,7 +180,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 4, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -246,7 +246,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 5, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
@@ -307,7 +307,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 3, 1 + markerLength),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Tab(new Range(2, 1, 2, 2)),
 								new Word(new Range(2, 2, 2, 2 + 11), 'description'),
 								new Colon(new Range(2, 13, 2, 14)),

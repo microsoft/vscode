@@ -190,7 +190,7 @@ function renderError(
 		const minimalError = ctx.settings.minimalError && !!headerMessage?.length;
 		outputElement.classList.add('traceback');
 
-		const { formattedStack, errorLocation } = formatStackTrace(err.stack);
+		const { formattedStack, errorLocation } = formatStackTrace(err.stack, trustHtml);
 
 		const outputScrolling = !minimalError && scrollingEnabled(outputInfo, ctx.settings);
 		const lineLimit = minimalError ? 1000 : ctx.settings.lineLimit;

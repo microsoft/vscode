@@ -543,10 +543,10 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
-			id: MenuId.ChatInput,
+			id: MenuId.ChatExecute,
 			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
 			group: 'navigation',
-			order: 0
+			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,

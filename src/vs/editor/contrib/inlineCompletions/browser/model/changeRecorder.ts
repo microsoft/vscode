@@ -43,15 +43,16 @@ export class TextModelChangeRecorder extends Disposable {
 		return result;
 	}
 
-	private readonly _structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & IDocumentEventDataSetChangeReason>(),
-		'editor.inlineSuggest.logChangeReason.commandId'
-	));
+	private readonly _structuredLogger;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & IDocumentEventDataSetChangeReason>(),
+			'editor.inlineSuggest.logChangeReason.commandId'
+		));
 		this._register(autorunWithStore((reader, store) => {
 			if (!(this._editor instanceof CodeEditorWidget)) { return; }
 			if (!this._structuredLogger.isEnabled.read(reader)) { return; }

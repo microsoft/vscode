@@ -1246,10 +1246,6 @@ export default tseslint.config(
 					'restrictions': []
 				},
 				{
-					'target': 'src/bootstrap-window.ts',
-					'restrictions': []
-				},
-				{
 					'target': 'src/vs/nls.ts',
 					'restrictions': [
 						'vs/*'
@@ -1434,5 +1430,5 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 		}
-	}
+	},
 );

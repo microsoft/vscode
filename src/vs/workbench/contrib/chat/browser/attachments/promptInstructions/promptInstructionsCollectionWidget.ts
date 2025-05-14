@@ -32,14 +32,9 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	 */
 	private _onAttachmentsChange = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onAttachmentsChange` event.
-	 * @param callback Function to invoke when number of attachments change.
+	 * Subscribe to the event that fires when number of attachments change.
 	 */
-	public onAttachmentsChange(callback: () => unknown): this {
-		this._register(this._onAttachmentsChange.event(callback));
-
-		return this;
-	}
+	public readonly onAttachmentsChange = this._onAttachmentsChange.event;
 
 	/**
 	 * The parent DOM node this widget was rendered into.
@@ -91,18 +86,16 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	constructor(
 		private readonly model: ChatPromptAttachmentsCollection,
 		private readonly resourceLabels: ResourceLabels,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		this.render = this.render.bind(this);
-
 		// when a new attachment model is added, create a new child widget for it
 		this._register(this.model.onAdd((attachment) => {
-			const widget = this.initService.createInstance(
+			const widget = this.instantiationService.createInstance(
 				InstructionsAttachmentWidget,
 				attachment,
 				this.resourceLabels,
@@ -195,8 +188,7 @@ export class PromptInstructionsAttachmentsCollectionWidget extends Disposable {
 	}
 
 	/**
-	 * Dispose of the widget, including all the child
-	 * widget instances.
+	 * Dispose of the widget, including all the child widget instances.
 	 */
 	public override dispose(): void {
 		for (const child of this.children) {

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IElementData } from '../../../../platform/native/common/native.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
@@ -48,13 +47,9 @@ export interface IHostService {
 	/**
 	 * Attempt to bring the window to the foreground and focus it.
 	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode. It may not be supported
-	 * in all environments.
+	 * @param options How to focus the window, defaults to {@link FocusMode.Transfer}
 	 */
-	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
+	focus(targetWindow: Window, options?: { mode?: FocusMode }): Promise<void>;
 
 	//#endregion
 
@@ -131,8 +126,6 @@ export interface IHostService {
 	 * Captures a screenshot.
 	 */
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
-
-	getElementData(rect: IRectangle, token: CancellationToken,): Promise<IElementData | undefined>;
 
 	//#endregion
 

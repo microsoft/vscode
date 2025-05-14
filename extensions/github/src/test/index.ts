@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as testRunner from '../../../../test/integration/electron/testrunner';
+import * as testRunner from '../../../../test/integration/electron/testrunner.js';
 
 const suite = 'Github Tests';
 
@@ -27,4 +27,4 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 
 testRunner.configure(options);
 
-export = testRunner;
+export default testRunner;

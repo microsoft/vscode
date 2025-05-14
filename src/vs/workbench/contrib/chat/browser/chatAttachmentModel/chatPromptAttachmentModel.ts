@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { pick } from '../../../../../base/common/arrays.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
+import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
 import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -19,7 +20,7 @@ type TPromptParser = BasePromptParser<IPromptContentsProvider>;
 /**
  * Model for a single chat prompt instructions attachment.
  */
-export class ChatPromptAttachmentModel extends Disposable {
+export class ChatPromptAttachmentModel extends ObservableDisposable {
 	/**
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
@@ -50,7 +51,7 @@ export class ChatPromptAttachmentModel extends Disposable {
 		// otherwise return `URI` for the main reference and
 		// all valid child `URI` references it may contain
 		return [
-			...reference.allValidReferencesUris,
+			...reference.allValidReferences.map(pick('uri')),
 			reference.uri,
 		];
 	}
@@ -92,39 +93,20 @@ export class ChatPromptAttachmentModel extends Disposable {
 	 */
 	protected _onUpdate = this._register(new Emitter<void>());
 	/**
-	 * Subscribe to the `onUpdate` event.
-	 * @param callback Function to invoke on update.
+	 * Subscribe to the event that fires when the underlying prompt
+	 * reference instance is updated.
+	 * See {@link BasePromptParser.onUpdate}.
 	 */
-	public onUpdate(callback: () => unknown): this {
-		this._register(this._onUpdate.event(callback));
-
-		return this;
-	}
-
-	/**
-	 * Event that fires when the object is disposed.
-	 *
-	 * See {@link onDispose}.
-	 */
-	protected _onDispose = this._register(new Emitter<void>());
-	/**
-	 * Subscribe to the `onDispose` event.
-	 * @param callback Function to invoke on dispose.
-	 */
-	public onDispose(callback: () => unknown): this {
-		this._register(this._onDispose.event(callback));
-
-		return this;
-	}
+	public readonly onUpdate = this._onUpdate.event;
 
 	constructor(
 		public readonly uri: URI,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._reference = this._register(
-			this.initService.createInstance(
+			this.instantiationService.createInstance(
 				PromptParser,
 				this.uri,
 				// in this case we know that the attached file must have been a
@@ -134,9 +116,9 @@ export class ChatPromptAttachmentModel extends Disposable {
 			)
 		);
 
-		this._reference.onUpdate(
+		this._register(this._reference.onUpdate(
 			this._onUpdate.fire.bind(this._onUpdate),
-		);
+		));
 	}
 
 	/**
@@ -147,11 +129,5 @@ export class ChatPromptAttachmentModel extends Disposable {
 		this._reference.start();
 
 		return this;
-	}
-
-	public override dispose(): void {
-		this._onDispose.fire();
-
-		super.dispose();
 	}
 }

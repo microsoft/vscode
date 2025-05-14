@@ -14,10 +14,10 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
@@ -25,8 +25,7 @@ import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
-import { ACTION_ID_NEW_CHAT } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -118,7 +117,7 @@ class ToggleChatModeAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
@@ -134,7 +133,7 @@ class ToggleChatModeAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
+		const instaService = accessor.get(IInstantiationService);
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
@@ -145,41 +144,19 @@ class ToggleChatModeAction extends Action2 {
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
 		const switchToMode = validateChatMode(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
-		const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (context.chatWidget.input.currentMode === ChatMode.Edit || switchToMode === ChatMode.Edit)) && requestCount > 0;
 
 		if (switchToMode === context.chatWidget.input.currentMode) {
 			return;
 		}
 
-		if (needToClearEdits) {
-			// If not using edits2 and switching into or out of edit mode, ask to discard the session
-			const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
-			if (!context.editingSession) {
-				return;
-			}
-
-			const currentEdits = context.editingSession.entries.get();
-			const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-			if (undecidedEdits.length > 0) {
-				if (!await handleCurrentEditingSession(context.editingSession, phrase, dialogService)) {
-					return;
-				}
-			} else {
-				const confirmation = await dialogService.confirm({
-					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to change the chat mode?"),
-					primaryButton: localize('agent.newSession.confirm', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation.confirmed) {
-					return;
-				}
-			}
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentMode, switchToMode, requestCount, context.editingSession);
+		if (!chatModeCheck) {
+			return;
 		}
 
 		context.chatWidget.input.setChatMode(switchToMode);
 
-		if (needToClearEdits) {
+		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
@@ -274,7 +251,7 @@ class OpenModelPickerAction extends Action2 {
 			},
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				order: 3,
 				group: 'navigation',
 				when: ContextKeyExpr.and(

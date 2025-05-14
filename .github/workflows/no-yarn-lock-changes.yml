@@ -1,12 +1,14 @@
 name: Prevent yarn.lock changes in PRs
-on: [pull_request]
+
+on: pull_request
+permissions: {}
 
 jobs:
   main:
     name: Prevent yarn.lock changes in PRs
     runs-on: ubuntu-latest
     steps:
-      - uses: octokit/request-action@v2.x
+      - uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
         id: get_permissions
         with:
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission
@@ -22,7 +24,7 @@ jobs:
           echo "should_run: ${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
           echo "should_run=${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}" >> $GITHUB_OUTPUT
       - name: Get file changes
-        uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
+        uses: trilom/file-changes-action@a6ca26c14274c33b15e6499323aac178af06ad4b # v1.2.4
         if: ${{ steps.control.outputs.should_run == 'true' }}
       - name: Check for lockfile changes
         if: ${{ steps.control.outputs.should_run == 'true' }}

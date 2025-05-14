@@ -208,9 +208,10 @@ export function compareLineChanges(a: LineChange, b: LineChange): number {
 }
 
 export function getIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
-	// Diff Editor (Index) | Text Editor
+	// Diff Editor (Index)
 	return textEditor.diffInformation?.find(diff =>
-		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD');
+		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD' &&
+		diff.modified && isGitUri(diff.modified) && fromGitUri(diff.modified).ref === '');
 }
 
 export function getWorkingTreeDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {

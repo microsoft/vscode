@@ -848,7 +848,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 	let currentParent: any = [];
 	const previousParents: any[] = [];
 
-	function onValue(value: any) {
+	function onValue(value: unknown) {
 		if (Array.isArray(currentParent)) {
 			(<any[]>currentParent).push(value);
 		} else if (currentProperty !== null) {
@@ -929,7 +929,7 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
 			currentParent = currentParent.parent!;
 			ensurePropertyComplete(offset + length);
 		},
-		onLiteralValue: (value: any, offset: number, length: number) => {
+		onLiteralValue: (value: unknown, offset: number, length: number) => {
 			onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
 			ensurePropertyComplete(offset + length);
 		},
@@ -1308,7 +1308,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 	return true;
 }
 
-export function getNodeType(value: any): NodeType {
+export function getNodeType(value: unknown): NodeType {
 	switch (typeof value) {
 		case 'boolean': return 'boolean';
 		case 'number': return 'number';

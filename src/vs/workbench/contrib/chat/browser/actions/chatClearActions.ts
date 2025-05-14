@@ -13,19 +13,15 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, IChatWidget } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-
-export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
-export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
-export const ChatDoneActionId = 'workbench.action.chat.done';
 
 export interface INewEditSessionActionContext {
 	/**
@@ -59,6 +55,15 @@ export function registerNewChatActions() {
 					group: 'navigation',
 					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				},
+				{
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.and(
+						ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+						IsAuxiliaryTitleBarContext,
+						IsCompactTitleBarContext
+					),
+					order: -1
 				}]
 			});
 		}

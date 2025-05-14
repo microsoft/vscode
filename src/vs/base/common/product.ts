@@ -327,8 +327,6 @@ export interface IDefaultChatAgent {
 	readonly chatExtensionId: string;
 
 	readonly documentationUrl: string;
-	readonly termsStatementUrl: string;
-	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
@@ -353,6 +351,7 @@ export interface IDefaultChatAgent {
 	readonly completionsMenuCommand: string;
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;
