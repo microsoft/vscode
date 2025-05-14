@@ -5,10 +5,9 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
-import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
+import { Selection } from '../../../../common/core/selection.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
 
@@ -88,16 +87,16 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 	};
 }
 
-
 export class NativeEditContextScreenReaderContentState {
 
 	constructor(
+		readonly positionLineNumber: number,
 		readonly startSelectionLineNumber: number,
 		readonly endSelectionLineNumber: number,
-		readonly preStartOffsetRange: OffsetRange,
-		readonly postStartOffsetRange: OffsetRange,
-		readonly preEndOffsetRange: OffsetRange,
-		readonly postEndOffsetRange: OffsetRange,
+		readonly preStartOffsetRange: OffsetRange | undefined,
+		readonly postEndOffsetRange: OffsetRange | undefined,
+		readonly postStartOffsetRange: OffsetRange | undefined,
+		readonly preEndOffsetRange: OffsetRange | undefined,
 	) { }
 
 	equals(other: NativeEditContextScreenReaderContentState): boolean {
@@ -107,16 +106,40 @@ export class NativeEditContextScreenReaderContentState {
 		if (this.endSelectionLineNumber !== other.endSelectionLineNumber) {
 			return false;
 		}
-		if (!this.preStartOffsetRange.equals(other.preStartOffsetRange)) {
+		if (this.preStartOffsetRange === undefined && other.preStartOffsetRange !== undefined) {
 			return false;
 		}
-		if (!this.postStartOffsetRange.equals(other.postStartOffsetRange)) {
+		if (this.preStartOffsetRange !== undefined && other.preStartOffsetRange === undefined) {
 			return false;
 		}
-		if (!this.postEndOffsetRange.equals(other.postEndOffsetRange)) {
+		if (!this.preStartOffsetRange!.equals(other.preStartOffsetRange!)) {
 			return false;
 		}
-		if (!this.preEndOffsetRange.equals(other.preEndOffsetRange)) {
+		if (this.postEndOffsetRange === undefined && other.postEndOffsetRange !== undefined) {
+			return false;
+		}
+		if (this.postEndOffsetRange !== undefined && other.postEndOffsetRange === undefined) {
+			return false;
+		}
+		if (!this.postEndOffsetRange!.equals(other.postEndOffsetRange!)) {
+			return false;
+		}
+		if (this.postStartOffsetRange === undefined && other.postStartOffsetRange !== undefined) {
+			return false;
+		}
+		if (this.postStartOffsetRange !== undefined && other.postStartOffsetRange === undefined) {
+			return false;
+		}
+		if (!this.postStartOffsetRange!.equals(other.postStartOffsetRange!)) {
+			return false;
+		}
+		if (this.preEndOffsetRange === undefined && other.preEndOffsetRange !== undefined) {
+			return false;
+		}
+		if (this.preEndOffsetRange !== undefined && other.preEndOffsetRange === undefined) {
+			return false;
+		}
+		if (!this.preEndOffsetRange!.equals(other.preEndOffsetRange!)) {
 			return false;
 		}
 		return true;
@@ -142,58 +165,60 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
-		const fullViewRange = Range.fromPositions(new Position(viewSelection.startLineNumber, 1), new Position(viewSelection.endLineNumber, context.getLineMaxColumn(viewSelection.endLineNumber)));
 
-		const selectionStartPage = this._getPageOfLine(fullViewRange.startLineNumber, linesPerPage);
+		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
 
-		const selectionEndPage = this._getPageOfLine(fullViewRange.endLineNumber, linesPerPage);
+		const selectionEndPage = this._getPageOfLine(viewSelection.endLineNumber, linesPerPage);
 		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
 
 		const lineCount = context.getLineCount();
-		const lineCountColumn = context.getLineMaxColumn(lineCount);
-		const direction = viewSelection.getDirection();
 
-		let positionLineNumber: number;
+		const positionLineNumber = viewSelection.positionLineNumber;
+		const startSelectionLineNumber = viewSelection.startLineNumber;
+		const endSelectionLineNumber = viewSelection.endLineNumber;
 
-		switch (direction) {
-			case (SelectionDirection.LTR): {
-				positionLineNumber = viewSelection.endLineNumber;
-				break;
+		let preStartOffsetRange: OffsetRange | undefined = undefined;
+		if (startSelectionLineNumber > 1) {
+			let preStartRange = selectionStartPageRange.intersectRanges(new Range(1, 1, startSelectionLineNumber - 1, context.getLineMaxColumn(startSelectionLineNumber - 1)))!;
+			if (trimLongText && context.getValueLengthInRange(preStartRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+				const preStartPosition = context.modifyPosition(preStartRange.getEndPosition(), -LIMIT_CHARS);
+				preStartRange = Range.fromPositions(preStartPosition, preStartRange.getEndPosition());
 			}
-			case (SelectionDirection.RTL): {
-				positionLineNumber = viewSelection.startLineNumber;
-				break;
-			}
+			preStartOffsetRange = new OffsetRange(preStartRange.startLineNumber, preStartRange.endLineNumber);
 		}
 
-		let pretextRange = new Range(1, 1, 1, 1);
-		if (positionLineNumber > 1) {
-			pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, positionLineNumber - 1, context.getLineMaxColumn(positionLineNumber - 1)))!;
-			if (trimLongText && context.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
-				const pretextStart = context.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);
-				const modifiedPretextStart = new Position(pretextStart.lineNumber, 1);
-				pretextRange = Range.fromPositions(modifiedPretextStart, pretextRange.getEndPosition());
+		let postEndOffsetRange: OffsetRange | undefined = undefined;
+		if (endSelectionLineNumber < lineCount) {
+			let postEndRange = selectionEndPageRange.intersectRanges(new Range(endSelectionLineNumber + 1, 1, lineCount, context.getLineMaxColumn(lineCount)))!;
+			if (trimLongText && context.getValueLengthInRange(postEndRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+				const postEndPosition = context.modifyPosition(postEndRange.getStartPosition(), LIMIT_CHARS);
+				postEndRange = Range.fromPositions(postEndRange.getStartPosition(), postEndPosition);
+			}
+			postEndOffsetRange = new OffsetRange(postEndRange.startLineNumber, postEndRange.endLineNumber);
+		}
+
+		let postStartOffsetRange: OffsetRange | undefined = undefined;
+		let preEndOffsetRange: OffsetRange | undefined = undefined;
+		if (startSelectionLineNumber < endSelectionLineNumber + 1) {
+			const middleRange = new Range(startSelectionLineNumber + 1, 1, endSelectionLineNumber - 1, context.getLineMaxColumn(endSelectionLineNumber - 1));
+			if (trimLongText && context.getValueLengthInRange(middleRange, EndOfLinePreference.LF) > 2 * LIMIT_CHARS) {
+				const postStartPositionEnd = context.modifyPosition(middleRange.getStartPosition(), LIMIT_CHARS);
+				const preEndPositionStart = context.modifyPosition(middleRange.getEndPosition(), -LIMIT_CHARS);
+				postStartOffsetRange = new OffsetRange(middleRange.startLineNumber, postStartPositionEnd.lineNumber);
+				preEndOffsetRange = new OffsetRange(preEndPositionStart.lineNumber, middleRange.endLineNumber);
+			} else {
+				postStartOffsetRange = new OffsetRange(middleRange.startLineNumber, middleRange.endLineNumber);
 			}
 		}
-		const pretextOffsetRange = new OffsetRange(pretextRange.startLineNumber, pretextRange.endLineNumber);
-
-		let posttextRange = new Range(lineCount, lineCountColumn, lineCount, lineCountColumn);
-		if (positionLineNumber < lineCount) {
-			posttextRange = selectionEndPageRange.intersectRanges(new Range(positionLineNumber + 1, 1, lineCount, context.getLineMaxColumn(lineCount)))!;
-			if (trimLongText && context.getValueLengthInRange(posttextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
-				const posttextEnd = context.modifyPosition(posttextRange.getStartPosition(), LIMIT_CHARS);
-				const modifiedPretextEnd = new Position(posttextEnd.lineNumber, context.getLineMaxColumn(posttextEnd.lineNumber));
-				posttextRange = Range.fromPositions(posttextRange.getStartPosition(), modifiedPretextEnd);
-			}
-		}
-		const posttextOffsetRange = new OffsetRange(posttextRange.startLineNumber, posttextRange.endLineNumber);
-
-		const state = new NativeEditContextScreenReaderContentState(
+		return new NativeEditContextScreenReaderContentState(
 			positionLineNumber,
-			pretextOffsetRange,
-			posttextOffsetRange
+			startSelectionLineNumber,
+			endSelectionLineNumber,
+			preStartOffsetRange,
+			postEndOffsetRange,
+			postStartOffsetRange,
+			preEndOffsetRange
 		);
-		return state;
 	}
 }

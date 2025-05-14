@@ -18,7 +18,7 @@ import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
@@ -144,7 +144,7 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.preStartOffsetRange.start;
+		const lineNumberWithinStateAboveCursor = positionLineNumber - (this._screenReaderContentState.preStartOffsetRange ? this._screenReaderContentState.preStartOffsetRange.start : 0);
 		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
@@ -182,7 +182,6 @@ export class ScreenReaderSupport {
 	}
 
 	public writeScreenReaderContent(): void {
-		console.log('writeScreenReaderContent');
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -194,8 +193,8 @@ export class ScreenReaderSupport {
 			// 	return;
 			// }
 			this._screenReaderContentState = screenReaderContentState;
-			const lines = this._renderScreenReaderContent(screenReaderContentState);
-			this._setSelectionOfScreenReaderContent(lines, this._screenReaderContentState, this._primarySelection);
+			const { nodes, characterMappings } = this._renderScreenReaderContent(screenReaderContentState);
+			this._setSelectionOfScreenReaderContent(nodes, characterMappings, this._screenReaderContentState, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -203,7 +202,7 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	private _renderLine(lineNumber: number): HTMLDivElement {
+	private _renderLine(lineNumber: number): { domNode: HTMLDivElement; characterMapping: CharacterMapping } {
 		const viewModel = this._context.viewModel;
 		const positionLineData = viewModel.getViewLineRenderingData(lineNumber);
 		const options = this._context.configuration.options;
@@ -251,13 +250,14 @@ export class ScreenReaderSupport {
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;">');
-		renderViewLine(renderLineInput, sb, true);
+		const renderOutput = renderViewLine(renderLineInput, sb, true);
 		sb.appendString('</div>');
 		const html = sb.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
 		domNode.innerHTML = trustedhtml as string;
-		return domNode;
+		const characterMapping = renderOutput.characterMapping;
+		return { domNode, characterMapping };
 	}
 
 	public get screenReaderContentState(): NativeEditContextScreenReaderContentState | undefined {
@@ -285,37 +285,56 @@ export class ScreenReaderSupport {
 		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): HTMLDivElement[] {
-		const pretextOffsetRange = screenReaderContentState.preStartOffsetRange;
-		const posttextOffsetRange = screenReaderContentState.postEndOffsetRange;
-		const positionLineNumber = screenReaderContentState.positionLineNumber;
+	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): { nodes: HTMLDivElement[], characterMappings: CharacterMapping[] } {
+		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
+		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
+		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
+		const preEndOffsetRange = screenReaderContentState.preEndOffsetRange;
+		const startSelectionLineNumber = screenReaderContentState.startSelectionLineNumber;
+		const endSelectionLineNumber = screenReaderContentState.endSelectionLineNumber;
+
 		const nodes: HTMLDivElement[] = [];
-		for (let lineNumber = pretextOffsetRange.start; lineNumber <= pretextOffsetRange.endExclusive; lineNumber++) {
-			nodes.push(this._renderLine(lineNumber));
+		const characterMappings: CharacterMapping[] = [];
+		if (preStartOffsetRange) {
+			for (let lineNumber = preStartOffsetRange.start; lineNumber <= preStartOffsetRange.endExclusive; lineNumber++) {
+				const { domNode, characterMapping } = this._renderLine(lineNumber);
+				nodes.push(domNode);
+				characterMappings.push(characterMapping);
+			}
 		}
-		if (pretextOffsetRange.endExclusive !== positionLineNumber - 1) {
-			const div = document.createElement('div');
-			const span = document.createElement('span');
-			div.appendChild(span);
-			span.textContent = String.fromCharCode(8230);
+		const { domNode: domNodeStart, characterMapping: characterMappingStart } = this._renderLine(startSelectionLineNumber);
+		nodes.push(domNodeStart);
+		characterMappings.push(characterMappingStart);
+		if (postStartOffsetRange) {
+			for (let lineNumber = postStartOffsetRange.start; lineNumber <= postStartOffsetRange.endExclusive; lineNumber++) {
+				const { domNode, characterMapping } = this._renderLine(lineNumber);
+				nodes.push(domNode);
+				characterMappings.push(characterMapping);
+			}
 		}
-		nodes.push(this._renderLine(positionLineNumber));
-		if (posttextOffsetRange.start !== positionLineNumber + 1) {
-			const div = document.createElement('div');
-			const span = document.createElement('span');
-			div.appendChild(span);
-			span.textContent = String.fromCharCode(8230);
+		if (preEndOffsetRange) {
+			for (let lineNumber = preEndOffsetRange.start; lineNumber <= preEndOffsetRange.endExclusive; lineNumber++) {
+				const { domNode, characterMapping } = this._renderLine(lineNumber);
+				nodes.push(domNode);
+				characterMappings.push(characterMapping);
+			}
 		}
-		for (let lineNumber = posttextOffsetRange.start; lineNumber <= posttextOffsetRange.endExclusive; lineNumber++) {
-			nodes.push(this._renderLine(lineNumber));
+		const { domNode: domNodeEnd, characterMapping: characterMappingEnd } = this._renderLine(endSelectionLineNumber);
+		nodes.push(domNodeEnd);
+		characterMappings.push(characterMappingEnd);
+		if (postEndOffsetRange) {
+			for (let lineNumber = postEndOffsetRange.start; lineNumber <= postEndOffsetRange.endExclusive; lineNumber++) {
+				const { domNode, characterMapping } = this._renderLine(lineNumber);
+				nodes.push(domNode);
+				characterMappings.push(characterMapping);
+			}
 		}
 		this.setIgnoreSelectionChangeTime('setValue');
-		const domNode = this._domNode.domNode;
-		domNode.replaceChildren(...nodes);
-		return nodes;
+		this._domNode.domNode.replaceChildren(...nodes);
+		return { nodes, characterMappings };
 	}
 
-	private _setSelectionOfScreenReaderContent(lines: HTMLDivElement[], screenReaderContentState: NativeEditContextScreenReaderContentState, primarySelection: Selection): void {
+	private _setSelectionOfScreenReaderContent(lines: HTMLDivElement[], characterMappings: CharacterMapping[], screenReaderContentState: NativeEditContextScreenReaderContentState, primarySelection: Selection): void {
 		// const activeDocument = getActiveWindow().document;
 		// const activeDocumentSelection = activeDocument.getSelection();
 		// if (!activeDocumentSelection) {
