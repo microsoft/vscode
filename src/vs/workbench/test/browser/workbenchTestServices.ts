@@ -621,6 +621,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
+	onDidChangeCreatorMode: Event<boolean> = Event.None;
 	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
@@ -669,7 +670,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): IDimension { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
+	enterCreatorMode(): void { }
+	exitCreatorMode(): void { }
+	toggleCreatorMode(): void { }
 	isMainEditorLayoutCentered(): boolean { return false; }
+	isZenMode(): boolean { return false; }
+	isCreatorMode(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
 	getSize(part: Parts): IViewSize { throw new Error('Method not implemented.'); }

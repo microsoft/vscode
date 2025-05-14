@@ -59,6 +59,8 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { safeIntl } from '../../../../base/common/date.js';
 import { CONTEXT_UPDATE_STATE } from '../../../contrib/update/browser/update.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { CommandEmitter } from '../../../../platform/commands/browser/commandEmitter.js';
+import { getLogOutSVG } from '../overlay/creatorView/misc/index.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -478,6 +480,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
 			this.createUpdateButton();
+			this.createCreatorModeButton();
 		}
 
 		// Window Controls Container
@@ -764,7 +767,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 						break;
 					case StateType.Updating:
 						updateButton.style.display = 'flex';
-						span.innerText = "Installing..."
+						span.innerText = "Installing...";
 						break;
 					case StateType.Ready:
 						updateButton.style.display = 'flex';
@@ -775,6 +778,93 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 		}));
+	}
+
+	private updateCreatorButtonColors(button: HTMLElement) {
+		const titleBackground = this.getColor(
+			this.isInactive
+				? TITLE_BAR_INACTIVE_BACKGROUND
+				: TITLE_BAR_ACTIVE_BACKGROUND
+		);
+		const isLightTheme = titleBackground && Color.fromHex(titleBackground).isLighter();
+
+		button.style.backgroundColor = isLightTheme ? "#000000" : "#ffffff";
+		button.style.color = isLightTheme ? "#ffffff" : "#000000";
+	}
+
+	private createCreatorModeButton() {
+		// Adding the creator mode button to the action toolbar so there's always space for it
+		const creatorModeButton = append(
+			this.actionToolBarElement,
+			$(".creator-mode-button")
+		);
+
+		this.updateCreatorButtonColors(creatorModeButton);
+		creatorModeButton.style.padding = "4px 6px";
+		creatorModeButton.style.margin = "6px";
+		creatorModeButton.style.borderRadius = "8px";
+		creatorModeButton.style.border = "none";
+		creatorModeButton.style.cursor = "pointer";
+		creatorModeButton.style.fontSize = isWindows ? "1.5em" : "14px";
+		creatorModeButton.style.display = "inline-flex";
+		creatorModeButton.style.alignItems = "center";
+		creatorModeButton.style.justifyContent = "center";
+		creatorModeButton.style.whiteSpace = "nowrap";
+		creatorModeButton.style.transition =
+			"opacity 500ms ease-out, width 500ms ease-out, background-color 300ms ease-out, color 300ms ease-out";
+		creatorModeButton.style.width = "110px";
+
+		// Create content wrapper for animation
+		const textSpan = document.createElement("span");
+		textSpan.innerText = "Enter Creator";
+		textSpan.style.transition = "opacity 300ms ease-out";
+		textSpan.style.textAlign = "center";
+		textSpan.style.whiteSpace = "nowrap";
+
+		const iconContainer = document.createElement("span");
+		iconContainer.style.position = "absolute";
+		iconContainer.style.left = "6px"; // Initial left position
+		iconContainer.style.opacity = "0";
+		iconContainer.style.transition =
+			"opacity 500ms ease-out, left 500ms ease-out, transform 500ms ease-out"; // Added left and transform transitions
+
+		iconContainer.appendChild(getLogOutSVG());
+
+		creatorModeButton.appendChild(textSpan);
+		creatorModeButton.appendChild(iconContainer);
+
+		// Cloning the creator mode button so we can make it fixed and add it to the body, so it's always visible
+		const visibleCreatorModeButton = creatorModeButton.cloneNode(
+			true,
+		) as HTMLDivElement;
+		document.body.appendChild(visibleCreatorModeButton);
+
+		// Setting the opacity of the original button to 0 so we don't see it but it still makes space
+		creatorModeButton.style.opacity = "0";
+		visibleCreatorModeButton.style.position = "fixed";
+		visibleCreatorModeButton.style.top = "0";
+		visibleCreatorModeButton.style.right = isWindows ? "12vw" : "0";
+		visibleCreatorModeButton.style.zIndex = "999";
+		visibleCreatorModeButton.style.cursor = "pointer";
+
+		// Add CSS transition properties for animation
+		visibleCreatorModeButton.style.transition =
+			"width 500ms ease-out, padding 500ms ease-out";
+		visibleCreatorModeButton.style.overflow = "hidden"; // Ensure content doesn't overflow during width change
+		visibleCreatorModeButton.setAttribute("id", "creator-mode-visible-button");
+
+		// Initial colors for visible button
+		this.updateCreatorButtonColors(visibleCreatorModeButton);
+
+		// Update colors when theme changes
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.updateCreatorButtonColors(creatorModeButton);
+			this.updateCreatorButtonColors(visibleCreatorModeButton);
+		}));
+
+		visibleCreatorModeButton.onclick = () => {
+			CommandEmitter.emit("workbench.action.toggleCreatorView");
+		};
 	}
 
 

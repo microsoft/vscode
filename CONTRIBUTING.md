@@ -152,16 +152,21 @@ PearAI consists of several components:
    ```
    npm run watch
    ```
-4. Launch for debugging:
+4. Run dev on the extension:
+   ```
+   npm run dev
+   ```
+   This will start Vite with PearAI-Roo-Code on port 5174.
+5. Launch for debugging:
    - Switch to Run and Debug view.
    - Select `Extension (VS Code)` from the dropdown.
    - Click the play button to launch.
    - A new VSCode/PearAI window will open with your extension installed (with your local changes).
    - The window title will display "Extension Development Host".
-5. View logs:
+6. View logs:
    - Open the command palette (`Cmd/Ctrl+Shift+P`).
    - Select `Developer: Open Webview Developer Tools`.
-6. Make text changes to see them reflected in the PearAI window.
+7. Make text changes to see them reflected in the PearAI window.
 
 #### B) From pearai-submodule (for changes to both components)
 

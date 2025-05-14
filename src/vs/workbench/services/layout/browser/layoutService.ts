@@ -27,7 +27,8 @@ export const enum Parts {
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar',
-	PEAROVERLAY_PART = 'workbench.parts.pearoverlay'
+	PEAROVERLAY_PART = 'workbench.parts.pearoverlay',
+	PEARCREATOROVERLAY_PART = 'workbench.parts.pearcreatoroverlay'
 }
 
 export interface BubblyPartSettings {
@@ -169,6 +170,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emits when the zen mode is enabled or disabled.
 	 */
 	readonly onDidChangeZenMode: Event<boolean>;
+
+	/**
+	 * Pear AI Creator mode 🚀
+	 */
+	readonly onDidChangeCreatorMode: Event<boolean>;
 
 	/**
 	 * Emits when the target window is maximized or unmaximized.
@@ -313,6 +319,22 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Toggles the workbench in and out of creator mode.
+	 */
+	toggleCreatorMode(): void;
+
+
+	/**
+	 * Enters creator mode - similar to zen mode but with creator-specific settings.
+	 */
+	enterCreatorMode(): void;
+
+	/**
+	 * Exits creator mode and restores the previous layout.
+	 */
+	exitCreatorMode(): void;
 
 	/**
 	 * Returns whether the centered editor layout is active on the main editor part.

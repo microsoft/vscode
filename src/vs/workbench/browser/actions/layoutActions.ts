@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext, PearAICreatorVisibleContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -33,6 +33,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { TogglePearOverlayAction } from '../parts/overlay/pearOverlayActions.js';
+import { ToggleCreatorOverlayAction } from '../parts/overlay/creatorView/creatorOverlayActions.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -775,6 +776,53 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Enter Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.enterCreatorMode',
+			title: {
+				original: 'Enter Creator Mode',
+				value: "Enter Creator Mode"
+			},
+			category: Categories.View,
+			f1: true // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).enterCreatorMode();
+	}
+});
+
+// --- Exit Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.exitCreatorMode',
+			title: {
+				original: 'Exit Creator Mode',
+				value: "Exit Creator Mode"
+			},
+			category: Categories.View,
+			f1: true, // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).exitCreatorMode();
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.exitZenMode',
 	weight: KeybindingWeight.EditorContrib - 1000,
@@ -1393,7 +1441,8 @@ ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "PearAI Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
-	CreateToggleLayoutItem(TogglePearOverlayAction.ID, PearAIVisibleContext, 'PearAI', pearaiIcon)
+	CreateToggleLayoutItem(TogglePearOverlayAction.ID, PearAIVisibleContext, 'PearAI', pearaiIcon),
+	CreateToggleLayoutItem(ToggleCreatorOverlayAction.ID, PearAICreatorVisibleContext, 'PearAI Creator'),
 ]);
 
 const MoveSideBarActions: CustomizeLayoutItem[] = [
