@@ -8,7 +8,6 @@ import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -26,7 +25,7 @@ import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } f
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { InlineAnchorWidget } from '../../chatInlineAnchorWidget.js';
+import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -236,7 +235,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			}
 
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
-			this.renderFileWidgets(this.markdownPart.domNode);
+			renderFileWidgets(this.markdownPart.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			elements.message.append(this.markdownPart.domNode);
 
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -284,20 +283,5 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			this._onNeedsRerender.fire();
 		});
 		this.domNode = confirmWidget.domNode;
-	}
-
-	private renderFileWidgets(element: HTMLElement): void {
-		const links = element.querySelectorAll('a');
-		links.forEach(a => {
-			// Empty link text -> render file widget
-			if (!a.textContent?.trim()) {
-				const href = a.getAttribute('data-href');
-				const uri = href ? URI.parse(href) : undefined;
-				if (uri?.scheme) {
-					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-					this._register(this.chatMarkdownAnchorService.register(widget));
-				}
-			}
-		});
 	}
 }

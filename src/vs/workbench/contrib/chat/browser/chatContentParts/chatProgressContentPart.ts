@@ -9,14 +9,13 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
 import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
-import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
@@ -55,28 +54,13 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
 		const result = this._register(renderer.render(progress.content));
 		result.element.classList.add('progress-step');
-		this.renderFileWidgets(result.element);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 
 		this.domNode = $('.progress-container');
 		const iconElement = $('div');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(codicon));
 		append(this.domNode, iconElement);
 		append(this.domNode, result.element);
-	}
-
-	private renderFileWidgets(element: HTMLElement): void {
-		const links = element.querySelectorAll('a');
-		links.forEach(a => {
-			// Empty link text -> render file widget
-			if (!a.textContent?.trim()) {
-				const href = a.getAttribute('data-href');
-				const uri = href ? URI.parse(href) : undefined;
-				if (uri?.scheme) {
-					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-					this._register(this.chatMarkdownAnchorService.register(widget));
-				}
-			}
-		});
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
