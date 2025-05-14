@@ -3,47 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-setup-dialog {
-
-	p {
-		margin-top: 0;
-		margin-bottom: 0;
-		width: 100%;
-	}
+.chat-setup-dialog-footer {
 
 	p.setup-settings {
-		font-size: 12px;
+		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
-		margin-top: 1em;
-	}
-
-	.chat-feature-container {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 5px 10px 5px 10px;
-	}
-
-	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 16px;
-	}
-
-	.codicon[class*='codicon-'] {
-		font-size: 13px;
-		line-height: 1.4em;
-		vertical-align: bottom;
-	}
-
-	.button-container {
-		padding-top: 20px;
-	}
-
-	/** Dropdown Button */
-	.monaco-button-dropdown {
-		width: 100%;
-	}
-
-	.monaco-button-dropdown .monaco-text-button {
-		width: 100%;
 	}
 }

@@ -33,6 +33,10 @@
 	border-radius: 3px;
 }
 
+.monaco-dialog-box.align-vertical {
+	min-width: 300px; /* more narrow when aligned vertically */
+}
+
 /** Dialog: Title Actions Row */
 .monaco-dialog-box .dialog-toolbar-row {
 	height: 22px;
@@ -43,35 +47,59 @@
 	justify-content: flex-end;
 }
 
-/** Dialog: Message Row */
-.monaco-dialog-box .dialog-message-row {
+/** Dialog: Message/Footer Row */
+.monaco-dialog-box .dialog-message-row,
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-grow: 1;
 	align-items: center;
 	padding: 0 10px;
 }
 
+.monaco-dialog-box.align-vertical .dialog-message-row {
+	flex-direction: column;
+}
+
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
 	flex: 0 0 48px;
 	height: 48px;
-	align-self: baseline;
 	font-size: 48px;
 }
 
-/** Dialog: Message Container */
-.monaco-dialog-box .dialog-message-row .dialog-message-container {
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row > .dialog-icon.codicon {
+	align-self: baseline;
+}
+
+/** Dialog: Message/Footer Container */
+.monaco-dialog-box .dialog-message-row .dialog-message-container,
+.monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container ul {
+.monaco-dialog-box .dialog-footer-row {
+	margin-top: 20px;
+}
+
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
+.monaco-dialog-box:not(.align-vertical) .dialog-footer-row {
+	padding-left: 24px;
+}
+
+.monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container,
+.monaco-dialog-box.align-vertical .dialog-footer-row {
+	align-items: center;
+	text-align: center;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container ul,
+.monaco-dialog-box .dialog-footer-row ul {
 	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
 }
 
@@ -144,13 +172,21 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	width: 100%;
-	justify-content: flex-end;
+}
+
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons {
 	overflow: hidden;
+	justify-content: flex-end;
 	margin-left: 67px; /* for long buttons, force align with text */
 }
 
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
+	margin-left: 5px;
+	margin-right: 5px;
+	flex-direction: column;
+}
+
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	width: fit-content;
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -158,9 +194,32 @@
 	outline-offset: 2px !important;
 }
 
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	margin: 4px 0; /* allows button focus outline to be visible */
+}
+
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+	width: fit-content;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
+	border: 0 !important;
+	background-color: unset !important;
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:active,
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:hover {
+	color: var(--vscode-textLink-activeForeground) !important;
+}
+
 /** Dialog: Dropdown */
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+.monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
 	margin: 4px 5px;
+}
+
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+	width: 100%;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown:focus-within {
@@ -179,6 +238,10 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
 	padding-left: 10px;
 	padding-right: 10px;
+}
+
+.monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
+	width: 100%;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
