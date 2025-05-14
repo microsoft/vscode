@@ -400,6 +400,12 @@ configurationRegistry.registerConfiguration({
 			],
 			tags: ['preview'],
 		},
+		'search.searchView.keywordSuggestions': {
+			type: 'boolean',
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the search view."),
+			default: false,
+			tags: ['preview'],
+		},
 	}
 });
 
