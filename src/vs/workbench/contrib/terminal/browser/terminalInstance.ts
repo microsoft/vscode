@@ -566,6 +566,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Terminal)) {
 				this._setAriaLabel(this.xterm?.raw, this._instanceId, this.title);
 			}
+			if (e.affectsConfiguration(TerminalSettingId.KillGracefully)) {
+				this.shellLaunchConfig.killGracefully = this._configurationService.getValue(TerminalSettingId.KillGracefully);
+			}
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
@@ -1506,7 +1509,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
 			});
 		}
-
+		this.shellLaunchConfig.killGracefully = this._configurationService.getValue(TerminalSettingId.KillGracefully);
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
