@@ -24,8 +24,6 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { ISCMHistoryItem } from '../../scm/common/history.js';
-import { ISCMRepository } from '../../scm/common/scm.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -207,9 +205,12 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
-	readonly value: URI;
-	readonly repository: ISCMRepository;
-	readonly historyItem: ISCMHistoryItem;
+	readonly value: string;
+	readonly repositoryId: string;
+	readonly historyItemId: string;
+	readonly historyItemParentId: string | undefined;
+	readonly historyItemEditorTitle: string;
+	readonly historyItemEditorUri: URI;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry

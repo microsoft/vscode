@@ -50,8 +50,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
-import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
-
+import { ISCMService } from '../../scm/common/scm.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -607,12 +606,12 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		contextResourceLabels: ResourceLabels,
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ISCMService private readonly scmService: ISCMService
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
-		const attachmentLabel = `$(${Codicon.repo.id})\u00A0${attachment.repository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
-		this.label.setLabel(attachmentLabel, undefined);
+		this.label.setLabel(attachment.name, undefined);
 
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
@@ -634,26 +633,18 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
-		const repository = attachment.repository;
-		const historyItem = attachment.historyItem;
-		const historyProvider = repository.provider.historyProvider.get();
-		if (!historyProvider) {
+		const repository = this.scmService.getRepository(attachment.repositoryId);
+		const historyProvider = repository?.provider.historyProvider.get();
+		if (!repository || !historyProvider) {
 			return;
 		}
 
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
-
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(attachment.historyItemId, attachment.historyItemParentId);
 		if (!historyItemChanges?.length) {
 			return;
 		}
 
-		const title = getHistoryItemEditorTitle(historyItem);
-		const rootUri = repository.provider.rootUri;
-		const path = rootUri ? rootUri.path : repository.provider.label;
-		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
-
-		this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+		this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title: attachment.historyItemEditorTitle, multiDiffSourceUri: attachment.historyItemEditorUri, resources: historyItemChanges });
 	}
 }
 

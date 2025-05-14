@@ -15,6 +15,7 @@ import { IChatWidget } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
 import { ISCMViewService } from '../common/scm.js';
+import { getHistoryItemEditorTitle } from './util.js';
 
 export class SCMHistoryItemContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -59,24 +60,30 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 					historyProvider.historyItemBaseRef.get(),
 				]).map(ref => ref.id);
 
+				const rootUri = activeRepository.provider.rootUri;
+				const path = rootUri ? rootUri.path : activeRepository.provider.label;
 				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
+
 				return historyItems.map(historyItem => ({
 					iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
 					label: historyItem.subject,
 					description: historyItem.displayId ?? historyItem.id,
 					asAttachment: () => {
-						const rootUri = activeRepository.provider.rootUri;
-						const path = rootUri ? rootUri.path : activeRepository.provider.label;
+						const title = getHistoryItemEditorTitle(historyItem);
 						const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 						const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+						const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
 
 						return {
 							id: historyItem.id,
-							name: historyItem.displayId ?? historyItem.id,
-							value: multiDiffSourceUri,
-							repository: activeRepository,
-							historyItem,
-							kind: 'scmHistoryItem',
+							name: attachmentName,
+							value: historyItem.message,
+							repositoryId: activeRepository.id,
+							historyItemId: historyItem.id,
+							historyItemParentId,
+							historyItemEditorTitle: title,
+							historyItemEditorUri: multiDiffSourceUri,
+							kind: 'scmHistoryItem'
 						} satisfies ISCMHistoryItemVariableEntry;
 					}
 				}) satisfies IChatContextPickerPickItem);
