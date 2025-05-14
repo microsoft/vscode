@@ -11,7 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
@@ -45,6 +45,9 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { EditorsOrder } from '../../../../common/editor.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -512,6 +515,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -537,7 +541,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return;
 			}
 
-			const active = this.editorService.activeTextEditorControl;
+			const active = this.findActiveCodeEditor();
 			if (!isCodeEditor(active)) {
 				return;
 			}
@@ -589,6 +593,36 @@ class BuiltinDynamicCompletions extends Disposable {
 		});
 
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
+	}
+
+	private findActiveCodeEditor(): ICodeEditor | undefined {
+		const codeEditor = this.codeEditorService.getActiveCodeEditor();
+		if (codeEditor) {
+			const model = codeEditor.getModel();
+			if (model?.uri.scheme === Schemas.vscodeNotebookCell) {
+				return undefined;
+			}
+
+			if (model) {
+				return codeEditor;
+			}
+		}
+		for (const codeOrDiffEditor of this.editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			let codeEditor: ICodeEditor;
+			if (isDiffEditor(codeOrDiffEditor)) {
+				codeEditor = codeOrDiffEditor.getModifiedEditor();
+			} else if (isCodeEditor(codeOrDiffEditor)) {
+				codeEditor = codeOrDiffEditor;
+			} else {
+				continue;
+			}
+
+			const model = codeEditor.getModel();
+			if (model) {
+				return codeEditor;
+			}
+		}
+		return undefined;
 	}
 
 	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
