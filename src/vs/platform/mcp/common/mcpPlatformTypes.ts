@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { UriComponents } from '../../../base/common/uri.js';
 
 export interface IMcpConfiguration {
 	inputs?: unknown[];
@@ -20,52 +21,31 @@ export interface IMcpConfigurationStdio {
 	args?: readonly string[];
 	env?: Record<string, string | number | null>;
 	envFile?: string;
-	manifest?: IMcpServerManifest;
 }
 
 export interface IMcpConfigurationHTTP {
 	type?: 'http';
 	url: string;
 	headers?: Record<string, string>;
-	manifest?: IMcpServerManifest;
 }
 
-export type IMcpServerLaunchConfig = IStringDictionary<{
-	readonly version?: string;
-	readonly package: {
-		readonly name: string;
-		readonly version?: string;
-		readonly args?: readonly string[];
-	};
-}>;
-
-export interface IMcpRemoteServerConfig {
-	readonly url: string;
-	readonly headers?: Record<string, string>;
+export const enum McpServerVariableType {
+	PROMPT = 'promptString',
+	PICK = 'pickString',
 }
 
-export interface IRelaxedMcpServerManifest {
-	id?: string;
-	name: string;
-	displayName?: string;
-	version: string;
-	description?: string;
-	url?: string;
-	config: IMcpServerLaunchConfig | IMcpRemoteServerConfig;
-	iconUrl?: string;
-	codicon?: string;
-	repository?: { url: string };
-	bugs?: { url: string };
-	categories?: string[];
-	keywords?: string[];
-	publisher?: string;
-	publisherDisplayName?: string;
+export interface IMcpServerVariable {
+	readonly id: string;
+	readonly type: McpServerVariableType;
+	readonly description: string;
+	readonly password: boolean;
+	readonly default?: string;
+	readonly options?: readonly string[];
+	readonly serverName?: string;
 }
-
-export type IMcpServerManifest = Readonly<IRelaxedMcpServerManifest>;
 
 export interface IMcpServerConfiguration {
-	readonly manifest?: IMcpServerManifest;
+	readonly manifestLocation?: UriComponents;
 }
 
 export interface IMcpStdioServerConfiguration extends IMcpServerConfiguration {
@@ -83,5 +63,6 @@ export interface IMcpRemtoeServerConfiguration extends IMcpServerConfiguration {
 }
 
 export interface IMcpServersConfiguration {
-	readonly servers: IStringDictionary<Readonly<IMcpServerConfiguration>>;
+	servers?: IStringDictionary<IMcpServerConfiguration>;
+	inputs?: IMcpServerVariable[];
 }

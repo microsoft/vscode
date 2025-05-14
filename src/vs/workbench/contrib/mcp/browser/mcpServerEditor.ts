@@ -38,7 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
 import { InstallCountWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
-import { InstallAction } from './mcpServerActions.js';
+import { InstallAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
@@ -215,9 +215,9 @@ export class McpServerEditor extends EditorPane {
 
 		const description = append(details, $('.description'));
 
-		const installAction = this.instantiationService.createInstance(InstallAction);
 		const actions = [
-			installAction,
+			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(UninstallAction),
 		];
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container.mcp-server-actions'));
@@ -290,7 +290,7 @@ export class McpServerEditor extends EditorPane {
 
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
 
-		this.mcpServerReadme = new Cache(() => mcpServer.gallery ? this.galleryService.getReadme(mcpServer.gallery, token).then(data => data ?? '') : Promise.resolve(''));
+		this.mcpServerReadme = new Cache(() => mcpServer.readmeUrl ? this.galleryService.getReadme(mcpServer.readmeUrl, token) : Promise.resolve(localize('noReadme', "No README available.")));
 		template.mcpServer = mcpServer;
 
 		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = DefaultIconPath, { once: true }));

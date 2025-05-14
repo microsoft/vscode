@@ -18,7 +18,7 @@ import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/me
 import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyDefinedExpr, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -32,13 +32,12 @@ import { ChatMode } from '../../chat/common/constants.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -578,10 +577,10 @@ export class McpBrowseCommand extends Action2 {
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
-				when: ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`),
+				when: McpServersGalleryEnabledContext,
 			}, {
 				id: extensionsFilterSubMenu,
-				when: ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`),
+				when: McpServersGalleryEnabledContext,
 				group: '1_predefined',
 				order: 1,
 			}],

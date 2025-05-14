@@ -26,7 +26,7 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { IViewDescriptorService } from '../../../common/views.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
-import { InstallAction } from './mcpServerActions.js';
+import { InstallAction, UninstallAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget } from './mcpServerWidgets.js';
 
 export class McpServersListView extends ViewPane {
@@ -90,7 +90,9 @@ export class McpServersListView extends ViewPane {
 		if (!this.list) {
 			return new PagedModel([]);
 		}
-		const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
+
+		query = query.trim();
+		const servers = query ? await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') }) : await this.mcpWorkbenchService.queryLocal();
 		this.list.model = new DelayedPagedModel(new PagedModel(servers));
 		return this.list.model;
 	}
@@ -141,6 +143,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 
 		const actions = [
 			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(UninstallAction),
 		];
 
 		const widgets = [

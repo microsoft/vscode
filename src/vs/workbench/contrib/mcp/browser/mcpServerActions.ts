@@ -37,7 +37,7 @@ export class InstallAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallAction.HIDE;
-		if (!this.mcpServer) {
+		if (!this.mcpServer?.gallery) {
 			return;
 		}
 		if (this.mcpServer.local) {
@@ -45,7 +45,7 @@ export class InstallAction extends McpServerAction {
 		}
 		this.class = InstallAction.CLASS;
 		this.enabled = true;
-		this.label = localize('install', "Install");
+		this.label = localize('add', "Add");
 	}
 
 	override async run(): Promise<any> {
@@ -53,5 +53,39 @@ export class InstallAction extends McpServerAction {
 			return;
 		}
 		await this.mcpWorkbenchService.install(this.mcpServer);
+	}
+}
+
+export class UninstallAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent uninstall`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	constructor(
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+	) {
+		super('extensions.uninstall', localize('remove', "Remove"), UninstallAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = UninstallAction.HIDE;
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		this.class = UninstallAction.CLASS;
+		this.enabled = true;
+		this.label = localize('remove', "Remove");
+	}
+
+	override async run(): Promise<any> {
+		if (!this.mcpServer) {
+			return;
+		}
+		await this.mcpWorkbenchService.uninstall(this.mcpServer);
 	}
 }
