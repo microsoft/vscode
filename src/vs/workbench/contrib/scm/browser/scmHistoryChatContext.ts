@@ -49,7 +49,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 			picks: async (_query: string) => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
-				if (!historyProvider) {
+				if (!activeRepository || !historyProvider) {
 					return [];
 				}
 
@@ -60,17 +60,22 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 				]).map(ref => ref.id);
 
 				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
-				return historyItems.map(item => ({
+				return historyItems.map(historyItem => ({
 					iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
-					label: item.subject,
-					description: `${item.author} $(${Codicon.circleSmallFilled.id}) ${item.displayId ?? item.id}`,
+					label: historyItem.subject,
+					description: historyItem.displayId ?? historyItem.id,
 					asAttachment: () => {
+						const rootUri = activeRepository.provider.rootUri;
+						const path = rootUri ? rootUri.path : activeRepository.provider.label;
+						const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+						const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+
 						return {
-							icon: Codicon.gitCommit,
-							id: item.id,
-							name: item.displayId ?? item.id,
-							fullName: item.subject,
-							value: URI.file('something'),
+							id: historyItem.id,
+							name: historyItem.displayId ?? historyItem.id,
+							value: multiDiffSourceUri,
+							repository: activeRepository,
+							historyItem,
 							kind: 'scmHistoryItem',
 						} satisfies ISCMHistoryItemVariableEntry;
 					}

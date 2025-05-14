@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, OmittedState } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -50,6 +50,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
+import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
 
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
@@ -594,6 +595,65 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}));
 
 		this.attachClearButton();
+	}
+}
+
+export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: ISCMHistoryItemVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const attachmentLabel = `$(${Codicon.repo.id})\u00A0${attachment.repository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
+		this.label.setLabel(attachmentLabel, undefined);
+
+		this.element.style.cursor = 'pointer';
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
+			dom.EventHelper.stop(e, true);
+			this._openAttachment(attachment);
+		}));
+
+		this._store.add(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				this._openAttachment(attachment);
+			}
+		}));
+
+		this.attachClearButton();
+	}
+
+	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
+		const repository = attachment.repository;
+		const historyItem = attachment.historyItem;
+		const historyProvider = repository.provider.historyProvider.get();
+		if (!historyProvider) {
+			return;
+		}
+
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (!historyItemChanges?.length) {
+			return;
+		}
+
+		const title = getHistoryItemEditorTitle(historyItem);
+		const rootUri = repository.provider.rootUri;
+		const path = rootUri ? rootUri.path : repository.provider.label;
+		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+
+		this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 	}
 }
 

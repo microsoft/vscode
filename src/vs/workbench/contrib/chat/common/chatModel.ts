@@ -24,6 +24,8 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { ISCMHistoryItem } from '../../scm/common/history.js';
+import { ISCMRepository } from '../../scm/common/scm.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -205,6 +207,9 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
+	readonly value: URI;
+	readonly repository: ISCMRepository;
+	readonly historyItem: ISCMHistoryItem;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
@@ -246,6 +251,10 @@ export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVar
 		entry !== null &&
 		typeof entry.id === 'string' &&
 		typeof entry.name === 'string';
+}
+
+export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
+	return obj.kind === 'scmHistoryItem';
 }
 
 export interface IChatRequestVariableData {
