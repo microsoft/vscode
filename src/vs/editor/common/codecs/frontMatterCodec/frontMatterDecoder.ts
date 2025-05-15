@@ -134,7 +134,7 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 
 			this._onData.fire(record);
 
-			// TODO: @legomushroom - refactor
+			// TODO: @legomushroom - refactor to merge with the logic in `onStreamData`
 			for (const spaceToken of spaceTokens) {
 				this._onData.fire(spaceToken);
 			}

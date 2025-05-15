@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../../base/common/assert.js';
+
 /**
  * Type for a generic tree node.
  */
@@ -122,6 +124,119 @@ export const map = <
 
 	return newNode;
 };
+
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - the 'other' can be 'unknown'?
+// TODO: @legomushroom - make 'equals()' optional?
+type TComparable<T> = T & { equals: (other: T) => boolean };
+
+/**
+ * TODO: @legomushroom
+ */
+type TComparableTree<T extends NonNullable<unknown>> = TTree<TComparable<T>>;
+
+/**
+ * TODO: @legomushroom
+ */
+type TDiffNode<T extends TTree<unknown>, K extends TTree<unknown>> = {
+	/**
+	 * TODO: @legomushroom
+	 */
+	index: number;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	value: T | null;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	their: K | null;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	children?: TDiffNode<T, K>[];
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export function difference<T extends NonNullable<unknown>>(
+	tree1: TComparableTree<T>,
+	tree2: TComparableTree<T>,
+): TTree<TDiffNode<TTree<T>, TTree<T>>> | null {
+	const tree1Children = tree1.children ?? [];
+	const tree2Children = tree2.children ?? [];
+
+	// if there are no children in the both trees left anymore,
+	// compare the nodes directly themselves and return the result
+	if (tree1Children.length === 0 && tree2Children.length === 0) {
+		if (tree1.equals(tree2)) {
+			return null;
+		}
+
+		return {
+			index: 0,
+			value: tree1,
+			their: tree2,
+		};
+	}
+
+	// with children present, iterate over them to find difference for each pair
+	const maxChildren = Math.max(tree1Children.length, tree2Children.length);
+	const children: TDiffNode<TTree<T>, TTree<T>>[] = [];
+	for (let i = 0; i < maxChildren; i++) {
+		const child1 = tree1Children[i];
+		const child2 = tree2Children[i];
+
+		// sanity check to ensure that at least one of the children is defined
+		// as otherwise this case most likely indicates a logic error or a bug
+		assert(
+			(child1 !== undefined) || (child2 !== undefined),
+			'At least one of the children must be defined.',
+		);
+
+		// if one of the children is missing, report it as a difference
+		if ((child1 === undefined) || (child2 === undefined)) {
+			children.push({
+				index: i,
+				value: child1 ?? null,
+				their: child2 ?? null,
+			});
+
+			continue;
+		}
+
+		const diff = difference(child1, child2);
+		if (diff === null) {
+			continue;
+		}
+
+		children.push({
+			...diff,
+			index: i,
+		});
+	}
+
+	// if there some children that are different, report them
+	if (children.length !== 0) {
+		return {
+			index: 0,
+			value: tree1,
+			their: tree2,
+			children,
+		};
+	}
+
+	// there is no children difference, nor differences in the nodes
+	// themselves, hence return explicit `null` value to indicate that
+	return null;
+}
 
 /**
  * Type for a rest parameters of function, excluding

@@ -11,14 +11,17 @@ import { randomInt } from '../../../../../base/common/numbers.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { cloneTokens, randomTokens } from '../testUtils/randomTokens.js';
+import { Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { CompositeToken } from '../../../../common/codecs/compositeToken.js';
 import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
-import { Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('CompositeToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	/**
+	 * TODO: @legomushroom
+	 */
 	class TestToken extends CompositeToken<BaseToken[]> {
 		constructor(
 			tokens: BaseToken[],
@@ -256,6 +259,68 @@ suite('CompositeToken', () => {
 			});
 		});
 	});
+
+	// TODO: @legomushroom - finish this test
+	// suite('• diff', () => {
+	// 	test('• returns difference tree between two tokens', () => {
+	// 		const token1 = new TestToken([
+	// 			new Word(
+	// 				new Range(1, 1, 1, 1 + 5),
+	// 				'hello',
+	// 			),
+	// 			new Space(new Range(1, 6, 1, 7)),
+	// 			new Word(
+	// 				new Range(1, 7, 1, 7 + 5),
+	// 				'world',
+	// 			),
+	// 		]);
+
+	// 		const token2 = new TestToken([
+	// 			new Word(
+	// 				new Range(1, 1, 1, 1 + 5),
+	// 				'hello',
+	// 			),
+	// 			new Space(new Range(1, 6, 1, 7)),
+	// 			new Word(
+	// 				new Range(1, 7, 1, 7 + 6),
+	// 				'world!',
+	// 			),
+	// 		]);
+
+	// 		const difference = token1.diff(token2);
+
+	// 		assert.deepStrictEqual(
+	// 			difference,
+	// 			{
+	// 				index: 0,
+	// 				value: token1,
+	// 				their: token2,
+	// 				children: [
+	// 					{
+	// 						index: 2,
+	// 						value: new Word(
+	// 							new Range(1, 7, 1, 7 + 5),
+	// 							'world',
+	// 						),
+	// 						their: new Word(
+	// 							new Range(1, 7, 1, 7 + 6),
+	// 							'world!',
+	// 						),
+	// 					}
+	// 				],
+	// 			},
+	// 		);
+
+	// 		// const tokens = randomTokens();
+	// 		// const token1 = new TestToken(tokens);
+	// 		// const token2 = new TestToken(tokens);
+
+	// 		// assert(
+	// 		// 	token1.equals(token2),
+	// 		// 	'Tokens must be equal.',
+	// 		// );
+	// 	});
+	// });
 });
 
 

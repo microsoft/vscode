@@ -53,7 +53,7 @@ export const randomBoolean = (): boolean => {
 };
 
 /**
- *@deprecated use `mock.ts#mock` instead
+ * @deprecated use `mock.ts#mock` instead
  */
 export function mockObject<TObject extends Object>(
 	overrides: Partial<TObject>,

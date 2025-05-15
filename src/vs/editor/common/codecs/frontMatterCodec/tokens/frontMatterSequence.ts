@@ -22,4 +22,49 @@ export class FrontMatterSequence extends FrontMatterValueToken<string, readonly 
 	public override toString(): string {
 		return this.text;
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - cache the result?
+	// TODO: @legomushroom - unit test?
+	public trimEnd(): readonly SpacingToken[] {
+		const trimmedTokens = [];
+
+		let index = this.childTokens.length - 1;
+		while (index >= 0) {
+			const token = this.childTokens[index];
+
+			if (token instanceof SpacingToken) {
+				trimmedTokens.push(token);
+				index--;
+
+				continue;
+			}
+
+			break;
+		}
+
+		// TODO: @legomushroom
+		this.childTokens.length = index + 1;
+		if (this.childTokens.length === 0) {
+			this.collapseRangeToStart();
+			// TODO: @legomushroom - add description
+			this.childTokens.push(
+				new Word(this.range, ''),
+			);
+		}
+
+		// TODO: @legomushroom
+		this.withRange(
+			BaseToken.fullRange(this.childTokens),
+		);
+
+		// TODO: @legomushroom
+		return trimmedTokens.reverse();
+	}
+
+	public override toString(): string {
+		return `front-matter-sequence(${this.shortText()})${this.range}`;
+	}
 }

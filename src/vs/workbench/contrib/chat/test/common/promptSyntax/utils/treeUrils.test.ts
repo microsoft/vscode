@@ -5,9 +5,14 @@
 
 import assert from 'assert';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
-import { curry, flatten, forEach, map } from '../../../../common/promptSyntax/utils/treeUtils.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { CompositeToken } from '../../../../../../../editor/common/codecs/compositeToken.js';
+import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { curry, difference, flatten, forEach, map, TTree } from '../../../../common/promptSyntax/utils/treeUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 
+// TODO: @legomushroom - fix the file name
 suite('tree utilities', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -479,4 +484,212 @@ suite('tree utilities', () => {
 			);
 		}
 	});
+
+	suite('• difference', () => {
+		/**
+		 * TODO: @legomushroom
+		 */
+		class TestCompositeToken extends CompositeToken<TTree<BaseToken[]>> {
+			constructor(
+				public readonly children: readonly TTree<BaseToken>[],
+			) {
+				super([...children]);
+			}
+
+			public override toString(): string {
+				const tokenStrings = this.tokens.map((token) => {
+					return token.toString();
+				});
+
+				return `CompositeToken:\n${tokenStrings.join('\n')})`;
+			}
+		}
+
+
+		test('• tree roots differ (no children)', () => {
+			const tree1 = new Word(new Range(1, 1, 1, 1 + 5), 'hello');
+			const tree2 = new Word(new Range(1, 1, 1, 1 + 5), 'halou');
+
+			assert.deepStrictEqual(
+				difference(tree1, tree2),
+				{
+					index: 0,
+					value: tree1,
+					their: tree2,
+				},
+				'Unexpected difference between token trees.',
+			);
+		});
+
+		test('• returns tree difference (single children level)', () => {
+			const tree1 = asTreeNode<TTree<BaseToken>>(
+				new Word(new Range(1, 1, 1, 1 + 5), 'hello'),
+				[
+					new Space(new Range(1, 6, 1, 7)),
+					new Word(new Range(1, 7, 1, 7 + 5), 'world'),
+				],
+			);
+
+			const tree2 = asTreeNode<TTree<BaseToken>>(
+				new Word(new Range(1, 1, 1, 1 + 5), 'hello'),
+				[
+					new Space(new Range(1, 6, 1, 7)),
+					new Word(new Range(1, 7, 1, 7 + 6), 'world!'),
+				],
+			);
+
+			assert.deepStrictEqual(
+				difference(tree1, tree2),
+				{
+					index: 0,
+					value: tree1,
+					their: tree2,
+					children: [
+						{
+							index: 1,
+							value: new Word(
+								new Range(1, 7, 1, 7 + 5),
+								'world',
+							),
+							their: new Word(
+								new Range(1, 7, 1, 7 + 6),
+								'world!',
+							),
+						}
+					],
+				},
+				'Unexpected difference between token trees.',
+			);
+		});
+
+		test('• returns tree difference (multiple children levels)', () => {
+			const compositeToken1 = new TestCompositeToken([
+				new VerticalTab(new Range(1, 13, 1, 14)),
+				new Space(new Range(1, 14, 1, 15)),
+				new Word(new Range(1, 15, 1, 15 + 5), 'again'),
+				new ExclamationMark(new Range(1, 20, 1, 21)),
+			]);
+			const tree1: TTree<BaseToken> = asTreeNode<TTree<BaseToken>>(
+				new Word(new Range(1, 1, 1, 1 + 5), 'hello'),
+				[
+					new Space(new Range(1, 6, 1, 7)),
+					new Word(new Range(1, 7, 1, 7 + 5), 'world'),
+					compositeToken1,
+				],
+			);
+
+			const compositeToken2 = new TestCompositeToken([
+				new VerticalTab(new Range(1, 13, 1, 14)),
+				new Space(new Range(1, 14, 1, 15)),
+				new Word(new Range(1, 15, 1, 15 + 5), 'again'),
+				new Tab(new Range(1, 20, 1, 21)),
+				new ExclamationMark(new Range(1, 21, 1, 22)),
+			]);
+			const tree2: TTree<BaseToken> = asTreeNode<TTree<BaseToken>>(
+				new Word(new Range(1, 1, 1, 1 + 5), 'hello'),
+				[
+					new Space(new Range(1, 6, 1, 7)),
+					new Word(new Range(1, 7, 1, 7 + 5), 'world'),
+					compositeToken2,
+				],
+			);
+
+			assert.deepStrictEqual(
+				difference(tree1, tree2),
+				{
+					index: 0,
+					value: tree1,
+					their: tree2,
+					children: [
+						{
+							index: 2,
+							value: compositeToken1,
+							their: compositeToken2,
+							children: [
+								{
+									index: 3,
+									value: compositeToken1.tokens[3],
+									their: compositeToken2.tokens[3],
+								},
+								{
+									index: 4,
+									value: null,
+									their: compositeToken2.tokens[4],
+								},
+							],
+						}
+					],
+				},
+				'Unexpected difference between token trees.',
+			);
+		});
+
+		test('• returns null for equal trees', () => {
+			const tree1 = new TestCompositeToken([
+				asTreeNode(new Word(
+					new Range(1, 1, 1, 1 + 5),
+					'hello',
+				), []),
+				asTreeNode(new Space(new Range(1, 6, 1, 7)), []),
+				asTreeNode(new Word(
+					new Range(1, 7, 1, 7 + 6),
+					'world!',
+				), []),
+			]);
+
+			const tree2 = new TestCompositeToken([
+				asTreeNode(new Word(
+					new Range(1, 1, 1, 1 + 5),
+					'hello',
+				), []),
+				asTreeNode(new Space(new Range(1, 6, 1, 7)), []),
+				asTreeNode(new Word(
+					new Range(1, 7, 1, 7 + 6),
+					'world!',
+				), []),
+			]);
+
+			assert.strictEqual(
+				difference(tree1, tree2),
+				null,
+				'Unexpected difference between token trees.',
+			);
+
+			assert.strictEqual(
+				difference(tree1, tree1),
+				null,
+				'Must be a null difference when compared with itself.',
+			);
+		});
+	});
 });
+
+/**
+ * TODO: @legomushroom
+ */
+const asTreeNode = <T extends object>(
+	item: T,
+	children: readonly TTree<T>[],
+): TTree<T> => {
+	return new Proxy(item, {
+		get(target, prop, _receiver) {
+			if (prop === 'children') {
+				return children;
+			}
+
+			// TODO: @legomushroom - add a note
+			if (prop === 'constructor') {
+				return target.constructor;
+			}
+
+			const result = Reflect.get(target, prop);
+			// TODO: @legomushroom - don't do this?
+			if (typeof result === 'function') {
+				return result.bind(target);
+			}
+
+			return result;
+		},
+		// TODO: @legomushroom - comment about the type assertion
+	}) as TTree<T>;
+};

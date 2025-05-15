@@ -58,7 +58,9 @@ export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon
  * ---
  * ```
  */
-export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>]> {
+export class FrontMatterRecord extends FrontMatterToken<
+	readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>]
+> {
 	/**
 	 * Token that represent `name` of the record.
 	 *
@@ -72,6 +74,21 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 	 */
 	public get nameToken(): FrontMatterRecordName {
 		return this.tokens[0];
+	}
+
+	/**
+	 * Token that represent `value` of the record.
+	 *
+	 * E.g., `['value']` in the example below:
+	 *
+	 * ```
+	 * ---
+	 * tools: ['value']
+	 * ---
+	 * ```
+	 */
+	public get valueToken(): FrontMatterValueToken<TValueTypeName> {
+		return this.tokens[2];
 	}
 
 	/**
@@ -91,21 +108,6 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 		this.withRange(trimmedRange);
 
 		return trimmedTokens;
-	}
-
-	/**
-	 * Token that represent `value` of the record.
-	 *
-	 * E.g., `['value']` in the example below:
-	 *
-	 * ```
-	 * ---
-	 * tools: ['value']
-	 * ---
-	 * ```
-	 */
-	public get valueToken(): FrontMatterValueToken<TValueTypeName> {
-		return this.tokens[2];
 	}
 
 	public override toString(): string {
