@@ -56,7 +56,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		for (const action of actions) {
 			let category = action.category;
 			if (!category) {
-				category = { label: '', order: Number.MAX_SAFE_INTEGER };
+				category = { label: '', order: Number.MIN_SAFE_INTEGER };
 			}
 			if (!actionsByCategory.has(category.label)) {
 				actionsByCategory.set(category.label, []);
@@ -74,7 +74,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		for (const [categoryLabel, categoryActions] of sortedCategories) {
 
-			if (categoryLabel) {
+			if (categoryLabel !== '') {
 				// Push headers for each category
 				actionWidgetItems.push({
 					label: categoryLabel,
