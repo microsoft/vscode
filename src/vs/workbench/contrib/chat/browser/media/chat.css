@@ -196,8 +196,9 @@
 		height: 22px;
 }
 
-/* Show toolbar on hover */
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar {
+/* Show toolbar on hover and last response */
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
+.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar {
 	opacity: 1;
 	visibility: visible;
 }

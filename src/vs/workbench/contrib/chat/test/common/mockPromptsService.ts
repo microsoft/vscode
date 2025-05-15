@@ -5,7 +5,6 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TCombinedToolsMetadata, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
@@ -27,13 +26,7 @@ export class MockPromptsService implements IPromptsService {
 	getSourceFolders(_type: TPromptsType): readonly IPromptPath[] {
 		throw new Error('Method not implemented.');
 	}
-	public asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined {
-		if (name.endsWith(PROMPT_FILE_EXTENSION)) {
-			const command = `prompt:${name.substring(0, -PROMPT_FILE_EXTENSION.length)}`;
-			return {
-				command, detail: name,
-			};
-		}
+	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
 		return undefined;
 	}
 	resolvePromptSlashCommand(_data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {

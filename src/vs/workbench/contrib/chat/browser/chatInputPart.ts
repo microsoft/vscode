@@ -79,7 +79,6 @@ import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWi
 import { ChatAgentLocation, ChatConfiguration, ChatMode, isChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
-import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/promptInstructionsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -1187,10 +1186,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
 					return viewItem;
 				}
-				if (action.id === AttachToolsAction.id) {
-					// TODO@jrieken let's remove this once the tools picker has its final place.
-					return this.selectedToolsModel.toolsActionItemViewItemProvider(action, options);
-				}
 				return undefined;
 			}
 		}));
@@ -1200,8 +1195,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 		}));
-
-		this._register(this.selectedToolsModel.toolsActionItemViewItemProvider.onDidRender(() => this._onDidChangeHeight.fire()));
 	}
 
 	private renderAttachedContext() {

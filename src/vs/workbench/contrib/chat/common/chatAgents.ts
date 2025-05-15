@@ -496,11 +496,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	async getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
 		const data = this._agents.get(id);
-		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
-		}
-
-		if (!data.impl?.provideChatTitle) {
+		if (!data?.impl?.provideChatTitle) {
 			return undefined;
 		}
 

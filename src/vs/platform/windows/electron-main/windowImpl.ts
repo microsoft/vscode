@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions } from 'electron';
+import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -116,14 +116,34 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
+	private maximizedWindowState: IWindowState | undefined;
+
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 
 		// Window Events
-		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
-		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
+			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._win) {
+				const [x, y] = this._win.getPosition();
+				const [width, height] = this._win.getSize();
+
+				this.maximizedWindowState = { mode: WindowMode.Maximized, width, height, x, y };
+				this.logService.debug(`Saved maximized window ${this.id} display state:`, this.maximizedWindowState);
+			}
+
+			this._onDidMaximize.fire();
+		}));
+		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => {
+			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this.maximizedWindowState) {
+				this.maximizedWindowState = undefined;
+
+				this.logService.debug(`Cleared maximized window ${this.id} state`);
+			}
+
+			this._onDidUnmaximize.fire();
+		}));
 		this._register(Event.fromNodeEventEmitter(win, 'closed')(() => {
 			this._onDidClose.fire();
 
@@ -197,6 +217,24 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this._register(this.onDidLeaveFullScreen(() => {
 				this.joinNativeFullScreenTransition?.complete(true);
 			}));
+		}
+
+		if (isWindows && this.environmentMainService.enableRDPDisplayTracking) {
+			// Handles the display-added event on Windows RDP multi-monitor scenarios.
+			// This helps restore maximized windows to their correct monitor after RDP reconnection.
+			// Refs https://github.com/electron/electron/issues/47016
+			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+				this.onDisplayAdded(e.display);
+			}));
+		}
+	}
+
+	private onDisplayAdded(display: Display): void {
+		const state = this.maximizedWindowState;
+		if (state && this._win && WindowStateValidator.validateWindowStateOnDisplay(state, display)) {
+			this.logService.debug(`Setting maximized window ${this.id} bounds to match newly added display`, state);
+
+			this._win.setBounds(state);
 		}
 	}
 

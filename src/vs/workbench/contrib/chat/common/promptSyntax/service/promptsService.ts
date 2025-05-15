@@ -144,7 +144,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^[\w_\-\.]+/)) {
+		if (command.match(/^[\w_\-\.]+$/)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
