@@ -91,7 +91,7 @@ export class NativeEditContextScreenReaderContentState {
 	constructor(
 		readonly positionLineNumber: number,
 		readonly startSelectionLineNumber: number,
-		readonly endSelectionLineNumber: number,
+		readonly endSelectionLineNumber: number | undefined,
 		readonly preStartOffsetRange: OffsetRange | undefined,
 		readonly postEndOffsetRange: OffsetRange | undefined,
 		readonly postStartOffsetRange: OffsetRange | undefined,
@@ -160,7 +160,7 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(context: ISimpleScreenReaderContext, viewSelection: Selection, linesPerPage: number, trimLongText: boolean): NativeEditContextScreenReaderContentState {
+	public fromEditorSelection(context: ISimpleScreenReaderContext, viewSelection: Selection, linesPerPage: number): NativeEditContextScreenReaderContentState {
 
 		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
@@ -193,7 +193,9 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		let postStartOffsetRange: OffsetRange | undefined = undefined;
 		let preEndOffsetRange: OffsetRange | undefined = undefined;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
-			postStartOffsetRange = new OffsetRange(startSelectionLineNumber, endSelectionLineNumber);
+			if (startSelectionLineNumber > endSelectionLineNumber + 1) {
+				postStartOffsetRange = new OffsetRange(startSelectionLineNumber + 1, endSelectionLineNumber - 1);
+			}
 		} else {
 			const postStartRange = selectionStartPageRange.intersectRanges(new Range(startSelectionLineNumber + 1, 1, Infinity, Infinity));
 			if (postStartRange) {
@@ -205,10 +207,11 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 			}
 		}
 
+		const resolvedEndSelectionLineNumber = viewSelection.startLineNumber !== viewSelection.endLineNumber ? viewSelection.endLineNumber : undefined;
 		return new NativeEditContextScreenReaderContentState(
 			positionLineNumber,
 			startSelectionLineNumber,
-			endSelectionLineNumber,
+			resolvedEndSelectionLineNumber,
 			preStartOffsetRange,
 			postEndOffsetRange,
 			postStartOffsetRange,

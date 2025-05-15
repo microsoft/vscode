@@ -7,7 +7,7 @@ import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { localize } from '../../../../../nls.js';
-import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../common/config/fontInfo.js';
@@ -133,7 +133,7 @@ export class ScreenReaderSupport {
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const positionLineNumber = this._screenReaderContentState.positionLineNumber;
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop + 1000;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
@@ -144,9 +144,7 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - (this._screenReaderContentState.preStartOffsetRange ? this._screenReaderContentState.preStartOffsetRange.start : 0);
-		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
+		this._doRender(top, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -157,10 +155,10 @@ export class ScreenReaderSupport {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(top + 500);
+		this._domNode.setTop(500);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
-		this._domNode.setHeight(500);
+		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
 		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
@@ -279,7 +277,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
+		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
 	}
 
 	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
@@ -316,9 +314,11 @@ export class ScreenReaderSupport {
 				nodes.push(renderedLine.domNode);
 			}
 		}
-		const endRenderedLine = this._renderLine(endSelectionLineNumber);
-		renderedLines.set(endSelectionLineNumber, endRenderedLine);
-		nodes.push(endRenderedLine.domNode);
+		if (endSelectionLineNumber !== undefined) {
+			const endRenderedLine = this._renderLine(endSelectionLineNumber);
+			renderedLines.set(endSelectionLineNumber, endRenderedLine);
+			nodes.push(endRenderedLine.domNode);
+		}
 		if (postEndOffsetRange) {
 			for (let lineNumber = postEndOffsetRange.start; lineNumber <= postEndOffsetRange.endExclusive; lineNumber++) {
 				const renderedLine = this._renderLine(lineNumber);
@@ -359,13 +359,15 @@ export class ScreenReaderSupport {
 		}
 		const startChildren = startInnerSpan.childNodes;
 		const endChildren = endInnerSpan.childNodes;
-		console.log('startChildren : ', startChildren);
-		console.log('endChildren : ', endChildren);
-		range.setStart(startChildren.item(startDomPosition.partIndex), startDomPosition.charIndex);
-		range.setEnd(endChildren.item(endDomPosition.partIndex), endDomPosition.charIndex);
-		this.setIgnoreSelectionChangeTime('setRange');
-		activeDocumentSelection.removeAllRanges();
-		activeDocumentSelection.addRange(range);
+		const startNode = startChildren.item(startDomPosition.partIndex);
+		const endNode = endChildren.item(endDomPosition.partIndex);
+		if (startNode.firstChild && endNode.firstChild) {
+			range.setStart(startNode.firstChild, startDomPosition.charIndex + 1);
+			range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
+			this.setIgnoreSelectionChangeTime('setRange');
+			activeDocumentSelection.removeAllRanges();
+			activeDocumentSelection.addRange(range);
+		}
 	}
 }
 
