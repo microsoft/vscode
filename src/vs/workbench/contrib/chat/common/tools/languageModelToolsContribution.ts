@@ -150,27 +150,27 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 			for (const extension of delta.added) {
 				for (const rawTool of extension.value) {
 					if (!rawTool.name || !rawTool.modelDescription || !rawTool.displayName) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool without name, modelDescription, and displayName: ${JSON.stringify(rawTool)}`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool without name, modelDescription, and displayName: ${JSON.stringify(rawTool)}`);
 						continue;
 					}
 
 					if (!rawTool.name.match(/^[\w-]+$/)) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with invalid id: ${rawTool.name}. The id must match /^[\\w-]+$/.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with invalid id: ${rawTool.name}. The id must match /^[\\w-]+$/.`);
 						continue;
 					}
 
 					if (rawTool.canBeReferencedInPrompt && !rawTool.toolReferenceName) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with 'canBeReferencedInPrompt' set without a 'toolReferenceName': ${JSON.stringify(rawTool)}`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with 'canBeReferencedInPrompt' set without a 'toolReferenceName': ${JSON.stringify(rawTool)}`);
 						continue;
 					}
 
 					if ((rawTool.name.startsWith('copilot_') || rawTool.name.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with name starting with "vscode_" or "copilot_"`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with name starting with "vscode_" or "copilot_"`);
 						continue;
 					}
 
 					if (rawTool.tags?.some(tag => tag.startsWith('copilot_') || tag.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
 					}
 
 					const rawIcon = rawTool.icon;
@@ -200,8 +200,12 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 						alwaysDisplayInputOutput: !isBuiltinTool,
 					};
-					const disposable = languageModelToolsService.registerToolData(tool);
-					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);
+					try {
+						const disposable = languageModelToolsService.registerToolData(tool);
+						this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);
+					} catch (e) {
+						extension.collector.error(`Failed to register tool '${rawTool.name}': ${e}`);
+					}
 				}
 			}
 
