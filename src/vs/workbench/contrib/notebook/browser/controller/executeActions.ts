@@ -80,18 +80,21 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 		}
 	}
 
+	let earlyRevealFlag = false;
 	if (context.ui && context.cell) {
+		earlyRevealFlag = handleSmartAutoReveal(context.cell, context.notebookEditor, configurationService);
 		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
-		if (context.autoReveal) {
-			handleAutoReveal(context.cell, context.notebookEditor, configurationService);
+		if (context.autoReveal && !earlyRevealFlag) {
+			handleDefaultAutoReveal(context.cell, context.notebookEditor);
 		}
 	} else if (context.selectedCells?.length || context.cell) {
 		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
-		await context.notebookEditor.executeNotebookCells(selectedCells);
 		const firstCell = selectedCells[0];
 
-		if (firstCell && context.autoReveal) {
-			handleAutoReveal(firstCell, context.notebookEditor, configurationService);
+		earlyRevealFlag = firstCell ? handleSmartAutoReveal(firstCell, context.notebookEditor, configurationService) : false;
+		await context.notebookEditor.executeNotebookCells(selectedCells);
+		if (firstCell && context.autoReveal && !earlyRevealFlag) {
+			handleDefaultAutoReveal(firstCell, context.notebookEditor);
 		}
 	}
 
@@ -108,7 +111,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 	}
 }
 
-function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): void {
+function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): boolean {
 	const revealPercent = configurationService.getValue<number | undefined>('notebook.scrolling.revealPercent');
 	const revealThreshold = configurationService.getValue<number | undefined>('notebook.scrolling.revealThreshold');
 	if (revealPercent !== undefined && revealThreshold !== undefined) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
@@ -132,10 +135,15 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 		}
 
 		notebookEditor.setScrollTop(elementScrollTop - SMART_VIEWPORT_REVEAL_PADDING);
-	} else { // default behavior
-		const cellIndex = notebookEditor.getCellIndex(cell);
-		notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		return true;
+	} else {
+		return false;
 	}
+}
+
+function handleDefaultAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor): void {
+	const cellIndex = notebookEditor.getCellIndex(cell);
+	notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
