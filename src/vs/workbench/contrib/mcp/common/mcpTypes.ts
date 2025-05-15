@@ -24,6 +24,8 @@ import { MCP } from './modelContextProtocol.js';
 import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -454,7 +456,7 @@ export interface IWorkbenchMcpServer {
 	readonly name: string;
 	readonly label: string;
 	readonly description: string;
-	readonly iconUrl: string;
+	readonly iconUrl?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;
@@ -506,3 +508,4 @@ export class McpServerContainers extends Disposable {
 export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
+export const mcpServerIcon = registerIcon('mcp-server', Codicon.tools, localize('mcpServer', 'Icon used for the MCP server.'));
