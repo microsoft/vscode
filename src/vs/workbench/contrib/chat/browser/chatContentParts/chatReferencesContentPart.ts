@@ -15,6 +15,7 @@ import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -31,7 +32,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { IResourceLabel, IResourceLabelProps, ResourceLabels } from '../../../../browser/labels.js';
 import { ColorScheme } from '../../../../browser/web.api.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
@@ -366,9 +367,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			const extraClasses = data.excluded ? ['excluded'] : [];
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
-				const label = uri.path.split('/').slice(1, 3).join('/');
-				const description = uri.path.split('/').slice(5).join('/');
-				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title, strikethrough: data.excluded, extraClasses });
+				templateData.label.setResource(getResourceLabelForGithubUri(uri), { icon: Codicon.github, title: data.title, strikethrough: data.excluded, extraClasses });
 			} else if (uri.scheme === this.productService.urlProtocol && isEqualAuthority(uri.authority, SETTINGS_AUTHORITY)) {
 				// a nicer label for settings URIs
 				const settingId = uri.path.substring(1);
@@ -423,6 +422,49 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	disposeTemplate(templateData: ICollapsibleListTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
+}
+
+function getResourceLabelForGithubUri(uri: URI): IResourceLabelProps {
+	const repoPath = uri.path.split('/').slice(1, 3).join('/');
+	const filePath = uri.path.split('/').slice(5);
+	const fileName = filePath.at(-1);
+	const range = getLineRangeFromGithubUri(uri);
+	return {
+		resource: uri,
+		name: fileName ?? filePath.join('/'),
+		description: [repoPath, ...filePath.slice(0, -1)].join('/'),
+		range
+	};
+}
+
+function getLineRangeFromGithubUri(uri: URI): IRange | undefined {
+	if (!uri.fragment) {
+		return undefined;
+	}
+
+	// Extract the line range from the fragment
+	// Github line ranges are 1-based
+	const match = uri.fragment.match(/\bL(\d+)(?:-L(\d+))?/);
+	if (!match) {
+		return undefined;
+	}
+
+	const startLine = parseInt(match[1]);
+	if (isNaN(startLine)) {
+		return undefined;
+	}
+
+	const endLine = match[2] ? parseInt(match[2]) : startLine;
+	if (isNaN(endLine)) {
+		return undefined;
+	}
+
+	return {
+		startLineNumber: startLine,
+		startColumn: 1,
+		endLineNumber: endLine,
+		endColumn: 1
+	};
 }
 
 function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
