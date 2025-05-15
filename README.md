@@ -6,6 +6,8 @@ Supercharge your development with an editor designed for less coding, using AI. 
 
 To download the full app, visit our homepage at https://trypear.ai.
 
+
+
 ## Features
 * **Knows your code** - Pear has context on your codebase so you can ask questions directly (code is stored locally on your computer).
 * **UI/UX focused** - Pear puts the user experience first, making developing as seamless as possible.
@@ -18,12 +20,9 @@ See all features [here](https://trypear.ai/docs).
 Our [Master Document](https://docs.google.com/document/d/14jusGNbGRPT8X6GgEDbP1iab5q4X7_y-eFXK7Ky57IQ/edit) contains all links relevant to PearAI.
 
 ## Contributing
+Go [here](https://github.com/trypear/pearai-master/blob/main/README.md) for the setup and contributing information.
 
-We welcome contributions from the community! Whether you're fixing a bug, improving the documentation, or adding a new feature, we appreciate your help in making PearAI better. 
-- We have a bunch of issues ([good first ones](https://github.com/trypear/pearai-app/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)) which are free to tackle. Make sure to leave a comment indicating you're working on it (check for existing comments also). You can raise a PR anytime and we usually review them pretty quickly.
-- We have a lot on our plate so it's easy for us to miss something. The best way to get our attention is to ping us directly in our Discord server.
-
-**IMPORTANT: Please refer to our coding [Contributing Guide](CONTRIBUTING.md) to set up your coding environment.** For any questions, join the [PearAI Discord](https://discord.gg/7QMraJUsQt)!
+Got any questions? join the [PearAI Discord](https://discord.gg/7QMraJUsQt)!
 
 Curious about our stack?
 - PearAI is in TypeScript/Electron.js
