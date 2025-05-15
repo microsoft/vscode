@@ -17,7 +17,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
@@ -38,7 +38,7 @@ import { McpUrlHandler } from './mcpUrlHandler.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 // acroynms do not get localized
@@ -71,12 +71,12 @@ export class ListMcpServerCommand extends Action2 {
 		const mcpService = accessor.get(IMcpService);
 		const commandService = accessor.get(ICommandService);
 		const quickInput = accessor.get(IQuickInputService);
-		const configService = accessor.get(IConfigurationService);
 		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const viewsService = accessor.get(IViewsService);
+		const mcpGalleryService = accessor.get(IMcpGalleryService);
 
-		if (configService.getValue(mcpGalleryServiceUrlConfig)) {
+		if (mcpGalleryService.isEnabled()) {
 			if (mcpWorkbenchService.local.length) {
 				return viewsService.openView(InstalledMcpServersViewId, true);
 			} else {

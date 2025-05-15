@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpConfiguration, IMcpConfigurationHTTP, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -113,6 +113,7 @@ export class McpAddConfigurationCommand {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IMcpGalleryService private readonly _mcpGalleryService: IMcpGalleryService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -140,7 +141,7 @@ export class McpAddConfigurationCommand {
 			);
 		}
 
-		if (this._configurationService.getValue(mcpGalleryServiceUrlConfig)) {
+		if (this._mcpGalleryService.isEnabled()) {
 			items.push(
 				{ type: 'separator' },
 				{

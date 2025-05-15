@@ -56,6 +56,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		super();
 	}
 
+	isEnabled(): boolean {
+		return this.getMcpGalleryUrl() !== undefined;
+	}
+
 	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IGalleryMcpServer[]> {
 		let result = await this.fetchGallery(token);
 
