@@ -96,7 +96,6 @@ import './contrib/debug/notebookBreakpoints.js';
 import './contrib/debug/notebookCellPausing.js';
 import './contrib/debug/notebookDebugDecorations.js';
 import './contrib/execute/executionEditorProgress.js';
-import './contrib/execute/executionFollower.js';
 import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
