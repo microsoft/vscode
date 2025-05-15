@@ -83,6 +83,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
 	private _shellType: TerminalShellType | undefined;
+	private _rightPromptStartX: number | undefined;
 
 	private _lastUserInput: string = '';
 
@@ -148,6 +149,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._sync();
 	}
 
+	setRightPromptStartX(value: number | undefined): void {
+		this._rightPromptStartX = value;
+		this._sync();
+	}
+
 	setLastPromptLine(value: string): void {
 		this._lastPromptLine = value;
 		this._sync();
@@ -169,7 +175,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 		let result = `${value.substring(0, this.cursorIndex)}|`;
 		if (this.ghostTextIndex !== -1) {
-			result += `${value.substring(this.cursorIndex, this.ghostTextIndex)}[`;
+			result += `${value.substring(this.cursorIndex, this.ghostTextIndex!)}[`;
 			result += `${value.substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
@@ -245,6 +251,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Remove any ghost text from the input if it exists on execute
 		if (this._ghostTextIndex !== -1) {
 			this._value = this._value.substring(0, this._ghostTextIndex);
+			if (this._rightPromptStartX) {
+				this._value = this._value.substring(0, this._rightPromptStartX);
+			}
 			this._ghostTextIndex = -1;
 		}
 

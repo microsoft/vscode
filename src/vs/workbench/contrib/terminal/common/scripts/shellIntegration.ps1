@@ -103,13 +103,13 @@ function Global:Prompt() {
 	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
 	if ($Global:envVarsToReport.Count -gt 0) {
 		$envMap = @{}
-        foreach ($varName in $envVarsToReport) {
-            if (Test-Path "env:$varName") {
-                $envMap[$varName] = (Get-Item "env:$varName").Value
-            }
-        }
-        $envJson = $envMap | ConvertTo-Json -Compress
-        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+		foreach ($varName in $envVarsToReport) {
+			if (Test-Path "env:$varName") {
+				$envMap[$varName] = (Get-Item "env:$varName").Value
+			}
+		}
+		$envJson = $envMap | ConvertTo-Json -Compress
+		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
@@ -129,7 +129,19 @@ function Global:Prompt() {
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
 	$Global:__LastHistoryId = $LastHistoryEntry.Id
-	return $Result
+
+
+    if (-not $global:__OhMyPoshRightPromptKnown) {
+        $global:__OhMyPoshRightPromptInfo = Get-OhMyPoshRightPromptInfo
+        $global:__OhMyPoshRightPromptKnown = $true
+    }
+
+    # Append the right prompt marker at the end of the left prompt
+    if ($global:__OhMyPoshRightPromptInfo.HasRightPrompt) {
+        $Result += "$([char]0x1b)]633;H`a"
+    }
+
+    return $Result
 }
 
 # Report prompt type
@@ -320,4 +332,60 @@ function Compress-Completions($completions) {
 # Register key handlers if PSReadLine is available
 if (Get-Module -Name PSReadLine) {
 	Set-MappedKeyHandlers
+}
+
+# Right prompt detection
+function Get-OhMyPoshRightPromptInfo {
+	$result = [PSCustomObject]@{
+		HasRightPrompt = $false
+		SchemaType     = "unknown"
+		ThemePath      = $null
+		Reason         = ""
+	}
+
+	if ($env:POSH_THEME) {
+		$themePath = $env:POSH_THEME -replace '^~', $HOME
+	}
+
+	if (-not $themePath) {
+		try {
+			$ompInitLine = Get-Content $PROFILE -ErrorAction SilentlyContinue | Where-Object { $_ -like '*oh-my-posh init*--config*' }
+			if ($ompInitLine -match '--config\s+["'']?([^"'']+\.omp\.json)["'']?') {
+				$themePath = $Matches[1] -replace '^~', $HOME
+			}
+		} catch {}
+	}
+
+	if (-not $themePath -or !(Test-Path $themePath)) {
+		return $result
+	}
+
+	$result.ThemePath = $themePath
+
+	try {
+		$theme = Get-Content $themePath -Raw | ConvertFrom-Json
+
+		if ($theme.blocks) {
+			$result.SchemaType = "blocks"
+			$rightAligned = $theme.blocks | Where-Object { $_.alignment -eq 'right' }
+			$rpromptBlock = $theme.blocks | Where-Object { $_.type -eq 'rprompt' }
+
+			if ($rightAligned.Count -gt 0) {
+				$result.HasRightPrompt = $true
+				$result.Reason = "'alignment': 'right'"
+			} elseif ($rpromptBlock.Count -gt 0) {
+				$result.HasRightPrompt = $true
+				$result.Reason = "'type': 'rprompt'"
+			}
+		} elseif ($theme.segments) {
+			$result.SchemaType = "segments"
+			$rprompt = $theme.segments | Where-Object { $_.type -eq 'rprompt' }
+			if ($rprompt.Count -gt 0) {
+				$result.HasRightPrompt = $true
+				$result.Reason = "'type': 'rprompt'"
+			}
+		}
+	} catch {}
+
+	return $result
 }

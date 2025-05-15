@@ -326,6 +326,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleRightPromptStart(): void {
 		this._currentCommand.commandRightPromptStartX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleRightPromptStart', this._currentCommand.commandRightPromptStartX);
+		this._promptInputModel.setRightPromptStartX(this._currentCommand.commandRightPromptStartX);
 	}
 
 	handleRightPromptEnd(): void {
