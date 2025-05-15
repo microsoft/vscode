@@ -205,12 +205,8 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
-	readonly value: string;
-	readonly repositoryId: string;
-	readonly historyItemId: string;
-	readonly historyItemParentId: string | undefined;
-	readonly historyItemEditorTitle: string;
-	readonly historyItemEditorUri: URI;
+	readonly title: string;
+	readonly value: URI;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry

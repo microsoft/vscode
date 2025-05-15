@@ -50,7 +50,6 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
-import { ISCMService } from '../../scm/common/scm.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -606,8 +605,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		contextResourceLabels: ResourceLabels,
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService,
-		@ISCMService private readonly scmService: ISCMService
+		@IOpenerService openerService: IOpenerService
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -633,18 +631,9 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
-		const repository = this.scmService.getRepository(attachment.repositoryId);
-		const historyProvider = repository?.provider.historyProvider.get();
-		if (!repository || !historyProvider) {
-			return;
-		}
-
-		const historyItemChanges = await historyProvider.provideHistoryItemChanges(attachment.historyItemId, attachment.historyItemParentId);
-		if (!historyItemChanges?.length) {
-			return;
-		}
-
-		this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title: attachment.historyItemEditorTitle, multiDiffSourceUri: attachment.historyItemEditorUri, resources: historyItemChanges });
+		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
+			title: attachment.title, multiDiffSourceUri: attachment.value
+		});
 	}
 }
 
