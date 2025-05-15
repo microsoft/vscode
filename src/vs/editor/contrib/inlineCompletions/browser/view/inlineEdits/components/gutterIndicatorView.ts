@@ -197,7 +197,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
 			const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
 			const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
-			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader) + gutterViewPortPadding);
+			const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
+			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
 
 			// The glyph margin area across all relevant lines
 			const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -207,7 +208,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillHeight = lineHeight;
 			const pillOffset = this._verticalOffset.read(reader);
 			const pillFullyDockedRect = gutterEditArea.withHeight(pillHeight).translateY(pillOffset);
-			const pillIsFullyDocked = gutterViewPortWithoutStickyScroll.containsRect(pillFullyDockedRect);
+			const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
