@@ -34,6 +34,11 @@
 	object-fit: contain;
 }
 
+.extension-list-item > .icon-container > .codicon {
+	padding-right: 14px;
+	font-size: 42px !important;
+}
+
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
 	bottom: 5px;

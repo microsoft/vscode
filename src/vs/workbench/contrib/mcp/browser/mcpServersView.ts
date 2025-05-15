@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/mcpServers.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
@@ -24,12 +23,12 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers } from '../common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, mcpServerIcon } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, ManageMcpServerAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class McpServersListView extends ViewPane {
 
@@ -137,7 +136,7 @@ export class McpServersListView extends ViewPane {
 interface IMcpServerTemplateData {
 	root: HTMLElement;
 	element: HTMLElement;
-	icon: HTMLImageElement;
+	icon: HTMLElement;
 	name: HTMLElement;
 	description: HTMLElement;
 	installCount: HTMLElement;
@@ -159,19 +158,18 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 	) { }
 
 	renderTemplate(root: HTMLElement): IMcpServerTemplateData {
-		const element = dom.append(root, dom.$('.mcp-server-item'));
-		const iconContainer = dom.append(element, dom.$('.icon-container'));
-		const icon = dom.append(iconContainer, dom.$<HTMLImageElement>('img.icon', { alt: '' }));
-		const details = dom.append(element, dom.$('.details-container'));
-		const nameContainer = dom.append(details, dom.$('.name-container'));
-		const name = dom.append(nameContainer, dom.$('span.name'));
+		const element = dom.append(root, dom.$('.mcp-server-item.extension-list-item'));
+		const icon = dom.append(element, dom.$('.icon-container'));
+		const details = dom.append(element, dom.$('.details'));
+		const headerContainer = dom.append(details, dom.$('.header-container'));
+		const header = dom.append(headerContainer, dom.$('.header'));
+		const name = dom.append(header, dom.$('span.name'));
+		const installCount = dom.append(header, dom.$('span.install-count'));
+		const ratings = dom.append(header, dom.$('span.ratings'));
 		const description = dom.append(details, dom.$('.description.ellipsis'));
-		const footerContainer = dom.append(details, dom.$('.footer-container'));
-		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, dom.append(footerContainer, dom.$('.publisher-container')), true);
-		const statsContainer = dom.append(footerContainer, dom.$('.stats-container'));
-		const installCount = dom.append(statsContainer, dom.$('span.install-count'));
-		const ratings = dom.append(statsContainer, dom.$('span.ratings'));
-		const actionbar = new ActionBar(dom.append(footerContainer, dom.$('.actions-container.mcp-server-actions')), {
+		const footer = dom.append(details, dom.$('.footer'));
+		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, dom.append(footer, dom.$('.publisher-container')), true);
+		const actionbar = new ActionBar(footer, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof DropDownAction) {
 					return action.createActionViewItem(options);
@@ -210,24 +208,25 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 
 	renderElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {
 		data.element.classList.remove('loading');
-		data.element.classList.remove('hidden');
 		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
-
-		if (!mcpServer) {
-			data.element.classList.add('hidden');
-			data.mcpServer = null;
-			return;
-		}
-
 		data.root.setAttribute('data-mcp-server-id', mcpServer.id);
-		data.mcpServerDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = DefaultIconPath, { once: true }));
-		data.icon.src = mcpServer.iconUrl;
 
-		if (!data.icon.complete) {
-			data.icon.style.visibility = 'hidden';
-			data.icon.onload = () => data.icon.style.visibility = 'inherit';
+		dom.clearNode(data.icon);
+		if (mcpServer.iconUrl) {
+			const icon = dom.append(data.icon, dom.$<HTMLImageElement>('img.icon', { alt: '' }));
+			data.mcpServerDisposables.push(dom.addDisposableListener(icon, 'error', () => {
+				dom.clearNode(data.icon);
+				dom.append(data.icon, dom.$(ThemeIcon.asCSSSelector(mcpServerIcon)));
+			}, { once: true }));
+			icon.src = mcpServer.iconUrl;
+			if (!icon.complete) {
+				data.icon.style.visibility = 'hidden';
+				icon.onload = () => icon.style.visibility = 'inherit';
+			} else {
+				icon.style.visibility = 'inherit';
+			}
 		} else {
-			data.icon.style.visibility = 'inherit';
+			dom.append(data.icon, dom.$(ThemeIcon.asCSSSelector(mcpServerIcon)));
 		}
 
 		data.name.textContent = mcpServer.label;

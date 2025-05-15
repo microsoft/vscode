@@ -13,7 +13,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, InstallMcpServerResult, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, IWorkbenchMcpServer, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 
@@ -39,8 +38,8 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.displayName ?? this.local?.displayName ?? '';
 	}
 
-	get iconUrl(): string {
-		return this.gallery?.iconUrl ?? this.local?.iconUrl ?? DefaultIconPath;
+	get iconUrl(): string | undefined {
+		return this.gallery?.iconUrl ?? this.local?.iconUrl;
 	}
 
 	get publisherDisplayName(): string | undefined {
