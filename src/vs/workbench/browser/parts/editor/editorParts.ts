@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { GroupIdentifier } from '../../../common/editor.js';
+import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,6 +24,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 
 import { isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -56,6 +57,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
+
+		this.editorWorkingSets = (() => {
+			const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (workingSetsRaw) {
+				return JSON.parse(workingSetsRaw);
+			}
+			return [];
+		})();
 
 		this.mainPart = this._register(this.createMainEditorPart());
 		this._register(this.registerPart(this.mainPart));
@@ -366,14 +375,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private static readonly EDITOR_WORKING_SETS_STORAGE_KEY = 'editor.workingSets';
 
-	private editorWorkingSets: IEditorWorkingSetState[] = (() => {
-		const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (workingSetsRaw) {
-			return JSON.parse(workingSetsRaw);
-		}
-
-		return [];
-	})();
+	private editorWorkingSets: IEditorWorkingSetState[];
 
 	saveWorkingSet(name: string): IEditorWorkingSet {
 		const workingSet: IEditorWorkingSetState = {
@@ -810,6 +812,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
+
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
+		return this.mainPart.enforcePartOptions(options);
+	}
 
 	//#endregion
 }

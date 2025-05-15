@@ -484,8 +484,7 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 		super({
 			id: DisableWindowAlwaysOnTopAction.ID,
 			title: localize('disableWindowAlwaysOnTop', "Unset Always on Top"),
-			icon: Codicon.pin,
-			toggled: { condition: IsWindowAlwaysOnTopContext, icon: Codicon.pinned },
+			icon: Codicon.pinned,
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryTitleBarContext),

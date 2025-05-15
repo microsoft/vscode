@@ -62,8 +62,12 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		try {
 			// find parent id and extract id
 			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
-				const url = new URL(targetInfo.url);
-				return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+				try {
+					const url = new URL(targetInfo.url);
+					return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+				} catch (err) {
+					return false;
+				}
 			});
 
 			if (matchingTarget) {
@@ -74,8 +78,12 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			// use id to grab simple browser target
 			if (resultId) {
 				target = targetInfos.find((targetInfo: { url: string }) => {
-					const url = new URL(targetInfo.url);
-					return url.searchParams.get('id') === resultId && url.searchParams.get('vscodeBrowserReqId')!;
+					try {
+						const url = new URL(targetInfo.url);
+						return (url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId'));
+					} catch (e) {
+						return false;
+					}
 				});
 			}
 

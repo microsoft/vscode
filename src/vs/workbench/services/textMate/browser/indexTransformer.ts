@@ -3,39 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
-
-export class ArrayEdit {
-	public readonly edits: readonly SingleArrayEdit[];
-
-	constructor(
-		/**
-		 * Disjoint edits that are applied in parallel
-		 */
-		edits: readonly SingleArrayEdit[]
-	) {
-		this.edits = edits.slice().sort(compareBy(c => c.offset, numberComparator));
-	}
-
-	applyToArray(array: any[]): void {
-		for (let i = this.edits.length - 1; i >= 0; i--) {
-			const c = this.edits[i];
-			array.splice(c.offset, c.length, ...new Array(c.newLength));
-		}
-	}
-}
-
-export class SingleArrayEdit {
-	constructor(
-		public readonly offset: number,
-		public readonly length: number,
-		public readonly newLength: number,
-	) { }
-
-	toString() {
-		return `[${this.offset}, +${this.length}) -> +${this.newLength}}`;
-	}
-}
+import { AnyEdit } from '../../../../editor/common/core/edits/edit.js';
 
 export interface IIndexTransformer {
 	transform(index: number): number | undefined;
@@ -45,7 +13,7 @@ export interface IIndexTransformer {
  * Can only be called with increasing values of `index`.
 */
 export class MonotonousIndexTransformer implements IIndexTransformer {
-	public static fromMany(transformations: ArrayEdit[]): IIndexTransformer {
+	public static fromMany(transformations: AnyEdit[]): IIndexTransformer {
 		// TODO improve performance by combining transformations first
 		const transformers = transformations.map(t => new MonotonousIndexTransformer(t));
 		return new CombinedIndexTransformer(transformers);
@@ -54,22 +22,22 @@ export class MonotonousIndexTransformer implements IIndexTransformer {
 	private idx = 0;
 	private offset = 0;
 
-	constructor(private readonly transformation: ArrayEdit) {
+	constructor(private readonly transformation: AnyEdit) {
 	}
 
 	/**
 	 * Precondition: index >= previous-value-of(index).
 	 */
 	transform(index: number): number | undefined {
-		let nextChange = this.transformation.edits[this.idx] as SingleArrayEdit | undefined;
-		while (nextChange && nextChange.offset + nextChange.length <= index) {
-			this.offset += nextChange.newLength - nextChange.length;
+		let nextChange = this.transformation.replacements.at(this.idx);
+		while (nextChange && nextChange.replaceRange.endExclusive <= index) {
+			this.offset += nextChange.getLengthDelta();
 			this.idx++;
-			nextChange = this.transformation.edits[this.idx];
+			nextChange = this.transformation.replacements.at(this.idx);
 		}
 		// assert nextChange === undefined || index < nextChange.offset + nextChange.length
 
-		if (nextChange && nextChange.offset <= index) {
+		if (nextChange && nextChange.replaceRange.start <= index) {
 			// Offset is touched by the change
 			return undefined;
 		}

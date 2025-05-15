@@ -109,9 +109,9 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		// Do the decryption and parse the result as JSON
 		const key = await this.getKey(clientKey.buffer);
 		const decrypted = await mainWindow.crypto.subtle.decrypt(
-			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer },
+			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer as Uint8Array<ArrayBuffer> },
 			key,
-			cipherText.buffer
+			cipherText.buffer as Uint8Array<ArrayBuffer>
 		);
 
 		return new TextDecoder().decode(new Uint8Array(decrypted));

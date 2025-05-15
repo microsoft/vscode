@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -18,6 +18,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { resolveImageEditorAttachContext } from './chatAttachmentResolve.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { equals } from '../../../../base/common/objects.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IChatAttachmentChangeEvent {
 	readonly deleted: readonly string[];
@@ -63,31 +64,6 @@ export class ChatAttachmentModel extends Disposable {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(clearStickyAttachments: boolean = false): void {
-		const deleted = Array.from(this._attachments.keys());
-		this._attachments.clear();
-
-		if (clearStickyAttachments) {
-			this.promptInstructions.clear();
-		}
-
-		this._onDidChange.fire({ deleted, added: [], updated: [] });
-	}
-
-	delete(...variableEntryIds: string[]) {
-		const deleted: string[] = [];
-
-		for (const variableEntryId of variableEntryIds) {
-			if (this._attachments.delete(variableEntryId)) {
-				deleted.push(variableEntryId);
-			}
-		}
-
-		if (deleted.length > 0) {
-			this._onDidChange.fire({ deleted, added: [], updated: [] });
-		}
-	}
-
 	async addFile(uri: URI, range?: IRange) {
 		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
 			const context = await this.asImageVariableEntry(uri);
@@ -95,9 +71,9 @@ export class ChatAttachmentModel extends Disposable {
 				this.addContext(context);
 			}
 			return;
+		} else {
+			this.addContext(this.asFileVariableEntry(uri, range));
 		}
-
-		this.addContext(this.asVariableEntry(uri, range));
 	}
 
 	addFolder(uri: URI) {
@@ -109,7 +85,68 @@ export class ChatAttachmentModel extends Disposable {
 		});
 	}
 
-	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
+	clear(clearStickyAttachments: boolean = false): void {
+		const deleted = Array.from(this._attachments.keys());
+		this._attachments.clear();
+
+		if (clearStickyAttachments) {
+			this.promptInstructions.clear();
+		}
+
+		this._onDidChange.fire({ deleted, added: [], updated: [] });
+	}
+
+	addContext(...attachments: IChatRequestVariableEntry[]) {
+		attachments = attachments.filter(attachment => !this._attachments.has(attachment.id));
+		this.updateContent(Iterable.empty(), attachments);
+	}
+
+	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
+		this.updateContent(Array.from(this._attachments.keys()), attachments);
+	}
+
+	delete(...variableEntryIds: string[]) {
+		this.updateContent(variableEntryIds, Iterable.empty());
+	}
+
+	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
+		const deleted: string[] = [];
+		const added: IChatRequestVariableEntry[] = [];
+		const updated: IChatRequestVariableEntry[] = [];
+
+		for (const id of toDelete) {
+			if (this._attachments.delete(id)) {
+				deleted.push(id);
+			}
+		}
+
+		for (const item of upsert) {
+
+			if (item.kind === 'promptFile') {
+				// TODO@jrieken @aeschli @legomushroom Let's make instructions normal
+				// attachment types so that this isn't needed
+				this.promptInstructions.add(item.value as URI);
+				continue;
+			}
+
+			const oldItem = this._attachments.get(item.id);
+			if (!oldItem) {
+				this._attachments.set(item.id, item);
+				added.push(item);
+			} else if (!equals(oldItem, item)) {
+				this._attachments.set(item.id, item);
+				updated.push(item);
+			}
+		}
+
+		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
+			this._onDidChange.fire({ deleted, added, updated });
+		}
+	}
+
+	// ---- create utils
+
+	asFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileEntry {
 		return {
 			kind: 'file',
 			value: range ? { uri, range } : uri,
@@ -132,60 +169,4 @@ export class ChatAttachmentModel extends Disposable {
 		return undefined;
 	}
 
-	addContext(...attachments: IChatRequestVariableEntry[]) {
-		const added: IChatRequestVariableEntry[] = [];
-
-		for (const attachment of attachments) {
-			if (!this._attachments.has(attachment.id)) {
-				this._attachments.set(attachment.id, attachment);
-				added.push(attachment);
-			}
-		}
-
-		if (added.length > 0) {
-			this._onDidChange.fire({ deleted: [], added, updated: [] });
-		}
-	}
-
-	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
-		const deleted = Array.from(this._attachments.keys());
-		this._attachments.clear();
-
-		const added: IChatRequestVariableEntry[] = [];
-		for (const attachment of attachments) {
-			this._attachments.set(attachment.id, attachment);
-			added.push(attachment);
-		}
-
-		if (deleted.length > 0 || added.length > 0) {
-			this._onDidChange.fire({ deleted, added, updated: [] });
-		}
-	}
-
-	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
-		const deleted: string[] = [];
-		const added: IChatRequestVariableEntry[] = [];
-		const updated: IChatRequestVariableEntry[] = [];
-
-		for (const id of toDelete) {
-			if (this._attachments.delete(id)) {
-				deleted.push(id);
-			}
-		}
-
-		for (const item of upsert) {
-			const oldItem = this._attachments.get(item.id);
-			if (!oldItem) {
-				this._attachments.set(item.id, item);
-				added.push(item);
-			} else if (!equals(oldItem, item)) {
-				this._attachments.set(item.id, item);
-				updated.push(item);
-			}
-		}
-
-		if (deleted.length > 0 || added.length > 0 || updated.length > 0) {
-			this._onDidChange.fire({ deleted, added, updated });
-		}
-	}
 }

@@ -599,6 +599,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on Enter in the Debug Console. Enter is also used to evaluate whatever is typed in the Debug Console."),
 			default: 'off'
 		},
+		'debug.console.maximumLines': {
+			type: 'number',
+			description: nls.localize('debug.console.maximumLines', "Controls the maximum number of lines in the Debug Console."),
+			default: 10000
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),

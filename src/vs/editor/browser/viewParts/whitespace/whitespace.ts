@@ -16,7 +16,7 @@ import * as strings from '../../../../base/common/strings.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the

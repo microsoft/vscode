@@ -13,7 +13,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatMode } from '../../common/constants.js';
@@ -55,6 +55,15 @@ export function registerNewChatActions() {
 					group: 'navigation',
 					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				},
+				{
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.and(
+						ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+						IsAuxiliaryTitleBarContext,
+						IsCompactTitleBarContext
+					),
+					order: -1
 				}]
 			});
 		}

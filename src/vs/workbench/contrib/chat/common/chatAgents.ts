@@ -15,7 +15,7 @@ import { IObservable, observableValue } from '../../../../base/common/observable
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Command, ProviderResult } from '../../../../editor/common/languages.js';
+import { Command } from '../../../../editor/common/languages.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -73,7 +73,6 @@ export interface IChatAgentImplementation {
 	setRequestPaused?(requestId: string, isPaused: boolean): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
-	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
 
 export interface IChatParticipantDetectionResult {
@@ -342,7 +341,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			this._onDidChangeAgents.fire(undefined);
 
 			if (entry.data.isDefault) {
-				this._hasDefaultAgent.set(false);
+				this._hasDefaultAgent.set(Iterable.some(this._agents.values(), agent => agent.data.isDefault));
 			}
 		});
 	}
@@ -497,11 +496,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	async getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
 		const data = this._agents.get(id);
-		if (!data?.impl) {
-			throw new Error(`No activated agent with id "${id}"`);
-		}
-
-		if (!data.impl?.provideChatTitle) {
+		if (!data?.impl?.provideChatTitle) {
 			return undefined;
 		}
 
@@ -602,14 +597,6 @@ export class MergedChatAgent implements IChatAgent {
 		}
 
 		return [];
-	}
-
-	provideSampleQuestions(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
-		if (this.impl.provideSampleQuestions) {
-			return this.impl.provideSampleQuestions(location, token);
-		}
-
-		return undefined;
 	}
 
 	toJSON(): IChatAgentData {

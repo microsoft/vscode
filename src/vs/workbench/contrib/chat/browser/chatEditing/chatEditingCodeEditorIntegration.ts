@@ -8,7 +8,7 @@ import '../media/chatEditorController.css';
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
@@ -180,7 +180,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}));
 
 		// accessibility: diff view
-		this._store.add(autorunWithStore((r, store) => {
+		this._store.add(autorun(r => {
 
 			const visible = this._accessibleDiffViewVisible.read(r);
 
@@ -190,9 +190,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 			const accessibleDiffWidget = new AccessibleDiffViewContainer();
 			_editor.addOverlayWidget(accessibleDiffWidget);
-			store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
+			r.store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
 
-			store.add(instantiationService.createInstance(
+			r.store.add(instantiationService.createInstance(
 				AccessibleDiffViewer,
 				accessibleDiffWidget.getDomNode(),
 				enabledObs,

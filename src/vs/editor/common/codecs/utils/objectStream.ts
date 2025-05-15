@@ -5,7 +5,7 @@
 
 import { ITextModel } from '../../model.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { assert, assertNever } from '../../../../base/common/assert.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ObservableDisposable } from '../../../../base/common/observableDisposable.js';
 import { newWriteableStream, WriteableStream, ReadableStream } from '../../../../base/common/stream.js';
@@ -56,26 +56,17 @@ export class ObjectStream<T extends object> extends ObservableDisposable impleme
 	public send(
 		stopAfterFirstSend: boolean = false,
 	): void {
-		if (this.cancellationToken?.isCancellationRequested) {
+		// this method can be called asynchronously by the `setTimeout` utility below, hence
+		// the state of the cancellation token or the stream itself might have changed by that time
+		if (this.cancellationToken?.isCancellationRequested || this.ended) {
 			this.end();
 
 			return;
 		}
 
-		assert(
-			this.ended === false,
-			'Cannot send on already ended stream.',
-		);
-
 		this.sendData()
 			.then(() => {
-				if (this.cancellationToken?.isCancellationRequested) {
-					this.end();
-
-					return;
-				}
-
-				if (this.ended) {
+				if (this.cancellationToken?.isCancellationRequested || this.ended) {
 					this.end();
 
 					return;

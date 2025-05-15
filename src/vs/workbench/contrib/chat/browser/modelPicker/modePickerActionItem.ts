@@ -64,7 +64,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
-			showItemKeybindings: false
+			showItemKeybindings: true
 		};
 
 		super(action, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);

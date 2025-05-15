@@ -66,16 +66,31 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-			const toolInvocation = item.response.value.find(item => item.kind === 'toolInvocation');
-			if (toolInvocation?.confirmationMessages) {
-				const title = toolInvocation.confirmationMessages.title;
-				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
-				const terminalCommand = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
-				responseContent += `${title}`;
-				if (terminalCommand) {
-					responseContent += `: ${terminalCommand}`;
+
+			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			for (const toolInvocation of toolInvocations) {
+				if (toolInvocation.confirmationMessages) {
+					const title = toolInvocation.confirmationMessages.title;
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
+					const command = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
+					responseContent += `${title}`;
+					if (command) {
+						responseContent += `: ${command}`;
+					}
+					responseContent += `\n${message}\n`;
+				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
+					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
 				}
-				responseContent += `\n${message}`;
+			}
+
+			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			for (const pastConfirmation of pastConfirmations) {
+				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+					if (pastConfirmation.pastTenseMessage) {
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderMarkdownAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+					}
+				}
 			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);

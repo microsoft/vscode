@@ -124,7 +124,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
@@ -473,23 +473,13 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
-	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
-		try {
-			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
-			model.startInitialize();
+	private initializeSession(model: ChatModel, token: CancellationToken): void {
+		this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 
-			// Activate the default extension provided agent but do not wait
-			// for it to be ready so that the session can be used immediately
-			// without having to wait for the agent to be ready.
-			this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
-
-			model.initialize();
-		} catch (err) {
-			this.trace('startSession', `initializeSession failed: ${err}`);
-			model.setInitializationError(err);
-			this._sessionModels.deleteAndDispose(model.sessionId);
-			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
-		}
+		// Activate the default extension provided agent but do not wait
+		// for it to be ready so that the session can be used immediately
+		// without having to wait for the agent to be ready.
+		this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
 	}
 
 	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
@@ -565,8 +555,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${request.session.sessionId}`);
 		}
 
-		await model.waitForInitialization();
-
 		const cts = this._pendingRequests.get(request.session.sessionId);
 		if (cts) {
 			this.trace('resendRequest', `Session ${request.session.sessionId} already has a pending request, cancelling...`);
@@ -601,8 +589,6 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		await model.waitForInitialization();
 
 		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
@@ -1022,8 +1008,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		await model.waitForInitialization();
-
 		const pendingRequest = this._pendingRequests.get(sessionId);
 		if (pendingRequest?.requestId === requestId) {
 			pendingRequest.cancel();
@@ -1041,8 +1025,6 @@ export class ChatService extends Disposable implements IChatService {
 		if (!target) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		await target.waitForInitialization();
 
 		const oldOwner = request.session;
 		target.adoptRequest(request);
@@ -1064,7 +1046,6 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		await model.waitForInitialization();
 		const parsedRequest = typeof message === 'string' ?
 			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;

@@ -123,7 +123,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 			// after the promise above complete, this object can be already disposed or
 			// the cancellation could be requested, in that case destroy the stream and
 			// throw cancellation error
-			if (this.disposed || cancellationToken?.isCancellationRequested) {
+			if (this.isDisposed || cancellationToken?.isCancellationRequested) {
 				fileStream.value.destroy();
 				throw new CancellationError();
 			}

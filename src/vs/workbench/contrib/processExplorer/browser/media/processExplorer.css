@@ -29,6 +29,13 @@
 	text-overflow: ellipsis;
 }
 
+.process-explorer .monaco-tl-twistie.force-no-twistie {
+	background-image: none !important;
+	width: 0 !important;
+	padding-right: 0 !important;
+	visibility: hidden;
+}
+
 .process-explorer .row .cell.name {
 	text-align: left;
 	flex-grow: 1;
@@ -53,6 +60,7 @@
 	border-bottom-right-radius: 5px;
 	border-bottom-left-radius: 5px;
 }
+
 .mac:not(.fullscreen).macos-bigsur-or-newer .process-explorer .monaco-list:focus::before {
 	/* macOS Big Sur increased rounded corners size */
 	border-bottom-right-radius: 10px;

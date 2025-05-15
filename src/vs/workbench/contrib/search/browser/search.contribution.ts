@@ -27,11 +27,12 @@ import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from '../../../services/search/common/search.js';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
 import * as Constants from '../common/constants.js';
+import { SearchChatContextContribution } from './chatContributions.js';
 
 import './searchActionsCopy.js';
 import './searchActionsFind.js';
@@ -42,6 +43,7 @@ import './searchActionsTopBar.js';
 import './searchActionsTextQuickAccess.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -49,6 +51,8 @@ registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType
 replaceContributions();
 notebookSearchContributions();
 searchWidgetContributions();
+
+registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -384,7 +388,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-
+		'search.searchView.semanticSearchBehavior': {
+			type: 'string',
+			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the search view."),
+			enum: [SemanticSearchBehavior.Manual, SemanticSearchBehavior.RunOnEmpty, SemanticSearchBehavior.Auto],
+			default: SemanticSearchBehavior.RunOnEmpty,
+			enumDescriptions: [
+				nls.localize('search.searchView.semanticSearchBehavior.manual', "Only request semantic search results manually."),
+				nls.localize('search.searchView.semanticSearchBehavior.runOnEmpty', "Request semantic results automatically only when text search results are empty."),
+				nls.localize('search.searchView.semanticSearchBehavior.auto', "Request semantic results automatically with every search.")
+			],
+			tags: ['preview'],
+		},
+		'search.searchView.keywordSuggestions': {
+			type: 'boolean',
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the search view."),
+			default: false,
+			tags: ['preview'],
+		},
 	}
 });
 

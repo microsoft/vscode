@@ -52,7 +52,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 
 	protected readonly toggle: Toggle;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
 		this.toggle = this._register(new Toggle({
@@ -327,7 +327,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	protected readonly toggle: Checkbox;
 	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: ICheckboxActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: ICheckboxActionViewItemOptions) {
 		super(context, action, options);
 
 		this.toggle = this._register(new Checkbox(this._action.label, !!this._action.checked, options.checkboxStyles));

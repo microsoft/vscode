@@ -7,10 +7,11 @@ import { compareBy, groupAdjacentBy, numberComparator } from '../../../../base/c
 import { assert, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { LineRange } from '../ranges/lineRange.js';
-import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
+import { StringEdit, StringReplacement } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
-import { AbstractText, SingleTextEdit, TextEdit } from './textEdit.js';
+import { TextReplacement, TextEdit } from './textEdit.js';
+import { AbstractText } from '../text/abstractText.js';
 
 export class LineEdit {
 	public static readonly empty = new LineEdit([]);
@@ -19,17 +20,17 @@ export class LineEdit {
 		return new LineEdit(data.map(e => SingleLineEdit.deserialize(e)));
 	}
 
-	public static fromEdit(edit: OffsetEdit, initialValue: AbstractText): LineEdit {
-		const textEdit = TextEdit.fromOffsetEdit(edit, initialValue);
+	public static fromEdit(edit: StringEdit, initialValue: AbstractText): LineEdit {
+		const textEdit = TextEdit.fromStringEdit(edit, initialValue);
 		return LineEdit.fromTextEdit(textEdit, initialValue);
 	}
 
 	public static fromTextEdit(edit: TextEdit, initialValue: AbstractText): LineEdit {
-		const edits = edit.edits;
+		const edits = edit.replacements;
 
 		const result: SingleLineEdit[] = [];
 
-		const currentEdits: SingleTextEdit[] = [];
+		const currentEdits: TextReplacement[] = [];
 		for (let i = 0; i < edits.length; i++) {
 			const edit = edits[i];
 			const nextEditRange = i + 1 < edits.length ? edits[i + 1] : undefined;
@@ -38,7 +39,7 @@ export class LineEdit {
 				continue;
 			}
 
-			const singleEdit = SingleTextEdit.joinEdits(currentEdits, initialValue);
+			const singleEdit = TextReplacement.joinReplacements(currentEdits, initialValue);
 			currentEdits.length = 0;
 
 			const singleLineEdit = SingleLineEdit.fromSingleTextEdit(singleEdit, initialValue);
@@ -63,13 +64,13 @@ export class LineEdit {
 		assert(checkAdjacentItems(edits, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
 	}
 
-	public toEdit(initialValue: AbstractText): OffsetEdit {
-		const edits: SingleOffsetEdit[] = [];
+	public toEdit(initialValue: AbstractText): StringEdit {
+		const edits: StringReplacement[] = [];
 		for (const edit of this.edits) {
 			const singleEdit = edit.toSingleEdit(initialValue);
 			edits.push(singleEdit);
 		}
-		return new OffsetEdit(edits);
+		return new StringEdit(edits);
 	}
 
 	public toString(): string {
@@ -215,7 +216,7 @@ export class SingleLineEdit {
 		);
 	}
 
-	public static fromSingleTextEdit(edit: SingleTextEdit, initialValue: AbstractText): SingleLineEdit {
+	public static fromSingleTextEdit(edit: TextReplacement, initialValue: AbstractText): SingleLineEdit {
 		// 1: ab[cde
 		// 2: fghijk
 		// 3: lmn]opq
@@ -269,7 +270,7 @@ export class SingleLineEdit {
 		public readonly newLines: readonly string[],
 	) { }
 
-	public toSingleTextEdit(initialValue: AbstractText): SingleTextEdit {
+	public toSingleTextEdit(initialValue: AbstractText): TextReplacement {
 		if (this.newLines.length === 0) {
 			// Deletion
 			const textLen = initialValue.getTransformer().textLength;
@@ -287,9 +288,9 @@ export class SingleLineEdit {
 				}
 
 				const lastPosition = textLen.addToPosition(new Position(1, 1));
-				return new SingleTextEdit(Range.fromPositions(startPos, lastPosition), '');
+				return new TextReplacement(Range.fromPositions(startPos, lastPosition), '');
 			} else {
-				return new SingleTextEdit(new Range(this.lineRange.startLineNumber, 1, this.lineRange.endLineNumberExclusive, 1), '');
+				return new TextReplacement(new Range(this.lineRange.startLineNumber, 1, this.lineRange.endLineNumberExclusive, 1), '');
 			}
 
 		} else if (this.lineRange.isEmpty) {
@@ -308,7 +309,7 @@ export class SingleLineEdit {
 				column = 1;
 				text = this.newLines.map(l => l + '\n').join('');
 			}
-			return new SingleTextEdit(Range.fromPositions(new Position(endLineNumber, column)), text);
+			return new TextReplacement(Range.fromPositions(new Position(endLineNumber, column)), text);
 		} else {
 			const endLineNumber = this.lineRange.endLineNumberExclusive - 1;
 			const endLineNumberMaxColumn = initialValue.getTransformer().getLineLength(endLineNumber) + 1;
@@ -320,14 +321,14 @@ export class SingleLineEdit {
 			);
 			// Don't add \n to the last line. This is because we subtract one from lineRange.endLineNumberExclusive for endLineNumber.
 			const text = this.newLines.join('\n');
-			return new SingleTextEdit(range, text);
+			return new TextReplacement(range, text);
 		}
 	}
 
-	public toSingleEdit(initialValue: AbstractText): SingleOffsetEdit {
+	public toSingleEdit(initialValue: AbstractText): StringReplacement {
 		const textEdit = this.toSingleTextEdit(initialValue);
 		const range = initialValue.getTransformer().getOffsetRange(textEdit.range);
-		return new SingleOffsetEdit(range, textEdit.text);
+		return new StringReplacement(range, textEdit.text);
 	}
 
 	public toString(): string {

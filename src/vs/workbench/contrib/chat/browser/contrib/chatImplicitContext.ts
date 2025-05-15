@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -33,9 +33,9 @@ import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsColl
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
 
-	private readonly _currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _currentCancelTokenSource: MutableDisposable<CancellationTokenSource>;
 
-	private _implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
+	private _implicitContextEnablement: { [mode: string]: string };
 
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -47,6 +47,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		super();
+		this._currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+		this._implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
 
 		const activeEditorDisposables = this._register(new DisposableStore());
 
@@ -131,12 +133,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 		for (const codeOrDiffEditor of this.editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			let codeEditor: ICodeEditor;
-			if (isDiffEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor.getModifiedEditor();
-			} else if (isCodeEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor;
-			} else {
+			const codeEditor = getCodeEditor(codeOrDiffEditor);
+			if (!codeEditor) {
 				continue;
 			}
 

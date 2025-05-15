@@ -30,14 +30,14 @@ suite('ObservableDisposable', () => {
 		);
 
 		assert(
-			object.disposed === false,
+			object.isDisposed === false,
 			'Object must not be disposed yet.',
 		);
 
 		object.dispose();
 
 		assert(
-			object.disposed,
+			object.isDisposed,
 			'Object must be disposed.',
 		);
 	});
@@ -50,11 +50,11 @@ suite('ObservableDisposable', () => {
 			disposables.add(object);
 
 			assert(
-				object.disposed === false,
+				object.isDisposed === false,
 				'Object must not be disposed yet.',
 			);
 
-			const onDisposeSpy = spy(() => { });
+			const onDisposeSpy = spy();
 			disposables.add(object.onDispose(onDisposeSpy));
 
 			assert(
@@ -78,7 +78,7 @@ suite('ObservableDisposable', () => {
 			 */
 
 			assert(
-				object.disposed,
+				object.isDisposed,
 				'Object must be disposed.',
 			);
 
@@ -102,7 +102,7 @@ suite('ObservableDisposable', () => {
 			);
 
 			assert(
-				object.disposed,
+				object.isDisposed,
 				'Object must be disposed.',
 			);
 		});
@@ -168,7 +168,7 @@ suite('ObservableDisposable', () => {
 			disposables.add(object);
 
 			assert(
-				object.disposed === false,
+				object.isDisposed === false,
 				'Object must not be disposed yet.',
 			);
 
@@ -185,7 +185,7 @@ suite('ObservableDisposable', () => {
 				);
 			}
 
-			object.addDisposable(...disposableObjects);
+			object.addDisposables(...disposableObjects);
 
 			// a sanity check after the 'addDisposable' call
 			for (const disposable of disposableObjects) {
@@ -228,7 +228,7 @@ suite('ObservableDisposable', () => {
 					const disposableObject = new TestDisposable();
 					allDisposables.push(disposableObject);
 					if (parent !== null) {
-						parent.addDisposable(disposableObject);
+						parent.addDisposables(disposableObject);
 					}
 
 					// generate child disposable objects recursively
@@ -256,7 +256,7 @@ suite('ObservableDisposable', () => {
 			disposables.add(object);
 
 			assert(
-				object.disposed === false,
+				object.isDisposed === false,
 				'Object must not be disposed yet.',
 			);
 
@@ -271,7 +271,7 @@ suite('ObservableDisposable', () => {
 			// a sanity check for the initial state of the objects
 			for (const disposable of allDisposableObjects) {
 				assert(
-					disposable.disposed === false,
+					disposable.isDisposed === false,
 					'Disposable object must not be disposed yet.',
 				);
 			}
@@ -280,7 +280,7 @@ suite('ObservableDisposable', () => {
 
 			// finally validate that all objects are disposed
 			const allDisposed = allDisposableObjects.reduce((acc, disposable) => {
-				return acc && disposable.disposed;
+				return acc && disposable.isDisposed;
 			}, true);
 
 			assert(

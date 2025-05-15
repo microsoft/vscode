@@ -71,7 +71,10 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.disabled.negate() // do not pretend a working Chat view if extension is explicitly disabled
 		),
-		ChatContextKeys.Setup.installed,
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.installed,
+			ChatContextKeys.Setup.disabled.negate() // do not pretend a working Chat view if extension is explicitly disabled
+		),
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
 	)
