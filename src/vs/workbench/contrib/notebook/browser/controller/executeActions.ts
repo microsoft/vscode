@@ -82,7 +82,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 
 	let earlyRevealFlag = false;
 	if (context.ui && context.cell) {
-		earlyRevealFlag = handleSmartAutoReveal(context.cell, context.notebookEditor, context.autoReveal, configurationService);
+		earlyRevealFlag = context.autoReveal ? handleSmartAutoReveal(context.cell, context.notebookEditor, configurationService) : false;
 		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 		if (context.autoReveal && !earlyRevealFlag) {
 			handleDefaultAutoReveal(context.cell, context.notebookEditor);
@@ -91,7 +91,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
 		const firstCell = selectedCells[0];
 
-		earlyRevealFlag = firstCell ? handleSmartAutoReveal(firstCell, context.notebookEditor, context.autoReveal, configurationService) : false;
+		earlyRevealFlag = (firstCell && context.autoReveal) ? handleSmartAutoReveal(firstCell, context.notebookEditor, configurationService) : false;
 		await context.notebookEditor.executeNotebookCells(selectedCells);
 		if (firstCell && context.autoReveal && !earlyRevealFlag) {
 			handleDefaultAutoReveal(firstCell, context.notebookEditor);
@@ -111,10 +111,10 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 	}
 }
 
-function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, autoRevealFlag: boolean | undefined, configurationService: IConfigurationService): boolean {
+function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): boolean {
 	const revealPercent = configurationService.getValue<number | undefined>('notebook.scrolling.revealPercent');
 	const revealThreshold = configurationService.getValue<number | undefined>('notebook.scrolling.revealThreshold');
-	if (revealPercent !== undefined && revealThreshold !== undefined && autoRevealFlag) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
+	if (revealPercent !== undefined && revealThreshold !== undefined) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
 		let elementScrollTop: number;
 
 		// omitted focusing the cell container, can potentially consider bringing it back
