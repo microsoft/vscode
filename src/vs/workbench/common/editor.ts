@@ -1240,7 +1240,7 @@ interface IEditorPartConfiguration {
 	pinnedTabsOnSeparateRow?: boolean;
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
-	titleScrollbarSizing?: 'default' | 'large';
+	titleScrollbarSizing?: 'default' | 'large' | 'hidden';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
