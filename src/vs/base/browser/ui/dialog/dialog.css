@@ -34,7 +34,7 @@
 }
 
 .monaco-dialog-box.align-vertical {
-	min-width: 300px; /* more narrow when aligned vertically */
+	min-width: 350px; /* more narrow when aligned vertically */
 }
 
 /** Dialog: Title Actions Row */
