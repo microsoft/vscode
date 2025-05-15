@@ -8,6 +8,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -441,7 +442,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	readonly toolSets: IObservable<Iterable<IToolSet>> = this._toolSets.observable;
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, icon: ThemeIcon, options?: { toolReferenceName?: string; description?: string }): IToolSet {
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): IToolSet {
 
 		const tools = new ObservableSet<IToolData>();
 
@@ -449,15 +450,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			source,
 			id,
 			displayName,
-			icon,
+			icon: options?.icon ?? Codicon.tools,
 			description: options?.description,
 			toolReferenceName: options?.toolReferenceName,
 			tools: tools.observable,
-			appendTool: (toolId: string): IDisposable => {
-				const tool = this.getTool(toolId);
-				if (!tool) {
-					return Disposable.None;
-				}
+			appendTool: (tool: IToolData): IDisposable => {
 				tools.add(tool);
 				return toDisposable(() => tools.delete(tool));
 			},

@@ -182,7 +182,7 @@ export interface IToolSet extends IDisposable {
 
 	readonly tools: IObservable<ReadonlySet<IToolData>>;
 
-	appendTool(toolId: string): IDisposable;
+	appendTool(tool: IToolData): IDisposable;
 }
 
 export function isIToolSet(candidate: unknown): candidate is IToolSet {
@@ -211,7 +211,7 @@ export interface ILanguageModelToolsService {
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<IToolSet>>;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, icon: ThemeIcon, options?: { toolReferenceName?: string; description?: string }): IToolSet;
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): IToolSet;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {
