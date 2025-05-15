@@ -253,9 +253,14 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 
 		for (const input of serverPackage.environment_variables ?? []) {
-			env[input.name] = input.value;
-			if (input.variables) {
-				inputs.push(...this.getVariables(input.variables));
+			const variables = input.variables ? this.getVariables(input.variables) : [];
+			let value = input.value;
+			for (const variable of variables) {
+				value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+			}
+			env[input.name] = value;
+			if (variables.length) {
+				inputs.push(...variables);
 			}
 			if (serverPackage.registry_name === PackageType.DOCKER) {
 				args.push('-e');
