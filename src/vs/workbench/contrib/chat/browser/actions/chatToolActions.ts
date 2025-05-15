@@ -80,13 +80,11 @@ class AcceptToolConfirmation extends Action2 {
 	}
 }
 
-export class AttachToolsAction extends Action2 {
-
-	static readonly id = 'workbench.action.chat.attachTools';
+class ConfigureToolsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: AttachToolsAction.id,
+			id: 'workbench.action.chat.configureTools',
 			title: localize('label', "Configure Tools..."),
 			icon: Codicon.tools,
 			f1: false,
@@ -100,7 +98,6 @@ export class AttachToolsAction extends Action2 {
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -426,5 +423,5 @@ export class AttachToolsAction extends Action2 {
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
-	registerAction2(AttachToolsAction);
+	registerAction2(ConfigureToolsAction);
 }
