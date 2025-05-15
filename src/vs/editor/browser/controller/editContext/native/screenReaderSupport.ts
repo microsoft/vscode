@@ -6,6 +6,7 @@
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -13,6 +14,7 @@ import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } 
 import { FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
@@ -28,7 +30,7 @@ import { NativeEditContextPagedScreenReaderStrategy, NativeEditContextScreenRead
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
-export class ScreenReaderSupport {
+export class ScreenReaderSupport extends Disposable {
 
 	// Configuration values
 	private _contentLeft: number = 1;
@@ -42,6 +44,7 @@ export class ScreenReaderSupport {
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
 	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
+	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _nativeEditContextScreenReaderStrategy: NativeEditContextPagedScreenReaderStrategy = new NativeEditContextPagedScreenReaderStrategy();
 
 	constructor(
@@ -50,8 +53,36 @@ export class ScreenReaderSupport {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
+		super();
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
+		this._context.viewModel.model.onDidChangeTokens((e) => {
+			console.log('ScreenReaderSupport: onDidChangeTokens');
+			if (!this._screenReaderContentState) {
+				this.writeScreenReaderContent();
+			}
+			let rerender = false;
+			const coalesceOffsetRanges = this._screenReaderContentState!.coalesceOffsetRanges();
+			e.ranges.forEach((range) => {
+				const changeOffsetRange = new OffsetRange(range.fromLineNumber, range.toLineNumber);
+				if (coalesceOffsetRanges instanceof OffsetRange) {
+					if (coalesceOffsetRanges.intersect(changeOffsetRange)) {
+						rerender = true;
+					}
+				} else {
+					const offsetRange1 = coalesceOffsetRanges[0];
+					const offsetRange2 = coalesceOffsetRanges[1];
+					if (offsetRange1.intersect(changeOffsetRange) || offsetRange2.intersect(changeOffsetRange)) {
+						rerender = true;
+					}
+				}
+			});
+			console.log('rerender');
+			if (rerender) {
+				this.writeScreenReaderContent();
+			}
+		});
+		this.writeScreenReaderContent();
 	}
 
 	public setIgnoreSelectionChangeTime(reason: string): void {
@@ -105,10 +136,13 @@ export class ScreenReaderSupport {
 
 	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
+		if (!this._renderedLines) {
+			return;
+		}
+		this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._primarySelection);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		this.writeScreenReaderContent();
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 	}
 
@@ -132,7 +166,7 @@ export class ScreenReaderSupport {
 		}
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const positionLineNumber = this._screenReaderContentState.positionLineNumber;
+		const positionLineNumber = this._primarySelection.positionLineNumber;
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
@@ -155,11 +189,10 @@ export class ScreenReaderSupport {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(500);
+		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
-		this._domNode.setLineHeight(height);
 		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
@@ -180,6 +213,7 @@ export class ScreenReaderSupport {
 	}
 
 	public writeScreenReaderContent(): void {
+		console.log('writeScreenReaderContent');
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -188,12 +222,10 @@ export class ScreenReaderSupport {
 		if (isScreenReaderOptimized) {
 			const primarySelection = this._primarySelection;
 			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);
-			// if (this._screenReaderContentState?.equals(screenReaderContentState)) {
-			// 	return;
-			// }
-			this._screenReaderContentState = screenReaderContentState;
 			const renderedLines = this._renderScreenReaderContent(screenReaderContentState);
-			this._setSelectionOfScreenReaderContent(this._context, renderedLines, primarySelection);
+			this._screenReaderContentState = screenReaderContentState;
+			this._renderedLines = renderedLines;
+			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -201,20 +233,21 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	private _renderLine(lineNumber: number): RenderedScreenReaderLine {
+	private _renderLine(viewLineNumber: number): RenderedScreenReaderLine {
 		const viewModel = this._context.viewModel;
-		const positionLineData = viewModel.getViewLineRenderingData(lineNumber);
+		const modelLineNumber = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1)).lineNumber;
+		const positionLineData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		const fontLigatures = options.get(EditorOption.fontLigatures);
 		const disableMonospaceOptimizations = options.get(EditorOption.disableMonospaceOptimizations);
-		const lineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, lineNumber, positionLineData.minColumn, positionLineData.maxColumn);
+		const lineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, viewLineNumber, positionLineData.minColumn, positionLineData.maxColumn);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 		const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 		let renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>;
-		const renderWhitespacesInline = viewModel.model.getFontDecorations(lineNumber).length > 0;
+		const renderWhitespacesInline = viewModel.model.getFontDecorations(modelLineNumber).length > 0;
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		if (renderWhitespacesInline || experimentalWhitespaceRendering === 'off') {
 			renderWhitespace = options.get(EditorOption.renderWhitespace);
@@ -242,14 +275,15 @@ export class ScreenReaderSupport {
 			useFontLigatures,
 			null
 		);
-		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(lineNumber);
+		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 		const sb = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, sb, true);
 		const html = sb.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
-		domNode.style.lineHeight = String(lineHeight) + 'px';
-		domNode.style.height = String(lineHeight) + 'px';
+		const stringifiedLineHeight = String(lineHeight) + 'px';
+		domNode.style.lineHeight = stringifiedLineHeight;
+		domNode.style.height = stringifiedLineHeight;
 		domNode.innerHTML = trustedhtml as string;
 		const characterMapping = renderOutput.characterMapping;
 		return new RenderedScreenReaderLine(domNode, characterMapping);
@@ -281,6 +315,7 @@ export class ScreenReaderSupport {
 	}
 
 	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
+		console.log('_renderScreenReaderContent');
 		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
 		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
 		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
@@ -332,6 +367,7 @@ export class ScreenReaderSupport {
 	}
 
 	private _setSelectionOfScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedScreenReaderLine>, viewSelection: Selection): void {
+		console.log('_setSelectionOfScreenReaderContent');
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -367,8 +403,20 @@ export class ScreenReaderSupport {
 		const startNode = startChildren.item(startDomPosition.partIndex);
 		const endNode = endChildren.item(endDomPosition.partIndex);
 		if (startNode.firstChild && endNode.firstChild) {
-			range.setStart(startNode.firstChild, startDomPosition.charIndex + 1);
-			range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
+			console.log('startNode.firstChild : ', startNode.firstChild);
+			console.log('endNode.firstChild : ', endNode.firstChild);
+			console.log('startDomPosition ; ', startDomPosition);
+			console.log('endDomPosition ; ', endDomPosition);
+			if (viewSelection.startColumn === 1) {
+				range.setStart(startNode.firstChild, 0);
+			} else {
+				range.setStart(startNode.firstChild, startDomPosition.charIndex + 1);
+			}
+			if (viewSelection.endColumn === 1) {
+				range.setEnd(endNode.firstChild, 0);
+			} else {
+				range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
+			}
 			this.setIgnoreSelectionChangeTime('setRange');
 			activeDocumentSelection.removeAllRanges();
 			activeDocumentSelection.addRange(range);

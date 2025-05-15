@@ -89,7 +89,6 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 export class NativeEditContextScreenReaderContentState {
 
 	constructor(
-		readonly positionLineNumber: number,
 		readonly startSelectionLineNumber: number,
 		readonly endSelectionLineNumber: number | undefined,
 		readonly preStartOffsetRange: OffsetRange | undefined,
@@ -99,49 +98,32 @@ export class NativeEditContextScreenReaderContentState {
 	) { }
 
 	equals(other: NativeEditContextScreenReaderContentState): boolean {
-		if (this.startSelectionLineNumber !== other.startSelectionLineNumber) {
-			return false;
+		const coalesceOffsetRanges = this.coalesceOffsetRanges();
+		const otherCoalesceOffsetRanges = other.coalesceOffsetRanges();
+		if (coalesceOffsetRanges instanceof OffsetRange && otherCoalesceOffsetRanges instanceof OffsetRange) {
+			return coalesceOffsetRanges.equals(otherCoalesceOffsetRanges);
 		}
-		if (this.endSelectionLineNumber !== other.endSelectionLineNumber) {
-			return false;
+		if (Array.isArray(coalesceOffsetRanges) && Array.isArray(otherCoalesceOffsetRanges)) {
+			return coalesceOffsetRanges[0].equals(otherCoalesceOffsetRanges[0]) && coalesceOffsetRanges[1].equals(otherCoalesceOffsetRanges[1]);
 		}
-		if (this.preStartOffsetRange === undefined && other.preStartOffsetRange !== undefined) {
-			return false;
+		return false;
+	}
+
+	coalesceOffsetRanges(): OffsetRange | [OffsetRange, OffsetRange] {
+		if (this.postStartOffsetRange && this.preEndOffsetRange) {
+			if (this.postStartOffsetRange.start !== this.preEndOffsetRange.endExclusive - 1) {
+				const startLineNumber1 = this.preStartOffsetRange ? this.preStartOffsetRange.start : this.startSelectionLineNumber;
+				const startLineNumber2 = this.postStartOffsetRange ? this.postStartOffsetRange.endExclusive : this.startSelectionLineNumber;
+				const startOffsetRange = new OffsetRange(startLineNumber1, startLineNumber2);
+				const endLineNumber1 = this.preEndOffsetRange ? this.preEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
+				const endLineNumber2 = this.postEndOffsetRange ? this.postEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
+				const endOffsetRange = new OffsetRange(endLineNumber1, endLineNumber2);
+				return [startOffsetRange, endOffsetRange];
+			}
 		}
-		if (this.preStartOffsetRange !== undefined && other.preStartOffsetRange === undefined) {
-			return false;
-		}
-		if (!this.preStartOffsetRange!.equals(other.preStartOffsetRange!)) {
-			return false;
-		}
-		if (this.postEndOffsetRange === undefined && other.postEndOffsetRange !== undefined) {
-			return false;
-		}
-		if (this.postEndOffsetRange !== undefined && other.postEndOffsetRange === undefined) {
-			return false;
-		}
-		if (!this.postEndOffsetRange!.equals(other.postEndOffsetRange!)) {
-			return false;
-		}
-		if (this.postStartOffsetRange === undefined && other.postStartOffsetRange !== undefined) {
-			return false;
-		}
-		if (this.postStartOffsetRange !== undefined && other.postStartOffsetRange === undefined) {
-			return false;
-		}
-		if (!this.postStartOffsetRange!.equals(other.postStartOffsetRange!)) {
-			return false;
-		}
-		if (this.preEndOffsetRange === undefined && other.preEndOffsetRange !== undefined) {
-			return false;
-		}
-		if (this.preEndOffsetRange !== undefined && other.preEndOffsetRange === undefined) {
-			return false;
-		}
-		if (!this.preEndOffsetRange!.equals(other.preEndOffsetRange!)) {
-			return false;
-		}
-		return true;
+		const startLineNumber = this.preStartOffsetRange ? this.preStartOffsetRange.start : this.startSelectionLineNumber;
+		const endLineNumber = this.postEndOffsetRange ? this.postEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
+		return new OffsetRange(startLineNumber, endLineNumber);
 	}
 }
 
@@ -170,7 +152,6 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 
 		const lineCount = context.getLineCount();
 
-		const positionLineNumber = viewSelection.positionLineNumber;
 		const startSelectionLineNumber = viewSelection.startLineNumber;
 		const endSelectionLineNumber = viewSelection.endLineNumber;
 
@@ -193,7 +174,7 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		let postStartOffsetRange: OffsetRange | undefined = undefined;
 		let preEndOffsetRange: OffsetRange | undefined = undefined;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
-			if (startSelectionLineNumber > endSelectionLineNumber + 1) {
+			if (startSelectionLineNumber + 1 < endSelectionLineNumber) {
 				postStartOffsetRange = new OffsetRange(startSelectionLineNumber + 1, endSelectionLineNumber - 1);
 			}
 		} else {
@@ -209,7 +190,6 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 
 		const resolvedEndSelectionLineNumber = viewSelection.startLineNumber !== viewSelection.endLineNumber ? viewSelection.endLineNumber : undefined;
 		return new NativeEditContextScreenReaderContentState(
-			positionLineNumber,
 			startSelectionLineNumber,
 			resolvedEndSelectionLineNumber,
 			preStartOffsetRange,
