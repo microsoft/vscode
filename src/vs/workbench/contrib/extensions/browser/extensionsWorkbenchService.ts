@@ -2104,7 +2104,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (autoUpdateValue === 'onlyEnabledExtensions') {
-			return this.extensionEnablementService.isEnabledEnablementState(extension.enablementState);
+			return extension.enablementState !== EnablementState.DisabledGlobally && extension.enablementState !== EnablementState.DisabledWorkspace;
 		}
 
 		return false;
