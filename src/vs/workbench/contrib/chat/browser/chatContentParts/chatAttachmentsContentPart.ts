@@ -93,6 +93,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 			if (ariaLabel) {
 				widget.element.ariaLabel = ariaLabel;
 			}
+
+			this.attachedContextDisposables.add(widget);
 		});
 	}
 }
