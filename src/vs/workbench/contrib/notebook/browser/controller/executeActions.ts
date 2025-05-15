@@ -111,7 +111,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): void {
 	const revealPercent = configurationService.getValue<number | undefined>('notebook.scrolling.revealPercent');
 	const revealThreshold = configurationService.getValue<number | undefined>('notebook.scrolling.revealThreshold');
-	if (revealPercent && revealThreshold) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
+	if (revealPercent !== undefined && revealThreshold !== undefined) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
 		let elementScrollTop: number;
 
 		// omitted focusing the cell container, can potentially consider bringing it back
