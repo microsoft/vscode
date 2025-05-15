@@ -145,13 +145,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]> {
+		if (!this.mcpGalleryService.isEnabled()) {
+			return [];
+		}
 		const result = await this.mcpGalleryService.query(options, token);
 		return result.map(gallery => this.fromGallery(gallery) ?? this.instantiationService.createInstance(McpWorkbenchServer, undefined, gallery));
 	}
 
 	async queryLocal(): Promise<IWorkbenchMcpServer[]> {
-		const local = await this.mcpManagementService.getInstalled();
-		this._local = local.map(local => this.instantiationService.createInstance(McpWorkbenchServer, local, undefined));
+		const installed = await this.mcpManagementService.getInstalled();
+		this._local = installed.map(i => {
+			const local = this._local.find(server => server.name === i.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, undefined, undefined);
+			local.local = i;
+			return local;
+		});
 		return this._local;
 	}
 
