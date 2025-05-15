@@ -14,7 +14,7 @@ import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGal
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, IWorkbenchMcpServer } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, IWorkbenchMcpServer, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
@@ -183,10 +183,12 @@ export class MCPContextsInitialisation extends Disposable implements IWorkbenchC
 
 	constructor(
 		@IMcpWorkbenchService mcpWorkbenchService: IMcpWorkbenchService,
+		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		const hasInstalledMcpServersContextKey = HasInstalledMcpServersContext.bindTo(contextKeyService);
+		McpServersGalleryEnabledContext.bindTo(contextKeyService).set(mcpGalleryService.isEnabled());
 		this._register(mcpWorkbenchService.onChange(() => hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0)));
 	}
 }

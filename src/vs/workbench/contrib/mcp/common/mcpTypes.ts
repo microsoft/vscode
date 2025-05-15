@@ -21,9 +21,9 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { ContextKeyDefinedExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -503,6 +503,6 @@ export class McpServerContainers extends Disposable {
 	}
 }
 
-export const McpServersGalleryEnabledContext = ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`);
+export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';

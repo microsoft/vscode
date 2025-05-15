@@ -151,6 +151,7 @@ export interface DidUninstallMcpServerEvent {
 export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalleryService');
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
+	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IGalleryMcpServer[]>;
 	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
