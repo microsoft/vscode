@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -13,6 +14,7 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
@@ -83,6 +85,73 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	}
 }
 
+interface ScmHistoryItemUriFields {
+	readonly repositoryId: string;
+	readonly historyItemId: string;
+	readonly historyItemParentId?: string;
+}
+
+export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
+	private static readonly _scheme = 'scm-history-item';
+
+	public static getMultiDiffSourceUri(repositoryId: string, historyItem: ISCMHistoryItem): URI {
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+		return URI.from({
+			scheme: ScmHistoryItemResolver._scheme,
+			query: JSON.stringify({
+				repositoryId,
+				historyItemId: historyItem.id,
+				historyItemParentId
+			} satisfies ScmHistoryItemUriFields)
+		}, true);
+	}
+
+	constructor(@ISCMService private readonly _scmService: ISCMService) { }
+
+	canHandleUri(uri: URI): boolean {
+		return this._parseUri(uri) !== undefined;
+	}
+
+	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
+		const { repositoryId, historyItemId, historyItemParentId } = this._parseUri(uri)!;
+
+		const repository = this._scmService.getRepository(repositoryId);
+		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+
+		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
+			historyItemChanges.map(change => new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.uri)));
+
+		return { resources };
+	}
+
+	private _parseUri(uri: URI): ScmHistoryItemUriFields | undefined {
+		if (uri.scheme !== ScmHistoryItemResolver._scheme) {
+			return undefined;
+		}
+
+		let query: ScmHistoryItemUriFields;
+		try {
+			query = JSON.parse(uri.query) as ScmHistoryItemUriFields;
+		} catch (e) {
+			return undefined;
+		}
+
+		if (typeof query !== 'object' || query === null) {
+			return undefined;
+		}
+
+		const { repositoryId, historyItemId, historyItemParentId } = query;
+		if (typeof repositoryId !== 'string' || typeof historyItemId !== 'string' ||
+			(typeof historyItemParentId !== 'string' && historyItemParentId !== undefined)) {
+			return undefined;
+		}
+
+		return { repositoryId, historyItemId, historyItemParentId };
+	}
+}
+
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
 	private readonly _resources;
 	readonly resources;
@@ -120,6 +189,7 @@ export class ScmMultiDiffSourceResolverContribution extends Disposable {
 	) {
 		super();
 
+		this._register(multiDiffSourceResolverService.registerResolver(instantiationService.createInstance(ScmHistoryItemResolver)));
 		this._register(multiDiffSourceResolverService.registerResolver(instantiationService.createInstance(ScmMultiDiffSourceResolver)));
 	}
 }
