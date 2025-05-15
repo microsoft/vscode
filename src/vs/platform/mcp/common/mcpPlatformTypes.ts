@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { UriComponents } from '../../../base/common/uri.js';
+
 export interface IMcpConfiguration {
 	inputs?: unknown[];
 	/** @deprecated Only for rough cross-compat with other formats */
@@ -24,4 +27,42 @@ export interface IMcpConfigurationHTTP {
 	type?: 'http';
 	url: string;
 	headers?: Record<string, string>;
+}
+
+export const enum McpServerVariableType {
+	PROMPT = 'promptString',
+	PICK = 'pickString',
+}
+
+export interface IMcpServerVariable {
+	readonly id: string;
+	readonly type: McpServerVariableType;
+	readonly description: string;
+	readonly password: boolean;
+	readonly default?: string;
+	readonly options?: readonly string[];
+	readonly serverName?: string;
+}
+
+export interface IMcpServerConfiguration {
+	readonly location?: UriComponents;
+}
+
+export interface IMcpStdioServerConfiguration extends IMcpServerConfiguration {
+	readonly type: 'stdio';
+	readonly command: string;
+	readonly args?: readonly string[];
+	readonly env?: Record<string, string | number | null>;
+	readonly envFile?: string;
+}
+
+export interface IMcpRemtoeServerConfiguration extends IMcpServerConfiguration {
+	readonly type: 'http';
+	readonly url: string;
+	readonly headers?: Record<string, string>;
+}
+
+export interface IMcpServersConfiguration {
+	servers?: IStringDictionary<IMcpServerConfiguration>;
+	inputs?: IMcpServerVariable[];
 }

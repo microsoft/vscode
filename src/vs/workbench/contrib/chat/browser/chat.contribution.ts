@@ -18,6 +18,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -304,6 +305,18 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
+		[mcpGalleryServiceUrlConfig]: {
+			type: 'string',
+			description: nls.localize('mcp.gallery.serviceUrl', "Configure the MCP Gallery service URL to connect to"),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['usesOnlineServices'],
+			included: false,
+			policy: {
+				name: 'McpGalleryServiceUrl',
+				minimumVersion: '1.101',
+			},
+		},
 		[PromptsConfig.KEY]: {
 			type: 'boolean',
 			title: nls.localize(
@@ -385,6 +398,12 @@ configurationRegistry.registerConfiguration({
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
+		},
+		'chat.setup.signInWithAlternateProvider': {
+			type: 'boolean',
+			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
+			default: false,
+			tags: ['onExp', 'experimental'],
 		},
 	}
 });

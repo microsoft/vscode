@@ -39,7 +39,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution, IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
+import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/preferences/common/preferencesEditorInput.js';
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -50,6 +50,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IPreferencesRenderer, WorkspaceSettingsRenderer, UserSettingsRenderer } from './preferencesRenderers.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { PreferencesEditor } from './preferencesEditor.js';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -77,6 +78,32 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(SettingsEditor2Input)
 	]
 );
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		PreferencesEditor,
+		PreferencesEditor.ID,
+		nls.localize('preferencesEditor', "Preferences Editor")
+	),
+	[
+		new SyncDescriptor(PreferencesEditorInput)
+	]
+);
+
+class PreferencesEditorInputSerializer implements IEditorSerializer {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
+	serialize(editorInput: EditorInput): string {
+		return '';
+	}
+
+	deserialize(instantiationService: IInstantiationService): EditorInput {
+		return instantiationService.createInstance(PreferencesEditorInput);
+	}
+}
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -119,6 +146,7 @@ class SettingsEditor2InputSerializer implements IEditorSerializer {
 	}
 }
 
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 

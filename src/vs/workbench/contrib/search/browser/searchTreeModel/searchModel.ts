@@ -359,7 +359,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			} else {
 				this._startStreamDelay.then(() => {
 					if (targetQueue.length) {
-						this._searchResult.add(targetQueue, searchInstanceID, ai, false);
+						this._searchResult.add(targetQueue, searchInstanceID, ai, !ai);
 						targetQueue.length = 0;
 					}
 				});
