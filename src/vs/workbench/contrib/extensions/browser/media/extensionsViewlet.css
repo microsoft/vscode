@@ -175,7 +175,7 @@
 
 .extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
-.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
+.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container,
 .extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
 .extensions-viewlet.mini > .extensions .extension-bookmark-container {
 	display: none;
