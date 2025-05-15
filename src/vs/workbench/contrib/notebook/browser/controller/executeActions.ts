@@ -21,7 +21,7 @@ import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.j
 import { insertCell } from './cellOperations.js';
 import { NotebookChatController } from './chat/notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { CellKind, CellUri, NotebookSetting } from '../../common/notebookCommon.js';
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from '../../common/notebookContextKeys.js';
@@ -70,7 +70,8 @@ function renderAllMarkdownCells(context: INotebookActionContext): void {
 	}
 }
 
-async function runCell(editorGroupsService: IEditorGroupsService, context: INotebookActionContext): Promise<void> {
+const SMART_VIEWPORT_REVEAL_PADDING = 20; // subtract this since smaller scrolltop is higher up
+async function runCell(editorGroupsService: IEditorGroupsService, configurationService: IConfigurationService, context: INotebookActionContext): Promise<void> {
 	const group = editorGroupsService.activeGroup;
 
 	if (group) {
@@ -79,20 +80,21 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 		}
 	}
 
+	let earlyRevealFlag = false;
 	if (context.ui && context.cell) {
+		earlyRevealFlag = context.autoReveal ? handleSmartAutoReveal(context.cell, context.notebookEditor, configurationService) : false;
 		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
-		if (context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		if (context.autoReveal && !earlyRevealFlag) {
+			handleDefaultAutoReveal(context.cell, context.notebookEditor);
 		}
 	} else if (context.selectedCells?.length || context.cell) {
 		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
-		await context.notebookEditor.executeNotebookCells(selectedCells);
 		const firstCell = selectedCells[0];
 
-		if (firstCell && context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		earlyRevealFlag = (firstCell && context.autoReveal) ? handleSmartAutoReveal(firstCell, context.notebookEditor, configurationService) : false;
+		await context.notebookEditor.executeNotebookCells(selectedCells);
+		if (firstCell && context.autoReveal && !earlyRevealFlag) {
+			handleDefaultAutoReveal(firstCell, context.notebookEditor);
 		}
 	}
 
@@ -107,6 +109,41 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	if (!foundEditor) {
 		return;
 	}
+}
+
+function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): boolean {
+	const revealPercent = configurationService.getValue<number | undefined>('notebook.scrolling.revealPercent');
+	const revealThreshold = configurationService.getValue<number | undefined>('notebook.scrolling.revealThreshold');
+	if (revealPercent !== undefined && revealThreshold !== undefined) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
+		let elementScrollTop: number;
+
+		// omitted focusing the cell container, can potentially consider bringing it back
+		const cellEditorHeight = cell.layoutInfo.editorHeight;
+		const viewportHeight = notebookEditor.getLayoutInfo().height;
+
+		// If the cell is not larger than the smart threshold % of the viewport, do not apply smart scroll
+		if (cellEditorHeight < (revealThreshold / 100) * viewportHeight) {
+			elementScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
+		} else {
+			// Compute the scrollTop so that the bottom revealPercent of the cell is visible
+			const cellTop = notebookEditor.getAbsoluteTopOfElement(cell);
+			const revealFraction = Math.max(0, Math.min(1, revealPercent / 100));
+			const revealHeight = cellEditorHeight * revealFraction;
+
+			// We want the bottom 'revealHeight' of the cell to be visible at the bottom of the viewport
+			elementScrollTop = cellTop + cellEditorHeight - revealHeight;
+		}
+
+		notebookEditor.setScrollTop(elementScrollTop - SMART_VIEWPORT_REVEAL_PADDING);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+function handleDefaultAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor): void {
+	const cellIndex = notebookEditor.getCellIndex(cell);
+	notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -219,6 +256,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
@@ -239,7 +277,8 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			return;
 		}
 
-		await runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, configurationService, context);
+
 	}
 });
 
@@ -357,6 +396,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
@@ -368,7 +408,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			}
 		}
 
-		await runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, configurationService, context);
 	}
 });
 
@@ -461,6 +501,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
@@ -503,7 +544,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 				}
 			}
 
-			return runCell(editorGroupsService, context);
+			return runCell(editorGroupsService, configurationService, context);
 		}
 	}
 });
@@ -524,6 +565,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const languageService = accessor.get(ILanguageService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
@@ -536,7 +578,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		if (context.cell.cellKind === CellKind.Markup) {
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
 		} else {
-			runCell(editorGroupsService, context);
+			runCell(editorGroupsService, configurationService, context);
 		}
 	}
 });
