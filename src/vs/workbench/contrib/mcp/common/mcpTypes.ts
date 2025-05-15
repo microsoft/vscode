@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
+import { Event } from '../../../../base/common/event.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -20,6 +21,9 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ContextKeyDefinedExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -437,3 +441,68 @@ export class MpcResponseError extends Error {
 }
 
 export class McpConnectionFailedError extends Error { }
+
+export interface IMcpServerContainer extends IDisposable {
+	mcpServer: IWorkbenchMcpServer | null;
+	update(): void;
+}
+
+export interface IWorkbenchMcpServer {
+	readonly gallery: IGalleryMcpServer | undefined;
+	readonly local: ILocalMcpServer | undefined;
+	readonly id: string;
+	readonly name: string;
+	readonly label: string;
+	readonly description: string;
+	readonly iconUrl: string;
+	readonly publisherUrl?: string;
+	readonly publisherDisplayName?: string;
+	readonly installCount?: number;
+	readonly ratingCount?: number;
+	readonly rating?: number;
+	readonly url?: string;
+	readonly repository?: string;
+	getReadme(token: CancellationToken): Promise<string>;
+}
+
+export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
+export interface IMcpWorkbenchService {
+	readonly _serviceBrand: undefined;
+	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
+	readonly local: readonly IWorkbenchMcpServer[];
+	queryLocal(): Promise<IWorkbenchMcpServer[]>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
+	install(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
+	open(extension: IWorkbenchMcpServer | string, options?: IEditorOptions): Promise<void>;
+}
+
+export class McpServerContainers extends Disposable {
+	constructor(
+		private readonly containers: IMcpServerContainer[],
+		@IMcpWorkbenchService mcpWorkbenchService: IMcpWorkbenchService
+	) {
+		super();
+		this._register(mcpWorkbenchService.onChange(this.update, this));
+	}
+
+	set mcpServer(extension: IWorkbenchMcpServer | null) {
+		this.containers.forEach(c => c.mcpServer = extension);
+	}
+
+	update(server: IWorkbenchMcpServer | undefined): void {
+		for (const container of this.containers) {
+			if (server && container.mcpServer) {
+				if (server.name === container.mcpServer.name) {
+					container.mcpServer = server;
+				}
+			} else {
+				container.update();
+			}
+		}
+	}
+}
+
+export const McpServersGalleryEnabledContext = ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`);
+export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
+export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';

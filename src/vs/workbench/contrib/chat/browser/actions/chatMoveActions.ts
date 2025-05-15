@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -78,12 +79,21 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInSidebar`,
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
+				icon: Codicon.layoutSidebarRight,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: [{
 					id: MenuId.EditorTitle,
 					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				}, {
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.and(
+						ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+						IsAuxiliaryTitleBarContext,
+						IsCompactTitleBarContext
+					),
+					order: -2
 				}]
 			});
 		}

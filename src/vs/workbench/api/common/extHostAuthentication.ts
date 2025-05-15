@@ -11,6 +11,7 @@ import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/ex
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import { URI } from '../../../base/common/uri.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -88,7 +89,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		this._authenticationProviders.set(id, { label, provider, options: options ?? { supportsMultipleAccounts: false } });
 		const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
-		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
+		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedIssuers);
 
 		return new Disposable(() => {
 			listener.dispose();
@@ -100,6 +101,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async $createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
+			options.issuer = URI.revive(options.issuer);
 			return await providerData.provider.createSession(scopes, options);
 		}
 
@@ -118,6 +120,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async $getSessions(providerId: string, scopes: ReadonlyArray<string> | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
+			options.issuer = URI.revive(options.issuer);
 			return await providerData.provider.getSessions(scopes, options);
 		}
 

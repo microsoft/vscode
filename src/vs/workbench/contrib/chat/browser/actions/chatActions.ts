@@ -71,6 +71,7 @@ export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+const CHAT_CLEAR_HISTORY_ACTION_ID = 'workbench.action.chat.clearHistory';
 
 export interface IChatViewOpenOptions {
 	/**
@@ -349,6 +350,7 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 			const dialogService = accessor.get(IDialogService);
+			const commandService = accessor.get(ICommandService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -369,6 +371,11 @@ export function registerChatActions() {
 			}
 
 			const showPicker = async () => {
+				const clearChatHistoryButton: IQuickInputButton = {
+					iconClass: ThemeIcon.asClassName(Codicon.clearAll),
+					tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
+				};
+
 				const openInEditorButton: IQuickInputButton = {
 					iconClass: ThemeIcon.asClassName(Codicon.file),
 					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
@@ -417,9 +424,16 @@ export function registerChatActions() {
 
 				const store = new DisposableStore();
 				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
+				picker.title = localize('interactiveSession.history.title', "Workspace Chat History");
 				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+				picker.buttons = [clearChatHistoryButton];
 				const picks = await getPicks();
 				picker.items = picks;
+				store.add(picker.onDidTriggerButton(async button => {
+					if (button === clearChatHistoryButton) {
+						await commandService.executeCommand(CHAT_CLEAR_HISTORY_ACTION_ID);
+					}
+				}));
 				store.add(picker.onDidTriggerItemButton(async context => {
 					if (context.button === openInEditorButton) {
 						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
@@ -536,7 +550,7 @@ export function registerChatActions() {
 	registerAction2(class ClearChatHistoryAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.clearHistory',
+				id: CHAT_CLEAR_HISTORY_ACTION_ID,
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
 				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
