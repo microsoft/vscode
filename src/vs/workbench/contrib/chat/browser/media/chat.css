@@ -1810,9 +1810,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: 7px;
 	right: 12px;
 	border-radius: 100%;
-	width: initial;
-	width: 27px;
-	height: 27px;
 	width: 27px;
 	height: 27px;
 
@@ -1862,6 +1859,44 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
+.interactive-item-container.interactive-request {
+	align-items: flex-end;
+}
+
+.interactive-item-container.interactive-request .value .rendered-markdown {
+	background-color: var(--vscode-editor-foldBackground);
+	border-radius: 8px;
+	padding: 8px 12px;
+	max-width: 90%;
+	width: fit-content;
+	margin-left: auto;
+	margin-bottom: 5px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	position: relative;
+}
+
+.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context {
+	margin-top: 8px;
+	max-width: 100%;
+	width: fit-content;
+	justify-content: flex-end;
+	margin-left: auto;
+}
+
+.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
+.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
+	outline: 1px solid var(--vscode-chat-requestBorder);
+	box-shadow: none;
+}
+.interactive-session .interactive-request .header.hidden {
 	display: none;
+}
+
+.interactive-session .interactive-request .rendered-markdown .interactive-result-code-block .overflow-guard,
+.interactive-session .interactive-request .rendered-markdown .monaco-editor {
+	width: 100% !important;
 }
