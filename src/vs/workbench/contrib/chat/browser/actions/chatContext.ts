@@ -73,10 +73,8 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
 		const items: Pick[] = [];
 
-		for (const [entry, enabled] of widget.input.selectedToolsModel.value) {
-			if (!enabled || !isIToolSet(entry) && !entry.canBeReferencedInPrompt) {
-				continue;
-			}
+		for (const entry of widget.input.selectedToolsModel.entries.get()) {
+
 			const label = entry.toolReferenceName ?? entry.displayName;
 			const item: Pick = {
 				toolInfo: ToolDataSource.classify(entry.source),

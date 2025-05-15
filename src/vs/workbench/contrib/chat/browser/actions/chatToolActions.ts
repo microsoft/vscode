@@ -190,7 +190,7 @@ export class AttachToolsAction extends Action2 {
 
 		const toolBuckets = new Map<string, BucketPick>();
 
-		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.value) {
+		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.entriesMap) {
 
 			let bucket: BucketPick | undefined;
 
@@ -334,6 +334,8 @@ export class AttachToolsAction extends Action2 {
 							disableToolSets.push(item.toolset);
 						} else if (isToolPick(item)) {
 							disableTools.push(item.tool);
+						} else {
+							// TODODOD
 						}
 					}
 				}
@@ -406,12 +408,10 @@ export class AttachToolsAction extends Action2 {
 
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 
-		const telData: SelectedToolData = { enabled: 0, total: 0, };
-		for (const [, enabled] of widget.input.selectedToolsModel.value) {
-			telData.total++;
-			telData.enabled += Number(enabled);
-		}
-		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', telData);
+		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
+			total: widget.input.selectedToolsModel.entriesMap.size,
+			enabled: widget.input.selectedToolsModel.entries.get().size,
+		});
 		store.dispose();
 	}
 }

@@ -69,12 +69,17 @@ export type ToolDataSource =
 	| { type: 'internal' };
 
 export namespace ToolDataSource {
+
 	export function toKey(source: ToolDataSource): string {
 		switch (source.type) {
 			case 'extension': return `extension:${source.extensionId.value}`;
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
 			case 'internal': return 'internal';
 		}
+	}
+
+	export function equals(a: ToolDataSource, b: ToolDataSource): boolean {
+		return toKey(a) === toKey(b);
 	}
 
 	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
@@ -173,6 +178,7 @@ export interface IToolImpl {
 }
 
 export interface IToolSet extends IDisposable {
+
 	readonly id: string;
 	readonly displayName: string;
 	readonly icon: ThemeIcon;
@@ -181,6 +187,11 @@ export interface IToolSet extends IDisposable {
 	readonly source: ToolDataSource;
 
 	readonly tools: IObservable<ReadonlySet<IToolData>>;
+
+	/**
+	 * A homogenous tool set only contains tools from the same source as the tool set itself
+	 */
+	readonly isHomogenous: IObservable<boolean>;
 
 	appendTool(tool: IToolData): IDisposable;
 }

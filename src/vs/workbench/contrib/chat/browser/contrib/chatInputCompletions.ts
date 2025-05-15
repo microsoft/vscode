@@ -39,10 +39,11 @@ import { ISearchService } from '../../../../services/search/common/search.js';
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { isIToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -889,49 +890,51 @@ class ToolCompletions extends Disposable {
 					return null;
 				}
 
-				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
-				const usedToolNames = new Set(usedTools.map(v => v.toolName));
+
+				const usedNames = new Set<string>();
+				for (const part of widget.parsedInput.parts) {
+					if (part instanceof ChatRequestToolPart) {
+						usedNames.add(part.toolName);
+					} else if (part instanceof ChatRequestToolSetPart) {
+						usedNames.add(part.name);
+					}
+				}
 
 				const suggestions: CompletionItem[] = [];
 
 
-				const { tools, toolSets } = widget.input.selectedToolsModel.entries.get();
+				const iter = widget.input.selectedToolsModel.entries.get();
 
-				for (const toolSet of toolSets) {
-					const withLeader = `${chatVariableLeader}${toolSet.toolReferenceName ?? toolSet.displayName}`;
-					suggestions.push({
-						label: withLeader,
-						range,
-						detail: toolSet.description,
-						insertText: withLeader + ' ',
-						kind: CompletionItemKind.Text,
-						sortText: 'z',
-					});
-				}
+				for (const item of iter) {
 
-
-				for (const tool of tools) {
-					if (!tool.canBeReferencedInPrompt || usedToolNames.has(tool.toolReferenceName ?? '')) {
+					if (usedNames.has(item.toolReferenceName ?? '')) {
 						continue;
 					}
 
-					const source = tool.source;
-					const detail = source.type === 'mcp'
-						? localize('desc', "MCP Server: {0}", source.label)
-						: source.type === 'extension'
-							? source.label
-							: undefined;
+					let detail: string | undefined;
 
-					const withLeader = `${chatVariableLeader}${tool.toolReferenceName}`;
+					if (isIToolSet(item)) {
+						detail = item.description;
+
+					} else {
+						const source = item.source;
+						detail = source.type === 'mcp'
+							? localize('desc', "MCP Server: {0}", source.label)
+							: source.type === 'extension'
+								? source.label
+								: undefined;
+					}
+
+					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;
 					suggestions.push({
 						label: withLeader,
 						range,
 						detail,
 						insertText: withLeader + ' ',
-						documentation: tool.userDescription ?? tool.modelDescription,
 						kind: CompletionItemKind.Text,
-						sortText: 'z'
+						sortText: 'z',
 					});
+
 				}
 
 				return { suggestions };

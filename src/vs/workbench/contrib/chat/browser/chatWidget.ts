@@ -1024,16 +1024,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 
-		const enabledToolSetsAndTools = this.input.selectedToolsModel.value.observable.map(value => {
+		const enabledToolSetsAndTools = this.input.selectedToolsModel.entries.map(value => {
 			const toolSetIds = new Set<string>();
 			const toolIds = new Set<string>();
-			for (const [key, enabled] of value) {
-				if (enabled) {
-					if (isIToolSet(key)) {
-						toolSetIds.add(key.id);
-					} else {
-						toolIds.add(key.id);
-					}
+			for (const item of value) {
+				if (isIToolSet(item)) {
+					toolSetIds.add(item.id);
+				} else {
+					toolIds.add(item.id);
 				}
 			}
 			return { toolSetIds, toolIds };

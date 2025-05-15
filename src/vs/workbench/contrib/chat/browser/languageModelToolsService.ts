@@ -446,6 +446,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		const tools = new ObservableSet<IToolData>();
 
+		const isHomogenous = tools.observable.map(tools => {
+			return !Iterable.some(tools, tool => !ToolDataSource.equals(tool.source, source));
+		});
+
 		const result: IToolSet = {
 			source,
 			id,
@@ -454,6 +458,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			description: options?.description,
 			toolReferenceName: options?.toolReferenceName,
 			tools: tools.observable,
+			isHomogenous,
 			appendTool: (tool: IToolData): IDisposable => {
 				tools.add(tool);
 				return toDisposable(() => tools.delete(tool));
