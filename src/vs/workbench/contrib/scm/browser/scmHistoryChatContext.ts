@@ -7,6 +7,9 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -24,9 +27,15 @@ export class SCMHistoryItemContextContribution extends Disposable implements IWo
 	constructor(
 		@IChatContextPickService contextPickService: IChatContextPickService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super();
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SCMHistoryItemContext)));
+		this._store.add(contextPickService.registerChatContextItem(
+			instantiationService.createInstance(SCMHistoryItemContext)));
+
+		this._store.add(textModelResolverService.registerTextModelContentProvider(
+			ScmHistoryItemResolver.scheme,
+			instantiationService.createInstance(SCMHistoryItemContextContentProvider)));
 	}
 }
 
@@ -68,7 +77,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 					description: historyItem.displayId ?? historyItem.id,
 					asAttachment: () => {
 						const historyItemTitle = getHistoryItemEditorTitle(historyItem);
-						const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.id, historyItem);
+						const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.provider, historyItem);
 						const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
 
 						return {
@@ -82,5 +91,11 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 				}) satisfies IChatContextPickerPickItem);
 			}
 		};
+	}
+}
+
+class SCMHistoryItemContextContentProvider implements ITextModelContentProvider {
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		throw new Error('Method not implemented.');
 	}
 }
