@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
+import { BrowserType, IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -28,6 +28,8 @@ interface NodeDataResponse {
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
+	currentLocalAddress: string | undefined;
+
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
@@ -38,7 +40,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
 
-	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, browserType: BrowserType, cancellationId?: number): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId);
 		if (!window?.win) {
 			return undefined;
@@ -56,7 +58,6 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		debuggers.attach();
 
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-		let resultId: string | undefined = undefined;
 		let target: typeof targetInfos[number] | undefined = undefined;
 		let targetSessionId: number | undefined = undefined;
 		try {
@@ -64,7 +65,12 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
 				try {
 					const url = new URL(targetInfo.url);
-					return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+					if (browserType === BrowserType.LiveServer) {
+						return url.searchParams.get('id') && url.searchParams.get('extensionId') === 'ms-vscode.live-server';
+					} else if (browserType === BrowserType.SimpleBrowser) {
+						return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+					}
+					return false;
 				} catch (err) {
 					return false;
 				}
@@ -72,15 +78,32 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 			if (matchingTarget) {
 				const url = new URL(matchingTarget.url);
-				resultId = url.searchParams.get('id')!;
-			}
-
-			// use id to grab simple browser target
-			if (resultId) {
+				const resultId = url.searchParams.get('id')!;
 				target = targetInfos.find((targetInfo: { url: string }) => {
 					try {
 						const url = new URL(targetInfo.url);
-						return (url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId'));
+						const isLiveServer = browserType === BrowserType.LiveServer &&
+							url.searchParams.get('serverWindowId') === resultId;
+						const isSimpleBrowser = browserType === BrowserType.SimpleBrowser &&
+							url.searchParams.get('id') === resultId &&
+							url.searchParams.has('vscodeBrowserReqId');
+
+						if (isLiveServer || isSimpleBrowser) {
+							this.currentLocalAddress = url.origin;
+							return true;
+						}
+						return false;
+					} catch (e) {
+						return false;
+					}
+				});
+			}
+
+			if (!target) {
+				target = targetInfos.find((targetInfo: { url: string }) => {
+					try {
+						const url = new URL(targetInfo.url);
+						return (this.currentLocalAddress === url.origin);
 					} catch (e) {
 						return false;
 					}

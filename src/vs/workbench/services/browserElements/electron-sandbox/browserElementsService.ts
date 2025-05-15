@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
+import { BrowserType, IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -32,14 +32,17 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
 
-	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType | undefined): Promise<IElementData | undefined> {
+		if (!browserType) {
+			return undefined;
+		}
 		const cancelSelectionId = cancelSelectionIdPool++;
 		const onCancelChannel = `vscode:cancelElementSelection${cancelSelectionId}`;
 		const disposable = token.onCancellationRequested(() => {
 			ipcRenderer.send(onCancelChannel, cancelSelectionId);
 		});
 		try {
-			const elementData = await this.simpleBrowser.getElementData(rect, token, cancelSelectionId);
+			const elementData = await this.simpleBrowser.getElementData(rect, token, browserType, cancelSelectionId);
 			return elementData;
 		} catch (error) {
 			disposable.dispose();
