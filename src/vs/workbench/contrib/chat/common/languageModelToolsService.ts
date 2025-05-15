@@ -19,7 +19,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
 
 export interface IToolData {
 	id: string;
@@ -186,14 +186,12 @@ export interface IToolSet extends IDisposable {
 	readonly description?: string;
 	readonly source: ToolDataSource;
 
-	readonly tools: IObservable<ReadonlySet<IToolData>>;
+	readonly tools: ObservableSet<IToolData>;
 
 	/**
 	 * A homogenous tool set only contains tools from the same source as the tool set itself
 	 */
 	readonly isHomogenous: IObservable<boolean>;
-
-	appendTool(tool: IToolData): IDisposable;
 }
 
 export function isIToolSet(candidate: unknown): candidate is IToolSet {
@@ -201,7 +199,7 @@ export function isIToolSet(candidate: unknown): candidate is IToolSet {
 		&& candidate !== null
 		&& typeof (candidate as IToolSet).id === 'string'
 		&& typeof (candidate as IToolSet).displayName === 'string'
-		&& typeof (candidate as IToolSet).appendTool === 'function';
+		&& (candidate as IToolSet).tools instanceof ObservableSet;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');

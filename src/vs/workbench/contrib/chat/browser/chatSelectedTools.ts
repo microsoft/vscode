@@ -91,7 +91,7 @@ export class ChatSelectedTools extends Disposable {
 					continue;
 				}
 
-				for (const toolInSet of toolSet.tools.read(r)) {
+				for (const toolInSet of toolSet.tools.observable.read(r)) {
 					const source = sourceByTool.get(toolInSet);
 					if (source && ToolDataSource.equals(source, toolInSet.source)) {
 						sourceByTool.delete(toolInSet);
@@ -146,7 +146,7 @@ export class ChatSelectedTools extends Disposable {
 
 		for (const [item, enabled] of this.entriesMap) {
 			if (isIToolSet(item)) {
-				for (const tool of item.tools.get()) {
+				for (const tool of item.tools) {
 					_set(tool, enabled);
 				}
 			} else {

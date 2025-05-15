@@ -95,10 +95,6 @@ class ConfigureToolsAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,
-			},
-			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
-				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

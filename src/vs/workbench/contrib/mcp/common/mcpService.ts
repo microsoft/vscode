@@ -115,7 +115,8 @@ export class McpService extends Disposable implements IMcpService {
 				const registerTool = (store: DisposableStore) => {
 					store.add(this._toolsService.registerToolData(toolData));
 					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
-					store.add(toolSet.appendTool(toolData));
+					toolSet.tools.add(toolData);
+					store.add(toDisposable(() => toolSet.tools.delete(toolData)));
 				};
 
 

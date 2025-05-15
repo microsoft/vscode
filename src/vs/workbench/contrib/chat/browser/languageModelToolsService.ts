@@ -457,12 +457,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			icon: options?.icon ?? Codicon.tools,
 			description: options?.description,
 			toolReferenceName: options?.toolReferenceName,
-			tools: tools.observable,
+			tools: tools,
 			isHomogenous,
-			appendTool: (tool: IToolData): IDisposable => {
-				tools.add(tool);
-				return toDisposable(() => tools.delete(tool));
-			},
 			dispose: () => {
 				if (this._toolSets.has(result)) {
 					tools.clear();
