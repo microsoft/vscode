@@ -1838,6 +1838,7 @@ export class SearchView extends ViewPane {
 	}
 
 	public clearAIResults() {
+		this.model.searchResult.aiTextSearchResult.hidden = true;
 		this._cachedResults = undefined;
 		this.model.cancelAISearch(true);
 		this.model.clearAiSearchResults();
