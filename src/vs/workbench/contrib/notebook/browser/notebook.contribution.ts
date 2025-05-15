@@ -1271,18 +1271,6 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'fullCell'
 		},
-		[NotebookSetting.followRunningCell]: {
-			markdownDescription: nls.localize('notebook.scrolling.followRunningCell', "Controls whether the notebook editor should automatically follow and reveal the currently running cell during execution."),
-			type: 'string',
-			enum: ['off', 'cell', 'output'],
-			markdownEnumDescriptions: [
-				nls.localize('notebook.scrolling.followRunningCell.off', "Do not follow running cells during execution."),
-				nls.localize('notebook.scrolling.followRunningCell.cell', "Focus the cell editor of the running cell during execution."),
-				nls.localize('notebook.scrolling.followRunningCell.output', "Focus the output container of the running cell during execution.")
-			],
-			default: 'off',
-			tags: ['notebookLayout']
-		},
 		[NotebookSetting.cellGenerate]: {
 			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 			type: 'boolean',

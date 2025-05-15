@@ -1053,7 +1053,6 @@ export const NotebookSetting = {
 	outlineShowCodeCellSymbols: 'notebook.outline.showCodeCellSymbols',
 	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
-	followRunningCell: 'notebook.scrolling.followRunningCell',
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.variablesView',
