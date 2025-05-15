@@ -328,14 +328,22 @@ export class AttachToolsAction extends Action2 {
 
 				const disableToolSets: IToolSet[] = [];
 				const disableTools: IToolData[] = [];
+
+
 				for (const item of picks) {
 					if (item.type === 'item' && !item.picked) {
 						if (isToolSetPick(item)) {
 							disableToolSets.push(item.toolset);
 						} else if (isToolPick(item)) {
 							disableTools.push(item.tool);
-						} else {
-							// TODODOD
+						} else if (isBucketPick(item)) {
+							for (const child of item.children) {
+								if (isToolSetPick(child)) {
+									disableToolSets.push(child.toolset);
+								} else if (isToolPick(child)) {
+									disableTools.push(child.tool);
+								}
+							}
 						}
 					}
 				}
