@@ -684,7 +684,7 @@ class ChatSetup {
 
 	private getButtons(): Array<[string, ChatSetupStrategy, { renderAsLink: boolean } | undefined]> {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			const supportAlternateProvider = this.configurationService.getValue('chat.setup.signInWithAlternateProvider') === true;
+			const supportAlternateProvider = this.configurationService.getValue('chat.setup.signInWithAlternateProvider') === true && defaultChat.alternativeProviderId;
 
 			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
 				return coalesce([
