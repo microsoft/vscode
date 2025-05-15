@@ -345,9 +345,14 @@ export class ScreenReaderSupport {
 			return;
 		}
 		const range = new globalThis.Range();
-		const model = context.viewModel.model;
-		const characterCountForStart = model.getCharacterCountInRange(new Range(startLineNumber, 1, startLineNumber, viewSelection.startColumn));
-		const characterCountForEnd = model.getCharacterCountInRange(new Range(endLineNumber, 1, endLineNumber, viewSelection.endColumn));
+		const viewModel = context.viewModel;
+		const model = viewModel.model;
+		const startRange = new Range(startLineNumber, 1, startLineNumber, viewSelection.startColumn);
+		const modelStartRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(startRange);
+		const characterCountForStart = model.getCharacterCountInRange(modelStartRange);
+		const endRange = new Range(endLineNumber, 1, endLineNumber, viewSelection.endColumn);
+		const modelEndRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(endRange);
+		const characterCountForEnd = model.getCharacterCountInRange(modelEndRange);
 		const startDomPosition = startRenderedLine.characterMapping.getDomPosition(characterCountForStart);
 		const endDomPosition = endRenderedLine.characterMapping.getDomPosition(characterCountForEnd);
 		const startDomNode = startRenderedLine.domNode;
