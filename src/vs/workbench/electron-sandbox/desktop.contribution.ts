@@ -267,7 +267,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'enum': ['native', 'custom'],
 				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialog windows.")
+				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom.")
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',
