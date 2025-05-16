@@ -1828,10 +1828,12 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		}
 
-		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemContext, this.scopedContextKeyService, {
+		const historyItemMenuActions = this._menuService.getMenuActions(
+			MenuId.SCMHistoryItemContext,
+			this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
-		});
+		}).filter(group => group[0] !== 'inline');
 
 		this.contextMenuService.showContextMenu({
 			contextKeyService: this.scopedContextKeyService,
