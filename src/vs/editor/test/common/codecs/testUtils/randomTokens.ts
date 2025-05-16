@@ -42,7 +42,7 @@ export const cloneTokens = (
 		}
 
 		if (token instanceof Text) {
-			clonedTokens.push(new Text(cloneTokens(token.tokens)));
+			clonedTokens.push(new Text(cloneTokens(token.children)));
 			continue;
 		}
 

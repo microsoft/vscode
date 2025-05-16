@@ -94,7 +94,7 @@ export class PromptHeader extends Disposable {
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				ObjectStream.fromArray([...contentsToken.tokens]),
+				ObjectStream.fromArray([...contentsToken.children]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));

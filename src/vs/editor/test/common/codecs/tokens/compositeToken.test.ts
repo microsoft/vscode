@@ -30,7 +30,7 @@ suite('CompositeToken', () => {
 		}
 
 		public override toString(): string {
-			const tokenStrings = this.tokens.map((token) => {
+			const tokenStrings = this.children.map((token) => {
 				return token.toString();
 			});
 
@@ -101,8 +101,8 @@ suite('CompositeToken', () => {
 
 		for (let i = 0; i < tokens.length; i++) {
 			assert(
-				token.tokens[i].equals(tokens[i]),
-				`Token #${i} must be '${tokens[i]}', got '${token.tokens[i]}'.`,
+				token.children[i].equals(tokens[i]),
+				`Token #${i} must be '${tokens[i]}', got '${token.children[i]}'.`,
 			);
 		}
 

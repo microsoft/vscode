@@ -26,7 +26,7 @@ export class FrontMatterArray extends FrontMatterValueToken<'array', [
 	public get items(): readonly FrontMatterValueToken<TValueTypeName>[] {
 		const result = [];
 
-		for (const token of this.tokens) {
+		for (const token of this.children) {
 			if (token instanceof FrontMatterValueToken) {
 				result.push(token);
 			}

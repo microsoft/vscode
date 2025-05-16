@@ -497,7 +497,7 @@ suite('tree utilities', () => {
 			}
 
 			public override toString(): string {
-				const tokenStrings = this.tokens.map((token) => {
+				const tokenStrings = this.children.map((token) => {
 					return token.toString();
 				});
 
@@ -608,13 +608,13 @@ suite('tree utilities', () => {
 							children: [
 								{
 									index: 3,
-									value: compositeToken1.tokens[3],
-									their: compositeToken2.tokens[3],
+									value: compositeToken1.children[3],
+									their: compositeToken2.children[3],
 								},
 								{
 									index: 4,
 									value: null,
-									their: compositeToken2.tokens[4],
+									their: compositeToken2.children[4],
 								},
 							],
 						}

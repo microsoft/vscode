@@ -73,7 +73,7 @@ export class FrontMatterRecord extends FrontMatterToken<
 	 * ```
 	 */
 	public get nameToken(): FrontMatterRecordName {
-		return this.tokens[0];
+		return this.children[0];
 	}
 
 	/**
@@ -88,7 +88,7 @@ export class FrontMatterRecord extends FrontMatterToken<
 	 * ```
 	 */
 	public get valueToken(): FrontMatterValueToken<TValueTypeName> {
-		return this.tokens[2];
+		return this.children[2];
 	}
 
 	/**
@@ -103,7 +103,7 @@ export class FrontMatterRecord extends FrontMatterToken<
 		}
 
 		const trimmedTokens = valueToken.trimEnd();
-		const trimmedRange = BaseToken.fullRange(this.tokens);
+		const trimmedRange = BaseToken.fullRange(this.children);
 
 		this.withRange(trimmedRange);
 

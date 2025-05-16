@@ -9,7 +9,12 @@ import { BaseToken } from './baseToken.js';
  * Composite token consists of a list of other tokens.
  * Composite token consists of a list of other tokens.
  */
-export abstract class CompositeToken<TTokens extends readonly BaseToken[]> extends BaseToken {
+export abstract class CompositeToken<
+	TTokens extends readonly BaseToken[],
+> extends BaseToken {
+	/**
+	 * Reference to the list of child tokens.
+	 */
 	protected readonly childTokens: [...TTokens];
 
 	constructor(
@@ -27,15 +32,8 @@ export abstract class CompositeToken<TTokens extends readonly BaseToken[]> exten
 	/**
 	 * Tokens that this composite token consists of.
 	 */
-	public get tokens(): TTokens {
-		return this.childTokens;
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
 	public get children(): TTokens {
-		return this.tokens;
+		return this.childTokens;
 	}
 
 	/**
@@ -47,13 +45,13 @@ export abstract class CompositeToken<TTokens extends readonly BaseToken[]> exten
 			return false;
 		}
 
-		if (this.tokens.length !== other.tokens.length) {
+		if (this.children.length !== other.children.length) {
 			return false;
 		}
 
-		for (let i = 0; i < this.tokens.length; i++) {
-			const childToken = this.tokens[i];
-			const otherChildToken = other.tokens[i];
+		for (let i = 0; i < this.children.length; i++) {
+			const childToken = this.children[i];
+			const otherChildToken = other.children[i];
 
 			if (childToken.equals(otherChildToken) === false) {
 				return false;

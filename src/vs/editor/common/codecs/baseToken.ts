@@ -88,7 +88,6 @@ export abstract class BaseToken<TText extends string = string> {
 	 */
 	public static render(
 		tokens: readonly BaseToken[],
-		// TODO: @legomushroom - add unit tests?
 		delimiter: string = '',
 	): string {
 		return tokens.map(pick('text')).join(delimiter);
