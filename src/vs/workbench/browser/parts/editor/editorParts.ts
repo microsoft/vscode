@@ -98,7 +98,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 					const statusbarService = accessor.get(IStatusbarService);
 
 					this.mapPartToInstantiationService.set(part.windowId, this._register(this.mainPart.scopedInstantiationService.createChild(new ServiceCollection(
-						[IEditorService, editorService.createScoped('main', this._store)],
+						[IEditorService, editorService.createScoped(this.mainPart, this._store)],
 						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
 					))));
 				});
