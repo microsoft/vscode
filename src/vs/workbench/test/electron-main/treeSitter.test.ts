@@ -10,7 +10,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { getModuleLocation } from '../../../editor/common/services/treeSitter/treeSitterLanguages.js';
 import { AppResourcePath, FileAccess, Schemas } from '../../../base/common/network.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
-import { FILENAME_TREESITTER_WASM } from '../../../editor/common/services/treeSitter/treeSitterParserService.js';
 import assert from 'assert';
 import { importAMDNodeModule } from '../../../amdX.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -35,7 +34,7 @@ suite('Tree Sitter API test', function () {
 		const Parser = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
 		await Parser.Parser.init({
 			locateFile(_file: string, _folder: string) {
-				const location: AppResourcePath = `${getModuleLocation({} as IEnvironmentService)}/${FILENAME_TREESITTER_WASM}`;
+				const location: AppResourcePath = `${getModuleLocation({} as IEnvironmentService)}/tree-sitter.wasm`;
 				return FileAccess.asFileUri(location).toString(true);
 			}
 		});
