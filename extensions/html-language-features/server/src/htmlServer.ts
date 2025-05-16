@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, Disposable, DocumentFormattingRequest, DocumentRangeFormattingRequest, LanguageServer, NotificationType, RequestType } from '@volar/language-server';
-import { Emitter } from 'vscode-jsonrpc';
+import { Connection, Disposable, DocumentFormattingRequest, DocumentRangeFormattingRequest, LanguageServer, NotificationType, RequestType, Emitter } from '@volar/language-server';
 import { fetchHTMLDataProviders } from './customData';
 import { htmlLanguagePlugin } from './modes/languagePlugin';
 import { createHtmlProject } from './modes/project';

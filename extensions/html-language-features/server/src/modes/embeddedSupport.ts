@@ -63,10 +63,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					const token = scanner.getTokenText();
-					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(token) || token === 'module') {
+					if (/(module|(text|application)\/(java|ecma)script|text\/babel)/.test(value)) {
 						languageIdFromType = 'javascript';
-					} else if (/["']text\/typescript["']/.test(token)) {
+						isModuleScript = true;
+					} else if (/text\/typescript/.test(value)) {
 						languageIdFromType = 'typescript';
 						isModuleScript = true;
 					} else if (/application\/json/.test(value)) {

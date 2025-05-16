@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as serverProtocol from '@volar/language-server/protocol';
 import { BaseLanguageClient, LanguageClientOptions, createLabsInfo } from '@volar/vscode';
 import { LanguageClient } from '@volar/vscode/browser';
 import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
@@ -32,7 +31,7 @@ export async function activate(context: ExtensionContext) {
 
 		client = await startClient(context, newLanguageClient, { TextDecoder, timer });
 
-		const labsInfo = createLabsInfo(serverProtocol);
+		const labsInfo = createLabsInfo();
 		labsInfo.addLanguageClient(languageClient);
 		return labsInfo.extensionExports;
 	} catch (e) {
