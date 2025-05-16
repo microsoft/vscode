@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
-import { isIToolSet, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { isIToolSet, IToolData, IToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -134,7 +134,7 @@ class ConfigureToolsAction extends Action2 {
 		}
 
 		const enum BucketOrdinal { Extension, Mcp, Other }
-		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[]; source: ToolDataSource };
+		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
 		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: IToolSet; parent: BucketPick };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 		type AddPick = IQuickPickItem & { pickable: false; run: () => void };
@@ -172,11 +172,18 @@ class ConfigureToolsAction extends Action2 {
 			}
 		};
 
-		const defaultBucket: BucketPick = {
+		const builtinBucket: BucketPick = {
 			type: 'item',
 			children: [],
 			label: localize('defaultBucketLabel', "Built-In"),
-			source: { type: 'internal' },
+			ordinal: BucketOrdinal.Other,
+			picked: true,
+		};
+
+		const mcpBucket: BucketPick = {
+			type: 'item',
+			children: [],
+			label: localize('mcp', "MCP Server"),
 			ordinal: BucketOrdinal.Other,
 			picked: true,
 		};
@@ -185,19 +192,21 @@ class ConfigureToolsAction extends Action2 {
 			type: 'item',
 			children: [],
 			label: localize('userBucket', "User Defined"),
-			source: { type: 'internal' },
 			ordinal: BucketOrdinal.Other,
 			picked: true,
 		};
 
 		const toolBuckets = new Map<string, BucketPick>([
-			['other', defaultBucket],
+			['other', builtinBucket],
+			['mcp', mcpBucket],
 			['user', userBucket]
 		]);
 
 		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.entriesMap) {
 
 			let bucket: BucketPick | undefined;
+			let buttons: ActionableButton[] | undefined;
+			let description: string | undefined;
 
 			if (toolSetOrTool.source.type === 'mcp') {
 				const { definitionId } = toolSetOrTool.source;
@@ -205,44 +214,45 @@ class ConfigureToolsAction extends Action2 {
 				if (!mcpServer) {
 					continue;
 				}
-				const key = toolSetOrTool.source.type + mcpServer.definition.id;
-				bucket = toolBuckets.get(key);
+				// const key = toolSetOrTool.source.type + mcpServer.definition.id;
+				// bucket = toolBuckets.get(key);
+				bucket = mcpBucket;
 
-				if (!bucket) {
-					const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
-					const buttons: ActionableButton[] = [];
-					if (collection?.presentation?.origin) {
-						buttons.push({
-							iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-							tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-							action: () => editorService.openEditor({
-								resource: collection!.presentation!.origin,
-							})
-						});
-					}
-					if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
-						buttons.push({
-							iconClass: ThemeIcon.asClassName(Codicon.warning),
-							tooltip: localize('mcpShowOutput', "Show Output"),
-							action: () => mcpServer.showOutput(),
-						});
-					}
-
-					bucket = {
-						type: 'item',
-						label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
-						status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
-						ordinal: BucketOrdinal.Mcp,
-						source: toolSetOrTool.source,
-						picked: false,
-						children: [],
-						buttons,
-					};
-					toolBuckets.set(key, bucket);
+				// if (!bucket) {
+				buttons = [];
+				const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
+				if (collection?.presentation?.origin) {
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+						action: () => editorService.openEditor({
+							resource: collection!.presentation!.origin,
+						})
+					});
 				}
+				if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.warning),
+						tooltip: localize('mcpShowOutput', "Show Output"),
+						action: () => mcpServer.showOutput(),
+					});
+				}
+
+				description = localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label);
+				// bucket = {
+				// 	type: 'item',
+				// 	label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
+				// 	status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
+				// 	ordinal: BucketOrdinal.Mcp,
+				// 	picked: false,
+				// 	children: [],
+				// 	buttons,
+				// };
+				// toolBuckets.set(key, bucket);
+				// }
 			} else if (toolSetOrTool.source.type === 'extension') {
 				if (!toolSetOrTool.source.isExternalTool) {
-					bucket = defaultBucket;
+					bucket = builtinBucket;
 				} else {
 					const key = toolSetOrTool.source.type + ExtensionIdentifier.toKey(toolSetOrTool.source.extensionId);
 					bucket = toolBuckets.get(key) ?? {
@@ -250,13 +260,12 @@ class ConfigureToolsAction extends Action2 {
 						label: toolSetOrTool.source.label,
 						ordinal: BucketOrdinal.Extension,
 						picked: false,
-						source: toolSetOrTool.source,
 						children: []
 					};
 					toolBuckets.set(key, bucket);
 				}
 			} else if (toolSetOrTool.source.type === 'internal') {
-				bucket = defaultBucket;
+				bucket = builtinBucket;
 			} else if (toolSetOrTool.source.type === 'user') {
 				bucket = userBucket;
 			} else {
@@ -270,8 +279,9 @@ class ConfigureToolsAction extends Action2 {
 					picked,
 					toolset: toolSetOrTool,
 					label: toolSetOrTool.displayName,
-					description: toolSetOrTool.description,
+					description: description ?? toolSetOrTool.description,
 					indented: true,
+					buttons
 
 				});
 			} else if (toolSetOrTool.canBeReferencedInPrompt) {
