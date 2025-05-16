@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -133,12 +133,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 		for (const codeOrDiffEditor of this.editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			let codeEditor: ICodeEditor;
-			if (isDiffEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor.getModifiedEditor();
-			} else if (isCodeEditor(codeOrDiffEditor)) {
-				codeEditor = codeOrDiffEditor;
-			} else {
+			const codeEditor = getCodeEditor(codeOrDiffEditor);
+			if (!codeEditor) {
 				continue;
 			}
 

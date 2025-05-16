@@ -676,12 +676,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const chatEnabled = this._chatService.isEnabled(ChatAgentLocation.Panel);
 				const actions = [];
 				if (chatEnabled && errorMessage) {
-					actions.push({
-						label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
-						run: async () => {
-							this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, { mode: ChatMode.Ask, query: 'Fix this task configuration error: ' + errorMessage });
-						}
-					});
+					const beforeJSONregex = /^(.*?)\s*\{[\s\S]*$/;
+					const matches = errorMessage.match(beforeJSONregex);
+					if (matches && matches.length > 1) {
+						const message = matches[1];
+						const customMessage = message === errorMessage
+							? `\`${message}\``
+							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
+						actions.push({
+							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
+							run: async () => {
+								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
+									mode: ChatMode.Agent,
+									query: `Fix this task configuration error: ${customMessage}`
+								});
+							}
+						});
+					}
 				}
 				actions.push({
 					label: nls.localize('showOutput', "Show Output"),
@@ -690,7 +701,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				});
 				if (chatEnabled) {
-					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to resolve them or view the output for details.'), actions);
+					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to fix them or view the output for details.'), actions);
 				} else {
 					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
 				}

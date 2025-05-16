@@ -35,7 +35,7 @@ export class GitTimelineItem extends TimelineItem {
 		contextValue: string
 	) {
 		const index = message.indexOf('\n');
-		const label = index !== -1 ? `${truncate(message, index)}` : message;
+		const label = index !== -1 ? `${truncate(message, index, false)}` : message;
 
 		super(label, timestamp);
 

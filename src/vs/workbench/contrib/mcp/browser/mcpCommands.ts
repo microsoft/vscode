@@ -19,7 +19,9 @@ import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/co
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -27,15 +29,17 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -67,6 +71,18 @@ export class ListMcpServerCommand extends Action2 {
 		const mcpService = accessor.get(IMcpService);
 		const commandService = accessor.get(ICommandService);
 		const quickInput = accessor.get(IQuickInputService);
+		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const viewsService = accessor.get(IViewsService);
+		const mcpGalleryService = accessor.get(IMcpGalleryService);
+
+		if (mcpGalleryService.isEnabled()) {
+			if (mcpWorkbenchService.local.length) {
+				return viewsService.openView(InstalledMcpServersViewId, true);
+			} else {
+				return extensionWorkbenchService.openSearch('@mcp');
+			}
+		}
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -564,5 +580,28 @@ export class InstallFromActivation extends Action2 {
 	async run(accessor: ServicesAccessor, uri: URI) {
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
 		addConfigHelper.pickForUrlHandler(uri);
+	}
+}
+
+export class McpBrowseCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.Browse,
+			title: localize2('mcp.command.browse', "MCP Servers"),
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: McpServersGalleryEnabledContext,
+			}, {
+				id: extensionsFilterSubMenu,
+				when: McpServersGalleryEnabledContext,
+				group: '1_predefined',
+				order: 1,
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
 	}
 }

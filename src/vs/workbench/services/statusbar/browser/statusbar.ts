@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { Command } from '../../../../editor/common/languages.js';
@@ -26,7 +26,7 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	/**
 	 * Creates a new auxililary status bar part in the provided container.
 	 */
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
+	createAuxiliaryStatusbarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryStatusbarPart;
 
 	/**
 	 * Create a scoped status bar service that only operates on the provided

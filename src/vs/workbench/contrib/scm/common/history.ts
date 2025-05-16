@@ -24,6 +24,7 @@ export interface ISCMHistoryProvider {
 	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined>;
 	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 

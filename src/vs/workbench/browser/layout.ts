@@ -319,8 +319,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
-		this.mainPartEditorService = this.editorService.createScoped('main', this._store);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
+		this.mainPartEditorService = this.editorService.createScoped(this.editorGroupService.mainPart, this._store);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);

@@ -158,7 +158,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		const resourceFilter = this._register(new MutableDisposable());
 		this._register(autorun(r => {
-			const inProgress = this._lastModifyingResponseInProgressObs.read(r);
+			const inProgress = this._waitsForLastEdits.read(r);
 			if (inProgress) {
 				const res = this._lastModifyingResponseObs.read(r);
 				const req = res && res.session.getRequests().find(value => value.id === res.requestId);
@@ -285,43 +285,54 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedURI), ' INVALID args, can only edit THIS document');
 
-		const ops = textEdits.map(TextEdit.asEditOperation);
-		const undoEdits = this._applyEdits(ops);
+		const isAtomicEdits = textEdits.length > 0 && isLastEdits;
 
-		const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
+		let rewriteRatio = 0;
 
-		const newDecorations: IModelDeltaDecoration[] = [
-			// decorate pending edit (region)
-			{
-				options: ChatEditingModifiedDocumentEntry._pendingEditDecorationOptions,
-				range: new Range(maxLineNumber + 1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+		if (isAtomicEdits) {
+			// EDIT and DONE
+			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
+			const ops = minimalEdits.map(TextEdit.asEditOperation);
+			this._applyEdits(ops);
+
+		} else {
+			// EDIT a bit, then DONE
+			const ops = textEdits.map(TextEdit.asEditOperation);
+			const undoEdits = this._applyEdits(ops);
+			const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
+			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
+
+			const newDecorations: IModelDeltaDecoration[] = [
+				// decorate pending edit (region)
+				{
+					options: ChatEditingModifiedDocumentEntry._pendingEditDecorationOptions,
+					range: new Range(maxLineNumber + 1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+				}
+			];
+
+			if (maxLineNumber > 0) {
+				// decorate last edit
+				newDecorations.push({
+					options: ChatEditingModifiedDocumentEntry._lastEditDecorationOptions,
+					range: new Range(maxLineNumber, 1, maxLineNumber, Number.MAX_SAFE_INTEGER)
+				});
 			}
-		];
+			this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, newDecorations);
 
-		if (maxLineNumber > 0) {
-			// decorate last edit
-			newDecorations.push({
-				options: ChatEditingModifiedDocumentEntry._lastEditDecorationOptions,
-				range: new Range(maxLineNumber, 1, maxLineNumber, Number.MAX_SAFE_INTEGER)
-			});
 		}
 
-		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, newDecorations);
-
-
 		transaction((tx) => {
+			this._waitsForLastEdits.set(!isLastEdits, tx);
 			if (!isLastEdits) {
 				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
-				const lineCount = this.modifiedModel.getLineCount();
-				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
+				this._rewriteRatioObs.set(rewriteRatio, tx);
 
 			} else {
 				this._resetEditsState(tx);
 				this._updateDiffInfoSeq();
 				this._rewriteRatioObs.set(1, tx);
 				this._editDecorationClear.schedule();
-
 			}
 		});
 		if (isLastEdits) {
