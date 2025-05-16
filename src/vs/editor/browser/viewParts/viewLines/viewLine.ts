@@ -100,7 +100,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder, allowVariableLinesAndFonts: boolean): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -149,7 +149,9 @@ export class ViewLine implements IVisibleLine {
 		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
 		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
 		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
+		const fontInfo = this._viewContext.configuration.options.get(EditorOption.fontInfo);
 
+		console.log('options.allowVariableLinesAndFonts : ', options.allowVariableLinesAndFonts);
 		const renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			options.canUseHalfwidthRightwardsArrow,
@@ -165,6 +167,9 @@ export class ViewLine implements IVisibleLine {
 			options.spaceWidth,
 			options.middotWidth,
 			options.wsmiddotWidth,
+			fontInfo.fontSize,
+			fontInfo.fontFamily,
+			options.allowVariableLinesAndFonts,
 			options.stopRenderingLineAfter,
 			renderWhitespace,
 			options.renderControlCharacters,

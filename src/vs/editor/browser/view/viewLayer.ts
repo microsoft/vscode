@@ -23,7 +23,7 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder, allowVariableLinesAndFonts: boolean): boolean;
 
 	/**
 	 * Layout the line.
@@ -577,7 +577,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
+				const allowVariableLinesAndFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableLineHeights);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableLinesAndFonts);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -608,7 +609,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
+				const allowVariableLinesAndFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableLineHeights);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableLinesAndFonts);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

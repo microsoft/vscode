@@ -176,6 +176,9 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 			fontInfo.spaceWidth,
 			fontInfo.middotWidth,
 			fontInfo.wsmiddotWidth,
+			fontInfo.fontSize,
+			fontInfo.fontFamily,
+			true,
 			stopRenderingLineAfter,
 			renderWhitespace,
 			renderControlCharacters,
@@ -212,7 +215,6 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 		containerDomNode.style.wordBreak = 'inherit';
 		containerDomNode.style.overflowWrap = 'break-word';
 	}
-	console.log('containerDomNode : ', containerDomNode);
 	targetWindow.document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();

@@ -128,7 +128,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
-		console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -183,13 +182,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public getInlineDecorationsOnModelLine(modelLineNumber: number): InlineDecoration[] {
 		const modelDecorations = this.model.getLineDecorations(modelLineNumber, this._editorId, filterValidationDecorations(this.config.options));
-		console.log('modelDecorations : ', modelDecorations);
 		const inlineDecorations: InlineDecoration[] = [];
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
 			const modelRange = modelDecoration.range;
-			console.log('modelRange : ', modelRange);
 			if (decorationOptions.inlineClassName) {
 				const inlineDecoration = new InlineDecoration(modelRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				inlineDecorations.push(inlineDecoration);

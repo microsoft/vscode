@@ -41,6 +41,9 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
+	public readonly fontSize: number;
+	public readonly fontFamily: string;
+	public readonly allowVariableLineAndFontSize: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -63,6 +66,9 @@ export class RenderLineInput {
 		spaceWidth: number,
 		middotWidth: number,
 		wsmiddotWidth: number,
+		fontSize: number,
+		fontFamily: string,
+		allowVariableLineAndFontSize: boolean,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
@@ -81,6 +87,9 @@ export class RenderLineInput {
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
+		this.fontSize = fontSize;
+		this.fontFamily = fontFamily;
+		this.allowVariableLineAndFontSize = allowVariableLineAndFontSize;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = (
 			renderWhitespace === 'all'
@@ -151,6 +160,9 @@ export class RenderLineInput {
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
+			&& this.fontSize === other.fontSize
+			&& this.fontFamily === other.fontFamily
+			&& this.allowVariableLineAndFontSize === other.allowVariableLineAndFontSize
 		);
 	}
 }
@@ -330,8 +342,6 @@ export class RenderLineOutput {
 
 export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
 	console.log('renderViewLine');
-	console.log('input.lineContent : ', input.lineContent);
-	console.log('input.lineDecorations : ', input.lineDecorations);
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -416,6 +426,9 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
+		public readonly fontSize: number,
+		public readonly fontFamily: string,
+		public readonly allowVariableLineAndFontSize: boolean
 	) {
 		//
 	}
@@ -487,7 +500,10 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters
+		input.renderControlCharacters,
+		input.fontSize,
+		input.fontFamily,
+		input.allowVariableLineAndFontSize
 	);
 }
 
@@ -876,8 +892,6 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
-	console.log('tokens : ', tokens);
-	console.log('tokens[tokens.length - 1] : ', tokens[tokens.length - 1]);
 	if (tokens.length) {
 		const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
 		if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
@@ -947,6 +961,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
+		if (!input.allowVariableLineAndFontSize) {
+			sb.appendString(` style="font-size:${input.fontSize}px; font-family:${input.fontFamily}"`);
+		}
 
 		if (partRendersWhitespace) {
 
