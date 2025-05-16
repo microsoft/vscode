@@ -284,7 +284,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 				const newLineIndex = message.indexOf('\n');
 				const subject = newLineIndex !== -1
-					? `${truncate(message, newLineIndex)}`
+					? `${truncate(message, newLineIndex, false)}`
 					: message;
 
 				const avatarUrl = commitAvatars?.get(commit.hash);
