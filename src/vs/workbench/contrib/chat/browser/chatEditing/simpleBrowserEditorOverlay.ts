@@ -36,6 +36,7 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { BrowserType } from '../../../../../platform/browserElements/common/browserElements.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -46,6 +47,8 @@ class SimpleBrowserOverlayWidget {
 	private readonly _showStore = new DisposableStore();
 
 	private _timeout: any | undefined = undefined;
+
+	private _activeBrowserType: BrowserType | undefined = undefined;
 
 	constructor(
 		private readonly _editor: IEditorGroup,
@@ -222,6 +225,10 @@ class SimpleBrowserOverlayWidget {
 		}));
 	}
 
+	setActiveBrowserType(type: BrowserType | undefined) {
+		this._activeBrowserType = type;
+	}
+
 	hideElement(element: HTMLElement) {
 		if (element.classList.contains('hidden')) {
 			return;
@@ -240,7 +247,7 @@ class SimpleBrowserOverlayWidget {
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
 
-		const elementData = await this._browserElementsService.getElementData(editorContainerPosition, cts.token);
+		const elementData = await this._browserElementsService.getElementData(editorContainerPosition, cts.token, this._activeBrowserType);
 		if (!elementData) {
 			throw new Error('Element data not found');
 		}
@@ -323,6 +330,7 @@ class SimpleBrowserOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 	) {
 
 		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
@@ -340,7 +348,21 @@ class SimpleBrowserOverlayController {
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const show = () => {
+		const getActiveBrowserType = () => {
+			const editor = group.activeEditorPane;
+			const isSimpleBrowser = editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view';
+			const isLiveServer = editor?.input.editorId === 'mainThreadWebview-browserPreview';
+			return isSimpleBrowser ? BrowserType.SimpleBrowser : isLiveServer ? BrowserType.LiveServer : undefined;
+		};
+
+		let cts = new CancellationTokenSource();
+		const show = async () => {
+			cts = new CancellationTokenSource();
+			const activeBrowserType = getActiveBrowserType();
+			if (activeBrowserType) {
+				await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+			}
+
 			if (!container.contains(this._domNode)) {
 				container.appendChild(this._domNode);
 			}
@@ -348,6 +370,7 @@ class SimpleBrowserOverlayController {
 
 		const hide = () => {
 			if (container.contains(this._domNode)) {
+				cts.cancel();
 				this._domNode.remove();
 			}
 		};
@@ -359,7 +382,11 @@ class SimpleBrowserOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
-			if (editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view') {
+
+			const activeBrowser = getActiveBrowserType();
+			widget.setActiveBrowserType(activeBrowser);
+
+			if (activeBrowser) {
 				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				return uri;
 			}
