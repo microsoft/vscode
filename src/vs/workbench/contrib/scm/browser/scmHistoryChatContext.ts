@@ -5,6 +5,7 @@
 
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -72,24 +73,37 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
 
-				return historyItems.map(historyItem => ({
-					iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
-					label: historyItem.subject,
-					description: historyItem.displayId ?? historyItem.id,
-					asAttachment: () => {
-						const historyItemTitle = getHistoryItemEditorTitle(historyItem);
-						const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.provider, historyItem);
-						const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
-
-						return {
-							id: historyItem.id,
-							name: attachmentName,
-							value: multiDiffSourceUri,
-							title: historyItemTitle,
-							kind: 'scmHistoryItem'
-						} satisfies ISCMHistoryItemVariableEntry;
+				return historyItems.map(historyItem => {
+					const details = [`${historyItem.displayId ?? historyItem.id}`];
+					if (historyItem.author) {
+						details.push(historyItem.author);
 					}
-				}) satisfies IChatContextPickerPickItem);
+					if (historyItem.statistics) {
+						details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
+					}
+					if (historyItem.timestamp) {
+						details.push(fromNow(historyItem.timestamp, true, true));
+					}
+
+					return {
+						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
+						label: historyItem.subject,
+						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
+						asAttachment: () => {
+							const historyItemTitle = getHistoryItemEditorTitle(historyItem);
+							const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.provider, historyItem);
+							const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+
+							return {
+								id: historyItem.id,
+								name: attachmentName,
+								value: multiDiffSourceUri,
+								title: historyItemTitle,
+								kind: 'scmHistoryItem'
+							} satisfies ISCMHistoryItemVariableEntry;
+						}
+					} satisfies IChatContextPickerPickItem;
+				});
 			}
 		};
 	}
