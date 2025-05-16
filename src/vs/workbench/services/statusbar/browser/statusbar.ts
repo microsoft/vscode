@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipHTMLElement, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
+import { IEditorGroupsContainer } from '../../editor/common/editorGroupsService.js';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -26,7 +27,7 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	/**
 	 * Creates a new auxililary status bar part in the provided container.
 	 */
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
+	createAuxiliaryStatusbarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryStatusbarPart;
 
 	/**
 	 * Create a scoped status bar service that only operates on the provided

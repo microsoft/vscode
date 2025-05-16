@@ -36,6 +36,7 @@ import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -776,7 +777,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	//#region Auxiliary Statusbar Parts
 
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
+	createAuxiliaryStatusbarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryStatusbarPart {
 
 		// Container
 		const statusbarPartContainer = $('footer.part.statusbar', {
@@ -788,7 +789,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		container.appendChild(statusbarPartContainer);
 
 		// Statusbar Part
-		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
+		const statusbarPart = editorGroupsContainer.scopedInstantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
 		const disposable = this.registerPart(statusbarPart);
 
 		statusbarPart.create(statusbarPartContainer);
@@ -917,8 +918,8 @@ export class ScopedStatusbarService extends Disposable implements IStatusbarServ
 		this.onDidChangeEntryVisibility = this.statusbarEntryContainer.onDidChangeEntryVisibility;
 	}
 
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
-		return this.statusbarService.createAuxiliaryStatusbarPart(container);
+	createAuxiliaryStatusbarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryStatusbarPart {
+		return this.statusbarService.createAuxiliaryStatusbarPart(container, editorGroupsContainer);
 	}
 
 	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService {
