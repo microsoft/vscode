@@ -15,4 +15,6 @@ export interface IBrowserElementsService {
 
 	// no browser implementation yet
 	getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType | undefined): Promise<IElementData | undefined>;
+
+	startDebugSession(token: CancellationToken, browserType: BrowserType): Promise<void>;
 }

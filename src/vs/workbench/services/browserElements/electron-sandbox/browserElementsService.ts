@@ -24,6 +24,7 @@ class WorkbenchNativeBrowserElementsService extends NativeBrowserElementsService
 }
 
 let cancelSelectionIdPool = 0;
+let cancelAndDetachIdPool = 0;
 
 class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	_serviceBrand: undefined;
@@ -31,6 +32,23 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	constructor(
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
+
+	async startDebugSession(token: CancellationToken, browserType: BrowserType): Promise<void> {
+		const cancelAndDetachId = cancelAndDetachIdPool++;
+		const onCancelChannel = `vscode:cancelCurrentSession${cancelAndDetachId}`;
+
+		const disposable = token.onCancellationRequested(() => {
+			console.log('cancellation requested', cancelAndDetachId);
+			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
+			disposable.dispose();
+		});
+		try {
+			await this.simpleBrowser.startDebugSession(token, browserType, cancelAndDetachId);
+		} catch (error) {
+			disposable.dispose();
+			throw new Error('No debug session target found', error);
+		}
+	}
 
 	async getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType | undefined): Promise<IElementData | undefined> {
 		if (!browserType) {

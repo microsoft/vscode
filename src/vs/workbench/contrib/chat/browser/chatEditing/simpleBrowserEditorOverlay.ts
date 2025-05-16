@@ -330,6 +330,7 @@ class SimpleBrowserOverlayController {
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 	) {
 
 		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
@@ -347,7 +348,21 @@ class SimpleBrowserOverlayController {
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const show = () => {
+		const getActiveBrowserType = () => {
+			const editor = group.activeEditorPane;
+			const isSimpleBrowser = editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view';
+			const isLiveServer = editor?.input.editorId === 'mainThreadWebview-browserPreview';
+			return isSimpleBrowser ? BrowserType.SimpleBrowser : isLiveServer ? BrowserType.LiveServer : undefined;
+		};
+
+		let cts = new CancellationTokenSource();
+		const show = async () => {
+			cts = new CancellationTokenSource();
+			const activeBrowserType = getActiveBrowserType();
+			if (activeBrowserType) {
+				await this._browserElementsService.startDebugSession(cts.token, activeBrowserType);
+			}
+
 			if (!container.contains(this._domNode)) {
 				container.appendChild(this._domNode);
 			}
@@ -355,6 +370,7 @@ class SimpleBrowserOverlayController {
 
 		const hide = () => {
 			if (container.contains(this._domNode)) {
+				cts.cancel();
 				this._domNode.remove();
 			}
 		};
@@ -367,17 +383,10 @@ class SimpleBrowserOverlayController {
 
 			const editor = group.activeEditorPane;
 
-			const isSimpleBrowser = editor?.input.editorId === 'mainThreadWebview-simpleBrowser.view';
-			const isLiveServer = editor?.input.editorId === 'mainThreadWebview-browserPreview';
+			const activeBrowser = getActiveBrowserType();
+			widget.setActiveBrowserType(activeBrowser);
 
-			const isBrowserEditor = isSimpleBrowser || isLiveServer;
-			if (isSimpleBrowser) {
-				widget.setActiveBrowserType(BrowserType.SimpleBrowser);
-			} else if (isLiveServer) {
-				widget.setActiveBrowserType(BrowserType.LiveServer);
-			}
-
-			if (isBrowserEditor) {
+			if (activeBrowser) {
 				const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				return uri;
 			}
