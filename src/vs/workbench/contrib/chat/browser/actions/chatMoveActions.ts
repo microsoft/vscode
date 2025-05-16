@@ -84,7 +84,6 @@ export function registerMoveActions() {
 				f1: true,
 				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 					id,
-					group: 'navigation',
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					order: 0
 				}))
