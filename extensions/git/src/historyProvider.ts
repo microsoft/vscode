@@ -344,6 +344,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
+	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
+		try {
+			const commitDetails = await this.repository.showCommit(historyItemId);
+			return commitDetails;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChatContext] Failed to resolve history item '${historyItemId}': ${err}`);
+		}
+
+		return undefined;
+	}
+
 	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {
 		try {
 			if (historyItemRefs.length === 0) {
