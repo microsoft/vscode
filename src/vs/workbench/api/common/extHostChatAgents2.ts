@@ -68,12 +68,41 @@ class ChatAgentResponseStream {
 			const that = this;
 			this._stopWatch.reset();
 
+
+			let taskHandlePool = 0;
+
+
 			function throwIfDone(source: Function | undefined) {
 				if (that._isClosed) {
 					const err = new Error('Response stream has been closed');
 					Error.captureStackTrace(err, source);
 					throw err;
 				}
+			}
+
+
+			const sendQueue: (IChatProgressDto | [IChatProgressDto, number])[] = [];
+			const notify: Function[] = [];
+
+			function send(chunk: IChatProgressDto): void;
+			function send(chunk: IChatProgressDto, handle: number): Promise<void>;
+			function send(chunk: IChatProgressDto, handle?: number) {
+				// push data into send queue. the first entry schedules the micro task which
+				// does the actual send to the main thread
+				const newLen = sendQueue.push(handle !== undefined ? [chunk, handle] : chunk);
+				if (newLen === 1) {
+					queueMicrotask(() => {
+						that._proxy.$handleProgressChunk(that._request.requestId, sendQueue).finally(() => {
+							notify.forEach(f => f());
+							notify.length = 0;
+						});
+						sendQueue.length = 0;
+					});
+				}
+				if (handle !== undefined) {
+					return new Promise<void>(resolve => { notify.push(resolve); });
+				}
+				return;
 			}
 
 			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
@@ -83,28 +112,25 @@ class ChatAgentResponseStream {
 				}
 
 				if (task) {
-					const progressReporterPromise = this._proxy.$handleProgressChunk(this._request.requestId, progress);
+					const myHandle = taskHandlePool++;
+					const progressReporterPromise = send(progress, myHandle);
 					const progressReporter = {
 						report: (p: vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart) => {
-							progressReporterPromise?.then((handle) => {
-								if (handle) {
-									if (extHostTypes.MarkdownString.isMarkdownString(p.value)) {
-										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), handle);
-									} else {
-										this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), handle);
-									}
+							progressReporterPromise.then(() => {
+								if (extHostTypes.MarkdownString.isMarkdownString(p.value)) {
+									send(typeConvert.ChatResponseWarningPart.from(<vscode.ChatResponseWarningPart>p), myHandle);
+								} else {
+									send(typeConvert.ChatResponseReferencePart.from(<vscode.ChatResponseReferencePart>p), myHandle);
 								}
 							});
 						}
 					};
 
-					Promise.all([progressReporterPromise, task?.(progressReporter)]).then(([handle, res]) => {
-						if (handle !== undefined) {
-							this._proxy.$handleProgressChunk(this._request.requestId, typeConvert.ChatTaskResult.from(res), handle);
-						}
+					Promise.all([progressReporterPromise, task(progressReporter)]).then(([_void, res]) => {
+						send(typeConvert.ChatTaskResult.from(res), myHandle);
 					});
 				} else {
-					this._proxy.$handleProgressChunk(this._request.requestId, progress);
+					send(progress);
 				}
 			};
 
