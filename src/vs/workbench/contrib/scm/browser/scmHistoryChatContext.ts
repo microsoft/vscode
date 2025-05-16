@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +18,7 @@ import { IChatWidget } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { ISCMViewService } from '../common/scm.js';
+import { ISCMService, ISCMViewService } from '../common/scm.js';
 import { getHistoryItemEditorTitle } from './util.js';
 
 export class SCMHistoryItemContextContribution extends Disposable implements IWorkbenchContribution {
@@ -95,7 +96,34 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 }
 
 class SCMHistoryItemContextContentProvider implements ITextModelContentProvider {
+	constructor(
+		@IModelService private readonly _modelService: IModelService,
+		@ISCMService private readonly _scmService: ISCMService
+	) { }
+
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		throw new Error('Method not implemented.');
+		const uriFields = ScmHistoryItemResolver.parseUri(resource);
+		if (!uriFields) {
+			return null;
+		}
+
+		const textModel = this._modelService.getModel(resource);
+		if (textModel) {
+			return textModel;
+		}
+
+		const { repositoryId, historyItemId } = uriFields;
+		const repository = this._scmService.getRepository(repositoryId);
+		const historyProvider = repository?.provider.historyProvider.get();
+		if (!repository || !historyProvider) {
+			return null;
+		}
+
+		const historyItemContext = await historyProvider.resolveHistoryItemChatContext(historyItemId);
+		if (!historyItemContext) {
+			return null;
+		}
+
+		return this._modelService.createModel(historyItemContext, null, resource, false);
 	}
 }
