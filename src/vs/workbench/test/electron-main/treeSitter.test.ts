@@ -139,7 +139,6 @@ suite('Tree Sitter API test', function () {
 		const modifiedTree = parser.parse(editedTestData, originalTree);
 		assert.notStrictEqual(modifiedTree, null);
 		const diff = modifiedTree!.getChangedRanges(originalTree!);
-		// Would be nice if the changed ranges included the entirety of the activate method.
 		assert.strictEqual(diff.length, 0);
 		originalTree?.delete();
 		modifiedTree?.delete();
