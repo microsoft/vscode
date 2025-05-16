@@ -147,7 +147,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	protected container: HTMLElement | undefined;
 
-	private scopedInstantiationService!: IInstantiationService;
+	scopedInstantiationService!: IInstantiationService;
 
 	private centeredLayoutWidget!: CenteredViewLayout;
 

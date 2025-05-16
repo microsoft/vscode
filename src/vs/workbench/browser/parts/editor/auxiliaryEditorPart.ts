@@ -71,7 +71,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.screenFull,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext.toNegated()),
+				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryTitleBarContext),
 				order: 0
 			}
 		});
@@ -91,7 +91,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.screenNormal,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsAuxiliaryTitleBarContext, IsCompactTitleBarContext),
+				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryTitleBarContext),
 				order: 0
 			}
 		});
