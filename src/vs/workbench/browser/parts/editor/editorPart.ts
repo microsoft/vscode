@@ -25,7 +25,7 @@ import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { DeepPartial, assertIsDefined, assertType } from '../../../../base/common/types.js';
+import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
@@ -989,8 +989,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	override updateStyles(): void {
-		const container = assertIsDefined(this.container);
-		container.style.backgroundColor = this.getColor(editorBackground) || '';
+		this.container.style.backgroundColor = this.getColor(editorBackground) || '';
 
 		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
 		this.gridWidget.style(separatorBorderStyle);
@@ -1285,8 +1284,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private updateContainer(): void {
-		const container = assertIsDefined(this.container);
-		container.classList.toggle('empty', this.isEmpty);
+		this.container.classList.toggle('empty', this.isEmpty);
 	}
 
 	private notifyGroupIndexChange(): void {
