@@ -92,7 +92,7 @@ suite('Tree Sitter API test', function () {
 		modifiedTree?.delete();
 	});
 
-	test('Test getChangedRanges', async () => {
+	test('Test getChangedRanges - ranges are as expected', async () => {
 		const originalTree = parser.parse(smallTestData);
 		assert.notStrictEqual(originalTree, null);
 		originalTree!.edit({
@@ -144,10 +144,7 @@ suite('Tree Sitter API test', function () {
 		modifiedTree?.delete();
 	});
 
-	/** getChangedRanges does indeed seem to do what we expect it to do.
-	 * The problems we saw before were likely caused by *editing* the original tree again before compareing the ranges.
-	 */
-	test('Test getChangedRanges 2', async () => {
+	test('Test getChangedRanges 2 - ranges are as expected', async () => {
 		const originalTree = parser.parse(smallTestData);
 		assert.notStrictEqual(originalTree, null);
 		// Insert some backticks
@@ -243,6 +240,35 @@ suite('Tree Sitter API test', function () {
 		originalTree?.delete();
 		modifiedTreeOne?.delete();
 		modifiedTreeTwo?.delete();
+	});
+
+	test('Test getChangedRanges 3 - ranges are not as expected because the syntax doesn\'t change', async () => {
+		const initialTestData = 'const x = 1;\nconst y = 2;';
+		const editedTestData = 'const x = 30;\nconst y = 2;';
+
+		const originalTree = parser.parse(initialTestData);
+		assert.notStrictEqual(originalTree, null);
+		originalTree!.edit({
+			startIndex: 10,
+			startPosition: {
+				row: 0,
+				column: 10
+			},
+			oldEndIndex: 11,
+			oldEndPosition: {
+				row: 0,
+				column: 11,
+			},
+			newEndIndex: 12,
+			newEndPosition: {
+				row: 0,
+				column: 12
+			}
+		});
+		const modifiedTree = parser.parse(editedTestData, originalTree);
+		assert.notStrictEqual(modifiedTree, null);
+		const diff = originalTree!.getChangedRanges(modifiedTree!);
+		assert.strictEqual(diff.length, 0);
 	});
 
 	function printTree(tree: Parser.Tree, simple: boolean = false): string {
