@@ -1763,7 +1763,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecoration[] {
 		const validatedRange = this.validateRange(range);
-		console.log('validatedRange : ', validatedRange);
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMarginDecorations);
 		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
 		return decorations;

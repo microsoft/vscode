@@ -347,7 +347,6 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							console.log('lineInserted');
 							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
 								const line = change.detail[lineIdx];
 								let injectedText = change.injectedTexts[lineIdx];
@@ -359,28 +358,20 @@ export class ViewModel extends Disposable implements IViewModel {
 								this.model.tokenization.forceTokenization(lineNumber);
 								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-								console.log('lineNumber : ', lineNumber);
-								console.log('line : ', line);
-								console.log('inlineDecorations : ', inlineDecorations);
 								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							console.log('lineChanged');
 							let injectedText: textModelEvents.LineInjectedText[] | null = null;
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
 							const lineNumber = change.lineNumber;
-							console.log('change.lineNumber : ', change.lineNumber);
 							const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
 							this.model.tokenization.forceTokenization(lineNumber);
 							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-							console.log('lineNumber : ', lineNumber);
-							console.log('line : ', change.detail);
-							console.log('inlineDecorations : ', inlineDecorations);
 							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							break;
 						}
@@ -484,6 +475,45 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._eventDispatcher.endEmitViewEvents();
 			}
 
+			this._handleVisibleLinesChanged();
+		}));
+		this._register(this.model.onDidChangeFont((e) => {
+			try {
+				// TOOD: Is this correct?
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				const lineBreaksComputer = this._lines.createLineBreaksComputer();
+				for (const change of e.changes) {
+					const lineNumber = change.lineNumber;
+					const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+					this.model.tokenization.forceTokenization(lineNumber);
+					const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
+					const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+					const lineContent = this.model.getLineContent(lineNumber);
+					lineBreaksComputer.addRequest(lineNumber, lineContent, lineHeight, null, inlineDecorations, lineTokens, null);
+				}
+				const lineBreaks = lineBreaksComputer.finalize();
+				const lineBreakQueue = new ArrayQueue(lineBreaks);
+
+				for (const change of e.changes) {
+					const changedLineBreakData = lineBreakQueue.dequeue()!;
+					const [_lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
+						this._lines.onModelLineChanged(change.versionId, change.lineNumber, changedLineBreakData);
+					if (linesChangedEvent) {
+						eventsCollector.emitViewEvent(linesChangedEvent);
+					}
+				}
+				// if (versionId !== null) {
+				// 	this._lines.acceptVersionId(versionId);
+				// }
+				this.viewLayout.onHeightMaybeChanged();
+				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+				this._cursor.onLineMappingChanged(eventsCollector);
+				this._decorations.onLineMappingChanged();
+			} finally {
+				this._eventDispatcher.endEmitViewEvents();
+			}
+			this._updateConfigurationViewLineCountNow();
 			this._handleVisibleLinesChanged();
 		}));
 
