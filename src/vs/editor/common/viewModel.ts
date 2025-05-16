@@ -33,7 +33,7 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
-	getInlineDecorationsOnModelLine(lineNumber: number): InlineDecoration[];
+	getInlineDecorations(lineNumber: number): InlineDecoration[];
 	getFontSizeAtPosition(position: IPosition): number;
 
 	/**

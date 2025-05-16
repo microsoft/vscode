@@ -69,8 +69,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
-	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	// private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	private readonly _generalLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
 	private fontInfo: FontInfo;
 	private tabSize: number;
@@ -96,7 +95,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		model: ITextModel,
 		context: IViewModelLinesFromProjectedModelContext,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		config: IEditorConfiguration,
 		fontInfo: FontInfo,
 		tabSize: number,
@@ -109,8 +107,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.model = model;
 		this.context = context;
 		this._validModelVersionId = -1;
-		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		// this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this._generalLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this.config = config;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
@@ -151,9 +148,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
-			console.log('lineNumber : ', lineNumber);
-			console.log('inlineDecorations : ', inlineDecorations);
-			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
+			const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null, isVariableFontSize);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -175,7 +171,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			}
 
 			const isInHiddenArea = (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd);
-			const line = createModelLineProjection(linesBreaks[i], !isInHiddenArea);
+			const line = createModelLineProjection(linesBreaks.get(lineNumber)!, !isInHiddenArea);
 			values[i] = line.getViewLineCount();
 			this.modelLineProjections[i] = line;
 		}
@@ -359,11 +355,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
-		const lineBreaksComputerFactory = (
-			this.wrappingStrategy === 'advanced'
-				? this._domLineBreaksComputerFactory
-				: this._domLineBreaksComputerFactory
-		);
+		const lineBreaksComputerFactory = this._generalLineBreaksComputerFactory;
 		return lineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize);
 	}
 
@@ -1205,13 +1197,16 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
-		const result: null[] = [];
+		const result: Map<number, ModelLineProjectionData | null> = new Map<number, ModelLineProjectionData | null>();
 		return {
 			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], linesTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
-				result.push(null);
+				result.set(lineNumber, null);
 			},
 			finalize: () => {
 				return result;
+			},
+			finalizeToArray: () => {
+				return [];
 			}
 		};
 	}

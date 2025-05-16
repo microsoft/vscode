@@ -178,17 +178,18 @@ export class DiffEditorViewZones extends Disposable {
 							}
 							const originalEditor = this._editors.original;
 							const viewModel = originalEditor._getViewModel()!;
-							const inlineDecorations = viewModel.getInlineDecorationsOnModelLine(i);
+							const inlineDecorations = viewModel.getInlineDecorations(i);
 							viewModel.model.tokenization.forceTokenization(i);
 							const lineTokens = viewModel.model.tokenization.getLineTokens(i);
 							const lineHeight = originalEditor.getLineHeightForLineNumber(i);
-							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), lineHeight, null, inlineDecorations, lineTokens, null);
+							const isVariableFontSize = viewModel.model.getFontDecorations(i).length > 0;
+							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), lineHeight, null, inlineDecorations, lineTokens, null, isVariableFontSize);
 						}
 					}
 				}
 			}
 
-			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];
+			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? new Map();
 			let lineBreakDataIdx = 0;
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);
@@ -215,7 +216,7 @@ export class DiffEditorViewZones extends Disposable {
 						}
 						const source = new LineSource(
 							a.originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
-							a.originalRange.mapToLineArray(_ => lineBreakData[lineBreakDataIdx++]),
+							a.originalRange.mapToLineArray(_ => lineBreakData.get(lineBreakDataIdx++)),
 							mightContainNonBasicASCII,
 							mightContainRTL,
 						);

@@ -67,8 +67,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		editorId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		generalLineBreaksComputer: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
@@ -113,8 +112,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._editorId,
 				this.model,
 				context,
-				domLineBreaksComputerFactory,
-				monospaceLineBreaksComputerFactory,
+				generalLineBreaksComputer,
 				this._configuration,
 				fontInfo,
 				this.model.getOptions().tabSize,
@@ -354,11 +352,12 @@ export class ViewModel extends Disposable implements IViewModel {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
 								const lineNumber = change.fromLineNumber + lineIdx;
-								const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+								const inlineDecorations = this.getInlineDecorations(lineNumber);
 								this.model.tokenization.forceTokenization(lineNumber);
 								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null);
+								const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							}
 							break;
 						}
@@ -368,16 +367,17 @@ export class ViewModel extends Disposable implements IViewModel {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
 							const lineNumber = change.lineNumber;
-							const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+							const inlineDecorations = this.getInlineDecorations(lineNumber);
 							this.model.tokenization.forceTokenization(lineNumber);
 							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null);
+							const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							break;
 						}
 					}
 				}
-				const lineBreaks = lineBreaksComputer.finalize();
+				const lineBreaks = lineBreaksComputer.finalizeToArray();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of changes) {
@@ -484,14 +484,15 @@ export class ViewModel extends Disposable implements IViewModel {
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
 				for (const change of e.changes) {
 					const lineNumber = change.lineNumber;
-					const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+					const inlineDecorations = this.getInlineDecorations(lineNumber);
 					this.model.tokenization.forceTokenization(lineNumber);
 					const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 					const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
 					const lineContent = this.model.getLineContent(lineNumber);
-					lineBreaksComputer.addRequest(lineNumber, lineContent, lineHeight, null, inlineDecorations, lineTokens, null);
+					const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+					lineBreaksComputer.addRequest(lineNumber, lineContent, lineHeight, null, inlineDecorations, lineTokens, null, isVariableFontSize);
 				}
-				const lineBreaks = lineBreaksComputer.finalize();
+				const lineBreaks = lineBreaksComputer.finalizeToArray();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of e.changes) {
@@ -502,9 +503,6 @@ export class ViewModel extends Disposable implements IViewModel {
 						eventsCollector.emitViewEvent(linesChangedEvent);
 					}
 				}
-				// if (versionId !== null) {
-				// 	this._lines.acceptVersionId(versionId);
-				// }
 				this.viewLayout.onHeightMaybeChanged();
 				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
@@ -946,7 +944,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
 
-	public getInlineDecorationsOnModelLine(modelLineNumber: number): InlineDecoration[] {
+	public getInlineDecorations(modelLineNumber: number): InlineDecoration[] {
 		return this._lines.getInlineDecorationsOnModelLine(modelLineNumber);
 	}
 

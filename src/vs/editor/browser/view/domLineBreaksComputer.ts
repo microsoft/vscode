@@ -38,26 +38,31 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		const linesTokens: IViewLineTokens[] = [];
 		const lineNumbers: number[] = [];
 		const lineHeights: number[] = [];
+		const hasVariableDecorations: boolean[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null, hasFontDecorations: boolean = false) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
 				linesInlineDecorations.push(inlineDecorations);
 				lineNumbers.push(lineNumber);
 				lineHeights.push(lineHeight);
 				linesTokens.push(lineTokens);
+				hasVariableDecorations.push(hasFontDecorations);
 			},
 			finalize: () => {
 				this.container?.remove();
-				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), lineNumbers, lineHeights, requests, tabSize, injectedTexts, linesInlineDecorations, linesTokens);
+				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), lineNumbers, lineHeights, requests, tabSize, injectedTexts, linesInlineDecorations, linesTokens, hasVariableDecorations);
 				this.container = res.containerDomNode;
 				return res.data;
+			},
+			finalizeToArray: () => {
+				return [];
 			}
 		};
 	}
 }
 
-function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecoration[][], linesTokens: IViewLineTokens[]): { data: (ModelLineProjectionData | null)[]; containerDomNode: HTMLElement | undefined } {
+function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, lineNumbers: number[], lineHeights: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecoration[][], linesTokens: IViewLineTokens[], hasVariableDecorations: boolean[]): { data: Map<number, ModelLineProjectionData | null>; containerDomNode: HTMLElement | undefined } {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -80,9 +85,9 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 	const wordBreak = options.get(EditorOption.wordBreak);
 
 	if (firstLineBreakColumn === -1) {
-		const result: (ModelLineProjectionData | null)[] = [];
+		const result: Map<number, ModelLineProjectionData | null> = new Map();
 		for (let i = 0, len = requests.length; i < len; i++) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result.set(lineNumbers[i], createEmptyLineBreakWithPossiblyInjectedText(i));
 		}
 		return { data: result, containerDomNode: undefined };
 	}
@@ -140,8 +145,9 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
 		const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+		const hasVariableDecoration = hasVariableDecorations[i];
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (experimentalWhitespaceRendering === 'off') {
+		if (experimentalWhitespaceRendering === 'off' || hasVariableDecoration) {
 			renderWhitespace = options.get(EditorOption.renderWhitespace);
 		} else {
 			renderWhitespace = 'none';
@@ -153,7 +159,6 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 		const inlineDecorations = linesInlineDecorations[i];
 		const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
 		const tokens = linesTokens[i];
-		console.log('tokens : ', tokens);
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);
 		const containsRTL = strings.containsRTL(renderLineContent);
 		const renderLineInput = new RenderLineInput(
@@ -213,14 +218,14 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 	const range = document.createRange();
 	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
 
-	const result: (ModelLineProjectionData | null)[] = [];
+	const result: Map<number, ModelLineProjectionData | null> = new Map();
 	for (let i = 0; i < requests.length; i++) {
 		const lineDomNode = lineDomNodes[i];
 		const lineHeight = lineHeights[i];
 		const characterMapping = characterMappings[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], lineHeight, characterMapping);
 		if (breakOffsets === null) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result.set(lineNumbers[i], createEmptyLineBreakWithPossiblyInjectedText(i));
 			continue;
 		}
 
@@ -250,7 +255,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 			injectionOffsets = null;
 		}
 
-		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
+		result.set(lineNumbers[i], new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength));
 	}
 
 	return { data: result, containerDomNode };
@@ -311,26 +316,8 @@ function discoverBreaks(range: Range, outerSpan: HTMLSpanElement, lineHeight: nu
 
 function readClientRect(range: Range, outerSpan: HTMLSpanElement, startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
 	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(outerSpan.children, 0);
-	console.log('outerSpan : ', outerSpan);
-	console.log('spans : ', spans);
-	console.log('!spans : ', !spans);
-	console.log('spans.length : ', spans.length);
-	console.log('startCharacterOffset : ', startCharacterOffset);
-	console.log('startSpanOffset : ', startSpanOffset);
-	console.log('endCharacterOffset : ', endCharacterOffset);
-	console.log('endSpanOffset : ', endSpanOffset);
-
-	// if (spans.length === 0) {
-	// 	outerSpan.appendChild(document.createTextNode(''));
-	// 	const child = outerSpan.firstChild!;
-	// 	console.log('child : ', child);
-	// 	range.setStart(child, 0);
-	// 	range.setEnd(child, 0);
-	// } else {
 	range.setStart(spans[startSpanOffset].firstChild!, startCharacterOffset);
 	range.setEnd(spans[endSpanOffset].firstChild!, endCharacterOffset);
-	// }
 	const clientRects = range.getClientRects();
-	console.log('clientRects : ', clientRects);
 	return clientRects;
 }

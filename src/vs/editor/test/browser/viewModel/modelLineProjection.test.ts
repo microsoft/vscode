@@ -119,7 +119,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 				getLineHeightForLineNumber: (lineNumber: number) => fontInfo.lineHeight,
 			},
 			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
 			config,
 			fontInfo,
 			model.getOptions().tabSize,
@@ -971,7 +970,6 @@ suite('SplitLinesCollection', () => {
 					return fontInfo.lineHeight;
 				}
 			},
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			configuration,
 			fontInfo,
