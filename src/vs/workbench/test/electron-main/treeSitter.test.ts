@@ -145,6 +145,9 @@ suite('Tree Sitter API test', function () {
 		modifiedTree?.delete();
 	});
 
+	/** getChangedRanges does indeed seem to do what we expect it to do.
+	 * The problem's we saw before were likely caused by *editing* the original tree again before compareing the ranges.
+	 */
 	test('Test getChangedRanges 2', async () => {
 		const originalTree = parser.parse(smallTestData);
 		assert.notStrictEqual(originalTree, null);
