@@ -82,16 +82,12 @@ export function registerMoveActions() {
 				icon: Codicon.layoutSidebarRight,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
-				menu: [{
-					id: MenuId.EditorTitle,
-					order: 0,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}, {
-					id: MenuId.CompactWindowEditorTitle,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
 					group: 'navigation',
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					order: 0
-				}]
+				}))
 			});
 		}
 

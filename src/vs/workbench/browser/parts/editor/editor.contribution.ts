@@ -420,7 +420,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: IsAuxiliaryWindowContext.toNegated() /* already a primary action for aux windows */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: ConfigureEditorAction.ID, title: localize('configureEditors', "Configure Editors") }, group: '9_configure', order: 10 });
 
-function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpression | undefined, order: number, alternative?: ICommandAction, precondition?: ContextKeyExpression | undefined): void {
+function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpression | undefined, order: number, alternative?: ICommandAction, precondition?: ContextKeyExpression | undefined, enableInCompactMode?: boolean): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,
@@ -443,6 +443,9 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 	}
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
+	if (enableInCompactMode) {
+		MenuRegistry.appendMenuItem(MenuId.CompactWindowEditorTitle, item);
+	}
 }
 
 const SPLIT_ORDER = 100000;  // towards the end
@@ -588,7 +591,8 @@ appendEditorToolItem(
 	TextCompareEditorActiveContext,
 	10,
 	undefined,
-	EditorContextKeys.hasChanges
+	EditorContextKeys.hasChanges,
+	true
 );
 
 // Diff Editor Title Menu: Next Change
@@ -602,7 +606,8 @@ appendEditorToolItem(
 	TextCompareEditorActiveContext,
 	11,
 	undefined,
-	EditorContextKeys.hasChanges
+	EditorContextKeys.hasChanges,
+	true
 );
 
 // Diff Editor Title Menu: Swap Sides
