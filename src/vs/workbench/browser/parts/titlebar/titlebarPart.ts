@@ -657,7 +657,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 				const activeGroup = this.editorGroupsContainer.activeGroup;
 				if (activeGroup) {
-					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary ? MenuId.AuxiliaryWindowEditorTitle : MenuId.EditorTitle);
+					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
 
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);

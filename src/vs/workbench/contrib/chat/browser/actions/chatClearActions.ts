@@ -57,7 +57,7 @@ export function registerNewChatActions() {
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 				},
 				{
-					id: MenuId.AuxiliaryWindowEditorTitle,
+					id: MenuId.CompactWindowEditorTitle,
 					group: 'navigation',
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					order: 1
