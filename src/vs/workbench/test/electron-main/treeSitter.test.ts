@@ -88,6 +88,8 @@ suite('Tree Sitter API test', function () {
 		assert.notStrictEqual(modifiedTree, null);
 		const postParseOriginalTreeDump = printTree(originalTree!);
 		assert.strictEqual(preParseOriginalTreeDump, postParseOriginalTreeDump);
+		originalTree?.delete();
+		modifiedTree?.delete();
 	});
 
 	test('Test getChangedRanges', async () => {
@@ -139,13 +141,119 @@ suite('Tree Sitter API test', function () {
 		const diff = modifiedTree!.getChangedRanges(originalTree!);
 		// Would be nice if the changed ranges included the entirety of the activate method.
 		assert.strictEqual(diff.length, 0);
+		originalTree?.delete();
+		modifiedTree?.delete();
 	});
 
-	function printTree(tree: Parser.Tree): string {
-		return JSON.stringify(expandNode(tree.rootNode));
+	test('Test getChangedRanges 2', async () => {
+		const originalTree = parser.parse(smallTestData);
+		assert.notStrictEqual(originalTree, null);
+		// Insert some backticks
+		originalTree!.edit({
+			startIndex: 153,
+			startPosition: {
+				row: 7,
+				column: 5
+			},
+			oldEndIndex: 153,
+			oldEndPosition: {
+				row: 7,
+				column: 5,
+			},
+			newEndIndex: 165,
+			newEndPosition: {
+				row: 7,
+				column: 17
+			}
+		});
+		originalTree!.edit({
+			startIndex: 271,
+			startPosition: {
+				row: 14,
+				column: 5
+			},
+			oldEndIndex: 271,
+			oldEndPosition: {
+				row: 14,
+				column: 5,
+			},
+			newEndIndex: 272,
+			newEndPosition: {
+				row: 14,
+				column: 6
+			}
+		});
+
+		// Edited data will look like this:
+
+		// export class TreeView extends AbstractTreeView {
+
+		// 	protected activate() {
+		// 		if (!this.activated) {
+		// 			this.createTree();
+		// 			this.activated = true;
+		// 		}
+		// 	}private x =`
+
+		// 	protected activate2() {
+		// 		if (!this.activated) {
+		// 			this.createTree();
+		// 			this.activated = true;
+		// 		}
+		// 	}`
+		// }
+
+		// interface TreeDragSourceInfo {
+		// 	id: string;
+		// 	itemHandles: string[];
+		// }
+
+		const editedTestData = smallTestData.substring(0, 153) + 'private x =`' + smallTestData.substring(153, 259) + '`' + smallTestData.substring(259);
+		const modifiedTreeOne = parser.parse(editedTestData, originalTree);
+		assert.notStrictEqual(modifiedTreeOne, null);
+		const diff = originalTree!.getChangedRanges(modifiedTreeOne!);
+		assert.strictEqual(diff.length, 1);
+		assert.strictEqual(JSON.stringify(diff[0]), '{"startPosition":{"row":7,"column":2},"endPosition":{"row":14,"column":3},"startIndex":153,"endIndex":272}');
+
+		// Remove the last backtick
+		modifiedTreeOne!.edit({
+			startIndex: 271,
+			startPosition: {
+				row: 14,
+				column: 5
+			},
+			oldEndIndex: 272,
+			oldEndPosition: {
+				row: 14,
+				column: 6,
+			},
+			newEndIndex: 271,
+			newEndPosition: {
+				row: 14,
+				column: 5
+			}
+		});
+		const editedTestDataTwo = editedTestData.substring(0, 271) + editedTestData.substring(272);
+		const modifiedTreeTwo = parser.parse(editedTestDataTwo, modifiedTreeOne);
+		const diffTwo = modifiedTreeOne!.getChangedRanges(modifiedTreeTwo!);
+		assert.strictEqual(diffTwo.length, 1);
+		assert.strictEqual(JSON.stringify(diffTwo[0]), '{"startPosition":{"row":7,"column":13},"endPosition":{"row":14,"column":5},"startIndex":164,"endIndex":271}');
+		originalTree?.delete();
+		modifiedTreeOne?.delete();
+		modifiedTreeTwo?.delete();
+	});
+
+	function printTree(tree: Parser.Tree, simple: boolean = false): string {
+		return JSON.stringify(expandNode(tree.rootNode, simple));
 	}
 
-	function expandNode(node: Parser.Node): any {
+	function expandNode(node: Parser.Node, simple: boolean): any {
+		if (simple) {
+			return {
+				text: node.text,
+				children: node.children.map((child) => child ? expandNode(child, simple) : null)
+			};
+		}
 		return {
 			type: node.type,
 			startPosition: node.startPosition,
@@ -155,7 +263,7 @@ suite('Tree Sitter API test', function () {
 			isNamed: node.isNamed,
 			hasError: node.hasError,
 			childCount: node.childCount,
-			children: node.children.map((child) => child ? expandNode(child) : null),
+			children: node.children.map((child) => child ? expandNode(child, simple) : null),
 			id: node.id,
 			descendantCount: node.descendantCount,
 			hasChanges: node.hasChanges,
@@ -178,13 +286,7 @@ suite('Tree Sitter API test', function () {
 			this.activated = true;
 		}
 	}
-}
-
-interface TreeDragSourceInfo {
-	id: string;
-	itemHandles: string[];
-}
-`;
+}`;
 
 	const largeTestData = `
 /*---------------------------------------------------------------------------------------------
