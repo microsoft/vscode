@@ -25,6 +25,7 @@ import { isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -93,9 +94,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			if (!this.mapPartToInstantiationService.has(part.windowId)) {
 				this.instantiationService.invokeFunction(accessor => {
 					const editorService = accessor.get(IEditorService); // using `invokeFunction` to get hold of `IEditorService` lazily
+					const statusbarService = accessor.get(IStatusbarService);
 
-					this.mapPartToInstantiationService.set(part.windowId, this._register(this.instantiationService.createChild(new ServiceCollection(
-						[IEditorService, editorService.createScoped('main', this._store)]
+					this.mapPartToInstantiationService.set(part.windowId, this._register(this.scopedInstantiationService.createChild(new ServiceCollection(
+						[IEditorService, editorService.createScoped('main', this._store)],
+						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
 					))));
 				});
 			}
