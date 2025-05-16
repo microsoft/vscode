@@ -334,7 +334,7 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
 
-				server.start(true).then(state => {
+				server.start({ isFromInteraction: true }).then(state => {
 					if (state.state === McpConnectionState.Kind.Error) {
 						server.showOutput();
 					}

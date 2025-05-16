@@ -8,7 +8,9 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Throttler } from '../../../../base/common/async.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { autorun, autorunDelta, derivedOpts } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -21,6 +23,7 @@ export class McpDevModeServerAttache extends Disposable {
 
 	constructor(
 		server: IMcpServer,
+		fwdRef: { lastModeDebugged: boolean },
 		@IMcpRegistry registry: IMcpRegistry,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
@@ -31,8 +34,9 @@ export class McpDevModeServerAttache extends Disposable {
 			workspaceContextService.getWorkspaceFolder(collection.presentation?.origin)?.uri);
 
 		const restart = async () => {
+			const lastDebugged = fwdRef.lastModeDebugged;
 			await server.stop();
-			await server.start();
+			await server.start({ isFromInteraction: false, debug: lastDebugged });
 		};
 
 		// 1. Auto-start the server, restart if entering debug mode
@@ -60,7 +64,7 @@ export class McpDevModeServerAttache extends Disposable {
 
 		const debugMode = server.readDefinitions().map(d => !!d.server?.devMode?.debug);
 		this._register(autorunDelta(debugMode, ({ lastValue, newValue }) => {
-			if (lastValue === false && newValue === true) {
+			if (!!newValue && !objectsEqual(lastValue, newValue)) {
 				restart();
 			}
 		}));
@@ -109,6 +113,8 @@ export interface IMcpDevModeDebugging {
 
 export const IMcpDevModeDebugging = createDecorator<IMcpDevModeDebugging>('mcpDevModeDebugging');
 
+const DEBUG_HOST = '127.0.0.1';
+
 export class McpDevModeDebugging implements IMcpDevModeDebugging {
 	declare readonly _serviceBrand: undefined;
 
@@ -129,8 +135,12 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 			suppressMultipleSessionWarning: true,
 		};
 
-		switch (definition.devMode.debug) {
+		switch (definition.devMode.debug.type) {
 			case 'node': {
+				if (!/node[0-9]*$/.test(launch.command)) {
+					throw new Error(localize('mcp.debug.nodeBinReq', 'MCP server must be launched with the "node" executable to enable debugging, but was launched with "{0}"', launch.command));
+				}
+
 				// We intentionally assert types as the DA has additional properties beyong IConfig
 				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this.debugService.startDebugging(undefined, {
@@ -138,16 +148,41 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 					request: 'attach',
 					name,
 					port,
-					host: '127.0.0.1',
+					host: DEBUG_HOST,
 					timeout: 30_000,
 					continueOnAttach: true,
 					...commonConfig,
 				} as IConfig, options);
-				return { ...launch, args: [`--inspect-brk=127.0.0.1:${port}`, ...launch.args] };
+				return { ...launch, args: [`--inspect-brk=${DEBUG_HOST}:${port}`, ...launch.args] };
+			}
+			case 'debugpy': {
+				if (!/python[0-9.]*$/.test(launch.command)) {
+					throw new Error(localize('mcp.debug.pythonBinReq', 'MCP server must be launched with the "python" executable to enable debugging, but was launched with "{0}"', launch.command));
+				}
+
+				await Promise.race([
+					// eslint-disable-next-line local/code-no-dangerous-type-assertions
+					this.debugService.startDebugging(undefined, {
+						type: 'debugpy',
+						name,
+						request: 'attach',
+						listen: {
+							host: DEBUG_HOST,
+							port
+						},
+						...commonConfig,
+					} as IConfig, options),
+					this.ensureListeningOnPort(port)
+				]);
+				return { ...launch, command: definition.devMode.debug.debugpyPath || 'debugpy', args: ['--wait-for-client', '--connect', `${DEBUG_HOST}:${port}`, ...launch.args] };
 			}
 			default:
-				assertNever(definition.devMode.debug, `Unknown debug type ${definition.devMode.debug}`);
+				assertNever(definition.devMode.debug, `Unknown debug type ${JSON.stringify(definition.devMode.debug)}`);
 		}
+	}
+
+	protected ensureListeningOnPort(port: number): Promise<void> {
+		return Promise.resolve();
 	}
 
 	protected getDebugPort() {

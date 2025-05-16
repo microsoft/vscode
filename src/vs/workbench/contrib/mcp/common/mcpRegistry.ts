@@ -342,7 +342,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return await this._configurationResolverService.resolveAsync(folder, expr);
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger, debug }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		let collection = this._collections.get().find(c => c.id === collectionRef.id);
 		if (collection?.lazy) {
 			await collection.lazy.load();
@@ -388,6 +388,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		try {
 			launch = await this._replaceVariablesInLaunch(definition, launch);
+
+			if (definition.devMode && debug) {
+				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
+			}
 		} catch (e) {
 			this._notificationService.notify({
 				severity: Severity.Error,
@@ -409,10 +413,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				}
 			});
 			return;
-		}
-
-		if (definition.devMode) {
-			launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 		}
 
 		return this._instantiationService.createInstance(

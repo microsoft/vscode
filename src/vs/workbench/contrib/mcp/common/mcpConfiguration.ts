@@ -65,7 +65,7 @@ const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
 	dev: {
 		type: 'object',
 		markdownDescription: localize('app.mcp.dev', 'Enabled development mode for the server. When present, the server will be started eagerly and output will be included in its output. Properties inside the `dev` object can configure additional behavior.'),
-		examples: [{ watch: 'src/**/*.ts', debug: 'node' }],
+		examples: [{ watch: 'src/**/*.ts', debug: { type: 'node' } }],
 		properties: {
 			watch: {
 				description: localize('app.mcp.dev.watch', 'A glob pattern or list of glob patterns relative to the workspace folder to watch. The MCP server will be restarted when these files change.'),
@@ -74,8 +74,37 @@ const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
 			},
 			...(stdio && {
 				debug: {
-					description: localize('app.mcp.dev.debug', 'If set, debugs the MCP server using the given runtime as it\'s started.'),
-					enum: ['node'],
+					markdownDescription: localize('app.mcp.dev.debug', 'If set, debugs the MCP server using the given runtime as it\'s started.'),
+					oneOf: [
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['node'],
+									description: localize('app.mcp.dev.debug.type.node', "Debug the MCP server using Node.js.")
+								}
+							},
+							additionalProperties: false
+						},
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['debugpy'],
+									description: localize('app.mcp.dev.debug.type.python', "Debug the MCP server using Python and debugpy.")
+								},
+								debugpyPath: {
+									type: 'string',
+									description: localize('app.mcp.dev.debug.debugpyPath', "Path to the debugpy executable.")
+								},
+							},
+							additionalProperties: false
+						}
+					]
 				}
 			})
 		}
@@ -95,6 +124,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
+		},
+		cwd: {
+			type: 'string',
+			description: localize('app.mcp.json.cwd', "The working directory for the server command. Defaults to the workspace folder when run in a workspace."),
+			examples: ['${workspaceFolder}'],
 		},
 		args: {
 			type: 'array',

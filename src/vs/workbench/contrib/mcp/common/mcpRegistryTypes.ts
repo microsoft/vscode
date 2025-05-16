@@ -40,6 +40,8 @@ export interface IMcpResolveConnectionOptions {
 	definitionRef: McpDefinitionReference;
 	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
 	forceTrust?: boolean;
+	/** If set, try to launch with debugging when dev mode is configured */
+	debug?: boolean;
 }
 
 export interface IMcpRegistry {

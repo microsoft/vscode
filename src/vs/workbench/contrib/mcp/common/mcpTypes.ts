@@ -212,6 +212,11 @@ export interface McpDefinitionReference {
 	label: string;
 }
 
+export interface IMcpServerStartOpts {
+	isFromInteraction?: boolean;
+	debug?: boolean;
+}
+
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
 	readonly definition: McpDefinitionReference;
@@ -237,7 +242,7 @@ export interface IMcpServer extends IDisposable {
 	 * - Error, if the server failed to start
 	 * - Stopped, if the server was disposed or the user cancelled the launch
 	 */
-	start(isFromInteraction?: boolean): Promise<McpConnectionState>;
+	start(opts?: IMcpServerStartOpts): Promise<McpConnectionState>;
 	stop(): Promise<void>;
 
 	readonly toolsState: IObservable<McpServerToolsState>;
