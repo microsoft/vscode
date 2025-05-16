@@ -225,6 +225,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ tabFocusMode: false });
 							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored
