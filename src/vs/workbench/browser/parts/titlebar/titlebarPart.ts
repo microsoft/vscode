@@ -54,7 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
-import { IsAuxiliaryTitleBarContext, IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -177,7 +177,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	}
 
 	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): BrowserTitlebarPart & IAuxiliaryTitlebarPart {
-		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer, this.mainPart);
+		return editorGroupsContainer.scopedInstantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 
 	//#endregion
@@ -288,6 +288,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly isAuxiliary: boolean;
 	private isCompact = false;
+
 	private readonly isCompactContextKey: IContextKey<boolean>;
 
 	private readonly windowTitle: WindowTitle;
@@ -317,13 +318,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.isAuxiliary = editorGroupsContainer !== 'main';
 
-		this.scopedContextKeyService = contextKeyService.createScoped(layoutService.getContainer(targetWindow));
-
-		const isAuxiliaryTitleBarContext = IsAuxiliaryTitleBarContext.bindTo(this.scopedContextKeyService);
-		isAuxiliaryTitleBarContext.set(this.isAuxiliary);
-
+		this.scopedContextKeyService = contextKeyService;
 		this.isCompactContextKey = IsCompactTitleBarContext.bindTo(this.scopedContextKeyService);
-		this.isCompactContextKey.set(this.isCompact);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -661,7 +657,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 				const activeGroup = this.editorGroupsContainer.activeGroup;
 				if (activeGroup) {
-					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable);
+					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
 
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);
@@ -683,7 +679,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
-					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
+					() => !this.editorActionsEnabled || this.isCompact // layout actions move to "..." if editor actions are enabled unless compact
 				);
 			}
 
@@ -820,7 +816,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return !this.isCompact && (this.editorGroupsContainer.partOptions.editorActionsLocation === EditorActionsLocation.TITLEBAR ||
+		return (this.editorGroupsContainer.partOptions.editorActionsLocation === EditorActionsLocation.TITLEBAR ||
 			(
 				this.editorGroupsContainer.partOptions.editorActionsLocation === EditorActionsLocation.DEFAULT &&
 				this.editorGroupsContainer.partOptions.showTabs === EditorTabsMode.NONE

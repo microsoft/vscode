@@ -810,6 +810,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	//#region Main Editor Part Only
 
+	get scopedInstantiationService(): IInstantiationService { return this.instantiationService; }
+
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
 
