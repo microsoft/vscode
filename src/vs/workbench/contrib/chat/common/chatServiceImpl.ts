@@ -670,20 +670,25 @@ export class ChatService extends Disposable implements IChatService {
 		const source = new CancellationTokenSource();
 		const token = source.token;
 		const sendRequestInternal = async () => {
-			const progressCallback = (progress: IChatProgress) => {
+			const progressCallback = (progress: IChatProgress[]) => {
 				if (token.isCancellationRequested) {
 					return;
 				}
 
 				gotProgress = true;
 
-				if (progress.kind === 'markdownContent') {
-					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.value.length} chars`);
-				} else {
-					this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
-				}
+				for (let i = 0; i < progress.length; i++) {
+					const isLast = i === progress.length - 1;
+					const progressItem = progress[i];
 
-				model.acceptResponseProgress(request, progress);
+					if (progressItem.kind === 'markdownContent') {
+						this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progressItem.content.value.length} chars`);
+					} else {
+						this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progressItem)}`);
+					}
+
+					model.acceptResponseProgress(request, progressItem, !isLast);
+				}
 				completeResponseCreated();
 			};
 
@@ -810,7 +815,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
-						progressCallback(p);
+						progressCallback([p]);
 					}), history, location, token);
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};

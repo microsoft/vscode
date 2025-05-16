@@ -15,7 +15,7 @@ import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../
 import { URI } from '../../../../base/common/uri.js';
 import { IGroupModelChangeEvent } from '../../../common/editor/editorGroupModel.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
-import { IMenuChangeEvent } from '../../../../platform/actions/common/actions.js';
+import { IMenuChangeEvent, MenuId } from '../../../../platform/actions/common/actions.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
@@ -951,7 +951,7 @@ export interface IEditorGroup {
 	/**
 	 * Create the editor actions for the current active editor.
 	 */
-	createEditorActions(disposables: DisposableStore): IActiveEditorActions;
+	createEditorActions(disposables: DisposableStore, menuId?: MenuId): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

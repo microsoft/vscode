@@ -21,9 +21,11 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { ContextKeyDefinedExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -454,7 +456,7 @@ export interface IWorkbenchMcpServer {
 	readonly name: string;
 	readonly label: string;
 	readonly description: string;
-	readonly iconUrl: string;
+	readonly iconUrl?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly installCount?: number;
@@ -462,7 +464,7 @@ export interface IWorkbenchMcpServer {
 	readonly rating?: number;
 	readonly url?: string;
 	readonly repository?: string;
-	readonly readmeUrl?: string;
+	getReadme(token: CancellationToken): Promise<string>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
@@ -503,5 +505,7 @@ export class McpServerContainers extends Disposable {
 	}
 }
 
-export const McpServersGalleryEnabledContext = ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`);
+export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
+export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
+export const mcpServerIcon = registerIcon('mcp-server', Codicon.mcp, localize('mcpServer', 'Icon used for the MCP server.'));

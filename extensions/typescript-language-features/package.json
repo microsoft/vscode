@@ -466,6 +466,12 @@
             "tags": [
               "experimental"
             ]
+          },
+          "js/ts.hover.maximumLength": {
+            "type": "number",
+            "default": 500,
+            "description": "%configuration.hover.maximumLength%",
+            "scope": "resource"
           }
         }
       },

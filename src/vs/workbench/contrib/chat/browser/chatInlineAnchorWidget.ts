@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -52,6 +52,21 @@ type ContentRefData =
 		readonly uri: URI;
 		readonly range?: IRange;
 	};
+
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	const links = element.querySelectorAll('a');
+	links.forEach(a => {
+		// Empty link text -> render file widget
+		if (!a.textContent?.trim()) {
+			const href = a.getAttribute('data-href');
+			const uri = href ? URI.parse(href) : undefined;
+			if (uri?.scheme) {
+				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
+				disposables.add(chatMarkdownAnchorService.register(widget));
+			}
+		}
+	});
+}
 
 export class InlineAnchorWidget extends Disposable {
 

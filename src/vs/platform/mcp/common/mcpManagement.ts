@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from './mcpPlatformTypes.js';
@@ -13,12 +14,13 @@ export interface ILocalMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
 	readonly version: string;
+	readonly location?: URI;
 	readonly id?: string;
 	readonly displayName?: string;
 	readonly url?: string;
 	readonly description?: string;
 	readonly repositoryUrl?: string;
-	readonly readmeUrl?: string;
+	readonly readmeUrl?: URI;
 	readonly publisher?: string;
 	readonly publisherDisplayName?: string;
 	readonly iconUrl?: string;
@@ -149,9 +151,10 @@ export interface DidUninstallMcpServerEvent {
 export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalleryService');
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
+	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IGalleryMcpServer[]>;
 	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
-	getReadme(readmeUrl: string, token: CancellationToken): Promise<string>;
+	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 
 export const IMcpManagementService = createDecorator<IMcpManagementService>('IMcpManagementService');
