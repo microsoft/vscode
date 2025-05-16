@@ -145,9 +145,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	protected container: HTMLElement | undefined;
+	protected container = $('.content');
 
-	scopedInstantiationService!: IInstantiationService;
+	readonly scopedInstantiationService: IInstantiationService;
+	private readonly scopedContextKeyService: IContextKeyService;
 
 	private centeredLayoutWidget!: CenteredViewLayout;
 
@@ -169,6 +170,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this.scopedContextKeyService]
+		)));
 
 		this._partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
@@ -995,17 +1001,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Container
 		this.element = parent;
-		this.container = $('.content');
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
 		parent.appendChild(this.container);
-
-		// Scoped instantiation service
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService]
-		)));
 
 		// Grid control
 		this._willRestoreState = !options || options.restorePreviousState;
@@ -1019,7 +1018,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.setupDragAndDropSupport(parent, this.container);
 
 		// Context keys
-		this.handleContextKeys(scopedContextKeyService);
+		this.handleContextKeys();
 
 		// Signal ready
 		this.whenReadyPromise.complete();
@@ -1033,12 +1032,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return this.container;
 	}
 
-	private handleContextKeys(contextKeyService: IContextKeyService): void {
-		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(contextKeyService);
+	private handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
 		isAuxiliaryWindowContext.set(this.windowId !== mainWindow.vscodeWindowId);
 
-		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
-		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
+		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
+		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
