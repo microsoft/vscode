@@ -18,7 +18,7 @@ import { getModuleLocation, TreeSitterLanguages } from './treeSitterLanguages.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
-const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
+export const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 
 export class TreeSitterTextModelService extends Disposable implements ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
