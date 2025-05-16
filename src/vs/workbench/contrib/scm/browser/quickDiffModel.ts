@@ -38,7 +38,7 @@ export interface QuickDiffModelOptions {
 }
 
 const decoratorQuickDiffModelOptions: QuickDiffModelOptions = {
-	algorithm: 'legacy',
+	algorithm: 'advanced',
 	maxComputationTimeMs: 1000
 };
 
