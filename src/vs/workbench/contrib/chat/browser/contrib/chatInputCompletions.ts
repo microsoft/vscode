@@ -663,6 +663,9 @@ class StartParameterizedPromptAction extends Action2 {
 
 			let input = '';
 			for (const message of messages) {
+				if (message.role === 'assistant') {
+					continue; // would we ever support these?
+				}
 				switch (message.content.type) {
 					case 'text':
 						input += (input ? '\n' : '') + message.content.text;
