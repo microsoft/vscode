@@ -33,6 +33,8 @@ export interface IViewModel extends ICursorSimpleModel {
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+	getInlineDecorations(lineNumber: number): InlineDecoration[];
+	getFontSizeAtPosition(position: IPosition): number;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.

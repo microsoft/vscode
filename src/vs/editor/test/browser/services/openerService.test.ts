@@ -13,10 +13,12 @@ import { NullCommandService } from '../../../../platform/commands/test/common/nu
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
-	const editorService = new TestCodeEditorService(themeService);
+	const accessibilityService = new TestAccessibilityService();
+	const editorService = new TestCodeEditorService(themeService, accessibilityService);
 
 	let lastCommand: { id: string; args: any[] } | undefined;
 
