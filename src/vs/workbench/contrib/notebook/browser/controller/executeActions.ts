@@ -117,7 +117,6 @@ function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNote
 	if (revealPercent !== undefined && revealThreshold !== undefined) { // "smart" reveal, only if both settings are set (for AI execution tracking primarily)
 		let elementScrollTop: number;
 
-		// omitted focusing the cell container, can potentially consider bringing it back
 		const cellEditorHeight = cell.layoutInfo.editorHeight;
 		const viewportHeight = notebookEditor.getLayoutInfo().height;
 
@@ -134,6 +133,7 @@ function handleSmartAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNote
 			elementScrollTop = cellTop + cellEditorHeight - revealHeight;
 		}
 
+		notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 		notebookEditor.setScrollTop(elementScrollTop - SMART_VIEWPORT_REVEAL_PADDING);
 		return true;
 	} else {
