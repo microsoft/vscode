@@ -64,6 +64,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			if (workingSetsRaw) {
 				return JSON.parse(workingSetsRaw);
 			}
+
 			return [];
 		})();
 
@@ -93,10 +94,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (part === this.mainPart) {
 			if (!this.mapPartToInstantiationService.has(part.windowId)) {
 				this.instantiationService.invokeFunction(accessor => {
-					const editorService = accessor.get(IEditorService); // using `invokeFunction` to get hold of `IEditorService` lazily
+					const editorService = accessor.get(IEditorService);
 					const statusbarService = accessor.get(IStatusbarService);
 
-					this.mapPartToInstantiationService.set(part.windowId, this._register(this.scopedInstantiationService.createChild(new ServiceCollection(
+					this.mapPartToInstantiationService.set(part.windowId, this._register(this.mainPart.scopedInstantiationService.createChild(new ServiceCollection(
 						[IEditorService, editorService.createScoped('main', this._store)],
 						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
 					))));
@@ -812,8 +813,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	//#endregion
 
 	//#region Main Editor Part Only
-
-	get scopedInstantiationService(): IInstantiationService { return this.instantiationService; }
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
