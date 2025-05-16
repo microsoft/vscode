@@ -123,7 +123,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		};
 	}
 
-	async installFromGallery(server: IGalleryMcpServer, packageType: PackageType): Promise<void> {
+	async installFromGallery(server: IGalleryMcpServer, packageType?: PackageType): Promise<void> {
 		this.logService.trace('MCP Management Service: installGallery', server.url);
 		this._onInstallMcpServer.fire({ name: server.name });
 
@@ -209,7 +209,11 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	private getServerConfig(manifest: IMcpServerManifest, packageType: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+	private getServerConfig(manifest: IMcpServerManifest, packageType?: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+		if (packageType === undefined) {
+			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
+		}
+
 		if (packageType === PackageType.REMOTE) {
 			const inputs: IMcpServerVariable[] = [];
 			const headers: Record<string, string> = {};
