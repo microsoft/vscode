@@ -171,7 +171,10 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public readonly tools: IObservable<readonly IMcpTool[]>;
 
-	private readonly _fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
+	private readonly _fullDefinitions: IObservable<{
+		server: McpServerDefinition | undefined;
+		collection: McpCollectionDefinition | undefined;
+	}>;
 
 	public readonly toolsState = derived(reader => {
 		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
@@ -229,6 +232,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	) {
 		super();
 
+		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 
