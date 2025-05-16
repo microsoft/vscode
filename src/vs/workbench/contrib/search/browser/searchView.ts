@@ -354,7 +354,7 @@ export class SearchView extends ViewPane {
 
 	private async refreshHasAISetting(): Promise<void> {
 		const shouldShowAI = this.shouldShowAIResults();
-		if (!this.tree.hasNode(this.searchResult)) {
+		if (!this.tree || !this.tree.hasNode(this.searchResult)) {
 			return;
 		}
 		if (shouldShowAI && !this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
