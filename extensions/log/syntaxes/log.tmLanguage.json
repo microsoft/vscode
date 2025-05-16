@@ -9,7 +9,7 @@
 	"scopeName": "text.log",
 	"patterns": [
 		{
-			"match": "\\b(Trace)\\b:",
+			"match": "\\b([Tt]race|TRACE)\\b:?",
 			"name": "comment log.verbose"
 		},
 		{
