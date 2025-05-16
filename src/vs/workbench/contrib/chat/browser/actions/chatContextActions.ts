@@ -495,6 +495,7 @@ export class AttachContextAction extends Action2 {
 
 		qp.placeholder = pickerConfig.placeholder;
 		qp.matchOnDescription = true;
+		qp.matchOnDetail = true;
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;
