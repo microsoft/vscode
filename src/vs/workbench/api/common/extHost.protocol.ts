@@ -3010,6 +3010,7 @@ export interface MainThreadMcpShape {
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
+	$getTokenFromServerMetadata(id: number, metadata: { issuer: string; authorizationEndpoint: string; tokenEndpoint: string; registrationEndpoint: string; scopesSupported: string[] }): Promise<string | undefined>;
 }
 
 export interface ExtHostLocalizationShape {
