@@ -176,10 +176,12 @@ export class DiffEditorViewZones extends Disposable {
 							if (i > originalModel.getLineCount()) {
 								return { orig: origViewZones, mod: modViewZones };
 							}
-							const viewModel = this._editors.original._getViewModel()!;
-							const inlineDecorations = viewModel.getInlineDecorationsOnLine(i);
+							const originalEditor = this._editors.original;
+							const viewModel = originalEditor._getViewModel()!;
+							const inlineDecorations = viewModel.getInlineDecorationsOnModelLine(i);
+							viewModel.model.tokenization.forceTokenization(i);
 							const lineTokens = viewModel.model.tokenization.getLineTokens(i);
-							const lineHeight = this._editors.original.getLineHeightForLineNumber(i);
+							const lineHeight = originalEditor.getLineHeightForLineNumber(i);
 							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), lineHeight, null, inlineDecorations, lineTokens, null);
 						}
 					}

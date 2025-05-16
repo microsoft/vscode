@@ -347,29 +347,40 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
+							console.log('lineInserted');
 							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
 								const line = change.detail[lineIdx];
 								let injectedText = change.injectedTexts[lineIdx];
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								const lineNumber = change.fromLineNumber;
-								const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+								const lineNumber = change.fromLineNumber + lineIdx;
+								const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+								this.model.tokenization.forceTokenization(lineNumber);
 								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+								console.log('lineNumber : ', lineNumber);
+								console.log('line : ', line);
+								console.log('inlineDecorations : ', inlineDecorations);
 								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
+							console.log('lineChanged');
 							let injectedText: textModelEvents.LineInjectedText[] | null = null;
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
 							const lineNumber = change.lineNumber;
-							const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+							console.log('change.lineNumber : ', change.lineNumber);
+							const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+							this.model.tokenization.forceTokenization(lineNumber);
 							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+							console.log('lineNumber : ', lineNumber);
+							console.log('line : ', change.detail);
+							console.log('inlineDecorations : ', inlineDecorations);
 							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							break;
 						}
@@ -905,7 +916,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
 
-	public getInlineDecorationsOnLine(modelLineNumber: number): InlineDecoration[] {
+	public getInlineDecorationsOnModelLine(modelLineNumber: number): InlineDecoration[] {
 		return this._lines.getInlineDecorationsOnModelLine(modelLineNumber);
 	}
 

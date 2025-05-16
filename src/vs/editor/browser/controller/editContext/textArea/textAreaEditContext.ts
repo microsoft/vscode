@@ -857,6 +857,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
 			ta.setFontWeight('bold');
 		}
+		const fontSize = this._context.viewModel.getFontSizeAtPosition(this._primaryCursorPosition);
+		ta.setFontSize(fontSize);
 		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 
 		tac.setTop(renderData.useCover ? renderData.top : 0);

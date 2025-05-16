@@ -328,7 +328,10 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: StringBuilder, renderNewLine: boolean = false): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
+	console.log('renderViewLine');
+	console.log('input.lineContent : ', input.lineContent);
+	console.log('input.lineDecorations : ', input.lineDecorations);
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -368,11 +371,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder, render
 		}
 
 		// completely empty line
-		if (renderNewLine) {
-			sb.appendString('<span><span>\n</span></span>');
-		} else {
-			sb.appendString('<span><span></span></span>');
-		}
+		sb.appendString('<span><span></span></span>');
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,
@@ -877,15 +876,18 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
-	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
-	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-			const lineDecoration = lineDecorations[lineDecorationIndex];
-			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false);
-			lineDecorationIndex++;
+	console.log('tokens : ', tokens);
+	console.log('tokens[tokens.length - 1] : ', tokens[tokens.length - 1]);
+	if (tokens.length) {
+		const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
+		if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+			while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+				const lineDecoration = lineDecorations[lineDecorationIndex];
+				result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata, false);
+				lineDecorationIndex++;
+			}
 		}
 	}
-
 	return result;
 }
 

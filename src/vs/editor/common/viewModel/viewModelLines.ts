@@ -30,7 +30,6 @@ export interface IViewModelLines extends IDisposable {
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
 	getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
-	getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
@@ -132,6 +131,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
+		console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -148,8 +148,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
 			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
+			console.log('lineNumber : ', lineNumber);
+			console.log('inlineDecorations : ', inlineDecorations);
 			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
@@ -182,22 +185,15 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
-	public getInlineDecorationsOnModelLine(modelLineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		// console.log('getInlineDecorationsOnModelLine, modelLineNumber : ', modelLineNumber);
-		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
-		return this.getInlineDecorationsInModelRange(modelRange, onlyMinimapDecorations, onlyMarginDecorations);
-	}
-
-	public getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		// console.log('ViewModelLinesFromProjectedModel');
-		// console.log('getInlineDecorationsInModelRange', modelRange);
-		const modelDecorations = this.model.getDecorationsInRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
-		// console.log('modelDecorations : ', modelDecorations);
+	public getInlineDecorationsOnModelLine(modelLineNumber: number): InlineDecoration[] {
+		const modelDecorations = this.model.getLineDecorations(modelLineNumber, this._editorId, filterValidationDecorations(this.config.options));
+		console.log('modelDecorations : ', modelDecorations);
 		const inlineDecorations: InlineDecoration[] = [];
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
 			const modelRange = modelDecoration.range;
+			console.log('modelRange : ', modelRange);
 			if (decorationOptions.inlineClassName) {
 				const inlineDecoration = new InlineDecoration(modelRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				inlineDecorations.push(inlineDecoration);

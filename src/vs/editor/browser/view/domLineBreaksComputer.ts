@@ -153,6 +153,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 		const inlineDecorations = linesInlineDecorations[i];
 		const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
 		const tokens = linesTokens[i];
+		console.log('tokens : ', tokens);
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);
 		const containsRTL = strings.containsRTL(renderLineContent);
 		const renderLineInput = new RenderLineInput(
@@ -206,6 +207,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 		containerDomNode.style.wordBreak = 'inherit';
 		containerDomNode.style.overflowWrap = 'break-word';
 	}
+	console.log('containerDomNode : ', containerDomNode);
 	targetWindow.document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();
@@ -257,12 +259,11 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	if (lineContent.length <= 1) {
 		return null;
 	}
-	const outerSpans = <HTMLSpanElement>Array.prototype.slice.call(lineDomNode.children, 0)[0];
-	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(outerSpans.children, 0);
+	const outerSpan = <HTMLSpanElement>Array.prototype.slice.call(lineDomNode.children, 0)[0];
 
 	const breakOffsets: number[] = [];
 	try {
-		discoverBreaks(range, spans, lineHeight, characterMapping, 0, null, lineContent.length - 1, null, breakOffsets);
+		discoverBreaks(range, outerSpan, lineHeight, characterMapping, 0, null, lineContent.length - 1, null, breakOffsets);
 	} catch (err) {
 		console.log(err);
 		return null;
@@ -276,17 +277,17 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	return breakOffsets;
 }
 
-function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: number, characterMapping: CharacterMapping, low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
+function discoverBreaks(range: Range, outerSpan: HTMLSpanElement, lineHeight: number, characterMapping: CharacterMapping, low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
 	if (low === high) {
 		return;
 	}
 
 	const lowDomPosition1 = characterMapping.getDomPosition(low);
 	const lowDomPosition2 = characterMapping.getDomPosition(low + 1);
-	lowRects = lowRects || readClientRect(range, spans, lowDomPosition1.charIndex, lowDomPosition1.partIndex, lowDomPosition2.charIndex, lowDomPosition2.partIndex);
+	lowRects = lowRects || readClientRect(range, outerSpan, lowDomPosition1.charIndex, lowDomPosition1.partIndex, lowDomPosition2.charIndex, lowDomPosition2.partIndex);
 	const highDomPosition1 = characterMapping.getDomPosition(high);
 	const highDomPosition2 = characterMapping.getDomPosition(high + 1);
-	highRects = highRects || readClientRect(range, spans, highDomPosition1.charIndex, highDomPosition1.partIndex, highDomPosition2.charIndex, highDomPosition2.partIndex);
+	highRects = highRects || readClientRect(range, outerSpan, highDomPosition1.charIndex, highDomPosition1.partIndex, highDomPosition2.charIndex, highDomPosition2.partIndex);
 
 	if (Math.abs(lowRects[0].top - highRects[0].top) <= lineHeight / 2) {
 		// same line
@@ -303,13 +304,33 @@ function discoverBreaks(range: Range, spans: HTMLSpanElement[], lineHeight: numb
 	const mid = low + ((high - low) / 2) | 0;
 	const midDomPosition1 = characterMapping.getDomPosition(mid);
 	const midDomPosition2 = characterMapping.getDomPosition(mid + 1);
-	const midRects = readClientRect(range, spans, midDomPosition1.charIndex, midDomPosition1.partIndex, midDomPosition2.charIndex, midDomPosition2.partIndex);
-	discoverBreaks(range, spans, lineHeight, characterMapping, low, lowRects, mid, midRects, result);
-	discoverBreaks(range, spans, lineHeight, characterMapping, mid, midRects, high, highRects, result);
+	const midRects = readClientRect(range, outerSpan, midDomPosition1.charIndex, midDomPosition1.partIndex, midDomPosition2.charIndex, midDomPosition2.partIndex);
+	discoverBreaks(range, outerSpan, lineHeight, characterMapping, low, lowRects, mid, midRects, result);
+	discoverBreaks(range, outerSpan, lineHeight, characterMapping, mid, midRects, high, highRects, result);
 }
 
-function readClientRect(range: Range, spans: HTMLSpanElement[], startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
+function readClientRect(range: Range, outerSpan: HTMLSpanElement, startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
+	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(outerSpan.children, 0);
+	console.log('outerSpan : ', outerSpan);
+	console.log('spans : ', spans);
+	console.log('!spans : ', !spans);
+	console.log('spans.length : ', spans.length);
+	console.log('startCharacterOffset : ', startCharacterOffset);
+	console.log('startSpanOffset : ', startSpanOffset);
+	console.log('endCharacterOffset : ', endCharacterOffset);
+	console.log('endSpanOffset : ', endSpanOffset);
+
+	// if (spans.length === 0) {
+	// 	outerSpan.appendChild(document.createTextNode(''));
+	// 	const child = outerSpan.firstChild!;
+	// 	console.log('child : ', child);
+	// 	range.setStart(child, 0);
+	// 	range.setEnd(child, 0);
+	// } else {
 	range.setStart(spans[startSpanOffset].firstChild!, startCharacterOffset);
 	range.setEnd(spans[endSpanOffset].firstChild!, endCharacterOffset);
-	return range.getClientRects();
+	// }
+	const clientRects = range.getClientRects();
+	console.log('clientRects : ', clientRects);
+	return clientRects;
 }
