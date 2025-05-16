@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as serverProtocol from '@volar/language-server/protocol';
 import { createLabsInfo, LanguageClientOptions } from '@volar/vscode';
 import { BaseLanguageClient, LanguageClient, ServerOptions, TransportKind } from '@volar/vscode/node';
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -51,7 +50,7 @@ export async function activate(context: ExtensionContext) {
 
 	client = await startClient(context, newLanguageClient, { TextDecoder, telemetry, timer });
 
-	const labsInfo = createLabsInfo(serverProtocol);
+	const labsInfo = createLabsInfo();
 	labsInfo.addLanguageClient(languageClient);
 	return labsInfo.extensionExports;
 }
