@@ -215,6 +215,8 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
+	readonly waitsForLastEdits: IObservable<boolean>;
+
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
