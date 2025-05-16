@@ -259,7 +259,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const task = new MainThreadChatTask(revivedProgress.content);
 					this._activeTasks.set(responsePartId, task);
 					chatProgressParts.push(task);
-
+					return;
 				} else if (responsePartHandle !== undefined) {
 					const responsePartId = `${requestId}_${responsePartHandle}`;
 					const task = this._activeTasks.get(responsePartId);
