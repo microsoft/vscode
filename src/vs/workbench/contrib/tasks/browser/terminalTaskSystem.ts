@@ -40,7 +40,7 @@ import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
 import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, InstancePolicy, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
@@ -427,8 +427,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _getInstances(task: Task): IActiveTerminalData[] {
 		const recentKey = task.getKey();
-		return Object.values(this._activeTasks).filter(
-			(value) => recentKey && recentKey === value.task.getKey());
+		return Object.values(this._activeTasks).filter((value) => recentKey && recentKey === value.task.getKey());
 	}
 
 	private _removeFromActiveTasks(task: Task | string): void {
@@ -579,7 +578,24 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}).finally(() => {
-			delete this._activeTasks[mapKey];
+			if (task.configurationProperties.dependsOn) {
+				const dependsOnTasks = Object.values(task.configurationProperties.dependsOn).map(t => t.task);
+				let terminals = Object.values(this._activeTasks).filter((value) => dependsOnTasks.includes(value.task._label)).map(v => v.terminal);
+				terminals.forEach(t => {
+					if (t) {
+						this._register(t.onDisposed(() => {
+							// remove from active tasks
+							terminals = terminals.filter(tt => tt !== t);
+							if (terminals.length === 0) {
+								console.log('Removing task from active tasks ', task._label);
+								delete this._activeTasks[task.getMapKey()];
+							}
+						}));
+					}
+				});
+			} else {
+				delete this._activeTasks[mapKey];
+			}
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
@@ -588,6 +604,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._activeTasks[mapKey] = activeTask;
 		return promise;
 	}
+
 
 	private _createInactiveDependencyPromise(task: Task): Promise<ITaskSummary> {
 		return new Promise<ITaskSummary>(resolve => {
