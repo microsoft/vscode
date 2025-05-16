@@ -237,6 +237,7 @@ export interface IMcpServer extends IDisposable {
 
 	readonly toolsState: IObservable<McpServerToolsState>;
 	readonly tools: IObservable<readonly IMcpTool[]>;
+	readonly prompts: IObservable<readonly IMcpPrompt[]>;
 }
 
 export const enum McpServerToolsState {
@@ -253,6 +254,17 @@ export const enum McpServerToolsState {
 	/** Tool state is live, server is connected */
 	Live,
 }
+
+export interface IMcpPrompt {
+	readonly id: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly arguments: readonly MCP.PromptArgument[];
+
+	resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
+}
+
+export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpTool {
 
