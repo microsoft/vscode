@@ -262,7 +262,8 @@
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "22.x",
+    "@volar/language-service": "~2.4.14"
   },
   "repository": {
     "type": "git",
