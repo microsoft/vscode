@@ -271,11 +271,6 @@ export interface IEditorGroupsContainer {
 	readonly hasRestorableState: boolean;
 
 	/**
-	 * Access to the instantiation service that is scoped to the container.
-	 */
-	readonly scopedInstantiationService: IInstantiationService;
-
-	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;

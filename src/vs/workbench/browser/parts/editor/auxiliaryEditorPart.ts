@@ -197,12 +197,16 @@ export class AuxiliaryEditorPart {
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
+		const scopedEditorPartInstantiationService = disposables.add(editorPart.scopedInstantiationService.createChild(new ServiceCollection(
+			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		)));
+
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
 		let titlebarVisible = false;
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
-			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart, scopedEditorPartInstantiationService));
 			titlebarPart.updateOptions({ compact });
 			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
@@ -226,11 +230,11 @@ export class AuxiliaryEditorPart {
 
 			updateTitlebarVisibility(false);
 		} else {
-			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
+			disposables.add(scopedEditorPartInstantiationService.createInstance(WindowTitle, auxiliaryWindow.window));
 		}
 
 		// Statusbar
-		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
+		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container, scopedEditorPartInstantiationService));
 		let statusbarVisible = !compact && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
@@ -299,14 +303,13 @@ export class AuxiliaryEditorPart {
 		}));
 
 		// Have a scoped instantiation service that is scoped to the auxiliary window
-		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
-			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
-			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		const scopedInstantiationService = disposables.add(scopedEditorPartInstantiationService.createChild(new ServiceCollection(
+			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)]
 		)));
 
 		return {
 			part: editorPart,
-			instantiationService,
+			instantiationService: scopedInstantiationService,
 			disposables
 		};
 	}
