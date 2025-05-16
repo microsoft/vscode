@@ -1881,7 +1881,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 12px;
 	max-width: 90%;
 	min-width: 90%;
-	/* width: fit-content; */
 	margin-bottom: 5px;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 	position: relative;
@@ -1892,11 +1891,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container.interactive-request .value .rendered-markdown {
-	text-align: right;
+	margin-left: auto;
+}
+
+.interactive-item-container.interactive-request .value > .rendered-markdown p {
+	margin-left: auto;
+	width: fit-content;
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context {
-	margin-top: 10px;
+	margin-top: 15px;
 	max-width: 100%;
 	width: fit-content;
 	justify-content: flex-end;
