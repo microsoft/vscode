@@ -9,16 +9,15 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "@volar/language-server": "~2.4.0",
-    "@volar/language-service": "~2.4.0",
-    "@volar/typescript": "~2.4.0",
+    "@volar/language-server": "~2.4.14",
+    "@volar/language-service": "~2.4.14",
+    "@volar/typescript": "~2.4.14",
     "@vscode/l10n": "^0.0.18",
     "volar-service-css": "0.0.64",
     "volar-service-html": "0.0.64",
     "volar-service-json": "0.0.64",
     "volar-service-typescript": "0.0.64",
     "vscode-html-languageservice": "^5.4.0",
-    "vscode-jsonrpc": "^8.2.1",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {

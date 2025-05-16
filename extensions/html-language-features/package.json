@@ -258,8 +258,8 @@
     ]
   },
   "dependencies": {
-    "@volar/language-server": "~2.4.0",
-    "@volar/vscode": "~2.4.0",
+    "@volar/language-server": "~2.4.14",
+    "@volar/vscode": "~2.4.14",
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
