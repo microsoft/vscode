@@ -174,7 +174,7 @@ export class Extension implements IExtension {
 		if (this.resourceExtension) {
 			return this.resourceExtension.identifier;
 		}
-		return this.local!.identifier;
+		return this.local?.identifier ?? { id: '' };
 	}
 
 	get uuid(): string | undefined {
