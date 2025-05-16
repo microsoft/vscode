@@ -66,6 +66,11 @@ export type ToolDataSource =
 		collectionId: string;
 		definitionId: string;
 	}
+	| {
+		type: 'user';
+		label: string;
+		file: URI;
+	}
 	| { type: 'internal' };
 
 export namespace ToolDataSource {
@@ -74,6 +79,7 @@ export namespace ToolDataSource {
 		switch (source.type) {
 			case 'extension': return `extension:${source.extensionId.value}`;
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
+			case 'user': return `user:${source.file.toString()}`;
 			case 'internal': return 'internal';
 		}
 	}
@@ -87,6 +93,8 @@ export namespace ToolDataSource {
 			return { ordinal: 1, label: 'Built-In' };
 		} else if (source.type === 'mcp') {
 			return { ordinal: 2, label: 'MCP Servers' };
+		} else if (source.type === 'user') {
+			return { ordinal: 0, label: 'User Defined' };
 		} else {
 			return { ordinal: 3, label: 'Extensions' };
 		}

@@ -99,6 +99,8 @@ export class ChatSelectedTools extends Disposable {
 				}
 			}
 
+			const oldItems = new Set(this.entriesMap.keys());
+
 			const disabledData = mode.read(r) === ChatMode.Agent
 				? disabledDataObs.read(r)
 				: undefined;
@@ -106,11 +108,17 @@ export class ChatSelectedTools extends Disposable {
 			for (const tool of sourceByTool.keys()) {
 				const enabled = !disabledData || !disabledData.toolIds.has(tool.id);
 				this.entriesMap.set(tool, enabled);
+				oldItems.delete(tool);
 			}
 
 			for (const toolSet of toolSets) {
 				const enabled = !disabledData || !disabledData.toolSetIds.has(toolSet.id);
 				this.entriesMap.set(toolSet, enabled);
+				oldItems.delete(toolSet);
+			}
+
+			for (const item of oldItems) {
+				this.entriesMap.delete(item);
 			}
 		}));
 	}

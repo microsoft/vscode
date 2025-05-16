@@ -175,13 +175,25 @@ class ConfigureToolsAction extends Action2 {
 		const defaultBucket: BucketPick = {
 			type: 'item',
 			children: [],
-			label: localize('defaultBucketLabel', "Other Tools"),
+			label: localize('defaultBucketLabel', "Built-In"),
 			source: { type: 'internal' },
 			ordinal: BucketOrdinal.Other,
 			picked: true,
 		};
 
-		const toolBuckets = new Map<string, BucketPick>();
+		const userBucket: BucketPick = {
+			type: 'item',
+			children: [],
+			label: localize('userBucket', "User Defined"),
+			source: { type: 'internal' },
+			ordinal: BucketOrdinal.Other,
+			picked: true,
+		};
+
+		const toolBuckets = new Map<string, BucketPick>([
+			['other', defaultBucket],
+			['user', userBucket]
+		]);
 
 		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.entriesMap) {
 
@@ -229,19 +241,24 @@ class ConfigureToolsAction extends Action2 {
 					toolBuckets.set(key, bucket);
 				}
 			} else if (toolSetOrTool.source.type === 'extension') {
-				const key = toolSetOrTool.source.type + ExtensionIdentifier.toKey(toolSetOrTool.source.extensionId);
-
-				bucket = toolBuckets.get(key) ?? {
-					type: 'item',
-					label: toolSetOrTool.source.label,
-					ordinal: BucketOrdinal.Extension,
-					picked: false,
-					source: toolSetOrTool.source,
-					children: []
-				};
-				toolBuckets.set(key, bucket);
+				if (!toolSetOrTool.source.isExternalTool) {
+					bucket = defaultBucket;
+				} else {
+					const key = toolSetOrTool.source.type + ExtensionIdentifier.toKey(toolSetOrTool.source.extensionId);
+					bucket = toolBuckets.get(key) ?? {
+						type: 'item',
+						label: toolSetOrTool.source.label,
+						ordinal: BucketOrdinal.Extension,
+						picked: false,
+						source: toolSetOrTool.source,
+						children: []
+					};
+					toolBuckets.set(key, bucket);
+				}
 			} else if (toolSetOrTool.source.type === 'internal') {
 				bucket = defaultBucket;
+			} else if (toolSetOrTool.source.type === 'user') {
+				bucket = userBucket;
 			} else {
 				assertNever(toolSetOrTool.source);
 			}
