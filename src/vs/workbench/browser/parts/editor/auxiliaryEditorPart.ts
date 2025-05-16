@@ -230,7 +230,7 @@ export class AuxiliaryEditorPart {
 
 			updateTitlebarVisibility(false);
 		} else {
-			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
+			disposables.add(scopedEditorPartInstantiationService.createInstance(WindowTitle, auxiliaryWindow.window));
 		}
 
 		// Statusbar
