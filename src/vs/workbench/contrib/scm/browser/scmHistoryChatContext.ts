@@ -79,7 +79,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 						details.push(historyItem.author);
 					}
 					if (historyItem.statistics) {
-						details.push(`${historyItem.statistics.files} file(s)`);
+						details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
 					}
 					if (historyItem.timestamp) {
 						details.push(fromNow(historyItem.timestamp, true, true));
