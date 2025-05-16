@@ -67,7 +67,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.enableCompactAuxiliaryWindow',
-			title: localize('enableCompactAuxiliaryWindow', "Set Compact Mode"),
+			title: localize('enableCompactAuxiliaryWindow', "Turn On Compact Mode"),
 			icon: Codicon.screenFull,
 			menu: {
 				id: MenuId.LayoutControlMenu,
@@ -87,7 +87,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.disableCompactAuxiliaryWindow',
-			title: localize('disableCompactAuxiliaryWindow', "Unset Compact Mode"),
+			title: localize('disableCompactAuxiliaryWindow', "Turn Off Compact Mode"),
 			icon: Codicon.screenNormal,
 			menu: {
 				id: MenuId.LayoutControlMenu,
