@@ -491,9 +491,9 @@ suite('tree utilities', () => {
 		 */
 		class TestCompositeToken extends CompositeToken<TTree<BaseToken[]>> {
 			constructor(
-				public readonly children: readonly TTree<BaseToken>[],
+				tokens: readonly TTree<BaseToken>[],
 			) {
-				super([...children]);
+				super([...tokens]);
 			}
 
 			public override toString(): string {

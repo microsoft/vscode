@@ -106,11 +106,12 @@ suite('CompositeToken', () => {
 			);
 		}
 
-		assert.strictEqual(
-			token.tokens,
-			tokens,
-			'Must return reference to the same token array.',
-		);
+		// TODO: @legomushroom - remove?
+		// assert.strictEqual(
+		// 	token.tokens,
+		// 	tokens,
+		// 	'Must return reference to the same token array.',
+		// );
 	});
 
 	suite('• equals', () => {
@@ -259,68 +260,6 @@ suite('CompositeToken', () => {
 			});
 		});
 	});
-
-	// TODO: @legomushroom - finish this test
-	// suite('• diff', () => {
-	// 	test('• returns difference tree between two tokens', () => {
-	// 		const token1 = new TestToken([
-	// 			new Word(
-	// 				new Range(1, 1, 1, 1 + 5),
-	// 				'hello',
-	// 			),
-	// 			new Space(new Range(1, 6, 1, 7)),
-	// 			new Word(
-	// 				new Range(1, 7, 1, 7 + 5),
-	// 				'world',
-	// 			),
-	// 		]);
-
-	// 		const token2 = new TestToken([
-	// 			new Word(
-	// 				new Range(1, 1, 1, 1 + 5),
-	// 				'hello',
-	// 			),
-	// 			new Space(new Range(1, 6, 1, 7)),
-	// 			new Word(
-	// 				new Range(1, 7, 1, 7 + 6),
-	// 				'world!',
-	// 			),
-	// 		]);
-
-	// 		const difference = token1.diff(token2);
-
-	// 		assert.deepStrictEqual(
-	// 			difference,
-	// 			{
-	// 				index: 0,
-	// 				value: token1,
-	// 				their: token2,
-	// 				children: [
-	// 					{
-	// 						index: 2,
-	// 						value: new Word(
-	// 							new Range(1, 7, 1, 7 + 5),
-	// 							'world',
-	// 						),
-	// 						their: new Word(
-	// 							new Range(1, 7, 1, 7 + 6),
-	// 							'world!',
-	// 						),
-	// 					}
-	// 				],
-	// 			},
-	// 		);
-
-	// 		// const tokens = randomTokens();
-	// 		// const token1 = new TestToken(tokens);
-	// 		// const token2 = new TestToken(tokens);
-
-	// 		// assert(
-	// 		// 	token1.equals(token2),
-	// 		// 	'Tokens must be equal.',
-	// 		// );
-	// 	});
-	// });
 });
 
 

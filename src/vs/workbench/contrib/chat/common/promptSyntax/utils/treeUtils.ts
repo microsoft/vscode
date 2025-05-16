@@ -125,7 +125,6 @@ export const map = <
 	return newNode;
 };
 
-
 /**
  * TODO: @legomushroom
  */
