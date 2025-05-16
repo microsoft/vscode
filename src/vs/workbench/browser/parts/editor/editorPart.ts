@@ -145,7 +145,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	protected container = $('.content');
+	protected readonly container = $('.content');
 
 	readonly scopedInstantiationService: IInstantiationService;
 	private readonly scopedContextKeyService: IContextKeyService;
