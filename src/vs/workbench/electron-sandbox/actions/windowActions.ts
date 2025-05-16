@@ -28,7 +28,7 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
-import { IsAuxiliaryTitleBarContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
 import { isAuxiliaryWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
@@ -458,7 +458,7 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 			icon: Codicon.pin,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryTitleBarContext),
+				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryWindowContext),
 				order: 1
 			}
 		});
@@ -487,7 +487,7 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 			icon: Codicon.pinned,
 			menu: {
 				id: MenuId.LayoutControlMenu,
-				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryTitleBarContext),
+				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext),
 				order: 1
 			}
 		});
