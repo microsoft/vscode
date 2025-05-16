@@ -15,8 +15,8 @@ export type TTree<TTreenNode> = { children?: readonly TTree<TTreenNode>[] } & TT
  */
 export const flatten = <TTreeNode>(
 	treeRoot: TTree<TTreeNode>,
-): Omit<TTreeNode, 'children'>[] => {
-	const result: Omit<TTreeNode, 'children'>[] = [];
+): TTreeNode[] => {
+	const result: TTreeNode[] = [];
 
 	result.push(treeRoot);
 
@@ -126,49 +126,72 @@ export const map = <
 };
 
 /**
- * TODO: @legomushroom
+ * Type for a generic comparable object - the one that implements
+ * the `equals` method that allows to compare it with similar objects.
  */
-// TODO: @legomushroom - the 'other' can be 'unknown'?
-// TODO: @legomushroom - make 'equals()' optional?
 type TComparable<T> = T & { equals: (other: T) => boolean };
 
 /**
- * TODO: @legomushroom
+ * Type for a diff object that represents a difference between
+ * a pair of objects. See {@link difference} utility and related
+ * {@link TDifference} for more info.
  */
-type TComparableTree<T extends NonNullable<unknown>> = TTree<TComparable<T>>;
-
-/**
- * TODO: @legomushroom
- */
-type TDiffNode<T extends TTree<unknown>, K extends TTree<unknown>> = {
+type TDiff<TObject1, TObject2> = {
 	/**
-	 * TODO: @legomushroom
+	 * Reference to the first object that was used during
+	 * comparison. Equal to an object of the first tree
+	 * parameter passed to {@link difference}. When set to
+	 * `null`, then the object was missing in the first tree,
+	 * was but present in the second tree.
 	 */
-	index: number;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	value: T | null;
+	readonly object1: TObject1;
 
 	/**
-	 * TODO: @legomushroom
+	 * Reference to the second object that was used during
+	 * comparison. Equal to an object of the second tree
+	 * parameter passed to {@link difference}. When set to
+	 * `null`, then the object was missing in the second tree,
+	 * was but present in the first tree.
 	 */
-	their: K | null;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	children?: TDiffNode<T, K>[];
+	readonly object2: TObject2;
 };
 
 /**
- * TODO: @legomushroom
+ * Type for a diff object that represents a difference between
+ * a pair of objects of the same type.
+ * See {@link difference} utility for more info.
+ *
+ * The type is on-purpose constrained as only one of the object
+ * references can have the `null` reference but never both of
+ * them at the same time. This is due to the fact that two `null`
+ * values would indicate that both objects were missing during
+ * comparison, which does not make sense in this context.
+ */
+type TDifference<T> = TDiff<T, T | null> | TDiff<T | null, T>;
+
+/**
+ * Type for a tree of differences between two trees.
+ * See {@link difference} utility for more info.
+ */
+type TDiffTree<T> = TTree<TDifference<T> & {
+	/**
+	 * Index inside the parent's tree node 'children' array
+	 * reflecting the position of the object pair that was
+	 * compared. Always equal to `0` for a difference at
+	 * the root node level of a tree.
+	 */
+	readonly index: number;
+}>;
+
+/**
+ * Utility to find a difference between two provided trees
+ * of the same type. The result is another tree of difference
+ * nodes that represent difference between tree node pairs.
  */
 export function difference<T extends NonNullable<unknown>>(
-	tree1: TComparableTree<T>,
-	tree2: TComparableTree<T>,
-): TTree<TDiffNode<TTree<T>, TTree<T>>> | null {
+	tree1: TTree<TComparable<T>>,
+	tree2: TTree<TComparable<T>>,
+): TDiffTree<T> | null {
 	const tree1Children = tree1.children ?? [];
 	const tree2Children = tree2.children ?? [];
 
@@ -181,14 +204,14 @@ export function difference<T extends NonNullable<unknown>>(
 
 		return {
 			index: 0,
-			value: tree1,
-			their: tree2,
+			object1: tree1,
+			object2: tree2,
 		};
 	}
 
 	// with children present, iterate over them to find difference for each pair
 	const maxChildren = Math.max(tree1Children.length, tree2Children.length);
-	const children: TDiffNode<TTree<T>, TTree<T>>[] = [];
+	const children: TDiffTree<T>[] = [];
 	for (let i = 0; i < maxChildren; i++) {
 		const child1 = tree1Children[i];
 		const child2 = tree2Children[i];
@@ -204,8 +227,8 @@ export function difference<T extends NonNullable<unknown>>(
 		if ((child1 === undefined) || (child2 === undefined)) {
 			children.push({
 				index: i,
-				value: child1 ?? null,
-				their: child2 ?? null,
+				object1: child1 ?? null,
+				object2: child2 ?? null,
 			});
 
 			continue;
@@ -226,8 +249,8 @@ export function difference<T extends NonNullable<unknown>>(
 	if (children.length !== 0) {
 		return {
 			index: 0,
-			value: tree1,
-			their: tree2,
+			object1: tree1,
+			object2: tree2,
 			children,
 		};
 	}

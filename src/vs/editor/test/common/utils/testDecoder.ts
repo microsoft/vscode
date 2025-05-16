@@ -241,8 +241,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 				throw new Error([
 					`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}':`,
 					`  First difference (${firstDiff.index}):`,
-					`    Expected: ${firstDiff.value}`,
-					`    Received: ${firstDiff.their}`,
+					`    Expected: ${firstDiff.object1}`,
+					`    Received: ${firstDiff.object2}`,
 				].join('\n'));
 			}
 

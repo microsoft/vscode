@@ -12,7 +12,6 @@ import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../.
 import { curry, difference, flatten, forEach, map, TTree } from '../../../../common/promptSyntax/utils/treeUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 
-// TODO: @legomushroom - fix the file name
 suite('tree utilities', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -514,8 +513,8 @@ suite('tree utilities', () => {
 				difference(tree1, tree2),
 				{
 					index: 0,
-					value: tree1,
-					their: tree2,
+					object1: tree1,
+					object2: tree2,
 				},
 				'Unexpected difference between token trees.',
 			);
@@ -542,16 +541,16 @@ suite('tree utilities', () => {
 				difference(tree1, tree2),
 				{
 					index: 0,
-					value: tree1,
-					their: tree2,
+					object1: tree1,
+					object2: tree2,
 					children: [
 						{
 							index: 1,
-							value: new Word(
+							object1: new Word(
 								new Range(1, 7, 1, 7 + 5),
 								'world',
 							),
-							their: new Word(
+							object2: new Word(
 								new Range(1, 7, 1, 7 + 6),
 								'world!',
 							),
@@ -598,23 +597,23 @@ suite('tree utilities', () => {
 				difference(tree1, tree2),
 				{
 					index: 0,
-					value: tree1,
-					their: tree2,
+					object1: tree1,
+					object2: tree2,
 					children: [
 						{
 							index: 2,
-							value: compositeToken1,
-							their: compositeToken2,
+							object1: compositeToken1,
+							object2: compositeToken2,
 							children: [
 								{
 									index: 3,
-									value: compositeToken1.children[3],
-									their: compositeToken2.children[3],
+									object1: compositeToken1.children[3],
+									object2: compositeToken2.children[3],
 								},
 								{
 									index: 4,
-									value: null,
-									their: compositeToken2.children[4],
+									object1: null,
+									object2: compositeToken2.children[4],
 								},
 							],
 						}
