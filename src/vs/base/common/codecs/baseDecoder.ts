@@ -8,7 +8,7 @@ import { ReadableStream } from '../stream.js';
 import { DeferredPromise } from '../async.js';
 import { AsyncDecoder } from './asyncDecoder.js';
 import { assert, assertNever } from '../assert.js';
-import { DisposableMap, IDisposable } from '../lifecycle.js';
+import { DisposableMap, IDisposable, toDisposable } from '../lifecycle.js';
 import { ObservableDisposable } from '../observableDisposable.js';
 
 /**
@@ -56,10 +56,6 @@ export abstract class BaseDecoder<
 		protected readonly stream: ReadableStream<K>,
 	) {
 		super();
-
-		this.tryOnStreamData = this.tryOnStreamData.bind(this);
-		this.onStreamError = this.onStreamError.bind(this);
-		this.onStreamEnd = this.onStreamEnd.bind(this);
 	}
 
 	/**
@@ -125,9 +121,20 @@ export abstract class BaseDecoder<
 		 *        the order of event subscriptions can lead to race conditions.
 		 *        See {@link ReadableStreamEvents} for more info.
 		 */
-		this.stream.on('end', this.onStreamEnd);
-		this.stream.on('error', this.onStreamError);
-		this.stream.on('data', this.tryOnStreamData);
+		const onStreamEnd = this.onStreamEnd.bind(this);
+		const onStreamError = this.onStreamError.bind(this);
+		const tryOnStreamData = this.tryOnStreamData.bind(this);
+
+		this.stream.on('end', onStreamEnd);
+		this.stream.on('error', onStreamError);
+		this.stream.on('data', tryOnStreamData);
+
+		this._register(toDisposable(() => {
+			this.stream.removeListener('end', onStreamEnd);
+			this.stream.removeListener('error', onStreamError);
+			this.stream.removeListener('data', tryOnStreamData);
+		}));
+
 
 		// this allows to compose decoders together, - if a decoder
 		// instance is passed as a readable stream to this decoder,
@@ -355,9 +362,6 @@ export abstract class BaseDecoder<
 
 		// remove all existing event listeners
 		this._listeners.clearAndDisposeAll();
-		this.stream.removeListener('data', this.tryOnStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
 
 		this.stream.destroy();
 		super.dispose();
