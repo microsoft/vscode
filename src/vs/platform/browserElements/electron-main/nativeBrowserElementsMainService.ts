@@ -41,7 +41,6 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	async findWebviewTarget(debuggers: any, windowId: number, browserType: BrowserType): Promise<string | undefined> {
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-		console.log('targetInfos', targetInfos);
 		let target: typeof targetInfos[number] | undefined = undefined;
 		const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
 			try {
@@ -147,7 +146,6 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		window.win.webContents.on('ipc-message', async (event, channel, closedCancelAndDetachId) => {
 			if (channel === `vscode:cancelCurrentSession${cancelAndDetachId}`) {
 				if (cancelAndDetachId !== closedCancelAndDetachId) {
-					console.log('cancelAndDetachId does not match');
 					return;
 				}
 				if (debuggers.isAttached()) {
