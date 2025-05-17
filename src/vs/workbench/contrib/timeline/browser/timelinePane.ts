@@ -646,21 +646,20 @@ export class TimelinePane extends ViewPane {
 		let response: Timeline | undefined;
 		try {
 			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
+		} catch {
+			// Ignore
 		}
-		finally {
+
+		// If the request was cancelled then it was already deleted from the pendingRequests map
+		if (!request.tokenSource.token.isCancellationRequested) {
 			this.pendingRequests.get(request.source)?.dispose();
 			this.pendingRequests.delete(request.source);
 		}
 
-		if (
-			response === undefined ||
-			request.tokenSource.token.isCancellationRequested ||
-			request.uri !== this.uri
-		) {
+		if (response === undefined || request.uri !== this.uri) {
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
 				this.refresh();
 			}
-
 			return;
 		}
 
