@@ -66,7 +66,7 @@ import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpSe
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from '../../contrib/notebook/common/notebookExecutionStateService.js';
-import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { ICellRange, INotebookRange2 } from '../../contrib/notebook/common/notebookRange.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/common/search.js';
 import { IRawClosedNotebookFileMatch } from '../../contrib/search/common/searchNotebookHelpers.js';
@@ -2812,6 +2812,7 @@ export interface NotebookCellDataDto {
 export interface NotebookDataDto {
 	readonly cells: NotebookCellDataDto[];
 	readonly metadata: notebookCommon.NotebookDocumentMetadata;
+	readonly mapperHandle?: number;
 }
 
 export interface NotebookCellDto {
@@ -2838,6 +2839,9 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$saveNotebook(handle: number, uri: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata>;
 
 	$searchInNotebooks(handle: number, textQuery: search.ITextQuery, viewTypeFileTargets: NotebookPriorityInfo[], otherViewTypeFileTargets: NotebookPriorityInfo[], token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }>;
+
+	$toNotebookRange(mapperHandle: number, range: IRange): Promise<INotebookRange2 | undefined>;
+	$disposeNotebookMapper(mapperHandle: number): Promise<void>;
 }
 
 export interface ExtHostNotebookDocumentSaveParticipantShape {
