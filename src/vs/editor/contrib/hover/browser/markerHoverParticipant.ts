@@ -190,10 +190,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			if (markerController) {
 				context.statusBar.addAction({
 					label: nls.localize('view problem', "View Problem"),
-					commandId: NextMarkerAction.ID,
+					commandId: markerController.showsOverlayOnNavigate ? NextMarkerAction.ID : '',
 					run: () => {
 						context.hide();
-						markerController.showAtMarker(markerHover.marker);
+						markerController.showAtMarker(markerHover.marker, true);
 						this._editor.focus();
 					}
 				});
