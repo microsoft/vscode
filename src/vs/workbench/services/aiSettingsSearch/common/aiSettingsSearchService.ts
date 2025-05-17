@@ -38,12 +38,21 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 			throw new Error('No settings search providers registered');
 		}
 
+		this._embeddingsResultsPromises.delete(query);
+		this._llmRankedResultsPromises.delete(query);
+
 		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS }, token));
 	}
 
 	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null> {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
+		}
+
+		const existingPromise = this._embeddingsResultsPromises.get(query);
+		if (existingPromise) {
+			const result = await existingPromise.p;
+			return result ?? null;
 		}
 
 		const promise = new DeferredPromise<string[]>();
@@ -55,6 +64,12 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 	async getLLMRankedResults(query: string, token: CancellationToken): Promise<string[] | null> {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
+		}
+
+		const existingPromise = this._llmRankedResultsPromises.get(query);
+		if (existingPromise) {
+			const result = await existingPromise.p;
+			return result ?? null;
 		}
 
 		const promise = new DeferredPromise<string[]>();
@@ -72,13 +87,19 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 			const promise = this._embeddingsResultsPromises.get(result.query);
 			if (promise) {
 				promise.complete(result.settings);
-				this._embeddingsResultsPromises.delete(result.query);
+			} else {
+				const parkedPromise = new DeferredPromise<string[]>();
+				parkedPromise.complete(result.settings);
+				this._embeddingsResultsPromises.set(result.query, parkedPromise);
 			}
 		} else if (result.kind === AiSettingsSearchResultKind.LLM_RANKED) {
 			const promise = this._llmRankedResultsPromises.get(result.query);
 			if (promise) {
 				promise.complete(result.settings);
-				this._llmRankedResultsPromises.delete(result.query);
+			} else {
+				const parkedPromise = new DeferredPromise<string[]>();
+				parkedPromise.complete(result.settings);
+				this._llmRankedResultsPromises.set(result.query, parkedPromise);
 			}
 		}
 	}
