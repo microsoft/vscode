@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_HOVER_FOREGROUND, ACTIVITY_BAR_HOVER_BACKGROUND, ACTIVITY_BAR_TOP_HOVER_FOREGROUND, ACTIVITY_BAR_TOP_HOVER_BACKGROUND } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
@@ -576,6 +576,42 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 				z-index: 0;
 				background-color: ${activityBarActiveBackgroundColor};
+			}
+		`);
+	}
+
+	const activeBarHoverForeground = theme.getColor(ACTIVITY_BAR_HOVER_FOREGROUND);
+	if (activeBarHoverForeground) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
+				color: ${activeBarHoverForeground};
+			}
+		`);
+	}
+
+	const activeBarHoverBackground = theme.getColor(ACTIVITY_BAR_HOVER_BACKGROUND);
+	if (activeBarHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover {
+				background-color: ${activeBarHoverForeground};
+			}
+		`);
+	}
+
+	const activeBarTopHoverForeground = theme.getColor(ACTIVITY_BAR_TOP_HOVER_FOREGROUND);
+	if (activeBarTopHoverForeground) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .top :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
+				color: ${activeBarTopHoverForeground};
+			}
+		`);
+	}
+
+	const activeBarTopHoverBackground = theme.getColor(ACTIVITY_BAR_TOP_HOVER_BACKGROUND);
+	if (activeBarTopHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .top :not(.monaco-menu) > .monaco-action-bar .action-item:hover {
+				background-color: ${activeBarTopHoverForeground};
 			}
 		`);
 	}
