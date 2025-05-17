@@ -3090,7 +3090,7 @@
 					"name": "punctuation.definition.strikethrough.markdown"
 				}
 			},
-			"match": "(?<!\\\\)(~{2,})((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)",
+			"match": "(?<!\\\\)(~{2,})(?!(?<=\\w~~)_)((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)(?!(?<=_\\1)\\w)",
 			"name": "markup.strikethrough.markdown"
 		}
 	}
