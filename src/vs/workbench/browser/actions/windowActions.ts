@@ -20,7 +20,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { URI } from '../../../base/common/uri.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { isMacintosh, isWeb, isWindows } from '../../../base/common/platform.js';
@@ -185,6 +185,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, isDirty: boolean): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
+		let iconAttributes: Record<string, string>;
 		let fullLabel: string | undefined;
 		let resource: URI | undefined;
 		let isWorkspace = false;
@@ -193,6 +194,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		if (isRecentFolder(recent)) {
 			resource = recent.folderUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
+			iconAttributes = getIconAttributes(resource);
 			openable = { folderUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: Verbosity.LONG });
 		}
@@ -201,6 +203,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		else if (isRecentWorkspace(recent)) {
 			resource = recent.workspace.configPath;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
+			iconAttributes = getIconAttributes(resource);
 			openable = { workspaceUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			isWorkspace = true;
@@ -210,6 +213,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		else {
 			resource = recent.fileUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
+			iconAttributes = getIconAttributes(resource);
 			openable = { fileUri: resource };
 			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
@@ -218,6 +222,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 		return {
 			iconClasses,
+			iconAttributes,
 			label: name,
 			ariaLabel: isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
 			description: parentPath,
