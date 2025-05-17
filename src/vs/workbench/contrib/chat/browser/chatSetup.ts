@@ -675,6 +675,7 @@ class ChatSetup {
 			buttons.map(button => button[0]),
 			createWorkbenchDialogOptions({
 				type: 'none',
+				detail: ' ', // workaround allowing us to render the message in large
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: -1, // not offered as button, but X can cancel

@@ -32,6 +32,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -324,6 +325,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
+	private isCompact = false;
+
 	constructor(
 		windowId: number,
 		editorPartsView: IEditorPartsView,
@@ -342,14 +345,28 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	updateOptions(options: { compact: boolean }): void {
-		if (options.compact && !this.optionsDisposable.value) {
-			this.optionsDisposable.value = this.enforcePartOptions({
-				showTabs: 'none',
-				closeEmptyGroups: true
-			});
-		} else if (!options.compact) {
+		this.isCompact = options.compact;
+
+		if (options.compact) {
+			if (!this.optionsDisposable.value) {
+				this.optionsDisposable.value = this.enforcePartOptions({
+					showTabs: 'none',
+					closeEmptyGroups: true
+				});
+			}
+		} else {
 			this.optionsDisposable.clear();
 		}
+	}
+
+	override addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		if (this.isCompact) {
+			// When in compact mode, we prefer to open groups in the main part
+			// as compact mode is typically meant for showing just 1 editor.
+			location = this.editorPartsView.mainPart.activeGroup;
+		}
+
+		return super.addGroup(location, direction, groupToCopy);
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
