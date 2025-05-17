@@ -19,7 +19,9 @@ import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/co
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -27,19 +29,17 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -208,7 +208,7 @@ export class McpServerOptionsCommand extends Action2 {
 
 		switch (pick.action) {
 			case 'start':
-				await server.start(true);
+				await server.start({ isFromInteraction: true });
 				server.showOutput();
 				break;
 			case 'stop':
@@ -216,7 +216,7 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'restart':
 				await server.stop();
-				await server.start(true);
+				await server.start({ isFromInteraction: true });
 				break;
 			case 'showOutput':
 				server.showOutput();
@@ -523,11 +523,11 @@ export class RestartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string) {
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start(true);
+		await s?.start({ isFromInteraction: true, ...opts });
 	}
 }
 
@@ -541,9 +541,9 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string) {
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start(true);
+		await s?.start({ isFromInteraction: true, ...opts });
 	}
 }
 
