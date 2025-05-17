@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNodeFileFS } from './nodeFs';
-import { Disposable, ExtensionContext, l10n } from 'vscode';
-import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
-import * as fs from 'fs';
+import { createLabsInfo, LanguageClientOptions } from '@volar/vscode';
+import { BaseLanguageClient, LanguageClient, ServerOptions, TransportKind } from '@volar/vscode/node';
 import TelemetryReporter from '@vscode/extension-telemetry';
-
+import * as fs from 'fs';
+import { Disposable, ExtensionContext, l10n } from 'vscode';
+import { AsyncDisposable, LanguageClientConstructor, startClient } from '../htmlClient';
 
 let telemetry: TelemetryReporter | undefined;
 let client: AsyncDisposable | undefined;
@@ -33,8 +32,9 @@ export async function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let languageClient!: BaseLanguageClient;
 	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-		return new LanguageClient(id, name, serverOptions, clientOptions);
+		return languageClient = new LanguageClient(id, name, serverOptions, clientOptions);
 	};
 
 	const timer = {
@@ -48,7 +48,11 @@ export async function activate(context: ExtensionContext) {
 	// pass the location of the localization bundle to the server
 	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
-	client = await startClient(context, newLanguageClient, { fileFs: getNodeFileFS(), TextDecoder, telemetry, timer });
+	client = await startClient(context, newLanguageClient, { TextDecoder, telemetry, timer });
+
+	const labsInfo = createLabsInfo();
+	labsInfo.addLanguageClient(languageClient);
+	return labsInfo.extensionExports;
 }
 
 export async function deactivate(): Promise<void> {

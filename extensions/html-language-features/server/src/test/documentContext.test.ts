@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { getDocumentContext } from '../utils/documentContext';
+import { resolveReference } from 'volar-service-html';
+import { URI } from 'vscode-uri';
 
 suite('HTML Document Context', () => {
 
 	test('Context', function (): any {
-		const docURI = 'file:///users/test/folder/test.html';
-		const rootFolders = [{ name: '', uri: 'file:///users/test/' }];
+		const docURI = URI.parse('file:///users/test/folder/test.html');
+		const rootFolders = [URI.parse('file:///users/test/')];
 
-		const context = getDocumentContext(docURI, rootFolders);
-		assert.strictEqual(context.resolveReference('/', docURI), 'file:///users/test/');
-		assert.strictEqual(context.resolveReference('/message.html', docURI), 'file:///users/test/message.html');
-		assert.strictEqual(context.resolveReference('message.html', docURI), 'file:///users/test/folder/message.html');
-		assert.strictEqual(context.resolveReference('message.html', 'file:///users/test/'), 'file:///users/test/message.html');
+		assert.strictEqual(resolveReference('/', docURI, rootFolders), 'file:///users/test/');
+		assert.strictEqual(resolveReference('/message.html', docURI, rootFolders), 'file:///users/test/message.html');
+		assert.strictEqual(resolveReference('message.html', docURI, rootFolders), 'file:///users/test/folder/message.html');
+		assert.strictEqual(resolveReference('message.html', URI.parse('file:///users/test/'), rootFolders), 'file:///users/test/message.html');
 	});
 });
