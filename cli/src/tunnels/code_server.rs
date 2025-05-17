@@ -63,6 +63,7 @@ pub struct CodeServerArgs {
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
 	pub update_extensions: bool,
+	pub download_extensions_locally: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
@@ -137,6 +138,9 @@ impl CodeServerArgs {
 		}
 		if self.update_extensions {
 			args.push(String::from("--update-extensions"));
+		}
+		if self.download_extensions_locally {
+			args.push(String::from("--download-extensions-locally"));
 		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));
