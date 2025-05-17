@@ -198,7 +198,7 @@
           "type": "boolean",
           "scope": "resource",
           "default": true,
-          "description": "%html.autoCreateQuotes%"
+          "markdownDescription": "%html.autoCreateQuotes%"
         },
         "html.autoClosingTags": {
           "type": "boolean",
