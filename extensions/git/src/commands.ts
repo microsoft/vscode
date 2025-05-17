@@ -2764,9 +2764,44 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish: historyItem.id });
 	}
 
+	/**
+	 * Handles checkout operations with proper error handling for dirty worktree
+	 * @param repository The git repository
+	 * @param run The checkout operation to perform
+	 * @returns A promise that resolves to void. If user dismisses the warning dialog, no action is taken.
+	 */
+	private async _handleCheckoutOperation(repository: Repository, run: () => Promise<void>): Promise<void> {
+		try {
+			await run();
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+				throw err;
+			}
+
+			const stash = l10n.t('Stash & Checkout');
+			const migrate = l10n.t('Migrate Changes');
+			const force = l10n.t('Force Checkout');
+			const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
+
+			if (choice === force) {
+				await this.cleanAll(repository);
+				await run();
+			} else if (choice === stash || choice === migrate) {
+				if (await this._stash(repository, true)) {
+					await run();
+
+					if (choice === migrate) {
+						await this.stashPopLatest(repository);
+					}
+				}
+			}
+		}
+	}
+
 	private async _checkout(repository: Repository, opts?: { detached?: boolean; treeish?: string }): Promise<boolean> {
+
 		if (typeof opts?.treeish === 'string') {
-			await repository.checkout(opts?.treeish, opts);
+			await this._handleCheckoutOperation(repository, () => repository.checkout(opts.treeish!, opts));
 			return true;
 		}
 
@@ -2843,31 +2878,7 @@ export class CommandCenter {
 		} else {
 			const item = choice as CheckoutItem;
 
-			try {
-				await item.run(repository, opts);
-			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
-					throw err;
-				}
-
-				const stash = l10n.t('Stash & Checkout');
-				const migrate = l10n.t('Migrate Changes');
-				const force = l10n.t('Force Checkout');
-				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
-
-				if (choice === force) {
-					await this.cleanAll(repository);
-					await item.run(repository, opts);
-				} else if (choice === stash || choice === migrate) {
-					if (await this._stash(repository, true)) {
-						await item.run(repository, opts);
-
-						if (choice === migrate) {
-							await this.stashPopLatest(repository);
-						}
-					}
-				}
-			}
+			await this._handleCheckoutOperation(repository, () => item.run(repository, opts));
 		}
 
 		return true;
