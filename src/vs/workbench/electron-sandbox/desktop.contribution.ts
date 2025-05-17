@@ -267,7 +267,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'enum': ['native', 'custom'],
 				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialog windows.")
+				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom.")
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',
@@ -424,6 +424,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 		schema.properties!['password-store'] = {
 			type: 'string',
 			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
+		};
+	}
+	if (isWindows) {
+		schema.properties!['enable-rdp-display-tracking'] = {
+			type: 'boolean',
+			description: localize('argv.enableRDPDisplayTracking', "Ensures that maximized windows gets restored to correct display during RDP reconnection.")
 		};
 	}
 

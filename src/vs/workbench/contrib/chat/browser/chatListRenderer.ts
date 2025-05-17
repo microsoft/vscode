@@ -15,6 +15,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -901,37 +902,47 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
-		if (content.kind === 'treeData') {
-			return this.renderTreeData(content, templateData, context);
-		} else if (content.kind === 'progressMessage') {
-			return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
-		} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
-			return this.renderProgressTask(content, templateData, context);
-		} else if (content.kind === 'command') {
-			return this.instantiationService.createInstance(ChatCommandButtonContentPart, content, context);
-		} else if (content.kind === 'textEditGroup') {
-			return this.renderTextEdit(context, content, templateData);
-		} else if (content.kind === 'confirmation') {
-			return this.renderConfirmation(context, content, templateData);
-		} else if (content.kind === 'warning') {
-			return this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Warning, content.content, this.renderer);
-		} else if (content.kind === 'markdownContent') {
-			return this.renderMarkdown(content, templateData, context);
-		} else if (content.kind === 'references') {
-			return this.renderContentReferencesListData(content, undefined, context, templateData);
-		} else if (content.kind === 'codeCitations') {
-			return this.renderCodeCitations(content, context, templateData);
-		} else if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
-			return this.renderToolInvocation(content, context, templateData);
-		} else if (content.kind === 'extensions') {
-			return this.renderExtensionsContent(content, context, templateData);
-		} else if (content.kind === 'working') {
-			return this.renderWorkingProgress(content, context);
-		} else if (content.kind === 'undoStop') {
-			return this.renderUndoStop(content);
-		}
+		try {
+			if (content.kind === 'treeData') {
+				return this.renderTreeData(content, templateData, context);
+			} else if (content.kind === 'progressMessage') {
+				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
+			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
+				return this.renderProgressTask(content, templateData, context);
+			} else if (content.kind === 'command') {
+				return this.instantiationService.createInstance(ChatCommandButtonContentPart, content, context);
+			} else if (content.kind === 'textEditGroup') {
+				return this.renderTextEdit(context, content, templateData);
+			} else if (content.kind === 'confirmation') {
+				return this.renderConfirmation(context, content, templateData);
+			} else if (content.kind === 'warning') {
+				return this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Warning, content.content, this.renderer);
+			} else if (content.kind === 'markdownContent') {
+				return this.renderMarkdown(content, templateData, context);
+			} else if (content.kind === 'references') {
+				return this.renderContentReferencesListData(content, undefined, context, templateData);
+			} else if (content.kind === 'codeCitations') {
+				return this.renderCodeCitations(content, context, templateData);
+			} else if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
+				return this.renderToolInvocation(content, context, templateData);
+			} else if (content.kind === 'extensions') {
+				return this.renderExtensionsContent(content, context, templateData);
+			} else if (content.kind === 'working') {
+				return this.renderWorkingProgress(content, context);
+			} else if (content.kind === 'undoStop') {
+				return this.renderUndoStop(content);
+			}
 
-		return this.renderNoContent(other => content.kind === other.kind);
+			return this.renderNoContent(other => content.kind === other.kind);
+		} catch (err) {
+			this.logService.error('ChatListItemRenderer#renderChatContentPart: error rendering content', toErrorMessage(err, true));
+			const errorPart = this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content")), this.renderer);
+			return {
+				dispose: () => errorPart.dispose(),
+				domNode: errorPart.domNode,
+				hasSameContent: (other => content.kind === other.kind),
+			};
+		}
 	}
 
 	private renderUndoStop(content: IChatUndoStop) {

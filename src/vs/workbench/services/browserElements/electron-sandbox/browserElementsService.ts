@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
+import { BrowserType, IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -24,6 +24,7 @@ class WorkbenchNativeBrowserElementsService extends NativeBrowserElementsService
 }
 
 let cancelSelectionIdPool = 0;
+let cancelAndDetachIdPool = 0;
 
 class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	_serviceBrand: undefined;
@@ -32,14 +33,33 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
 
-	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
+	async startDebugSession(token: CancellationToken, browserType: BrowserType): Promise<void> {
+		const cancelAndDetachId = cancelAndDetachIdPool++;
+		const onCancelChannel = `vscode:cancelCurrentSession${cancelAndDetachId}`;
+
+		const disposable = token.onCancellationRequested(() => {
+			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
+			disposable.dispose();
+		});
+		try {
+			await this.simpleBrowser.startDebugSession(token, browserType, cancelAndDetachId);
+		} catch (error) {
+			disposable.dispose();
+			throw new Error('No debug session target found', error);
+		}
+	}
+
+	async getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType | undefined): Promise<IElementData | undefined> {
+		if (!browserType) {
+			return undefined;
+		}
 		const cancelSelectionId = cancelSelectionIdPool++;
 		const onCancelChannel = `vscode:cancelElementSelection${cancelSelectionId}`;
 		const disposable = token.onCancellationRequested(() => {
 			ipcRenderer.send(onCancelChannel, cancelSelectionId);
 		});
 		try {
-			const elementData = await this.simpleBrowser.getElementData(rect, token, cancelSelectionId);
+			const elementData = await this.simpleBrowser.getElementData(rect, token, browserType, cancelSelectionId);
 			return elementData;
 		} catch (error) {
 			disposable.dispose();

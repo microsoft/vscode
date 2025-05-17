@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { GroupIdentifier } from '../../../common/editor.js';
+import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,6 +24,8 @@ import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 
 import { isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { DeepPartial } from '../../../../base/common/types.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -62,6 +64,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			if (workingSetsRaw) {
 				return JSON.parse(workingSetsRaw);
 			}
+
 			return [];
 		})();
 
@@ -91,10 +94,12 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (part === this.mainPart) {
 			if (!this.mapPartToInstantiationService.has(part.windowId)) {
 				this.instantiationService.invokeFunction(accessor => {
-					const editorService = accessor.get(IEditorService); // using `invokeFunction` to get hold of `IEditorService` lazily
+					const editorService = accessor.get(IEditorService);
+					const statusbarService = accessor.get(IStatusbarService);
 
-					this.mapPartToInstantiationService.set(part.windowId, this._register(this.instantiationService.createChild(new ServiceCollection(
-						[IEditorService, editorService.createScoped('main', this._store)]
+					this.mapPartToInstantiationService.set(part.windowId, this._register(this.mainPart.scopedInstantiationService.createChild(new ServiceCollection(
+						[IEditorService, editorService.createScoped(this.mainPart, this._store)],
+						[IStatusbarService, statusbarService.createScoped(statusbarService, this._store)]
 					))));
 				});
 			}
@@ -811,6 +816,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
+
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
+		return this.mainPart.enforcePartOptions(options);
+	}
 
 	//#endregion
 }

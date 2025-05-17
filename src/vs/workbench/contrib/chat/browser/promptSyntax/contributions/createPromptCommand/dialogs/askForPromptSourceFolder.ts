@@ -13,21 +13,7 @@ import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/con
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
 import { IPromptPath, IPromptsService, TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-
-/**
- * Options for {@link askForPromptSourceFolder} dialog.
- */
-interface IAskForFolderOptions {
-
-	readonly type: TPromptsType;
-	readonly placeHolder: string;
-
-	readonly labelService: ILabelService;
-	readonly openerService: IOpenerService;
-	readonly promptsService: IPromptsService;
-	readonly quickInputService: IQuickInputService;
-	readonly workspaceService: IWorkspaceContextService;
-}
+import { ServicesAccessor } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 
 interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folder: IPromptPath;
@@ -37,10 +23,15 @@ interface IFolderQuickPickItem extends IQuickPickItem {
  * Asks the user for a specific prompt folder, if multiple folders provided.
  * Returns immediately if only one folder available.
  */
-export const askForPromptSourceFolder = async (
-	options: IAskForFolderOptions,
-): Promise<IPromptPath | undefined> => {
-	const { type, placeHolder, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
+export async function askForPromptSourceFolder(
+	accessor: ServicesAccessor,
+	type: TPromptsType,
+	placeHolder: string
+): Promise<IPromptPath | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const promptsService = accessor.get(IPromptsService);
+	const labelService = accessor.get(ILabelService);
+	const workspaceService = accessor.get(IWorkspaceContextService);
 
 	// get prompts source folders based on the prompt type
 	const folders = promptsService.getSourceFolders(type);
@@ -49,7 +40,8 @@ export const askForPromptSourceFolder = async (
 	// note! this is a temporary solution and must be replaced with a dialog to select
 	//       a custom folder path, or switch to a different prompt type
 	if (folders.length === 0) {
-		return await showNoFoldersDialog(quickInputService, openerService);
+		await showNoFoldersDialog(accessor);
+		return;
 	}
 
 	// if there is only one folder, no need to ask
@@ -118,7 +110,7 @@ export const askForPromptSourceFolder = async (
 	}
 
 	return answer.folder;
-};
+}
 
 /**
  * Shows a dialog to the user when no prompt source folders are found.
@@ -126,10 +118,10 @@ export const askForPromptSourceFolder = async (
  * Note! this is a temporary solution and must be replaced with a dialog to select
  *       a custom folder path, or switch to a different prompt type
  */
-const showNoFoldersDialog = async (
-	quickInputService: IQuickInputService,
-	openerService: IOpenerService,
-): Promise<undefined> => {
+async function showNoFoldersDialog(accessor: ServicesAccessor): Promise<void> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const openerService = accessor.get(IOpenerService);
+
 	const docsQuickPick: WithUriValue<IQuickPickItem> = {
 		type: 'item',
 		label: localize(
@@ -151,11 +143,7 @@ const showNoFoldersDialog = async (
 			canPickMany: false,
 		});
 
-	if (!result) {
-		return;
+	if (result) {
+		await openerService.open(result.value);
 	}
-
-	await openerService.open(result.value);
-
-	return;
-};
+}

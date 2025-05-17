@@ -53,6 +53,33 @@ export class InlineEditsGutterIndicator extends Disposable {
 		@IThemeService themeService: IThemeService,
 	) {
 		super();
+
+		this._tabAction = derived(this, reader => {
+			const model = this._model.read(reader);
+			if (!model) { return InlineEditTabAction.Inactive; }
+			return model.tabAction.read(reader);
+		});
+
+		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
+			switch (v) {
+				case InlineEditTabAction.Inactive: return {
+					background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, themeService).read(reader).toString(),
+					foreground: getEditorBlendedColor(inlineEditIndicatorSecondaryForeground, themeService).read(reader).toString(),
+					border: getEditorBlendedColor(inlineEditIndicatorSecondaryBorder, themeService).read(reader).toString(),
+				};
+				case InlineEditTabAction.Jump: return {
+					background: getEditorBlendedColor(inlineEditIndicatorPrimaryBackground, themeService).read(reader).toString(),
+					foreground: getEditorBlendedColor(inlineEditIndicatorPrimaryForeground, themeService).read(reader).toString(),
+					border: getEditorBlendedColor(inlineEditIndicatorPrimaryBorder, themeService).read(reader).toString()
+				};
+				case InlineEditTabAction.Accept: return {
+					background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, themeService).read(reader).toString(),
+					foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, themeService).read(reader).toString(),
+					border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, themeService).read(reader).toString()
+				};
+			}
+		});
+
 		this._originalRangeObs = mapOutFalsy(this._originalRange);
 		this._state = derived(reader => {
 			const range = this._originalRangeObs.read(reader);
@@ -170,7 +197,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
 			const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
 			const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
-			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader) + gutterViewPortPadding);
+			const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
+			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
 
 			// The glyph margin area across all relevant lines
 			const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -180,7 +208,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillHeight = lineHeight;
 			const pillOffset = this._verticalOffset.read(reader);
 			const pillFullyDockedRect = gutterEditArea.withHeight(pillHeight).translateY(pillOffset);
-			const pillIsFullyDocked = gutterViewPortWithoutStickyScroll.containsRect(pillFullyDockedRect);
+			const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
@@ -264,11 +292,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this._isHoveredOverIcon = observableValue(this, false);
 		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
 		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
-		this._tabAction = derived(this, reader => {
-			const model = this._model.read(reader);
-			if (!model) { return InlineEditTabAction.Inactive; }
-			return model.tabAction.read(reader);
-		});
 		this._indicator = n.div({
 			class: 'inline-edits-view-gutter-indicator',
 			onclick: () => {
@@ -348,26 +371,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 				])
 			]),
 		])).keepUpdated(this._store);
-
-		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
-			switch (v) {
-				case InlineEditTabAction.Inactive: return {
-					background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, themeService).read(reader).toString(),
-					foreground: getEditorBlendedColor(inlineEditIndicatorSecondaryForeground, themeService).read(reader).toString(),
-					border: getEditorBlendedColor(inlineEditIndicatorSecondaryBorder, themeService).read(reader).toString(),
-				};
-				case InlineEditTabAction.Jump: return {
-					background: getEditorBlendedColor(inlineEditIndicatorPrimaryBackground, themeService).read(reader).toString(),
-					foreground: getEditorBlendedColor(inlineEditIndicatorPrimaryForeground, themeService).read(reader).toString(),
-					border: getEditorBlendedColor(inlineEditIndicatorPrimaryBorder, themeService).read(reader).toString()
-				};
-				case InlineEditTabAction.Accept: return {
-					background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, themeService).read(reader).toString(),
-					foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, themeService).read(reader).toString(),
-					border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, themeService).read(reader).toString()
-				};
-			}
-		});
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._indicator.element,

@@ -5,10 +5,10 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
@@ -34,11 +34,10 @@ export const FetchWebPageToolData: IToolData = {
 };
 
 export class FetchWebPageTool implements IToolImpl {
-	private _alreadyApprovedDomains = new Set<string>();
+	private _alreadyApprovedDomains = new ResourceSet();
 
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
@@ -53,9 +52,7 @@ export class FetchWebPageTool implements IToolImpl {
 		// We approved these via confirmation, so mark them as "approved" in this session
 		// if they are not approved via the trusted domain service.
 		for (const uri of validUris) {
-			if (!this._trustedDomainService.isValid(uri)) {
-				this._alreadyApprovedDomains.add(uri.toString(true));
-			}
+			this._alreadyApprovedDomains.add(uri);
 		}
 
 		const contents = await this._readerModeService.extract(validUris);
@@ -89,7 +86,7 @@ export class FetchWebPageTool implements IToolImpl {
 				valid.push(uri);
 			}
 		});
-		const urlsNeedingConfirmation = valid.filter(url => !this._trustedDomainService.isValid(url) && !this._alreadyApprovedDomains.has(url.toString(true)));
+		const urlsNeedingConfirmation = valid.filter(url => !this._alreadyApprovedDomains.has(url));
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -138,32 +135,17 @@ export class FetchWebPageTool implements IToolImpl {
 
 		const result: IPreparedToolInvocation = { invocationMessage, pastTenseMessage };
 		if (urlsNeedingConfirmation.length) {
-			const confirmationTitle = urlsNeedingConfirmation.length > 1
-				? localize('fetchWebPage.confirmationTitle.plural', 'Fetch untrusted web pages?')
-				: localize('fetchWebPage.confirmationTitle.singular', 'Fetch untrusted web page?');
-
-			const managedTrustedDomainsCommand = 'workbench.action.manageTrustedDomain';
-			const confirmationMessage = new MarkdownString(
-				urlsNeedingConfirmation.length > 1
-					? urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n')
-					: urlsNeedingConfirmation[0].toString(),
-				{
-					isTrusted: { enabledCommands: [managedTrustedDomainsCommand] },
-					supportThemeIcons: true
-				}
-			);
-
-			confirmationMessage.appendMarkdown(
-				'\n\n$(info) ' + localize(
-					'fetchWebPage.confirmationMessageManageTrustedDomains',
-					'You can [manage your trusted domains]({0}) to skip this confirmation in the future.',
-					`command:${managedTrustedDomainsCommand}`
-				)
-			);
-
-			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: false };
+			let confirmationTitle: string;
+			let confirmationMessage: string | MarkdownString;
+			if (urlsNeedingConfirmation.length === 1) {
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch untrusted web page?');
+				confirmationMessage = urlsNeedingConfirmation[0].toString();
+			} else {
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch untrusted web pages?');
+				confirmationMessage = new MarkdownString(urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'));
+			}
+			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: true };
 		}
-
 		return result;
 	}
 

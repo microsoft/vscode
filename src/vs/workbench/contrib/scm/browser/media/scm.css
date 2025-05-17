@@ -172,6 +172,7 @@
 .scm-view .monaco-list-row .history-item > .label-container {
 	display: flex;
 	flex-shrink: 0;
+	margin-left: 4px;
 	gap: 4px;
 }
 
@@ -227,7 +228,7 @@
 }
 
 .scm-view .monaco-list-row .history-item > .actions {
-	margin-left: 2px;
+	margin-left: 4px;
 }
 
 .scm-view .monaco-list-row .history > .name,

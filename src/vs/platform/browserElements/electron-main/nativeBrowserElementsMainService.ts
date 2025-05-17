@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
+import { BrowserType, IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -14,7 +14,6 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-
 
 export const INativeBrowserElementsMainService = createDecorator<INativeBrowserElementsMainService>('browserElementsMainService');
 export interface INativeBrowserElementsMainService extends AddFirstParameterToFunctions<INativeBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -28,6 +27,8 @@ interface NodeDataResponse {
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
+	currentLocalAddress: string | undefined;
+
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
@@ -38,7 +39,79 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
 
-	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
+	async findWebviewTarget(debuggers: any, windowId: number, browserType: BrowserType): Promise<string | undefined> {
+		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
+		let target: typeof targetInfos[number] | undefined = undefined;
+		const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
+			try {
+				const url = new URL(targetInfo.url);
+				if (browserType === BrowserType.LiveServer) {
+					return url.searchParams.get('id') && url.searchParams.get('extensionId') === 'ms-vscode.live-server';
+				} else if (browserType === BrowserType.SimpleBrowser) {
+					return url.searchParams.get('parentId') === windowId.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
+				}
+				return false;
+			} catch (err) {
+				return false;
+			}
+		});
+
+		// search for webview via search parameters
+		if (matchingTarget) {
+			const url = new URL(matchingTarget.url);
+			const resultId = url.searchParams.get('id')!;
+			target = targetInfos.find((targetInfo: { url: string }) => {
+				try {
+					const url = new URL(targetInfo.url);
+					const isLiveServer = browserType === BrowserType.LiveServer && url.searchParams.get('serverWindowId') === resultId;
+					const isSimpleBrowser = browserType === BrowserType.SimpleBrowser && url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId');
+
+					if (isLiveServer || isSimpleBrowser) {
+						this.currentLocalAddress = url.origin;
+						return true;
+					}
+					return false;
+				} catch (e) {
+					return false;
+				}
+			});
+		}
+
+		// fallback: search for webview without parameters based on current origin
+		target = targetInfos.find((targetInfo: { url: string }) => {
+			try {
+				const url = new URL(targetInfo.url);
+				return (this.currentLocalAddress === url.origin);
+			} catch (e) {
+				return false;
+			}
+		});
+
+		if (!target) {
+			return undefined;
+		}
+
+		return target.targetId;
+	}
+
+	async waitForWebviewTargets(debuggers: any, windowId: number): Promise<any> {
+		const start = Date.now();
+		const timeout = 10000;
+
+		while (Date.now() - start < timeout) {
+			const targetId = await this.findWebviewTarget(debuggers, windowId, BrowserType.SimpleBrowser);
+			if (targetId) {
+				return targetId;
+			}
+
+			// Wait for a short period before checking again
+			await new Promise(resolve => setTimeout(resolve, 500));
+		}
+
+		return undefined;
+	}
+
+	async startDebugSession(windowId: number | undefined, token: CancellationToken, browserType: BrowserType, cancelAndDetachId?: number): Promise<void> {
 		const window = this.windowById(windowId);
 		if (!window?.win) {
 			return undefined;
@@ -53,42 +126,77 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		const debuggers = simpleBrowserWebview.debugger;
-		debuggers.attach();
+		if (!debuggers.isAttached()) {
+			debuggers.attach();
+		}
 
-		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-		let resultId: string | undefined = undefined;
-		let target: typeof targetInfos[number] | undefined = undefined;
-		let targetSessionId: number | undefined = undefined;
 		try {
-			// find parent id and extract id
-			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
-				try {
-					const url = new URL(targetInfo.url);
-					return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
-				} catch (err) {
-					return false;
+			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!);
+			if (!matchingTargetId) {
+				return undefined;
+			}
+
+		} catch (e) {
+			if (debuggers.isAttached()) {
+				debuggers.detach();
+			}
+			throw new Error('No target found', e);
+		}
+
+		window.win.webContents.on('ipc-message', async (event, channel, closedCancelAndDetachId) => {
+			if (channel === `vscode:cancelCurrentSession${cancelAndDetachId}`) {
+				if (cancelAndDetachId !== closedCancelAndDetachId) {
+					return;
 				}
-			});
-
-			if (matchingTarget) {
-				const url = new URL(matchingTarget.url);
-				resultId = url.searchParams.get('id')!;
+				if (debuggers.isAttached()) {
+					debuggers.detach();
+				}
+				if (window.win) {
+					window.win.webContents.removeAllListeners('ipc-message');
+				}
 			}
+		});
+	}
 
-			// use id to grab simple browser target
-			if (resultId) {
-				target = targetInfos.find((targetInfo: { url: string }) => {
-					try {
-						const url = new URL(targetInfo.url);
-						return (url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId'));
-					} catch (e) {
-						return false;
-					}
-				});
-			}
+	async finishOverlay(debuggers: any, sessionId: string | undefined): Promise<void> {
+		if (debuggers.isAttached() && sessionId) {
+			await debuggers.sendCommand('Overlay.setInspectMode', {
+				mode: 'none',
+				highlightConfig: {
+					showInfo: false,
+					showStyles: false
+				}
+			}, sessionId);
+			await debuggers.sendCommand('Overlay.hideHighlight', {}, sessionId);
+			await debuggers.sendCommand('Overlay.disable', {}, sessionId);
+			debuggers.detach();
+		}
+	}
 
+	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, browserType: BrowserType, cancellationId?: number): Promise<IElementData | undefined> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		// Find the simple browser webview
+		const allWebContents = webContents.getAllWebContents();
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.id === window.id);
+
+		if (!simpleBrowserWebview) {
+			return undefined;
+		}
+
+		const debuggers = simpleBrowserWebview.debugger;
+		if (!debuggers.isAttached()) {
+			debuggers.attach();
+		}
+
+		let targetSessionId: string | undefined = undefined;
+		try {
+			const targetId = await this.findWebviewTarget(debuggers, windowId!, browserType);
 			const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
-				targetId: target.targetId,
+				targetId: targetId,
 				flatten: true,
 			});
 
@@ -191,7 +299,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
-		debuggers.detach();
+		await this.finishOverlay(debuggers, targetSessionId);
 
 		const zoomFactor = simpleBrowserWebview.getZoomFactor();
 		const absoluteBounds = {
@@ -218,7 +326,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
+	async getNodeData(sessionId: string, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
 			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
@@ -285,9 +393,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						return;
 					}
 					debuggers.off('message', onMessage);
-					if (debuggers.isAttached()) {
-						debuggers.detach();
-					}
+					await this.finishOverlay(debuggers, sessionId);
 					window.webContents.removeAllListeners('ipc-message');
 				}
 			});

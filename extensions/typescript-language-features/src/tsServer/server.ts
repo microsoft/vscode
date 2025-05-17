@@ -271,7 +271,8 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 		this._requestQueue.enqueue(requestInfo);
 		if (args && typeof (args as any).$traceId === 'string') {
 			const queueLength = this._requestQueue.length - 1;
-			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify({ command, queueLength }));
+			const pendingResponses = this._pendingResponses.size;
+			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify({ command, queueLength, pendingResponses }));
 		}
 		this.sendNextRequests();
 

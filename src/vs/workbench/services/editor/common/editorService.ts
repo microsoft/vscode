@@ -367,5 +367,5 @@ export interface IEditorService {
 	 * editor group container. Use `main` to create a scoped editor service
 	 * to the main editor group container of the main window.
 	 */
-	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService;
+	createScoped(editorGroupsContainer: IEditorGroupsContainer, disposables: DisposableStore): IEditorService;
 }
