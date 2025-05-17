@@ -38,7 +38,6 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		const onCancelChannel = `vscode:cancelCurrentSession${cancelAndDetachId}`;
 
 		const disposable = token.onCancellationRequested(() => {
-			console.log('cancellation requested', cancelAndDetachId);
 			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
 			disposable.dispose();
 		});
