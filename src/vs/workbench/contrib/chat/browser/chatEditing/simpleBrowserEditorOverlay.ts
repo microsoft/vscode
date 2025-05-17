@@ -64,7 +64,6 @@ class SimpleBrowserOverlayWidget {
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
 				if (this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
@@ -254,7 +253,7 @@ class SimpleBrowserOverlayWidget {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		const widget = this._chatWidgetService.lastFocusedWidget ?? await showChatView(this._viewService);
+		const widget = await showChatView(this._viewService) ?? this._chatWidgetService.lastFocusedWidget;
 		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
 			value += '\n\n' + elementData.computedStyle;
