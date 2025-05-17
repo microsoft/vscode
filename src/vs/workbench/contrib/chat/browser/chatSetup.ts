@@ -299,12 +299,24 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				]);
 
 				if (ready === 'error' || ready === 'timedout') {
+					let warningMessage: string;
+					if (ready === 'timedout') {
+						if (this.location === ChatAgentLocation.Panel) {
+							warningMessage = localize('copilotTookLongWarning', "Copilot took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is properly installed.", defaultChat.providerName, defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('copilotTookLongWarningOutsidePanel', "Copilot took too long to get ready. Please try again from the Chat view.");
+						}
+					} else {
+						if (this.location === ChatAgentLocation.Panel) {
+							warningMessage = localize('copilotFailedWarning', "Copilot failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is properly installed.", defaultChat.providerName, defaultChat.chatExtensionId);
+						} else {
+							warningMessage = localize('copilotFailedWarningOutsidePanel', "Copilot failed to get ready. Please try again from the Chat view.");
+						}
+					}
+
 					progress({
 						kind: 'warning',
-						content: new MarkdownString(ready === 'timedout' ?
-							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please review the guidance in the Chat view.") :
-							localize('copilotFailedWarning', "Copilot failed to get ready. Please review the guidance in the Chat view.")
-						)
+						content: new MarkdownString(warningMessage)
 					});
 
 					// This means Copilot is unhealthy and we cannot retry the
