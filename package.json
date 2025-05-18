@@ -65,7 +65,8 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
+    "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json",
+    "vscode-linux-x64-fast": "node --max-old-space-size=12288 ./node_modules/gulp/bin/gulp.js vscode-linux-x64 --max_old_space_size=12288 --no-source-maps --skip-dependency-check --parallel"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
