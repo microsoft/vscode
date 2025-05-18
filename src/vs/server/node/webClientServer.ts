@@ -364,6 +364,7 @@ export class WebClientServer {
 			extensionsGallery: this._productService.extensionsGallery,
 			linkProtectionTrustedDomains,
 			newtonboxQuestion: process.env.NEWTONBOX_QUESTION || '',
+			newtonboxQuestionVisible: process.env.NEWTONBOX_QUESTION_VISIBLE === '1',
 		};
 
 		const proposedApi = this._environmentService.args['enable-proposed-api'];

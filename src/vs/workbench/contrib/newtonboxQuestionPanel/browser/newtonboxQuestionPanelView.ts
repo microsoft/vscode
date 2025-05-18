@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/questionPanel.css';
-import { localize } from '../../../../nls.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,12 +16,9 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
-import { QUESTION_PANEL_ID } from '../common/newtonboxQuestionPanel.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class NewtonboxQuestionPanelView extends ViewPane {
-    static readonly ID = QUESTION_PANEL_ID;
-    static readonly TITLE = localize('newtonboxQuestionPanelView', "Newtonbox Question");
 
     constructor(
         options: IViewletViewOptions,

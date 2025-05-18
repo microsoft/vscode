@@ -68,6 +68,7 @@ export interface IProductConfiguration {
 	}
 	readonly telemetryEndpoint?: string
 	readonly newtonboxQuestion?: string;
+	readonly newtonboxQuestionVisible?: boolean;
 
 	readonly version: string;
 	readonly date?: string;
