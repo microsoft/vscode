@@ -60,10 +60,6 @@ export interface IViewModelLines extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
-export interface IViewModelLinesFromProjectedModelContext {
-	getLineHeightForLineNumber(lineNumber: number): number;
-}
-
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
@@ -88,12 +84,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private hiddenAreasDecorationIds!: string[];
 	private config: IEditorConfiguration;
 	private coordinatesConverter: ICoordinatesConverter;
-	private context: IViewModelLinesFromProjectedModelContext;
 
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		context: IViewModelLinesFromProjectedModelContext,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		config: IEditorConfiguration,
 		fontInfo: FontInfo,
@@ -105,7 +99,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	) {
 		this._editorId = editorId;
 		this.model = model;
-		this.context = context;
 		this._validModelVersionId = -1;
 		this._generalLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this.config = config;
@@ -146,9 +139,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
 			const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
-			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null, isVariableFontSize);
+			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null, isVariableFontSize);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -1196,7 +1188,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: Map<number, ModelLineProjectionData | null> = new Map<number, ModelLineProjectionData | null>();
 		return {
-			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], linesTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], linesTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.set(lineNumber, null);
 			},
 			finalize: () => {

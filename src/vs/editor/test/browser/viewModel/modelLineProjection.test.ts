@@ -115,9 +115,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			{
-				getLineHeightForLineNumber: (lineNumber: number) => fontInfo.lineHeight,
-			},
 			lineBreaksComputerFactory,
 			config,
 			fontInfo,
@@ -965,11 +962,6 @@ suite('SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			{
-				getLineHeightForLineNumber(lineNumber: number): number {
-					return fontInfo.lineHeight;
-				}
-			},
 			lineBreaksComputerFactory,
 			configuration,
 			fontInfo,

@@ -37,7 +37,7 @@ import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
-import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
@@ -100,18 +100,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
-			const context: IViewModelLinesFromProjectedModelContext = {
-				getLineHeightForLineNumber: (lineNumber: number): number => {
-					if (this.viewLayout) {
-						return this.viewLayout.getLineHeightForLineNumber(lineNumber);
-					}
-					return fontInfo.lineHeight;
-				}
-			};
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				context,
 				generalLineBreaksComputer,
 				this._configuration,
 				fontInfo,
@@ -355,9 +346,8 @@ export class ViewModel extends Disposable implements IViewModel {
 								const inlineDecorations = this.getInlineDecorations(lineNumber);
 								this.model.tokenization.forceTokenization(lineNumber);
 								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
 								const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
-								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
+								lineBreaksComputer.addRequest(lineNumber, line, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							}
 							break;
 						}
@@ -370,9 +360,8 @@ export class ViewModel extends Disposable implements IViewModel {
 							const inlineDecorations = this.getInlineDecorations(lineNumber);
 							this.model.tokenization.forceTokenization(lineNumber);
 							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
 							const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
-							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
+							lineBreaksComputer.addRequest(lineNumber, change.detail, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							break;
 						}
 					}
@@ -487,10 +476,9 @@ export class ViewModel extends Disposable implements IViewModel {
 					const inlineDecorations = this.getInlineDecorations(lineNumber);
 					this.model.tokenization.forceTokenization(lineNumber);
 					const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-					const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
 					const lineContent = this.model.getLineContent(lineNumber);
 					const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
-					lineBreaksComputer.addRequest(lineNumber, lineContent, lineHeight, null, inlineDecorations, lineTokens, null, isVariableFontSize);
+					lineBreaksComputer.addRequest(lineNumber, lineContent, null, inlineDecorations, lineTokens, null, isVariableFontSize);
 				}
 				const lineBreaks = lineBreaksComputer.finalizeToArray();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);

@@ -151,7 +151,6 @@ export class ViewLine implements IVisibleLine {
 		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
 		const fontInfo = this._viewContext.configuration.options.get(EditorOption.fontInfo);
 
-		console.log('options.allowVariableLinesAndFonts : ', options.allowVariableLinesAndFonts);
 		const renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			options.canUseHalfwidthRightwardsArrow,

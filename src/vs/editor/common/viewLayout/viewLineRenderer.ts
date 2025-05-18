@@ -341,7 +341,6 @@ export class RenderLineOutput {
 }
 
 export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
-	console.log('renderViewLine');
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {

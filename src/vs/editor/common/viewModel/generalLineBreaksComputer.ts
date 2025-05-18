@@ -37,13 +37,13 @@ export class GeneralLineBreaksComputer implements ILineBreaksComputer {
 		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(editorConfig, tabSize);
 	}
 
-	addRequest(lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null, hasFontDecorations: boolean = false): void {
+	addRequest(lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null, hasFontDecorations: boolean = false): void {
 		this._lineNumbers.push(lineNumber);
 		const wrappingStrategy = this.editorConfig.options.get(EditorOption.wrappingStrategy);
 		if (wrappingStrategy === 'advanced' || hasFontDecorations) {
-			this._domLineBreaksComputer.addRequest(lineNumber, lineText, lineHeight, injectedText, inlineDecorations, lineTokens, previousLineBreakData, hasFontDecorations);
+			this._domLineBreaksComputer.addRequest(lineNumber, lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData, hasFontDecorations);
 		} else {
-			this._monospaceLineBreaksComputer.addRequest(lineNumber, lineText, lineHeight, injectedText, inlineDecorations, lineTokens, previousLineBreakData, hasFontDecorations);
+			this._monospaceLineBreaksComputer.addRequest(lineNumber, lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData, hasFontDecorations);
 		}
 	}
 

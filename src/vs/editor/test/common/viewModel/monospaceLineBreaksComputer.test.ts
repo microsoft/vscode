@@ -92,7 +92,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, lineNumber: numbe
 	const lineBreaksComputer = factory.createLineBreaksComputer(configuration, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	const lineTokens = new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
-	lineBreaksComputer.addRequest(lineNumber, text, lineHeight, null, [], lineTokens, previousLineBreakDataClone);
+	lineBreaksComputer.addRequest(lineNumber, text, null, [], lineTokens, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize().get(lineNumber)!;
 }
 

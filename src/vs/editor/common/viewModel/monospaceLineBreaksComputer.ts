@@ -34,7 +34,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		const lineNumbers: number[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);
