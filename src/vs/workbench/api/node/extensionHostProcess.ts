@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as _http from 'http';
 import minimist from 'minimist';
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
@@ -423,7 +424,28 @@ async function startExtensionHostProcess(): Promise<void> {
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown
-	onTerminate = (reason: string) => extensionHostMain.terminate(reason);
+	onTerminate = (reason: string) => {
+		extensionHostMain.terminate(reason);
+
+		const socketPath = process.env['VSCODE_IPC_HOOK_CLI'];
+		const codeServerSocketPath = process.env['CODE_SERVER_SESSION_SOCKET']
+		if (!socketPath || !codeServerSocketPath) {
+			return;
+		}
+		const message = JSON.stringify({socketPath});
+		const opts: _http.RequestOptions = {
+			path: '/delete-session',
+			socketPath: codeServerSocketPath,
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'accept': 'application/json'
+			}
+		};
+		const req = _http.request(opts);
+		req.write(message);
+		req.end();
+	};
 }
 
 startExtensionHostProcess().catch((err) => console.log(err));

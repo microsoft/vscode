@@ -34,6 +34,21 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	readonly options?: IWorkbenchConstructionOptions;
 
 	/**
+	 * Enable downloading files via menu actions.
+	 */
+	readonly isEnabledFileDownloads?: boolean;
+
+	/**
+	 * Enable uploading files via menu actions.
+	 */
+	readonly isEnabledFileUploads?: boolean;
+
+	/**
+	 * Enable Coder's custom getting started text.
+	 */
+	readonly isEnabledCoderGettingStarted?: boolean;
+
+	/**
 	 * Gets whether a resolver extension is expected for the environment.
 	 */
 	readonly expectsResolverExtension: boolean;
@@ -102,7 +117,35 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logFile(): URI { return joinPath(this.windowLogsPath, 'window.log'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
+	get userRoamingDataHome(): URI { return joinPath(URI.file(this.userDataPath).with({ scheme: Schemas.vscodeRemote }), 'User'); }
+
+	get userDataPath(): string {
+		if (!this.options.userDataPath) {
+			throw new Error('userDataPath was not provided to the browser');
+		}
+		return this.options.userDataPath;
+	}
+
+	get isEnabledFileDownloads(): boolean {
+		if (typeof this.options.isEnabledFileDownloads === "undefined") {
+			throw new Error('isEnabledFileDownloads was not provided to the browser');
+		}
+		return this.options.isEnabledFileDownloads;
+	}
+
+	get isEnabledFileUploads(): boolean {
+		if (typeof this.options.isEnabledFileUploads === "undefined") {
+			throw new Error('isEnabledFileUploads was not provided to the browser');
+		}
+		return this.options.isEnabledFileUploads;
+	}
+
+	get isEnabledCoderGettingStarted(): boolean {
+		if (typeof this.options.isEnabledCoderGettingStarted === "undefined") {
+			throw new Error('isEnabledCoderGettingStarted was not provided to the browser');
+		}
+		return this.options.isEnabledCoderGettingStarted;
+	}
 
 	@memoize
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
@@ -220,7 +263,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get webviewExternalEndpoint(): string {
-		const endpoint = this.options.webviewEndpoint
+		const endpoint = (this.options.webviewEndpoint && new URL(this.options.webviewEndpoint, window.location.toString()).toString())
 			|| this.productService.webviewContentExternalBaseUrlTemplate
 			|| 'https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 

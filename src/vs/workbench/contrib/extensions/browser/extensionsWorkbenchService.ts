@@ -332,6 +332,10 @@ export class Extension implements IExtension {
 			if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
 				return false;
 			}
+			// Do not update builtin extensions.
+			if (this.type !== ExtensionType.User) {
+				return false;
+			}
 			if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
 				return false;
 			}

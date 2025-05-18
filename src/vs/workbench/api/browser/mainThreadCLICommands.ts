@@ -8,6 +8,7 @@ import { isWeb } from '../../../base/common/platform.js';
 import { isString } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionGalleryService, IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionManagementCLI } from '../../../platform/extensionManagement/common/extensionManagementCLI.js';
@@ -94,6 +95,11 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	}
 
 });
+
+CommandsRegistry.registerCommand('_remoteCLI.setClipboard', function (accessor: ServicesAccessor, content: string) {
+	const clipboardService = accessor.get(IClipboardService);
+	clipboardService.writeText(content);
+})
 
 class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 

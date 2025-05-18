@@ -49,6 +49,17 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 			version: pkg.version
 		});
 	}
+
+	Object.assign(product, {
+		extensionsGallery: env.EXTENSIONS_GALLERY ? JSON.parse(env.EXTENSIONS_GALLERY) : (product.extensionsGallery || {
+			serviceUrl: "https://open-vsx.org/vscode/gallery",
+			itemUrl: "https://open-vsx.org/vscode/item",
+			resourceUrlTemplate: "https://open-vsx.org/vscode/asset/{publisher}/{name}/{version}/Microsoft.VisualStudio.Code.WebResources/{path}",
+			controlUrl: "",
+			recommendationsUrl: "",
+		}),
+		telemetryEndpoint: env.CS_TELEMETRY_URL || product.telemetryEndpoint || "https://v1.telemetry.coder.com/track",
+	});
 }
 
 // Web environment or unknown

@@ -35,7 +35,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		connectionToken: Promise<string> | string | undefined,
 		resourceUriProvider: ((uri: URI) => URI) | undefined,
 		serverBasePath: string | undefined,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -86,9 +86,14 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		const connectionToken = await Promise.resolve(this._connectionTokens.get(authority) || this._connectionToken);
 		performance.mark(`code/didResolveConnectionToken/${authorityPrefix}`);
 		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
+		let options: ResolvedOptions | undefined;
+		if (this.productService.proxyEndpointTemplate) {
+			const proxyUrl = new URL(this.productService.proxyEndpointTemplate, mainWindow.location.href);
+			options = { extensionHostEnv: { VSCODE_PROXY_URI: decodeURIComponent(proxyUrl.toString()) }}
+		}
 		const defaultPort = (/^https:/.test(mainWindow.location.href) ? 443 : 80);
 		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
-		const result: ResolverResult = { authority: { authority, connectTo: new WebSocketRemoteConnection(host, port), connectionToken } };
+		const result: ResolverResult = { authority: { authority, connectTo: new WebSocketRemoteConnection(host, port), connectionToken }, options };
 		RemoteAuthorities.set(authority, host, port);
 		this._cache.set(authority, result);
 		this._onDidChangeConnectionData.fire();

@@ -78,8 +78,11 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 	async about(): Promise<void> {
 		const detailString = (useAgo: boolean): string => {
-			return localize('aboutDetail',
-				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+			return localize('aboutCodeServerDetail',
+				"code-server: {0}",
+				this.productService.codeServerVersion ? `v${this.productService.codeServerVersion}` : 'Unknown'
+			) + '\n' + localize('aboutDetail',
+				"Code: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
 				this.productService.version || 'Unknown',
 				this.productService.commit || 'Unknown',
 				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',

@@ -147,8 +147,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService, uriIdentityService, logService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(fromCache => {
 			this.onWorkspaceConfigurationChanged(fromCache).then(() => {
-				this.workspace.initialized = this.workspaceConfiguration.initialized;
-				this.checkAndMarkWorkspaceComplete(fromCache);
+				if (this.workspace) { // The workspace may not have been created yet.
+					this.workspace.initialized = this.workspaceConfiguration.initialized;
+					this.checkAndMarkWorkspaceComplete(fromCache);
+				}
 			});
 		}));
 
@@ -555,6 +557,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			previousFolders = this.workspace.folders;
 			this.workspace.update(workspace);
 		} else {
+			// It is possible for the configuration to become initialized in between
+			// when the workspace was created and this function was called, so check
+			// the configuration again now.
+			if (!workspace.initialized && this.workspaceConfiguration.initialized) {
+				workspace.initialized = true;
+			}
 			this.workspace = workspace;
 		}
 

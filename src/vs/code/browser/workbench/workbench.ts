@@ -19,6 +19,7 @@ import { ISecretStorageProvider } from '../../../platform/secrets/common/secrets
 import { isFolderToOpen, isWorkspaceToOpen } from '../../../platform/window/common/window.js';
 import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from '../../../workbench/browser/web.api.js';
 import { AuthenticationSessionInfo } from '../../../workbench/services/authentication/browser/authenticationService.js';
+import { extractLocalHostUriMetaDataForPortMapping, TunnelOptions, TunnelCreationOptions } from '../../../platform/tunnel/common/tunnel.js';
 import type { IURLCallbackProvider } from '../../../workbench/services/url/browser/urlService.js';
 import { create } from '../../../workbench/workbench.web.main.internal.js';
 
@@ -332,7 +333,8 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			this.startListening();
 		}
 
-		return URI.parse(mainWindow.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
+		const path = (mainWindow.location.pathname + "/" + this._callbackRoute).replace(/\/\/+/g, "/");
+		return URI.parse(mainWindow.location.href).with({ path: path, query: queryParams.join('&') });
 	}
 
 	private startListening(): void {
@@ -579,17 +581,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-function readCookie(name: string): string | undefined {
-	const cookies = document.cookie.split('; ');
-	for (const cookie of cookies) {
-		if (cookie.startsWith(name + '=')) {
-			return cookie.substring(name.length + 1);
-		}
-	}
-
-	return undefined;
-}
-
 (function () {
 
 	// Find config by checking for DOM
@@ -598,8 +589,8 @@ function readCookie(name: string): string | undefined {
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
 	}
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
-	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = { ...JSON.parse(configElementAttribute), remoteAuthority: location.host }
+	const secretStorageKeyPath = (window.location.pathname + "/mint-key").replace(/\/\/+/g, "/");
 	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
@@ -610,6 +601,39 @@ function readCookie(name: string): string | undefined {
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
+		resolveExternalUri: (uri: URI): Promise<URI> => {
+			let resolvedUri = uri
+			const localhostMatch = extractLocalHostUriMetaDataForPortMapping(resolvedUri)
+			if (localhostMatch && resolvedUri.authority !== location.host) {
+				if (config.productConfiguration && config.productConfiguration.proxyEndpointTemplate) {
+					const renderedTemplate = config.productConfiguration.proxyEndpointTemplate
+						.replace('{{port}}', localhostMatch.port.toString())
+						.replace('{{host}}', window.location.host)
+					resolvedUri = URI.parse(new URL(renderedTemplate, window.location.href).toString())
+				} else {
+					throw new Error(`Failed to resolve external URI: ${uri.toString()}. Could not determine base url because productConfiguration missing.`)
+				}
+			}
+			// If not localhost, return unmodified.
+			return Promise.resolve(resolvedUri)
+		},
+		tunnelProvider: {
+			tunnelFactory: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
+				const onDidDispose: Emitter<void> = new Emitter();
+				let isDisposed = false;
+				return Promise.resolve({
+					remoteAddress: tunnelOptions.remoteAddress,
+					localAddress: `localhost:${tunnelOptions.remoteAddress.port}`,
+					onDidDispose: onDidDispose.event,
+					dispose: () => {
+						if (!isDisposed) {
+							isDisposed = true;
+							onDidDispose.fire();
+						}
+					}
+				})
+			}
+		},
 		secretStorageProvider: config.remoteAuthority && !secretStorageKeyPath
 			? undefined /* with a remote without embedder-preferred storage, store on the remote */
 			: new LocalStorageSecretStorageProvider(secretStorageCrypto),

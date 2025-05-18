@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
+import { $, Dimension, addDisposableListener, append, clearNode, reset, prepend } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -54,7 +54,7 @@ import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, i
 import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
 import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from '../../../browser/actions/workspaceActions.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IsEnabledCoderGettingStarted, WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IEditorOpenContext, IEditorSerializer } from '../../../common/editor.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import './gettingStartedColors.js';
@@ -874,6 +874,72 @@ export class GettingStartedPage extends EditorPane {
 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
 		);
 
+		let gettingStartedCoder: HTMLElement = $('.header', {});
+		if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
+			gettingStartedCoder = $('.gettingStartedCategory', {},
+				$('h2', {
+					style: 'margin-bottom: 12px',
+				}, 'Next Up'),
+				$('a', {
+					href: 'https://cdr.co/code-server-to-coder',
+					target: '_blank',
+				},
+					$('button', {
+						style: [
+							'padding: 10px 16px	',
+							'border-radius: 4px',
+							'background: linear-gradient(94.04deg, #7934DA 0%, #4D52E0 101.2%)',
+							'color: white',
+							'overflow: hidden',
+							'margin-right: 14px',
+						].join(';'),
+					},
+					$('h3', {
+						style: [
+							'margin: 0px 0px 6px',
+							'font-weight: 500',
+						].join(';'),
+					}, 'Deploy code-server for your team'),
+					$('p', {
+						style: [
+							'margin: 0',
+							'font-size: 13px',
+							'color: #dcdee2',
+						].join(';'),
+					}, 'Provision software development environments on your infrastructure with Coder.'),
+					$('p', {
+						style: [
+							'margin-top: 8px',
+							'font-size: 13px',
+							'color: #dcdee2',
+						].join(';'),
+					}, 'Coder is a self-service portal which provisions via Terraform—Linux, macOS, Windows, x86, ARM, and, of course, Kubernetes based infrastructure.'),
+					$('p', {
+						style: [
+							'margin: 0',
+							'margin-top: 8px',
+							'font-size: 13px',
+							'display: flex',
+							'align-items: center',
+						].join(';'),
+					}, 'Get started ', $('span', {
+						class: ThemeIcon.asClassName(Codicon.arrowRight),
+						style: [
+							'color: white',
+							'margin-left: 8px',
+						].join(';'),
+					})),
+					$('img', {
+						src: './_static/src/browser/media/templates.png',
+						style: [
+							'margin-bottom: -65px',
+						].join(';'),
+					}),
+					),
+				),
+			);
+		}
+
 		const leftColumn = $('.categories-column.categories-column-left', {},);
 		const rightColumn = $('.categories-column.categories-column-right', {},);
 
@@ -908,6 +974,9 @@ export class GettingStartedPage extends EditorPane {
 			} else {
 				recentList.setLimit(5);
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+			}
+			if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
+				prepend(rightColumn, gettingStartedCoder)
 			}
 		};
 

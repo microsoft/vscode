@@ -34,6 +34,7 @@ import {
 	ExtensionSignatureVerificationCode,
 	computeSize,
 	IAllowedExtensionsService,
+	// @ts-expect-error no-unused-variable
 	VerifyExtensionSignatureConfigKey,
 	shouldRequireRepositorySignatureFor,
 } from '../common/extensionManagement.js';
@@ -87,6 +88,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
+		// @ts-expect-error no-unused-variable
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryManifestService protected readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IProductService productService: IProductService,
@@ -331,8 +333,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		if (verifySignature) {
-			const value = this.configurationService.getValue(VerifyExtensionSignatureConfigKey);
-			verifySignature = isBoolean(value) ? value : true;
+			verifySignature = false;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 		const shouldRequireSignature = shouldRequireRepositorySignatureFor(extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest());

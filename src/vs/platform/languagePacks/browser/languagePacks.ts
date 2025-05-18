@@ -5,18 +5,24 @@
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IExtensionGalleryService } from '../../extensionManagement/common/extensionManagement.js';
 import { IExtensionResourceLoaderService } from '../../extensionResourceLoader/common/extensionResourceLoader.js';
-import { ILanguagePackItem, LanguagePackBaseService } from '../common/languagePacks.js';
+import { ILanguagePackItem, ILanguagePackService, LanguagePackBaseService } from '../common/languagePacks.js';
 import { ILogService } from '../../log/common/log.js';
+import { IRemoteAgentService } from '../../../workbench/services/remote/common/remoteAgentService.js';
 
 export class WebLanguagePacksService extends LanguagePackBaseService {
+	private readonly languagePackService: ILanguagePackService;
+
 	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super(extensionGalleryService);
+		this.languagePackService = ProxyChannel.toService<ILanguagePackService>(remoteAgentService.getConnection()!.getChannel('languagePacks'))
 	}
 
 	async getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined> {
@@ -72,6 +78,6 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 
 	// Web doesn't have a concept of language packs, so we just return an empty array
 	getInstalledLanguages(): Promise<ILanguagePackItem[]> {
-		return Promise.resolve([]);
+		return this.languagePackService.getInstalledLanguages()
 	}
 }

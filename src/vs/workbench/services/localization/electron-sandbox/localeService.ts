@@ -51,7 +51,8 @@ class NativeLocaleService implements ILocaleService {
 		@IProductService private readonly productService: IProductService
 	) { }
 
-	private async validateLocaleFile(): Promise<boolean> {
+	// Make public just so we do not have to patch all the unused code out.
+	public async validateLocaleFile(): Promise<boolean> {
 		try {
 			const content = await this.textFileService.read(this.environmentService.argvResource, { encoding: 'utf8' });
 
@@ -78,9 +79,6 @@ class NativeLocaleService implements ILocaleService {
 	}
 
 	private async writeLocaleValue(locale: string | undefined): Promise<boolean> {
-		if (!(await this.validateLocaleFile())) {
-			return false;
-		}
 		await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
 		return true;
 	}

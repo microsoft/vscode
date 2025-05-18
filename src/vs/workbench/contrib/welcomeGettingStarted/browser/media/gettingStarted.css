@@ -60,6 +60,15 @@
 	display: block;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .coder {
+	margin-bottom: 0.2em;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .coder-coder {
+	font-size: 1em;
+	margin-top: 0.2em;
+}
+
 .monaco-workbench.hc-black .part.editor > .content .gettingStartedContainer .subtitle,
 .monaco-workbench.hc-light .part.editor > .content .gettingStartedContainer .subtitle {
 	font-weight: 200;

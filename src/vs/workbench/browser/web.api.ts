@@ -298,6 +298,26 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly configurationDefaults?: Record<string, any>;
 
+	/**
+	 * Path to the user data directory.
+	 */
+	readonly userDataPath?: string
+
+	/**
+	 * Whether the "Download..." option is enabled for files.
+	 */
+	readonly isEnabledFileDownloads?: boolean
+
+	/**
+	 * Whether the "Upload..." button is enabled.
+	 */
+	readonly isEnabledFileUploads?: boolean
+
+	/**
+	 * Whether to use Coder's custom Getting Started text.
+	 */
+	readonly isEnabledCoderGettingStarted?: boolean
+
 	//#endregion
 
 	//#region Profile options

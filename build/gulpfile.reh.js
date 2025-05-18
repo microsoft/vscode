@@ -58,6 +58,7 @@ const serverResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.json',
+	'out-build/nls.keys.json', // Required to generate translations.
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -256,8 +257,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }))
-			.pipe(util.setExecutableBit(['**/*.sh']))
-			.pipe(filter(['**', '!**/*.js.map']));
+			.pipe(util.setExecutableBit(['**/*.sh']));
 
 		const workspaceExtensionPoints = ['debuggers', 'jsonValidation'];
 		const isUIExtension = (manifest) => {
@@ -296,9 +296,9 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			.map(name => `.build/extensions/${name}/**`);
 
 		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
-		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true });
-		const sources = es.merge(src, extensions, extensionsCommonDependencies)
+		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true })
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+		const sources = es.merge(src, extensions, extensionsCommonDependencies);
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -451,7 +451,7 @@ function tweakProductForServerWeb(product) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		bundleTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, ``)
 	));
 	gulp.task(minifyTask);
 

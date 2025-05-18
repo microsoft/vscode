@@ -53,7 +53,7 @@ import './services/dialogs/browser/fileDialogService.js';
 import './services/host/browser/browserHostService.js';
 import './services/lifecycle/browser/lifecycleService.js';
 import './services/clipboard/browser/clipboardService.js';
-import './services/localization/browser/localeService.js';
+import './services/localization/electron-sandbox/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';

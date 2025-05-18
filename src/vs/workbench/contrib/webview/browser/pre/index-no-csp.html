@@ -343,6 +343,12 @@
 
 				const hostname = location.hostname;
 
+				// It is safe to run if we are on the same host.
+				const parent = new URL(parentOrigin)
+				if (parent.hostname === hostname) {
+					return start(parentOrigin)
+				}
+
 				if (!crypto.subtle) {
 					// cannot validate, not running in a secure context
 					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);

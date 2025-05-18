@@ -83,8 +83,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private async enableForwardedPortsFeatures() {
 		this.contextKeyListener.clear();
 
-		const featuresEnabled: boolean = !!forwardedPortsFeaturesEnabled.getValue(this.contextKeyService);
-		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+		const featuresEnabled: boolean = true;
+		const viewEnabled: boolean = true;
 
 		if (featuresEnabled || viewEnabled) {
 			// Also enable the view if it isn't already.

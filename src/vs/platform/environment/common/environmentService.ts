@@ -101,7 +101,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return URI.file(join(vscodePortable, 'argv.json'));
 		}
 
-		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
+		return joinPath(this.appSettingsHome, 'argv.json');
 	}
 
 	@memoize

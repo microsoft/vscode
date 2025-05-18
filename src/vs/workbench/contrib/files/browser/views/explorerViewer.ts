@@ -65,6 +65,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IExplorerFileContribution, explorerFileContribRegistry } from '../explorerFileContrib.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../services/environment/browser/environmentService.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { ISearchService, QueryType, getExcludes, ISearchConfiguration, ISearchComplete, IFileQuery } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -1601,7 +1602,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		const updateDropEnablement = (e: IConfigurationChangeEvent | undefined) => {
 			if (!e || e.affectsConfiguration('explorer.enableDragAndDrop')) {
@@ -1826,15 +1828,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
-				// Use local file import when supported
-				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(mainWindow))) {
-					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent, mainWindow);
-				}
-				// Otherwise fallback to browser based file upload
-				else {
-					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-					await browserUpload.upload(target, originalEvent);
+				if (this.environmentService.isEnabledFileUploads) {
+					// Use local file import when supported
+					if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(mainWindow))) {
+						const fileImport = this.instantiationService.createInstance(ExternalFileImport);
+						await fileImport.import(resolvedTarget, originalEvent, mainWindow);
+					}
+					// Otherwise fallback to browser based file upload
+					else {
+						const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
+						await browserUpload.upload(target, originalEvent);
+					}
 				}
 			}
 

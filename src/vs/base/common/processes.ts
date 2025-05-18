@@ -111,6 +111,8 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.+$/,
+		/^CODE_SERVER_.+$/,
+		/^CS_.+$/,
 	];
 	const envKeys = Object.keys(env);
 	envKeys

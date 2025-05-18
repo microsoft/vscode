@@ -18,6 +18,7 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, Stora
 import { isUserDataProfile, IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -300,7 +301,11 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	static async createWorkspaceStorage(workspaceId: string, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
-		return IndexedDBStorageDatabase.create({ id: workspaceId }, logService);
+		// Add a unique ID based on the current path for per-workspace databases.
+		// This prevents workspaces on different machines that share the same domain
+		// and file path from colliding (since it does not appear IndexedDB can be
+		// scoped to a path) as long as they are hosted on different paths.
+		return IndexedDBStorageDatabase.create({ id: workspaceId + '-' + hash(location.pathname.toString().replace(/\/$/, "")).toString(16) }, logService);
 	}
 
 	static async create(options: IndexedDBStorageDatabaseOptions, logService: ILogService): Promise<IIndexedDBStorageDatabase> {

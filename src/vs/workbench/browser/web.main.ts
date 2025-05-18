@@ -64,6 +64,7 @@ import { IOpenerService } from '../../platform/opener/common/opener.js';
 import { mixin, safeStringify } from '../../base/common/objects.js';
 import { IndexedDB } from '../../base/browser/indexedDB.js';
 import { WebFileSystemAccess } from '../../platform/files/browser/webFileSystemAccess.js';
+import { CodeServerClient } from '../../workbench/browser/client.js';
 import { IProgressService } from '../../platform/progress/common/progress.js';
 import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.js';
 import { dirname, joinPath } from '../../base/common/resources.js';
@@ -129,6 +130,9 @@ export class BrowserMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		const codeServerClient = this._register(instantiationService.createInstance(CodeServerClient));
+		await codeServerClient.startup();
 
 		// Window
 		this._register(instantiationService.createInstance(BrowserWindow));
