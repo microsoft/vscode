@@ -824,7 +824,7 @@ export class ChatService extends Disposable implements IChatService {
 					throw new Error(`Cannot handle request`);
 				}
 
-				if (token.isCancellationRequested) {
+				if (token.isCancellationRequested && !rawResult) {
 					return;
 				} else {
 					if (!rawResult) {

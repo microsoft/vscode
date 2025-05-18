@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
-import { raceCancellation } from '../../../base/common/async.js';
+import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -562,7 +562,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				token
 			);
 
-			return await raceCancellation(Promise.resolve(task).then((result) => {
+			return await raceCancellationWithTimeout(1000, Promise.resolve(task).then((result) => {
 				if (result?.metadata) {
 					try {
 						JSON.stringify(result.metadata);
@@ -1007,4 +1007,18 @@ class ExtHostChatAgent {
 	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult | void> {
 		return this._requestHandler(request, context, response, token);
 	}
+}
+
+/**
+ * raceCancellation, but give the promise a little time to complete to see if we can get a real result quickly.
+ */
+function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>, token: CancellationToken): Promise<T | undefined> {
+	return new Promise((resolve, reject) => {
+		const ref = token.onCancellationRequested(async () => {
+			ref.dispose();
+			await timeout(cancelWait);
+			resolve(undefined);
+		});
+		promise.then(resolve, reject).finally(() => ref.dispose());
+	});
 }
