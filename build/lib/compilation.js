@@ -31,7 +31,8 @@ function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
     const options = {};
     options.verbose = false;
-    options.sourceMap = true;
+    // Respect --no-source-maps flag passed from npm scripts
+    options.sourceMap = !process.argv.includes('--no-source-maps');
     if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
         options.sourceMap = false;
     }
@@ -71,7 +72,8 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
-            .pipe(util.$if(build, nls.nls({ preserveEnglish })))
+            // Only run NLS if doing a build AND sourcemaps are enabled
+            .pipe(util.$if(build && overrideOptions.sourceMap, nls.nls({ preserveEnglish })))
             .pipe(noDeclarationsFilter.restore)
             .pipe(util.$if(!transpileOnly, sourcemaps.write('.', {
             addComment: false,
@@ -104,7 +106,18 @@ function compileTask(src, out, build, options = {}) {
         if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
-        const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+        // Check for flags passed by 'fast' scripts
+        const isFast = process.argv.includes('--parallel');
+        const noSourceMaps = process.argv.includes('--no-source-maps');
+
+        const compile = createCompile(src, {
+            build,
+            emitError: true,
+            // Use transpileOnly for fast builds
+            transpileOnly: isFast, // Let tsb handle transpileOnly without forcing esbuild
+            preserveEnglish: !!options.preserveEnglish
+        });
+
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         const generator = new MonacoGenerator(false);
         if (src === 'src') {
@@ -112,7 +125,9 @@ function compileTask(src, out, build, options = {}) {
         }
         // mangle: TypeScript to TypeScript
         let mangleStream = es.through();
-        if (build && !options.disableMangle) {
+        // Disable mangling if 'isFast' is true OR if options.disableMangle is true
+        if (build && !isFast && !options.disableMangle) {
+            fancyLog(ansiColors.magenta('[fast-build]'), 'Mangling enabled (disable with --parallel flag for faster builds)'); // Optional log
             let ts2tsMangler = new index_1.Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
             const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
             mangleStream = es.through(async function write(data) {
