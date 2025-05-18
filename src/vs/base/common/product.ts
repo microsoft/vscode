@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) 2025 Incanus Technologies Ltd.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -66,6 +67,7 @@ export interface IProductConfiguration {
 		readonly scope: string;
 	}
 	readonly telemetryEndpoint?: string
+	readonly newtonboxQuestion?: string;
 
 	readonly version: string;
 	readonly date?: string;

@@ -12,4 +12,16 @@
     border-radius: 4px;
     margin: 5px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    cursor: text;
+}
+
+.question-container * {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
 }

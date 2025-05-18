@@ -18,6 +18,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
 import { QUESTION_PANEL_ID } from '../common/newtonboxQuestionPanel.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class NewtonboxQuestionPanelView extends ViewPane {
     static readonly ID = QUESTION_PANEL_ID;
@@ -27,16 +28,26 @@ export class NewtonboxQuestionPanelView extends ViewPane {
         options: IViewletViewOptions,
         @IKeybindingService keybindingService: IKeybindingService,
         @IContextMenuService contextMenuService: IContextMenuService,
-        @IConfigurationService configurationService: IConfigurationService,
+        @IConfigurationService protected override readonly configurationService: IConfigurationService,
         @IContextKeyService contextKeyService: IContextKeyService,
         @IViewDescriptorService viewDescriptorService: IViewDescriptorService,
         @IInstantiationService instantiationService: IInstantiationService,
         @IOpenerService openerService: IOpenerService,
         @IThemeService themeService: IThemeService,
         @IHoverService hoverService: IHoverService,
-        @IAccessibleViewInformationService accessibleViewService: IAccessibleViewInformationService
+        @IAccessibleViewInformationService accessibleViewService: IAccessibleViewInformationService,
+        @IProductService private readonly productService: IProductService
     ) {
         super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibleViewService);
+    }
+
+    private renderError(message: string): string {
+        return `
+            <div style="color: var(--vscode-errorForeground); padding: 10px;">
+                <div style="font-weight: bold; margin-bottom: 8px;">⚠️ Error Loading Question</div>
+                <div>${message}</div>
+            </div>
+        `;
     }
 
     protected override renderBody(container: HTMLElement): void {
@@ -46,8 +57,17 @@ export class NewtonboxQuestionPanelView extends ViewPane {
         const questionContainer = document.createElement('div');
         questionContainer.className = 'question-container';
 
-        // Add the hardcoded question
-        questionContainer.textContent = 'What is your favorite programming language and why?';
+        // Get question from product configuration
+        const questionHtml = this.productService.newtonboxQuestion;
+        
+        if (!questionHtml) {
+            console.error('newtonboxQuestion is not set in product configuration');
+            questionContainer.innerHTML = this.renderError(
+                'The question content is not configured. Please set the NEWTONBOX_QUESTION environment variable with HTML content.'
+            );
+        } else {
+            questionContainer.innerHTML = questionHtml;
+        }
 
         container.appendChild(questionContainer);
     }
