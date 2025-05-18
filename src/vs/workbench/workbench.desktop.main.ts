@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) 2025 Incanus Technologies Ltd.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -123,8 +124,10 @@ import './contrib/issue/electron-sandbox/issue.contribution.js';
 // Process
 import './contrib/issue/electron-sandbox/process.contribution.js';
 
+/*
 // Remote
 import './contrib/remote/electron-sandbox/remote.contribution.js';
+*/
 
 // Terminal
 import './contrib/terminal/electron-sandbox/terminal.contribution.js';

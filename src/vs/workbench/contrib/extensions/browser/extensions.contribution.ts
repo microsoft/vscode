@@ -1,54 +1,55 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) 2025 Incanus Technologies Ltd.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+// import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, /* EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, */ SortBy, FilterType /*, VerifyExtensionSignatureConfigKey */ } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { IExtensionIgnoredRecommendationsService /* , IExtensionRecommendationsService */ } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, AutoRestartConfigurationKey } from '../common/extensions.js';
+// import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY /*, AutoRestartConfigurationKey */ } from '../common/extensions.js';
 import { InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
-import { ExtensionEditor } from './extensionEditor.js';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
-import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
+// import { ExtensionEditor } from './extensionEditor.js';
+import { StatusUpdater, MaliciousExtensionChecker, /* ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer */ BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
+// import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+// import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+// import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeymapExtensions } from '../common/extensionsUtils.js';
-import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+// import { KeymapExtensions } from '../common/extensionsUtils.js';
+import { areSameExtensions /* , getIdAndVersion */ } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+// import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI /*, UriComponents */ } from '../../../../base/common/uri.js';
 import { ExtensionActivationProgress } from './extensionsActivationProgress.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
+// import { onUnexpectedError } from '../../../../base/common/errors.js';
+// import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from '../../../common/views.js';
+// import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IQuickAccessRegistry, Extensions } from '../../../../platform/quickinput/common/quickAccess.js';
-import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from './extensionsQuickAccess.js';
-import { ExtensionRecommendationsService } from './extensionRecommendationsService.js';
+import { InstallExtensionQuickAccessProvider /*, ManageExtensionsQuickAccessProvider */ } from './extensionsQuickAccess.js';
+// import { ExtensionRecommendationsService } from './extensionRecommendationsService.js';
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
-import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
+// import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
-import { IWebview } from '../../webview/browser/webview.js';
+// import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
+// import { IWebview } from '../../webview/browser/webview.js';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
-import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
+// import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+// import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
@@ -57,38 +58,39 @@ import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRe
 import { Schemas } from '../../../../base/common/network.js';
 import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
-import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
+import { clearSearchResultsIcon, configureRecommendedIcon /* , extensionsViewIcon */, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
 import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { Query } from '../common/extensionQuery.js';
-import { EditorExtensions } from '../../../common/editor.js';
-import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
+// import { EditorExtensions } from '../../../common/editor.js';
+// import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Event } from '../../../../base/common/event.js';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
-import { isNative, isWeb } from '../../../../base/common/platform.js';
+import { /* isNative, */ isWeb } from '../../../../base/common/platform.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IStringDictionary } from '../../../../base/common/collections.js';
+// / import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
-import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+// import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import product from '../../../../platform/product/common/product.js';
-import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+// import product from '../../../../platform/product/common/product.js';
+import { ExtensionGalleryResourceType, /* ExtensionGalleryServiceUrlConfigKey, */ getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
-registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, InstantiationType.Delayed);
-registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, InstantiationType.Eager /* Prompts recommendations in the background */);
+// registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, InstantiationType.Delayed);
+// registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService, InstantiationType.Eager /* Prompts recommendations in the background */);
 
+/*
 // Quick Access
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: ManageExtensionsQuickAccessProvider,
@@ -96,7 +98,9 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
 	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions") }]
 });
+*/
 
+/*
 // Editor
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -107,7 +111,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[
 		new SyncDescriptor(ExtensionsInput)
 	]);
+*/
 
+/*
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
@@ -296,10 +302,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 		}
 	});
+*/
 
+/*
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
+*/
 
+/*
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
@@ -310,6 +320,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 		throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
 	}
 });
+*/
 
 CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string, sideByside?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
@@ -323,6 +334,7 @@ CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAcce
 	return commandService.executeCommand('_extensions.manage', extensionId, tab, preserveFocus, feature);
 });
 
+/*
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.installExtension',
 	metadata: {
@@ -398,7 +410,7 @@ CommandsRegistry.registerCommand({
 						throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 					}
 					await extensionManagementService.installFromGallery(gallery, {
-						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
+						isMachineScoped: options?.donotSync ? true : undefined, // do not allow syncing extensions automatically while installing through the command
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version,
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
@@ -410,7 +422,7 @@ CommandsRegistry.registerCommand({
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 						justification: options?.justification,
 						enable: options?.enable,
-						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
+						isMachineScoped: options?.donotSync ? true : undefined, // do not allow syncing extensions automatically while installing through the command
 					}, ProgressLocation.Notification);
 				}
 			} else {
@@ -423,7 +435,9 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+*/
 
+/*
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.uninstallExtension',
 	metadata: {
@@ -459,7 +473,9 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+*/
 
+/*
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.search',
 	metadata: {
@@ -475,7 +491,9 @@ CommandsRegistry.registerCommand({
 		return accessor.get(IExtensionsWorkbenchService).openSearch(query);
 	}
 });
+*/
 
+/*
 function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: IWebview) => void) {
 	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
@@ -493,6 +511,7 @@ function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | u
 overrideActionForActiveExtensionEditorWebview(CopyAction, webview => webview.copy());
 overrideActionForActiveExtensionEditorWebview(CutAction, webview => webview.cut());
 overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.paste());
+*/
 
 // Contexts
 export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServer', false);
@@ -519,6 +538,7 @@ type IExtensionActionOptions = IAction2Options & {
 	run(accessor: ServicesAccessor, ...args: any[]): Promise<any>;
 };
 
+// @ts-ignore
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -1042,6 +1062,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@recentlyPublished ')
 		});
+
 
 		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
@@ -1985,13 +2006,13 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
+// workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
+// workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
+//workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
+// workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);

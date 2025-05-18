@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Incanus Technologies Ltd.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.question-container {
+    padding: 10px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--vscode-editor-foreground);
+    background-color: var(--vscode-editor-background);
+    border-radius: 4px;
+    margin: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

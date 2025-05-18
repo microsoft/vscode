@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) 2025 Incanus Technologies Ltd.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -287,9 +288,11 @@ import './contrib/relauncher/browser/relauncher.contribution.js';
 // Tasks
 import './contrib/tasks/browser/task.contribution.js';
 
+/*
 // Remote
 import './contrib/remote/common/remote.contribution.js';
 import './contrib/remote/browser/remote.contribution.js';
+*/
 
 // Emmet
 import './contrib/emmet/browser/emmet.contribution.js';
@@ -398,5 +401,7 @@ import './contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 // Drop or paste into
 import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 
+// Question Panel
+import './contrib/newtonboxQuestionPanel/browser/newtonboxQuestionPanel.contribution.js';
 
 //#endregion
