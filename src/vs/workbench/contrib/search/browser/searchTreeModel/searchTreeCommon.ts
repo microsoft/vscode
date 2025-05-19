@@ -97,7 +97,7 @@ export interface ISearchModel {
 	replaceString: string;
 	preserveCase: boolean;
 	searchResult: ISearchResult;
-	aiSearch(): Promise<ISearchComplete>;
+	aiSearch(onResultReported: () => void): Promise<ISearchComplete>;
 	hasAIResults: boolean;
 	hasPlainResults: boolean;
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -130,8 +130,8 @@ export interface ISearchResult {
 	replace(match: ISearchTreeFileMatch): Promise<any>;
 	matches(ai?: boolean): ISearchTreeFileMatch[];
 	isEmpty(): boolean;
-	fileCount(): number;
-	count(): number;
+	fileCount(ignoreSemanticSearchResults?: boolean): number;
+	count(ignoreSemanticSearchResults?: boolean): number;
 	id(): string;
 	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean): void;
 	getCachedSearchComplete(ai: boolean): ISearchComplete | undefined;
