@@ -19,48 +19,55 @@ export class FrontMatterSequence extends FrontMatterValueToken<string, readonly 
 		return this;
 	}
 
-	public override toString(): string {
+	/**
+	 * Text of the sequence value. The method exists to provide a
+	 * consistent interface with {@link FrontMatterString} token.
+	 *
+	 * Note! that this method does not automatically trim spacing tokens
+	 *       in the sequence. If you need to get a trimmed value, call
+	 *       {@link trimEnd} method first.
+	 */
+	public get cleanText(): string {
 		return this.text;
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Trim spacing tokens at the end of the sequence.
 	 */
-	// TODO: @legomushroom - cache the result?
-	// TODO: @legomushroom - unit test?
 	public trimEnd(): readonly SpacingToken[] {
 		const trimmedTokens = [];
 
-		let index = this.childTokens.length - 1;
-		while (index >= 0) {
-			const token = this.childTokens[index];
+		// iterate the tokens list from the end to the start, collecting
+		// all the spacing tokens we encounter until we reach a non-spacing token
+		let lastNonSpace = this.childTokens.length - 1;
+		while (lastNonSpace >= 0) {
+			const token = this.childTokens[lastNonSpace];
 
 			if (token instanceof SpacingToken) {
 				trimmedTokens.push(token);
-				index--;
+				lastNonSpace--;
 
 				continue;
 			}
 
 			break;
 		}
+		this.childTokens.length = lastNonSpace + 1;
 
-		// TODO: @legomushroom
-		this.childTokens.length = index + 1;
+		// if there are only spacing tokens were present add a single
+		// empty token to the sequence, so it has something to work with
 		if (this.childTokens.length === 0) {
 			this.collapseRangeToStart();
-			// TODO: @legomushroom - add description
-			this.childTokens.push(
-				new Word(this.range, ''),
-			);
+			this.childTokens.push(new Word(this.range, ''));
 		}
 
-		// TODO: @legomushroom
+		// update the current range to reflect the current trimmed value
 		this.withRange(
 			BaseToken.fullRange(this.childTokens),
 		);
 
-		// TODO: @legomushroom
+		// trimmed tokens are collected starting from the end,
+		// moving to the start, hence reverse them before returning
 		return trimmedTokens.reverse();
 	}
 

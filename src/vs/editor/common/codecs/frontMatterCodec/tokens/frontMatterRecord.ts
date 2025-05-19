@@ -92,20 +92,22 @@ export class FrontMatterRecord extends FrontMatterToken<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Trim spacing tokens at the end of the record.
 	 */
-	// TODO: @legomushroom - unit test
 	public trimValueEnd(): readonly SpacingToken[] {
 		const { valueToken } = this;
 
+		// only the "generic sequence" value tokens can hold
+		// some spacing tokens at the end of them
 		if ((valueToken instanceof FrontMatterSequence) === false) {
 			return [];
 		}
 
 		const trimmedTokens = valueToken.trimEnd();
-		const trimmedRange = BaseToken.fullRange(this.children);
-
-		this.withRange(trimmedRange);
+		// update the current range to reflect the current trimmed value
+		this.withRange(
+			BaseToken.fullRange(this.children),
+		);
 
 		return trimmedTokens;
 	}
