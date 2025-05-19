@@ -30,7 +30,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 			input = v.toolSpecificData?.kind === 'terminal' ? v.toolSpecificData.command : JSON.stringify(v.toolSpecificData.rawInput);
 		}
 		const title = v.confirmationMessages?.title || '';
-		return (title + input ? ': ' + input : '').trim();
+		return (title + (input ? ': ' + input : '')).trim();
 	}).filter(v => !!v);
 
 	return acceptKb && cancelKb

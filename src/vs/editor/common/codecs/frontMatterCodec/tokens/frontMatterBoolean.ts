@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
@@ -21,9 +22,10 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 	 */
 	public readonly value: boolean;
 
-	constructor(
-		token: Word,
-	) {
+	/**
+	 * @throws if provided {@link Word} cannot be converted to a `boolean` value.
+	 */
+	constructor(token: Word) {
 		const value = asBoolean(token);
 		assertDefined(
 			value,
@@ -35,6 +37,25 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 		this.value = value;
 	}
 
+	/**
+	 * Try creating a {@link FrontMatterBoolean} out of provided token.
+	 * Unlike the constructor, this method does not throw, returning
+	 * a 'null' value on failure instead.
+	 */
+	public static tryFromToken(
+		token: BaseToken,
+	): FrontMatterBoolean | null {
+		if (token instanceof Word === false) {
+			return null;
+		}
+
+		try {
+			return new FrontMatterBoolean(token);
+		} catch (_error) {
+			// noop
+			return null;
+		}
+	}
 
 	public override toString(): string {
 		return `front-matter-boolean(${this.shortText()})${this.range}`;

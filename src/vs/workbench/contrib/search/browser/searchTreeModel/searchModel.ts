@@ -115,7 +115,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		return this._searchResult;
 	}
 
-	aiSearch(): Promise<ISearchComplete> {
+	aiSearch(onResult: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		if (this.hasAIResults) {
 			// already has matches or pending matches
 			throw Error('AI results already exist');
@@ -132,6 +132,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
 			tokenSource.token,
 			async (p: ISearchProgressItem) => {
+				onResult(p);
 				this.onSearchProgress(p, searchInstanceID, false, true);
 			}).finally(() => {
 				tokenSource.dispose(true);

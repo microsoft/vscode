@@ -465,6 +465,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private async createCommentEditor(editContainer: HTMLElement): Promise<void> {
+		this._editModeDisposables.clear();
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this._contextKeyService, this.parentThread);
 		this._editModeDisposables.add(this._commentEditor);
@@ -595,7 +596,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private readonly _editModeDisposables: DisposableStore = this._register(new DisposableStore());
 	private createCommentWidgetFormActions(container: HTMLElement) {
-		this._editModeDisposables.clear();
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
 

@@ -625,7 +625,26 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
- * @deprecated do not use, use property access
+ * Utility that helps to pick a property from an object.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * interface IObject = {
+ *   a: number,
+ *   b: string,
+ * };
+ *
+ * const list: IObject[] = [
+ *   { a: 1, b: 'foo' },
+ *   { a: 2, b: 'bar' },
+ * ];
+ *
+ * assert.deepStrictEqual(
+ *   list.map(pick('a')),
+ *   [1, 2],
+ * );
+ * ```
  */
 export const pick = <TObject, TKeyName extends keyof TObject>(
 	key: TKeyName,
