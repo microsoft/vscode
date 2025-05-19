@@ -21,6 +21,9 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
+import { IURLService } from '../../../platform/url/common/url.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -86,7 +89,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IURLService private readonly urlService: IURLService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -97,6 +101,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(e => {
 			const providerInfo = this.authenticationService.getProvider(e.providerId);
 			this._proxy.$onDidChangeAuthenticationSessions(providerInfo.id, providerInfo.label, e.extensionIds);
+		}));
+		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
+			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
+			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
+			waitForInitialProviderPromises() {
+				return Promise.resolve();
+			},
+			create: async (serverMetadata) => this._proxy.$registerDynamicAuthProvider(serverMetadata)
 		}));
 	}
 
@@ -118,7 +130,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
-	$unregisterAuthenticationProvider(id: string): void {
+	async $unregisterAuthenticationProvider(id: string): Promise<void> {
 		this._registrations.deleteAndDispose(id);
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
@@ -129,7 +141,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 	}
 
-	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void {
+	async $sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
 		const obj = this._registrations.get(providerId);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -139,6 +151,22 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
+
+	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents> {
+		const deferredPromise = new DeferredPromise<UriComponents>();
+		const disposable = this.urlService.registerHandler({
+			handleURL: async (uri: URI) => {
+				if (uri.scheme === expectedUri.scheme && uri.authority === expectedUri.authority && uri.path === expectedUri.path) {
+					disposable.dispose();
+					deferredPromise.complete(uri);
+					return true;
+				}
+				return false;
+			}
+		});
+		return deferredPromise.p;
+	}
+
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 

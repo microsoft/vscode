@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -62,6 +64,13 @@ export interface AllowedExtension {
 	lastUsed?: number;
 	// If true, this comes from the product.json
 	trusted?: boolean;
+}
+
+export interface IAuthenticationProviderHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
+	waitForInitialProviderPromises(): Promise<void>;
+	create(serverMetadata: IAuthorizationServerMetadata): Promise<void>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -174,6 +183,18 @@ export interface IAuthenticationService {
 	 * @param issuer The issuer url that this provider is responsible for
 	 */
 	getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined>;
+
+	/**
+	 * Allows the ability register a delegate that will be used to start authentication providers
+	 * @param delegate The delegate to register
+	 */
+	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable;
+
+	/**
+	 * Creates a dynamic authentication provider for the given server metadata
+	 * @param serverMetadata The metadata for the server that is being authenticated against
+	 */
+	createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata): Promise<IAuthenticationProvider | undefined>;
 }
 
 // TODO: Move this into MainThreadAuthentication

@@ -11,6 +11,7 @@ import { IRelativePattern } from '../../../base/common/glob.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 import * as performance from '../../../base/common/performance.js';
 import Severity from '../../../base/common/severity.js';
 import { ThemeColor, ThemeIcon } from '../../../base/common/themables.js';
@@ -181,13 +182,14 @@ export interface AuthenticationGetSessionOptions {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedIssuers?: UriComponents[]): void;
-	$unregisterAuthenticationProvider(id: string): void;
+	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedIssuers?: UriComponents[]): Promise<void>;
+	$unregisterAuthenticationProvider(id: string): Promise<void>;
 	$ensureProvider(id: string): Promise<void>;
-	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;
+	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void>;
 	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
+	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
 }
 
 export interface MainThreadSecretStateShape extends IDisposable {
@@ -1983,6 +1985,7 @@ export interface ExtHostAuthenticationShape {
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
+	$registerDynamicAuthProvider(serverMetadata: IAuthorizationServerMetadata): Promise<void>;
 }
 
 export interface ExtHostAiRelatedInformationShape {
@@ -3009,7 +3012,7 @@ export interface MainThreadMcpShape {
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
-	$getTokenFromServerMetadata(id: number, metadata: { issuer: string; authorizationEndpoint: string; tokenEndpoint: string; registrationEndpoint: string; scopesSupported: string[] }): Promise<string | undefined>;
+	$getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata): Promise<string | undefined>;
 }
 
 export interface ExtHostLocalizationShape {
