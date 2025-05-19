@@ -12,5 +12,46 @@
 			"#endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"Namespace Definition": {
+		"prefix": "namespace",
+		"isFileTemplate": false,
+		"body": [
+			"namespace ${1:name}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Class Definition"
+	},
+	"Class Definition": {
+		"prefix": "class",
+		"isFileTemplate": false,
+		"body": [
+			"${1:public} class ${2:name}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Class Definition"
+	},
+	"Interface Definition": {
+		"prefix": "interface",
+		"isFileTemplate": false,
+		"body": [
+			"${1:public} interface ${2:name}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Interface Definition"
+	},
+	"Property Definition": {
+		"prefix": "prop",
+		"isFileTemplate": false,
+		"body": [
+			"${1:public} ${2:string} ${3:name} { get; set; }$0",
+		],
+		"description": "Interface Definition"
 	}
 }
