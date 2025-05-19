@@ -16,7 +16,7 @@ import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../..
 import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord } from '../../tokens/index.js';
 
 /**
- * TODO: @legomushroom
+ * Type of a next parser that can be returned by {@link PartialFrontMatterRecord}.
  */
 type TNextParser = PartialFrontMatterRecord | FrontMatterRecord;
 
@@ -54,12 +54,12 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 	/**
 	 * Current parser reference responsible for parsing the "value" part of the record.
 	 */
-	private currentValueParser?: PartialFrontMatterValue | PartialFrontMatterSequence;
+	private valueParser?: PartialFrontMatterValue | PartialFrontMatterSequence;
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<TNextParser> {
-		if (this.currentValueParser !== undefined) {
-			const acceptResult = this.currentValueParser.accept(token);
+		if (this.valueParser !== undefined) {
+			const acceptResult = this.valueParser.accept(token);
 			const { result, wasTokenConsumed } = acceptResult;
 
 			if (result === 'failure') {
@@ -75,7 +75,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 
 			if (nextParser instanceof FrontMatterValueToken) {
 				this.currentTokens.push(nextParser);
-				delete this.currentValueParser;
+				delete this.valueParser;
 
 				this.isConsumed = true;
 				try {
@@ -96,7 +96,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 				}
 			}
 
-			this.currentValueParser = nextParser;
+			this.valueParser = nextParser;
 			return {
 				result: 'success',
 				nextParser: this,
@@ -117,26 +117,27 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 
 		// if token can start a "value" sequence, parse the value
 		if (PartialFrontMatterValue.isValueStartToken(token)) {
-			this.currentValueParser = new PartialFrontMatterValue(shouldEndTokenSequence);
+			this.valueParser = new PartialFrontMatterValue(shouldEndTokenSequence);
 
 			return this.accept(token);
 		}
 
 		// in all other cases, collect all the subsequent tokens into
 		// a "sequence of tokens" until a new line is found
-		this.currentValueParser = new PartialFrontMatterSequence(
+		this.valueParser = new PartialFrontMatterSequence(
 			shouldEndTokenSequence,
 		);
 
-		// if we reached this "generic sequence" parser point, and the current token
-		// is already of a type that stops the sequence, we must have accumulated
-		// some space tokens already, so pass those to the parser and end the sequence
+		// if we reached this "generic sequence" parser point, but the current token is
+		// already of a type that stops such sequence, we must have accumulated some
+		// spacing tokens, hence pass those to the parser and end the sequence immediately
 		if (shouldEndTokenSequence(token)) {
-			const spaceTokens = this.currentTokens.slice(this.startTokensCount);
+			const spaceTokens = this.currentTokens
+				.slice(this.startTokensCount);
 
-			// TODO: @legomushroom - fix this - use trimEnd?
-
-			// if no space tokens accumulated at all, create an "empty" one
+			// if no space tokens accumulated at all, create an "empty" one this is needed
+			// to ensure that the parser always has at least one token hence it can have
+			// a valid range and can be interpreted as a real "value" token of the record
 			if (spaceTokens.length === 0) {
 				spaceTokens.push(
 					Word.newOnLine(
@@ -147,7 +148,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 				);
 			}
 
-			this.currentValueParser.addTokens(spaceTokens);
+			this.valueParser.addTokens(spaceTokens);
 
 			return {
 				result: 'success',
@@ -156,6 +157,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 			};
 		}
 
+		// otherwise use the "generic sequence" parser moving on
 		return this.accept(token);
 	}
 
@@ -167,15 +169,15 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 	 */
 	public asRecordToken(): FrontMatterRecord {
 		assertDefined(
-			this.currentValueParser,
+			this.valueParser,
 			'Current value parser must be defined.'
 		);
 
 		if (
-			(this.currentValueParser instanceof PartialFrontMatterValue)
-			|| (this.currentValueParser instanceof PartialFrontMatterSequence)
+			(this.valueParser instanceof PartialFrontMatterValue)
+			|| (this.valueParser instanceof PartialFrontMatterSequence)
 		) {
-			const valueToken = this.currentValueParser.asSequenceToken();
+			const valueToken = this.valueParser.asSequenceToken();
 			this.currentTokens.push(valueToken);
 
 			this.isConsumed = true;
@@ -187,8 +189,8 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 		}
 
 		assertNever(
-			this.currentValueParser,
-			`Unexpected value parser '${this.currentValueParser}'.`,
+			this.valueParser,
+			`Unexpected value parser '${this.valueParser}'.`,
 		);
 	}
 }

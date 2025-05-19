@@ -8,9 +8,9 @@ import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { CompositeToken } from '../../../../../../../editor/common/codecs/compositeToken.js';
-import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { curry, difference, flatten, forEach, map, TTree } from '../../../../common/promptSyntax/utils/treeUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { curry, difference, flatten, forEach, map, TTree } from '../../../../common/promptSyntax/utils/treeUtils.js';
+import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 
 suite('tree utilities', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -485,22 +485,9 @@ suite('tree utilities', () => {
 	});
 
 	suite('• difference', () => {
-		/**
-		 * TODO: @legomushroom
-		 */
 		class TestCompositeToken extends CompositeToken<TTree<BaseToken[]>> {
-			constructor(
-				tokens: readonly TTree<BaseToken>[],
-			) {
-				super([...tokens]);
-			}
-
 			public override toString(): string {
-				const tokenStrings = this.children.map((token) => {
-					return token.toString();
-				});
-
-				return `CompositeToken:\n${tokenStrings.join('\n')})`;
+				return `CompositeToken:\n${BaseToken.render(this.children, '\n')})`;
 			}
 		}
 
@@ -664,31 +651,31 @@ suite('tree utilities', () => {
 });
 
 /**
- * TODO: @legomushroom
+ * Add provided 'children' list to a given object hence
+ * allowing the object to be used as a general tree node.
  */
-const asTreeNode = <T extends object>(
+function asTreeNode<T extends object>(
 	item: T,
 	children: readonly TTree<T>[],
-): TTree<T> => {
+): TTree<T> {
 	return new Proxy(item, {
 		get(target, prop, _receiver) {
 			if (prop === 'children') {
 				return children;
 			}
 
-			// TODO: @legomushroom - add a note
+			// tokens equality uses the 'constructor' property for
+			// comparison, hence we need to return the original one
 			if (prop === 'constructor') {
 				return target.constructor;
 			}
 
 			const result = Reflect.get(target, prop);
-			// TODO: @legomushroom - don't do this?
 			if (typeof result === 'function') {
 				return result.bind(target);
 			}
 
 			return result;
 		},
-		// TODO: @legomushroom - comment about the type assertion
-	}) as TTree<T>;
-};
+	});
+}

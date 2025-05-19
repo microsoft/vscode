@@ -11,12 +11,12 @@ import { FrontMatterRecordName, FrontMatterRecordDelimiter } from '../../tokens/
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom
+ * Type for tokens that stop a front matter record name sequence.
  */
 type TNameStopToken = Colon | SpacingToken;
 
 /**
- * TODO: @legomushroom
+ * Type for the next parser that can be returned by {@link PartialFrontMatterRecordNameWithDelimiter}.
  */
 type TNextParser = PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord;
 

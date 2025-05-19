@@ -26,6 +26,8 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
+// TODO: @legomushroom - fix unit tests
+
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
  * class using different test input parameters
