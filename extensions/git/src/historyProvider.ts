@@ -242,7 +242,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		// Deduplicate refNames
 		const refNames = Array.from(new Set<string>(options.historyItemRefs));
 
-		let logOptions: LogOptions = { refNames, shortStats: true };
+		let logOptions: LogOptions = { refNames, grep: options.filterText, shortStats: true };
 
 		try {
 			if (options.limit === undefined || typeof options.limit === 'number') {

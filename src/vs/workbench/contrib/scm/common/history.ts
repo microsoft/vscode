@@ -32,6 +32,7 @@ export interface ISCMHistoryOptions {
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemRefs?: readonly string[];
+	readonly filterText?: string;
 }
 
 export interface ISCMHistoryItemStatistics {

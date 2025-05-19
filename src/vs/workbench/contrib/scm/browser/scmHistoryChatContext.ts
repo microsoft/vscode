@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -50,6 +51,8 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly label = localize('chatContext.scmHistoryItems', 'Source Control History Items...');
 	readonly icon = Codicon.gitCommit;
 
+	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(500);
+
 	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
 		const historyItemTitle = getHistoryItemEditorTitle(historyItem);
 		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
@@ -75,40 +78,50 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 	asPicker(_widget: IChatWidget) {
 		return {
-			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a source control history item'),
-			picks: async (_query: string) => {
+			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a source control history item (type to search)'),
+			picks: async (query: string) => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
 					return [];
 				}
 
-				const historyItemRefs = coalesce([
-					historyProvider.historyItemRef.get(),
-					historyProvider.historyItemRemoteRef.get(),
-					historyProvider.historyItemBaseRef.get(),
-				]).map(ref => ref.id);
+				return this._delayer.trigger(async () => {
+					console.log('trigger: ', query);
 
-				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
+					const historyItemRefs = coalesce([
+						historyProvider.historyItemRef.get(),
+						historyProvider.historyItemRemoteRef.get(),
+						historyProvider.historyItemBaseRef.get(),
+					]).map(ref => ref.id);
 
-				return historyItems.map(historyItem => {
-					const details = [`${historyItem.displayId ?? historyItem.id}`];
-					if (historyItem.author) {
-						details.push(historyItem.author);
-					}
-					if (historyItem.statistics) {
-						details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
-					}
-					if (historyItem.timestamp) {
-						details.push(fromNow(historyItem.timestamp, true, true));
-					}
+					const historyItems = await historyProvider.provideHistoryItems({
+						historyItemRefs,
+						filterText: query.trim() !== '' ? query.trim() : undefined,
+						limit: 100
+					}) ?? [];
 
-					return {
-						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
-						label: historyItem.subject,
-						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
-					} satisfies IChatContextPickerPickItem;
+					console.log('historyItems: ', historyItems);
+
+					return historyItems.map(historyItem => {
+						const details = [`${historyItem.displayId ?? historyItem.id}`];
+						if (historyItem.author) {
+							details.push(historyItem.author);
+						}
+						if (historyItem.statistics) {
+							details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
+						}
+						if (historyItem.timestamp) {
+							details.push(fromNow(historyItem.timestamp, true, true));
+						}
+
+						return {
+							iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
+							label: historyItem.subject,
+							detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
+							asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
+						} satisfies IChatContextPickerPickItem;
+					});
 				});
 			}
 		};
