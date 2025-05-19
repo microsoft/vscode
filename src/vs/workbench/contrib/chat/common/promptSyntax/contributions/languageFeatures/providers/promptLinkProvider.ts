@@ -42,7 +42,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
-			!parser.disposed,
+			parser.isDisposed === false,
 			'Prompt parser must not be disposed.',
 		);
 

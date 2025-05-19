@@ -6,6 +6,7 @@
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -45,14 +46,15 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, modeToString, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -69,6 +71,7 @@ export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+const CHAT_CLEAR_HISTORY_ACTION_ID = 'workbench.action.chat.clearHistory';
 
 export interface IChatViewOpenOptions {
 	/**
@@ -111,7 +114,10 @@ abstract class OpenChatGlobalAction extends Action2 {
 			icon: Codicon.copilot,
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.disabled.negate()
+			)
 		});
 	}
 
@@ -123,6 +129,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
+		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 
@@ -161,6 +168,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
+				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentMode);
 				chatWidget.acceptInput(opts.query);
 			}
 		}
@@ -200,6 +208,21 @@ abstract class OpenChatGlobalAction extends Action2 {
 			}
 		}
 	}
+}
+
+async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatMode): Promise<void> {
+	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+	if (defaultAgent) {
+		return;
+	}
+
+	await Promise.race([
+		Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+			return Boolean(defaultAgent);
+		})),
+		timeout(60_000).then(() => { throw new Error('Timed out waiting for default agent'); })
+	]);
 }
 
 class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
@@ -327,6 +350,7 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 			const dialogService = accessor.get(IDialogService);
+			const commandService = accessor.get(ICommandService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -347,6 +371,11 @@ export function registerChatActions() {
 			}
 
 			const showPicker = async () => {
+				const clearChatHistoryButton: IQuickInputButton = {
+					iconClass: ThemeIcon.asClassName(Codicon.clearAll),
+					tooltip: localize('interactiveSession.history.clear', "Clear All Workspace Chats"),
+				};
+
 				const openInEditorButton: IQuickInputButton = {
 					iconClass: ThemeIcon.asClassName(Codicon.file),
 					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
@@ -395,9 +424,16 @@ export function registerChatActions() {
 
 				const store = new DisposableStore();
 				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
+				picker.title = localize('interactiveSession.history.title', "Workspace Chat History");
 				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+				picker.buttons = [clearChatHistoryButton];
 				const picks = await getPicks();
 				picker.items = picks;
+				store.add(picker.onDidTriggerButton(async button => {
+					if (button === clearChatHistoryButton) {
+						await commandService.executeCommand(CHAT_CLEAR_HISTORY_ACTION_ID);
+					}
+				}));
 				store.add(picker.onDidTriggerItemButton(async context => {
 					if (context.button === openInEditorButton) {
 						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
@@ -460,7 +496,7 @@ export function registerChatActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
-					id: MenuId.ChatInput,
+					id: MenuId.ChatExecute,
 					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
@@ -514,7 +550,7 @@ export function registerChatActions() {
 	registerAction2(class ClearChatHistoryAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.clearHistory',
+				id: CHAT_CLEAR_HISTORY_ACTION_ID,
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
 				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
@@ -664,7 +700,10 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.Setup.installed,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.disabled.negate()
+				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
@@ -741,6 +780,22 @@ export function registerChatActions() {
 			});
 		}
 	});
+
+	registerAction2(class ResetTrustedToolsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.resetTrustedTools',
+				title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+			accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
+		}
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -815,21 +870,6 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	}
 });
 
-registerAction2(class ResetTrustedToolsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.resetTrustedTools',
-			title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
-			category: CHAT_CATEGORY,
-			f1: true,
-		});
-	}
-	override run(accessor: ServicesAccessor): void {
-		accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
-		accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
-	}
-});
-
 export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.copilotTitleBarMenuRendering';
@@ -852,7 +892,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const chatSentiment = chatEntitlementService.sentiment;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
@@ -860,7 +900,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.copilot;
-			if (chatExtensionInstalled) {
+			if (chatSentiment.installed && !chatSentiment.disabled) {
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");

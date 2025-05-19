@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { OffsetRange } from '../offsetRange.js';
+import { OffsetRange } from './offsetRange.js';
 import { Range } from '../range.js';
 
 /**

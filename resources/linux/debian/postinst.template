@@ -48,23 +48,17 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	if [ "$RET" = 'false' ]; then
 		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
-	elif [ -f "$CODE_SOURCE_PART_DEB822" ] && [ -f "$CODE_TRUSTED_PART" ]; then
-		# The user has migrated themselves to the DEB822 format
-		WRITE_SOURCE='no'
-	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/vscode" $CODE_SOURCE_PART); then
-		# Migrate from old repository
+	elif [ -f "$CODE_SOURCE_PART" ]; then
+		# The user is not on the new DEB822 format
 		WRITE_SOURCE='yes'
-	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/code" $CODE_SOURCE_PART); then
-		# Migrate from old repository
+	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
+		# The user is on the new DEB822 format, but refresh the file contents
 		WRITE_SOURCE='yes'
-	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
-		# The user is already on the new repository
+	elif [ -f /etc/rpi-issue ]; then
+		# Do not write on Raspberry Pi OS
+		# https://github.com/microsoft/vscode/issues/118825
 		WRITE_SOURCE='no'
-	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
-		# Source list does not exist and we're not running on Raspberry Pi OS
-		WRITE_SOURCE='ask'
-	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
-		# Source list was disabled by OS upgrade
+	else
 		WRITE_SOURCE='ask'
 	fi
 
@@ -105,6 +99,9 @@ Components: main
 Architectures: amd64,arm64,armhf
 Signed-By: $CODE_TRUSTED_PART
 EOF
+			if [ -f "$CODE_SOURCE_PART" ]; then
+				rm -f "$CODE_SOURCE_PART"
+			fi
 		else
 			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.

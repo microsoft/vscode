@@ -565,14 +565,23 @@ export enum RunOnOptions {
 	folderOpen = 2
 }
 
+export const enum InstancePolicy {
+	terminateNewest = 'terminateNewest',
+	terminateOldest = 'terminateOldest',
+	prompt = 'prompt',
+	warn = 'warn',
+	silent = 'silent'
+}
+
 export interface IRunOptions {
 	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
 	instanceLimit?: number;
+	instancePolicy?: InstancePolicy;
 }
 
 export namespace RunOptions {
-	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1 };
+	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1, instancePolicy: InstancePolicy.prompt };
 }
 
 export abstract class CommonTask {

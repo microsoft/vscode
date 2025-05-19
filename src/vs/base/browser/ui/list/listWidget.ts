@@ -1259,7 +1259,7 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		}
 	}
 
-	disposeTemplate(templateData: any[]): void {
+	disposeTemplate(templateData: unknown[]): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
@@ -1307,7 +1307,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 		templateData.disposables.clear();
 	}
 
-	disposeTemplate(templateData: any): void {
+	disposeTemplate(templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.dispose();
 	}
 }

@@ -185,7 +185,7 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 			return undefined;
 		} else {
 			if (action instanceof MenuItemAction) {
-				this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 			}
 
 			if (action instanceof SubmenuItemAction) {
@@ -372,9 +372,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._notebookTopLeftToolbarContainer,
 			leftToolbarOptions
 		);
-
-
-
 		this._register(this._notebookLeftToolbar);
 		this._notebookLeftToolbar.context = context;
 

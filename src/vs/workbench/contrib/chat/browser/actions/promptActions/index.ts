@@ -6,7 +6,6 @@
 import { registerRunPromptActions } from './chatRunPromptAction.js';
 import { registerSaveToPromptActions } from './chatSaveToPromptAction.js';
 import { registerAttachPromptActions } from './chatAttachInstructionsAction.js';
-export { runAttachInstructionsAction } from './chatAttachInstructionsAction.js';
 
 /**
  * Helper to register all actions related to reusable prompt files.

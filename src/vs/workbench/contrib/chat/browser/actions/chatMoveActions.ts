@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -78,13 +79,15 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInSidebar`,
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
+				icon: Codicon.layoutSidebarRight,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
-				menu: [{
-					id: MenuId.EditorTitle,
-					order: 0,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
+					group: id === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+					order: 0
+				}))
 			});
 		}
 

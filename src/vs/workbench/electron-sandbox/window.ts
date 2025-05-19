@@ -424,8 +424,10 @@ export class NativeWindow extends BaseWindow {
 		const disposables = new DisposableStore();
 		Event.once(part.onWillDispose)(() => disposables.dispose());
 
-		const scopedEditorService = this.editorGroupService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IEditorService));
-		disposables.add(scopedEditorService.onDidActiveEditorChange(() => this.updateRepresentedFilename(scopedEditorService, part.windowId)));
+		this.editorGroupService.getScopedInstantiationService(part).invokeFunction(accessor => {
+			const editorService = accessor.get(IEditorService);
+			disposables.add(editorService.onDidActiveEditorChange(() => this.updateRepresentedFilename(editorService, part.windowId)));
+		});
 	}
 
 	private updateRepresentedFilename(editorService: IEditorService, targetWindowId: number): void {

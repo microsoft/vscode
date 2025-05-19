@@ -1,6 +1,7 @@
 name: Basic checks
 
 on: workflow_dispatch
+permissions: {}
 
 # on:
 #   push:
@@ -20,6 +21,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
       - name: Setup Build Environment
@@ -80,6 +83,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -118,8 +123,8 @@ jobs:
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
 
-      - name: Run Property Init Order Checks
-        run: npm run property-init-order-check
+      - name: Run Define Class Fields Checks
+        run: npm run define-class-fields-check
 
       - name: Compile /build/
         run: npm run compile
@@ -146,6 +151,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:

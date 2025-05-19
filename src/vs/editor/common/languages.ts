@@ -772,7 +772,7 @@ export interface InlineCompletionContext {
 	 * @experimental
 	 * @internal
 	*/
-	readonly requestUuid?: string | undefined;
+	readonly requestUuid: string;
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
@@ -1598,7 +1598,10 @@ export interface TextEdit {
 /** @internal */
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
-		return EditOperation.replace(Range.lift(edit.range), edit.text);
+		const range = Range.lift(edit.range);
+		return range.isEmpty()
+			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
+			: EditOperation.replace(range, edit.text);
 	}
 	static isTextEdit(thing: any): thing is TextEdit {
 		const possibleTextEdit = thing as TextEdit;
@@ -2481,7 +2484,7 @@ export interface IInlineEditContext {
 	 * @experimental
 	 * @internal
 	 */
-	requestUuid?: string;
+	requestUuid: string;
 }
 
 export enum InlineEditTriggerKind {

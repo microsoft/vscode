@@ -64,7 +64,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider,
-			showItemKeybindings: false
+			showItemKeybindings: true
 		};
 
 		super(action, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
@@ -73,6 +73,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		if (!this.element) {
+			return null;
+		}
 		this.setAriaLabelAttributes(element);
 		const state = modeToString(this.delegate.getMode());
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));

@@ -3,40 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { ProcessExplorerControl } from './processExplorerControl.js';
+import { ProcessExplorerEditor } from '../browser/processExplorerEditor.js';
+import { NativeProcessExplorerControl } from './processExplorerControl.js';
 
-export class ProcessExplorerEditor extends EditorPane {
-
-	static readonly ID: string = 'workbench.editor.processExplorer';
-
-	private processExplorerControl: ProcessExplorerControl | undefined = undefined;
+export class NativeProcessExplorerEditor extends ProcessExplorerEditor {
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(ProcessExplorerEditor.ID, group, telemetryService, themeService, storageService);
+		super(group, telemetryService, themeService, storageService, instantiationService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		this.processExplorerControl = this._register(this.instantiationService.createInstance(ProcessExplorerControl, parent));
-	}
-
-	override focus(): void {
-		this.processExplorerControl?.focus();
-	}
-
-	override layout(dimension: Dimension): void {
-		this.processExplorerControl?.layout(dimension);
+		this.processExplorerControl = this._register(this.instantiationService.createInstance(NativeProcessExplorerControl, parent));
 	}
 }

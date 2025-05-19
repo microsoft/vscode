@@ -71,8 +71,9 @@ export async function activate(context: ExtensionContext) {
 			commands.executeCommand('workbench.action.reloadWindow');
 		}
 	}));
+	const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 	// Only activate the new extension if we are not running in a browser environment
-	if (useMsal && typeof navigator === 'undefined') {
+	if (useMsal && isNodeEnvironment) {
 		await extensionV2.activate(context, mainTelemetryReporter);
 	} else {
 		mainTelemetryReporter.sendActivatedWithClassicImplementationEvent();

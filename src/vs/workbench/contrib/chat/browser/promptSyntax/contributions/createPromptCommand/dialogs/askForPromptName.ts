@@ -11,16 +11,19 @@ import { URI } from '../../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import Severity from '../../../../../../../../base/common/severity.js';
 import { isValidBasename } from '../../../../../../../../base/common/extpath.js';
+import { ServicesAccessor } from '../../../../../../../../editor/browser/editorExtensions.js';
 
 /**
  * Asks the user for a file name.
  */
-export const askForPromptFileName = async (
+export async function askForPromptFileName(
+	accessor: ServicesAccessor,
 	type: TPromptsType,
-	selectedFolder: URI,
-	quickInputService: IQuickInputService,
-	fileService: IFileService,
-): Promise<string | undefined> => {
+	selectedFolder: URI
+): Promise<string | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const fileService = accessor.get(IFileService);
+
 	const placeHolder = (type === 'instructions')
 		? localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file")
 		: localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
@@ -71,4 +74,4 @@ export const askForPromptFileName = async (
 	}
 
 	return sanitizeInput(result);
-};
+}

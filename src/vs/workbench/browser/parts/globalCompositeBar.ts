@@ -392,7 +392,14 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
 				});
 
-				const providerSubMenuActions: IAction[] = [manageExtensionsAction];
+				const manageMCPAction = toAction({
+					id: `configureSessions${account.label}`,
+					label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+					enabled: true,
+					run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
+				});
+
+				const providerSubMenuActions: IAction[] = [manageExtensionsAction, manageMCPAction];
 
 				if (account.canSignOut) {
 					providerSubMenuActions.push(toAction({

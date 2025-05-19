@@ -47,7 +47,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	constructor(
 		@IModelService modelService: IModelService,
 		@IEditorService editorService: IEditorService,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
 		super();
@@ -67,7 +67,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 					'Instance class field must be defined.',
 				);
 
-				const instance: TInstance = initService.createInstance(
+				const instance: TInstance = instantiationService.createInstance(
 					this.InstanceClass,
 					model,
 				);

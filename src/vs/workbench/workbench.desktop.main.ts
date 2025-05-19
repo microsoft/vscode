@@ -87,6 +87,7 @@ import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-sandbox/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-sandbox/webContentExtractorService.js';
+import './services/process/electron-sandbox/processService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -121,8 +122,7 @@ import './contrib/extensions/electron-sandbox/extensions.contribution.js';
 // Issues
 import './contrib/issue/electron-sandbox/issue.contribution.js';
 
-// Process
-import './contrib/issue/electron-sandbox/process.contribution.js';
+// Process Explorer
 import './contrib/processExplorer/electron-sandbox/processExplorer.contribution.js';
 
 // Remote

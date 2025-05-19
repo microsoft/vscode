@@ -666,7 +666,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
-			this.searchInputDelayer.trigger(() => this.onSearchInputChanged());
+			this.searchInputDelayer.trigger(() => this.onSearchInputChanged(true));
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
@@ -782,7 +782,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!recursed && (!targetElement || revealFailed)) {
 			// We'll call this event handler again after clearing the search query,
 			// so that more settings show up in the list.
-			const p = this.triggerSearch('');
+			const p = this.triggerSearch('', true);
 			p.then(() => {
 				this.searchWidget.setValue('');
 				this.onDidClickSetting(evt, true);
@@ -1443,7 +1443,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (schemaChange && this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
-				return await this.onSearchInputChanged();
+				return await this.onSearchInputChanged(false);
 			}
 
 			this.refreshTOCTree();
@@ -1455,7 +1455,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Don't restore the cached state if we already have a query value from calling _setOptions().
 			const cachedState = !this.viewState.query ? this.restoreCachedState() : undefined;
 			if (cachedState?.searchQuery || this.searchWidget.getValue()) {
-				await this.onSearchInputChanged();
+				await this.onSearchInputChanged(true);
 			} else {
 				this.refreshTOCTree();
 				this.refreshTree();
@@ -1581,7 +1581,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private async onSearchInputChanged(): Promise<void> {
+	private async onSearchInputChanged(expandResults: boolean): Promise<void> {
 		if (!this.currentSettingsModel) {
 			// Initializing search widget value
 			return;
@@ -1589,7 +1589,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.viewState.query = query;
-		await this.triggerSearch(query.replace(/\u203A/g, ' '));
+		await this.triggerSearch(query.replace(/\u203A/g, ' '), expandResults);
 	}
 
 	private parseSettingFromJSON(query: string): string | null {
@@ -1614,7 +1614,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private async triggerSearch(query: string): Promise<void> {
+	private async triggerSearch(query: string, expandResults: boolean): Promise<void> {
 		this.clearSearchSuggestions();
 		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
@@ -1636,7 +1636,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-			await this.triggerFilterPreferences(query);
+			await this.triggerFilterPreferences(query, expandResults);
 			this.toggleTocBySearchBehaviorType();
 		} else {
 			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
@@ -1651,14 +1651,18 @@ export class SettingsEditor2 extends EditorPane {
 				this.searchInProgress = null;
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			if (expandResults) {
+				this.tocTree.setFocus([]);
+				this.viewState.filterToCategory = undefined;
+			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
 			if (this.searchResultModel) {
 				// Added a filter model
-				this.tocTree.setSelection([]);
-				this.tocTree.expandAll();
+				if (expandResults) {
+					this.tocTree.setSelection([]);
+					this.tocTree.expandAll();
+				}
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
@@ -1697,7 +1701,7 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private async triggerFilterPreferences(query: string): Promise<void> {
+	private async triggerFilterPreferences(query: string, expandResults: boolean): Promise<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
@@ -1721,7 +1725,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			// Update UI only after all the search results are in
 			// ref https://github.com/microsoft/vscode/issues/224946
-			this.onDidFinishSearch();
+			this.onDidFinishSearch(expandResults);
 
 			if (remoteResults?.filterMatches.length) {
 				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
@@ -1746,13 +1750,14 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private onDidFinishSearch() {
+	private onDidFinishSearch(expandResults: boolean) {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
-		this.tocTreeModel.update();
-		this.tocTree.setFocus([]);
-		this.viewState.filterToCategory = undefined;
-		this.tocTree.expandAll();
-		this.settingsTree.scrollTop = 0;
+		if (expandResults) {
+			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
+			this.tocTree.expandAll();
+			this.settingsTree.scrollTop = 0;
+		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
 	}

@@ -26,8 +26,6 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeFilter: Event<void> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
@@ -67,8 +65,6 @@ class EmptyNotificationService implements INotificationService {
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
-	onDidAddNotification: Event<INotification> = Event.None;
-	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeFilter: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);

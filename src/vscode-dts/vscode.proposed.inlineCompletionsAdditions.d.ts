@@ -138,7 +138,7 @@ declare module 'vscode' {
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
-		readonly requestUuid?: string;
+		readonly requestUuid: string;
 	}
 
 	export interface PartialAcceptInfo {
