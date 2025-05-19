@@ -12,6 +12,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ILspTerminalModelContentProvider } from '../../../../browser/lspTerminalCapability.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const VSCODE_LSP_TERMINAL_PROMPT_TRACKER = 'vscode_lsp_terminal_prompt_tracker= {}\n';
 
@@ -23,12 +24,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	private readonly _virtualTerminalDocumentUri: URI;
 	// private _promptInputModel: IPromptInputModel | undefined;
 	private readonly _markerFilterDisposable: IDisposable;
+	private readonly _shellType: TerminalShellType | undefined;
 
 
 	constructor(
 		capabilityStore: ITerminalCapabilityStore,
 		terminalId: number,
 		virtualTerminalDocument: URI,
+		shellType: TerminalShellType | undefined,
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -40,7 +43,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._capabilitiesStore = capabilityStore;
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		this._registerTerminalCommandFinishedListener();
-		// this._terminalId = terminalId;
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
 		// this._promptInputModel = this._commandDetection?.promptInputModel;
 
@@ -52,6 +54,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			'Terminal virtual document for LSP suggestions' // Reason for filtering
 		);
 		this._register(this._markerFilterDisposable); // Ensure the filter is disposed when this provider is disposed
+		this._shellType = shellType;
 	}
 
 	/**
@@ -91,13 +94,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Note: This is for non-executed command.
 	*/
 	trackPromptInputToVirtualFile(content: string): void {
+		console.log('shell type is: ', this._shellType + '\n');
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// TODO: Remove hardcoded banned content, check with shell type
+		// TODO: Listen to onDidChangeShellType change.
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
 			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py` &&
-			content !== 'exit()') {
-
+			content !== 'exit()' && this._shellType === GeneralShellType.Python) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
@@ -130,14 +134,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 				}
 
 			}));
-			this._store.add(this._commandDetection.onCommandExecuted((e) => {
-				// console.log('command executed:', e.command);
-				// this.setContent(e.command);
-				if (e.exitCode === 0) {
-					// If command was successful, update virtual document
-					this.setContent(e.command);
-				}
-			}));
+			// this._store.add(this._commandDetection.onCommandExecuted((e) => {
+			// 	// console.log('command executed:', e.command);
+			// 	// this.setContent(e.command);
+			// 	if (e.exitCode === 0) {
+			// 		// If command was successful, update virtual document
+			// 		this.setContent(e.command);
+			// 	}
+			// }));
 
 		}
 

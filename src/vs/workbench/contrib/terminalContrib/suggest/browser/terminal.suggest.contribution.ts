@@ -38,7 +38,6 @@ import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvid
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -53,17 +52,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
-	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable();
-	// private readonly _lspAddons: MutableDisposable<LspCompletionProviderAddon>[] = [new MutableDisposable()];
+	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable(); // TODO: Support multiple lspAddons in the future.
 	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
 	get lspAddon(): LspCompletionProviderAddon | undefined { return this._lspAddon.value; }
-	// get lspAddons(): LspCompletionProviderAddon[] {
-	// 	return this._lspAddons.map(d => d.value).filter((a): a is LspCompletionProviderAddon => !!a);
-	// }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -74,7 +69,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
-		@IExtensionService private readonly _extensionService: IExtensionService // Added dependency
 	) {
 		super();
 		this.add(toDisposable(() => {
@@ -83,9 +77,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._lspAddon?.dispose();
 			this._lspModelProvider?.dispose();
 			this._lspModelProvider.value?.dispose();
-			// for (const addon of this._lspAddons) {
-			// 	addon.dispose();
-			// }
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -95,9 +86,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 					this._addon.clear();
 					this._pwshAddon.clear();
 					this._lspAddon.clear();
-					// for (const addon of this._lspAddons) {
-					// 	addon.clear();
-					// }
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
@@ -113,7 +101,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (!enabled) {
 			return;
 		}
-		console.log('xterm open calling loadaddon' + '\n');
 		this._loadAddons(xterm.raw);
 		this._loadLspCompletionAddon(xterm.raw);
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
@@ -172,7 +159,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 
-		// TODO: Support multiple language servers
 		if (
 			this._ctx.instance.shellType !== GeneralShellType.Python &&
 			!this._ctx.instance.shellLaunchConfig.executable?.includes('python')
@@ -184,7 +170,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, 'py');
 
 		// Load and register the LSP completion providers (one per language server)
-		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri);
+		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
 		this.add(this._lspModelProvider.value);
 
 		// TODO: Do we need this?
@@ -197,7 +183,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
 
-		// TODO: Eventually support multiple language servers, multiple providers.
+		// TODO: Eventually support multiple LSP providers for non-Python REPLs.
 		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
