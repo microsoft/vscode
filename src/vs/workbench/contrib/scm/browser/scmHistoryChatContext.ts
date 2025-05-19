@@ -13,13 +13,17 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatWidget } from '../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { ISCMService, ISCMViewService } from '../common/scm.js';
+import { ISCMHistoryItem } from '../common/history.js';
+import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
 import { getHistoryItemEditorTitle } from './util.js';
 
 export class SCMHistoryItemContextContribution extends Disposable implements IWorkbenchContribution {
@@ -141,3 +145,37 @@ class SCMHistoryItemContextContentProvider implements ITextModelContentProvider 
 		return this._modelService.createModel(historyItemContext, null, resource, false);
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.addHistoryItemToChat',
+			title: localize('chat.action.scmHistoryItemContext', 'Add History Item to Chat'),
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItemChatContext,
+				when: ChatContextKeys.Setup.installed
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0];
+		if (!provider || !historyItem || !widget) {
+			return;
+		}
+
+		const historyItemTitle = getHistoryItemEditorTitle(historyItem);
+		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+
+		widget.attachmentModel.addContext({
+			id: historyItem.id,
+			name: attachmentName,
+			value: multiDiffSourceUri,
+			title: historyItemTitle,
+			kind: 'scmHistoryItem'
+		} satisfies ISCMHistoryItemVariableEntry);
+	}
+});
