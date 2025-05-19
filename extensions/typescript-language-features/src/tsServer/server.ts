@@ -241,13 +241,14 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 						onError: reject,
 						queuingStartTime: Date.now(),
 						isAsync: executeInfo.isAsync,
-						traceId: request.arguments.$traceId,
-						command: request.command
+						command: request.command,
+						traceId: request.arguments.$traceId
 					} : {
 						onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined,
 						onError: reject,
 						queuingStartTime: Date.now(),
-						isAsync: executeInfo.isAsync
+						isAsync: executeInfo.isAsync,
+						command: request.command,
 					};
 				this._callbacks.add(request.seq, item, executeInfo.isAsync);
 				if (executeInfo.token) {
