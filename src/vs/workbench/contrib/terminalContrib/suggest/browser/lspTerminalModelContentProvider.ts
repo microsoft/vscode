@@ -23,7 +23,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	private readonly _terminalId: number;
 	private readonly _virtualTerminalDocumentUri: URI;
 	private readonly _markerFilterDisposable: IDisposable;
-	private readonly _shellType: TerminalShellType | undefined;
+	private _shellType: TerminalShellType | undefined;
 
 
 	constructor(
@@ -53,6 +53,10 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			'Terminal virtual document for LSP suggestions' // Reason for filtering
 		);
 		this._register(this._markerFilterDisposable); // Ensure the filter is disposed when this provider is disposed
+		this._shellType = shellType;
+	}
+
+	shellTypeChanged(shellType: TerminalShellType | undefined): void {
 		this._shellType = shellType;
 	}
 
@@ -121,11 +125,10 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
-
 		// Listen to onCommandFinished event from command detection, if available.
 		if (this._commandDetection && this._commandDetection.onCommandFinished) {
 			this._store.add(this._commandDetection.onCommandFinished((e) => {
-				if (e.exitCode === 0) {
+				if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
 					// If command was successful, update virtual document
 					this.setContent(e.command);
 				}
@@ -140,7 +143,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 				if (this._commandDetection && this._commandDetection.onCommandFinished) {
 					this._store.add(this._commandDetection.onCommandFinished((e) => {
-						if (e.exitCode === 0) {
+						if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
 							// If command was successful, update virtual document
 							this.setContent(e.command);
 						}
