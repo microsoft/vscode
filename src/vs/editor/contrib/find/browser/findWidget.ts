@@ -63,13 +63,11 @@ export interface IFindController {
 
 const NLS_FIND_DIALOG_LABEL = nls.localize('label.findDialog', "Find / Replace");
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
@@ -121,6 +119,8 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 
 export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
+	private static readonly FIND_LABEL_ID = 'editor.contrib.findWidget.findLabel';
+	private static readonly REPLACE_LABEL_ID = 'editor.contrib.findWidget.replaceLabel';
 	private readonly _codeEditor: ICodeEditor;
 	private readonly _state: FindReplaceState;
 	private readonly _controller: IFindController;
@@ -131,7 +131,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
+	private _findLabel!: HTMLElement;
 	private _replaceInput!: ReplaceInput;
+	private _replaceLabel!: HTMLElement;
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
@@ -325,12 +327,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					this._isReplaceVisible = true;
 					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 					this._updateButtons();
+					this._updateLabels();
 					this._replaceInput.inputBox.layout();
 				}
 			} else {
 				if (this._isReplaceVisible) {
 					this._isReplaceVisible = false;
 					this._updateButtons();
+					this._updateLabels();
 				}
 			}
 		}
@@ -479,6 +483,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		const canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
+	}
+
+	private _updateLabels(): void {
+		if (this._isVisible) {
+			let labelWidth = parseFloat(dom.getComputedStyle(this._findLabel).width);
+			if (this._isReplaceVisible) {
+				labelWidth = Math.max(parseFloat(dom.getComputedStyle(this._replaceLabel).width), labelWidth);
+				this._replaceLabel.style.width = `${labelWidth}px`;
+				this._findLabel.style.width = `${labelWidth}px`;
+			} else {
+				this._findLabel.style.width = '';
+			}
+		}
 	}
 
 	private _revealTimeouts: any[] = [];
@@ -923,7 +940,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
-			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 			appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
@@ -1018,7 +1034,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}, this._hoverService));
 
 		const findPart = document.createElement('div');
+		findPart.role = 'group';
 		findPart.className = 'find-part';
+		findPart.setAttribute('aria-labelledby', FindWidget.FIND_LABEL_ID);
+
+		this._findLabel = document.createElement('div');
+		this._findLabel.className = 'find-label';
+		this._findLabel.id = FindWidget.FIND_LABEL_ID;
+		this._findLabel.innerText = NLS_FIND_INPUT_LABEL;
+		findPart.appendChild(this._findLabel);
+
 		findPart.appendChild(this._findInput.domNode);
 		const actionsContainer = document.createElement('div');
 		actionsContainer.className = 'find-actions';
@@ -1088,7 +1113,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		// Replace input
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
-			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
 			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			flexibleHeight,
@@ -1159,7 +1183,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}, this._hoverService));
 
 		const replacePart = document.createElement('div');
+		replacePart.role = 'group';
 		replacePart.className = 'replace-part';
+		replacePart.setAttribute('aria-labelledby', FindWidget.REPLACE_LABEL_ID);
+
+		this._replaceLabel = document.createElement('div');
+		this._replaceLabel.className = 'replace-label';
+		this._replaceLabel.id = FindWidget.REPLACE_LABEL_ID;
+		this._replaceLabel.innerText = NLS_REPLACE_INPUT_LABEL;
+		replacePart.appendChild(this._replaceLabel);
+
 		replacePart.appendChild(this._replaceInput.domNode);
 
 		const replaceActionsContainer = document.createElement('div');
