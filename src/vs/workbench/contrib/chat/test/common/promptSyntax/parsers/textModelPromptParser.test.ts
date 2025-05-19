@@ -26,8 +26,6 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
-// TODO: @legomushroom - fix unit tests
-
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
  * class using different test input parameters
@@ -746,8 +744,8 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 7),
-								'Value of the \'mode\' metadata must be \'string\', got \'myMode \'.',
+								new Range(2, 7, 2, 7 + 6),
+								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'myMode'.`,
 							),
 						]);
 					});
@@ -780,8 +778,8 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 23),
-								'Value of the \'mode\' metadata must be \'string\', got \'my mode is your mode\t \t\'.',
+								new Range(2, 7, 2, 7 + 20),
+								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my mode is your mode'.`,
 							),
 						]);
 					});
@@ -892,8 +890,8 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(2, 8, 2, 8 + value.length),
-								`Value of the 'mode' metadata must be 'string', got '${value}'.`,
+								new Range(2, 8, 2, 8),
+								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
 							),
 						]);
 					});
@@ -927,7 +925,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 8, 2, 8),
-								`Value of the 'mode' metadata must be 'string', got ''.`,
+								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
 							),
 						]);
 					});
@@ -1124,7 +1122,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(3, 10, 3, 10 + value.length),
-								`Value of the 'mode' metadata must be 'string', got '${value}'.`,
+								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
 							),
 						]);
 					});
@@ -1203,12 +1201,7 @@ suite('TextModelPromptParser', () => {
 							'Mode metadata must have correct value.',
 						);
 
-						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 14, 2, 14 + 32),
-								'Value of the \'description\' metadata must be \'string\', got \'my prompt description. \t\t  \t\t   \'.',
-							),
-						]);
+						await test.validateHeaderDiagnostics([]);
 					});
 
 					test('• agent mode', async () => {
