@@ -445,7 +445,7 @@ export class LanguageModelToolsExtensionPointHandler extends Disposable implemen
 abstract class RawToolSetsShape {
 
 	static isToolSetFileName(uri: URI): boolean {
-		return basename(uri).endsWith('.toolset.json');
+		return basename(uri).endsWith('.toolsets.json');
 	}
 
 	static from(data: unknown) {
