@@ -177,7 +177,7 @@ class ConfigureToolsAction extends Action2 {
 			children: [],
 			label: localize('defaultBucketLabel', "Built-In"),
 			ordinal: BucketOrdinal.Other,
-			picked: true,
+			picked: false,
 		};
 
 		const mcpBucket: BucketPick = {
@@ -185,7 +185,8 @@ class ConfigureToolsAction extends Action2 {
 			children: [],
 			label: localize('mcp', "MCP Server"),
 			ordinal: BucketOrdinal.Other,
-			picked: true,
+			alwaysShow: true,
+			picked: false,
 		};
 
 		const userBucket: BucketPick = {
@@ -193,7 +194,8 @@ class ConfigureToolsAction extends Action2 {
 			children: [],
 			label: localize('userBucket', "User Defined"),
 			ordinal: BucketOrdinal.Other,
-			picked: true,
+			alwaysShow: true,
+			picked: false,
 		};
 
 		const toolBuckets = new Map<string, BucketPick>([
@@ -260,6 +262,7 @@ class ConfigureToolsAction extends Action2 {
 						label: toolSetOrTool.source.label,
 						ordinal: BucketOrdinal.Extension,
 						picked: false,
+						alwaysShow: true,
 						children: []
 					};
 					toolBuckets.set(key, bucket);
@@ -319,6 +322,7 @@ class ConfigureToolsAction extends Action2 {
 		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
 		picker.canSelectMany = true;
 		picker.keepScrollPosition = true;
+		picker.sortByLabel = false;
 		picker.matchOnDescription = true;
 
 		if (picks.length === 0) {
@@ -407,7 +411,7 @@ class ConfigureToolsAction extends Action2 {
 					for (const toolPick of item.children) {
 						toolPick.picked = true;
 					}
-				} else if (isToolPick(item)) {
+				} else if (isToolPick(item) || isToolSetPick(item)) {
 					// add server when tool is picked
 					item.parent.picked = true;
 				}
@@ -421,7 +425,7 @@ class ConfigureToolsAction extends Action2 {
 					for (const toolPick of item.children) {
 						toolPick.picked = false;
 					}
-				} else if (isToolPick(item) && item.parent.children.every(child => !child.picked)) {
+				} else if ((isToolPick(item) || isToolSetPick(item)) && item.parent.children.every(child => !child.picked)) {
 					// remove LAST tool -> remove server
 					item.parent.picked = false;
 				}
