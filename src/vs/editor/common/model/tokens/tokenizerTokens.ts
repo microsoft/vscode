@@ -43,10 +43,10 @@ export class TokenizerTokens extends AbstractTokens {
 	constructor(
 		languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		getLanguageId: () => string,
-		attachedViews: AttachedViews
+		private readonly getLanguageId: () => string,
+		attachedViews: AttachedViews,
 	) {
-		super(languageIdCodec, textModel, getLanguageId);
+		super(languageIdCodec, textModel);
 
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			const languageId = this.getLanguageId();

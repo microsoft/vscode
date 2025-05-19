@@ -104,7 +104,6 @@ export abstract class AbstractTokens extends Disposable {
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,
 		protected readonly _textModel: TextModel,
-		protected getLanguageId: () => string,
 	) {
 		super();
 	}

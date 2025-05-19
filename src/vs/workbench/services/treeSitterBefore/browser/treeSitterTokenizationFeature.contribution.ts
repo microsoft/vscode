@@ -57,7 +57,7 @@ CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (a
 	let captureTime = 0;
 	let metadataTime = 0;
 	for (let i = 1; i <= textModel.getLineCount(); i++) {
-		const result = tokenizer.tokenizeEncodedInstrumented(i, textModel);
+		const result = tokenizer.tokSupport_tokenizeEncodedInstrumented(i, textModel);
 		if (result) {
 			captureTime += result.captureTime;
 			metadataTime += result.metadataTime;

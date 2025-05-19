@@ -41,12 +41,12 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (!this._tokenizationSupport || this._lastLanguageId !== newLanguage) {
 			this._lastLanguageId = newLanguage;
 			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
-			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
+			this._tokensChangedListener.value = this._tokenizationSupport?.tokSupport_onDidChangeTokens((e) => {
 				if (e.textModel === this._textModel) {
 					this._onDidChangeTokens.fire(e.changes);
 				}
 			});
-			this._onDidChangeBackgroundTokenization.value = this._tokenizationSupport?.onDidChangeBackgroundTokenization(e => {
+			this._onDidChangeBackgroundTokenization.value = this._tokenizationSupport?.tokSupport_onDidChangeBackgroundTokenization(e => {
 				if (e.textModel === this._textModel) {
 					this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
 					this._onDidChangeBackgroundTokenizationState.fire();
@@ -96,7 +96,7 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	public override forceTokenization(lineNumber: number): void {
 		if (this._tokenizationSupport && !this.hasAccurateTokensForLine(lineNumber)) {
-			this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
+			this._tokenizationSupport.tokSupport_tokenizeEncoded(lineNumber, this._textModel);
 		}
 	}
 
@@ -116,7 +116,7 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		if (this._tokenizationSupport) {
-			const rawLineTokens = this._tokenizationSupport.guessTokensForLinesContent(lineNumber, this._textModel, lines);
+			const rawLineTokens = this._tokenizationSupport.tokSupport_guessTokensForLinesContent(lineNumber, this._textModel, lines);
 			const lineTokens: LineTokens[] = [];
 			if (rawLineTokens) {
 				for (let i = 0; i < rawLineTokens.length; i++) {

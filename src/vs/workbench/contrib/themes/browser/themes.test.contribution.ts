@@ -316,7 +316,7 @@ class Snapper {
 					cursors.push({ cursor: injectionCursor, languageId: injectionLanguageId, startOffset: treeSitterRange.startIndex, endOffset: treeSitterRange.endIndex });
 					while ((currentCursor.endIndex <= treeSitterRange.endIndex) && (currentCursor.gotoNextSibling() || currentCursor.gotoParent())) { }
 				} else {
-					const capture = tokenizationSupport?.captureAtRangeTree(range, tree, textModelTreeSitter);
+					const capture = tokenizationSupport?.tokSupport_captureAtRangeTree(range, tree, textModelTreeSitter);
 					tokens.push({
 						c: currentCursor.currentNode.text.replace(/\r/g, ''),
 						t: capture?.map(cap => cap.name).join(' ') ?? '',

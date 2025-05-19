@@ -426,7 +426,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			));
 
 			const tokenizationSupport = TreeSitterTokenizationRegistry.get(this._model.getLanguageId());
-			const captures = tokenizationSupport?.captureAtPosition(position.lineNumber, position.column, this._model);
+			const captures = tokenizationSupport?.tokSupport_captureAtPosition(position.lineNumber, position.column, this._model);
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
