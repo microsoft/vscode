@@ -25,10 +25,11 @@ import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspac
 import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
+import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
-import { HasInstalledMcpServersContext, IMcpService, IMcpWorkbenchService, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
@@ -42,6 +43,8 @@ registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
 registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
+registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
+
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
@@ -76,8 +79,8 @@ jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 	{
-		id: 'workbench.views.mcp.installed',
-		name: localize2('mcp', "MCP Servers"),
+		id: InstalledMcpServersViewId,
+		name: localize2('mcp-installed', "MCP Servers - Installed"),
 		ctorDescriptor: new SyncDescriptor(McpServersListView),
 		when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, McpServersGalleryEnabledContext),
 		weight: 40,

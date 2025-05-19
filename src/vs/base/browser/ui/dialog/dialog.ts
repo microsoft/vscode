@@ -147,13 +147,15 @@ export class Dialog extends Disposable {
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		const messageElement = this.messageContainer.appendChild($('.dialog-message'));
-		const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
-		messageTextElement.innerText = this.message;
+		if (this.options.detail || this.options.renderBody) {
+			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
+			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
+			messageTextElement.innerText = this.message;
+		}
 
 		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
-		if (this.options.detail) {
-			this.messageDetailElement.innerText = this.options.detail;
+		if (this.options.detail || !this.options.renderBody) {
+			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 		} else {
 			this.messageDetailElement.style.display = 'none';
 		}

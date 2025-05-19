@@ -60,6 +60,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return model.tabAction.read(reader);
 		});
 
+		this._hoverVisible = observableValue(this, false);
+		this.isHoverVisible = this._hoverVisible;
+		this._isHoveredOverIcon = observableValue(this, false);
+		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
+		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
 			switch (v) {
 				case InlineEditTabAction.Inactive: return {
@@ -197,7 +204,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
 			const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
 			const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
-			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader) + gutterViewPortPadding);
+			const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
+			const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
 
 			// The glyph margin area across all relevant lines
 			const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -207,7 +215,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const pillHeight = lineHeight;
 			const pillOffset = this._verticalOffset.read(reader);
 			const pillFullyDockedRect = gutterEditArea.withHeight(pillHeight).translateY(pillOffset);
-			const pillIsFullyDocked = gutterViewPortWithoutStickyScroll.containsRect(pillFullyDockedRect);
+			const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
@@ -286,11 +294,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		});
 		this._iconRef = n.ref<HTMLDivElement>();
 		this.isVisible = this._layout.map(l => !!l);
-		this._hoverVisible = observableValue(this, false);
-		this.isHoverVisible = this._hoverVisible;
-		this._isHoveredOverIcon = observableValue(this, false);
-		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
-		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
 		this._indicator = n.div({
 			class: 'inline-edits-view-gutter-indicator',
 			onclick: () => {
@@ -392,8 +395,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {

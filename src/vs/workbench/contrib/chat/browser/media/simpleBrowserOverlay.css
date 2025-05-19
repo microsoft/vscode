@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .element-selection-message,
-.element-expand-container {
+.element-expand-container,
+.connecting-webview-element {
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
@@ -27,7 +28,8 @@
 	right: 10px;
 }
 
-.element-expand-container {
+.element-expand-container,
+.connecting-webview-element {
 	bottom: 15px;
 	right: 15px;
 }

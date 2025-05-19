@@ -56,10 +56,13 @@ class ChatEditorOverlayWidget extends Disposable {
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
 		this._isBusy = derived(r => {
-			const session = this._session.read(r);
-			const chatModel = session && _chatService.getSession(session?.chatSessionId);
 
-			return chatModel?.requestInProgressObs.read(r) ?? false;
+			const entry = this._entry.read(r);
+			return entry?.waitsForLastEdits.read(r) ?? false;
+
+			// const session = this._session.read(r);
+			// const chatModel = session && _chatService.getSession(session?.chatSessionId);
+			// return chatModel?.requestInProgressObs.read(r) ?? false;
 		});
 
 		const requestMessage = derived(r => {

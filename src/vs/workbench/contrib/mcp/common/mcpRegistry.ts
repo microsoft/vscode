@@ -26,10 +26,11 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { mcpEnabledSection } from './mcpConfiguration.js';
+import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -44,7 +45,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _trustPrompts = new Map</* collection ID */string, Promise<boolean | undefined>>();
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
-	private readonly _delegates: IMcpHostDelegate[] = [];
+	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
 	private readonly _enabled: IObservable<boolean>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
 		if (!this._enabled.read(reader)) {
@@ -106,7 +107,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
 	});
 
-	public get delegates(): readonly IMcpHostDelegate[] {
+	public get delegates(): IObservable<readonly IMcpHostDelegate[]> {
 		return this._delegates;
 	}
 
@@ -128,15 +129,15 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
-		this._delegates.push(delegate);
-		this._delegates.sort((a, b) => b.priority - a.priority);
+		const delegates = this._delegates.get().slice();
+		delegates.push(delegate);
+		delegates.sort((a, b) => b.priority - a.priority);
+		this._delegates.set(delegates, undefined);
 
 		return {
 			dispose: () => {
-				const index = this._delegates.indexOf(delegate);
-				if (index !== -1) {
-					this._delegates.splice(index, 1);
-				}
+				const delegates = this._delegates.get().filter(d => d !== delegate);
+				this._delegates.set(delegates, undefined);
 			}
 		};
 	}
@@ -158,6 +159,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
+	}
+
+	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+		const collectionObs = this._collections.map(cols => cols.find(c => c.id === collectionRef.id));
+		return collectionObs.map((collection, reader) => {
+			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
+			return { collection, server };
+		});
 	}
 
 	public collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
@@ -333,7 +342,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return await this._configurationResolverService.resolveAsync(folder, expr);
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger, debug }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		let collection = this._collections.get().find(c => c.id === collectionRef.id);
 		if (collection?.lazy) {
 			await collection.lazy.load();
@@ -345,7 +354,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
 		}
 
-		const delegate = this._delegates.find(d => d.canStart(collection, definition));
+		const delegate = this._delegates.get().find(d => d.canStart(collection, definition));
 		if (!delegate) {
 			throw new Error('No delegate found that can handle the connection');
 		}
@@ -379,6 +388,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		try {
 			launch = await this._replaceVariablesInLaunch(definition, launch);
+
+			if (definition.devMode && debug) {
+				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
+			}
 		} catch (e) {
 			this._notificationService.notify({
 				severity: Severity.Error,

@@ -18,7 +18,19 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent } from './mcpManagement.js';
 import { McpConfigurationServer, IMcpServerVariable, McpServerVariableType, IMcpServersConfiguration, IMcpServerConfiguration } from './mcpPlatformTypes.js';
 
-type LocalMcpServer = Omit<ILocalMcpServer, 'config'>;
+interface LocalMcpServer {
+	readonly name: string;
+	readonly version: string;
+	readonly id?: string;
+	readonly displayName?: string;
+	readonly url?: string;
+	readonly description?: string;
+	readonly repositoryUrl?: string;
+	readonly publisher?: string;
+	readonly publisherDisplayName?: string;
+	readonly iconUrl?: string;
+	readonly manifest?: IMcpServerManifest;
+}
 
 export class McpManagementService extends Disposable implements IMcpManagementService {
 
@@ -62,12 +74,18 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 
 	private async scanServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
 		let scanned: LocalMcpServer | undefined;
-		if (config.manifestLocation) {
+		let readmeUrl: URI | undefined;
+		if (config.location) {
+			const manifestLocation = this.uriIdentityService.extUri.joinPath(URI.revive(config.location), 'manifest.json');
 			try {
-				const content = await this.fileService.readFile(URI.revive(config.manifestLocation));
+				const content = await this.fileService.readFile(manifestLocation);
 				scanned = JSON.parse(content.value.toString());
 			} catch (e) {
-				this.logService.error('MCP Management Service: failed to read manifest', config.manifestLocation.toString(), e);
+				this.logService.error('MCP Management Service: failed to read manifest', config.location.toString(), e);
+			}
+			readmeUrl = this.uriIdentityService.extUri.joinPath(URI.revive(config.location), 'README.md');
+			if (!await this.fileService.exists(readmeUrl)) {
+				readmeUrl = undefined;
 			}
 		}
 
@@ -88,30 +106,31 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			};
 		}
 
-
 		return {
 			name,
 			config,
-			version: scanned.version ?? '1.0.0',
+			version: scanned.version,
+			location: URI.revive(config.location),
 			id: scanned.id,
 			displayName: scanned.displayName,
 			description: scanned.description,
 			publisher: scanned.publisher,
 			publisherDisplayName: scanned.publisherDisplayName,
 			repositoryUrl: scanned.repositoryUrl,
-			readmeUrl: scanned.readmeUrl,
+			readmeUrl,
 			iconUrl: scanned.iconUrl,
 			manifest: scanned.manifest
 		};
 	}
 
-	async installFromGallery(server: IGalleryMcpServer, packageType: PackageType): Promise<void> {
+	async installFromGallery(server: IGalleryMcpServer, packageType?: PackageType): Promise<void> {
 		this.logService.trace('MCP Management Service: installGallery', server.url);
 		this._onInstallMcpServer.fire({ name: server.name });
 
 		try {
 			const manifest = await this.mcpGalleryService.getManifest(server, CancellationToken.None);
-			const manifestPath = this.uriIdentityService.extUri.joinPath(this.mcpLocation, `${server.name.replace('/', '.')}-${server.version}`, 'manifest.json');
+			const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, `${server.name.replace('/', '.')}-${server.version}`);
+			const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 			await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify({
 				id: server.id,
 				name: server.name,
@@ -121,11 +140,14 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 				publisher: server.publisher,
 				publisherDisplayName: server.publisherDisplayName,
 				repository: server.repositoryUrl,
-				readmeUrl: server.readmeUrl,
-				iconUrl: server.iconUrl,
 				licenseUrl: server.licenseUrl,
 				...manifest,
 			})));
+
+			if (server.readmeUrl) {
+				const readme = await this.mcpGalleryService.getReadme(server, CancellationToken.None);
+				await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
+			}
 
 			const { userLocal } = this.configurationService.inspect<IMcpServersConfiguration>('mcp');
 
@@ -136,7 +158,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			const serverConfig = this.getServerConfig(manifest, packageType);
 			value.servers[server.name] = {
 				...serverConfig,
-				manifestLocation: manifestPath.toJSON(),
+				location: location.toJSON(),
 			};
 			if (serverConfig.inputs) {
 				value.inputs = value.inputs ?? [];
@@ -177,6 +199,9 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			}
 
 			await this.configurationService.updateValue('mcp', value, ConfigurationTarget.USER_LOCAL);
+			if (server.location) {
+				await this.fileService.del(URI.revive(server.location), { recursive: true });
+			}
 			this._onDidUninstallMcpServer.fire({ name: server.name });
 		} catch (e) {
 			this._onDidUninstallMcpServer.fire({ name: server.name, error: e });
@@ -184,7 +209,11 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	private getServerConfig(manifest: IMcpServerManifest, packageType: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+	private getServerConfig(manifest: IMcpServerManifest, packageType?: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+		if (packageType === undefined) {
+			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
+		}
+
 		if (packageType === PackageType.REMOTE) {
 			const inputs: IMcpServerVariable[] = [];
 			const headers: Record<string, string> = {};
@@ -207,7 +236,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		const args: string[] = [];
 		const env: Record<string, string> = {};
 
-		if (packageType === PackageType.DOCKER) {
+		if (serverPackage.registry_name === PackageType.DOCKER) {
 			args.push('run');
 			args.push('-i');
 			args.push('--rm');
@@ -228,9 +257,14 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 
 		for (const input of serverPackage.environment_variables ?? []) {
-			env[input.name] = input.value;
-			if (input.variables) {
-				inputs.push(...this.getVariables(input.variables));
+			const variables = input.variables ? this.getVariables(input.variables) : [];
+			let value = input.value;
+			for (const variable of variables) {
+				value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+			}
+			env[input.name] = value;
+			if (variables.length) {
+				inputs.push(...variables);
 			}
 			if (serverPackage.registry_name === PackageType.DOCKER) {
 				args.push('-e');
@@ -238,13 +272,13 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 			}
 		}
 
-		if (packageType === PackageType.NODE) {
+		if (serverPackage.registry_name === PackageType.NODE) {
 			args.push(`${serverPackage.name}@${serverPackage.version}`);
 		}
-		else if (packageType === PackageType.PYTHON) {
+		else if (serverPackage.registry_name === PackageType.PYTHON) {
 			args.push(`${serverPackage.name}==${serverPackage.version}`);
 		}
-		else if (packageType === PackageType.DOCKER) {
+		else if (serverPackage.registry_name === PackageType.DOCKER) {
 			args.push(`${serverPackage.name}:${serverPackage.version}`);
 		}
 
