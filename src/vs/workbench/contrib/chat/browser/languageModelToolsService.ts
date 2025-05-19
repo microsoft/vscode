@@ -266,7 +266,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
-					this._accessibilityService.alert(this._instantiationService.invokeFunction(getToolConfirmationAlert, prepared.confirmationMessages.title));
+					this._accessibilityService.alert(this._instantiationService.invokeFunction(getToolConfirmationAlert, [toolInvocation]));
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
 						throw new CancellationError();
