@@ -61,26 +61,19 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 			const { nextParser } = acceptResult;
 
 			if (nextParser instanceof FrontMatterToken) {
-				// TODO: @legomushroom - cleanup this
-				if (nextParser instanceof FrontMatterRecord) {
-					const spaceTokens = nextParser.trimValueEnd();
-
-					this._onData.fire(nextParser);
-
-					// TODO: @legomushroom - refactor
-					for (const spaceToken of spaceTokens) {
-						this._onData.fire(spaceToken);
-					}
-
-					if (wasTokenConsumed === false) {
-						this._onData.fire(token);
-					}
-
-					delete this.current;
-					return;
-				}
+				// front matter record token is the spacial case - because it can
+				// contain trailing space tokens, we want to emit "trimmed" record
+				// token and the trailing spaces tokens separately
+				const trimmedTokens = (nextParser instanceof FrontMatterRecord)
+					? nextParser.trimValueEnd()
+					: [];
 
 				this._onData.fire(nextParser);
+
+				// re-emit all trailing space tokens if present
+				for (const trimmedToken of trimmedTokens) {
+					this._onData.fire(trimmedToken);
+				}
 
 				if (wasTokenConsumed === false) {
 					this._onData.fire(token);
@@ -129,14 +122,12 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 			);
 
 			const record = this.current.asRecordToken();
-
-			const spaceTokens = record.trimValueEnd();
+			const trimmedTokens = record.trimValueEnd();
 
 			this._onData.fire(record);
 
-			// TODO: @legomushroom - refactor to merge with the logic in `onStreamData`
-			for (const spaceToken of spaceTokens) {
-				this._onData.fire(spaceToken);
+			for (const trimmedToken of trimmedTokens) {
+				this._onData.fire(trimmedToken);
 			}
 		} catch (_error) {
 			this.reEmitCurrentTokens();

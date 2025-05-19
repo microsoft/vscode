@@ -357,6 +357,51 @@ suite('FrontMatterDecoder', () => {
 							]),
 						]);
 				});
+
+
+				test('• redundant commas', async () => {
+					const test = disposables.add(new TestFrontMatterDecoder());
+
+					await test.run(
+						[
+							`tools\v:\t [true ,, 'toolName', , , some-tool  ,]`,
+						],
+						[
+							// first record
+							new FrontMatterRecord([
+								new FrontMatterRecordName([
+									new Word(new Range(1, 1, 1, 1 + 5), 'tools'),
+								]),
+								new FrontMatterRecordDelimiter([
+									new Colon(new Range(1, 7, 1, 8)),
+									new Tab(new Range(1, 8, 1, 9)),
+								]),
+								new FrontMatterArray([
+									new LeftBracket(new Range(1, 10, 1, 11)),
+									// first array value
+									new FrontMatterBoolean(
+										new Word(
+											new Range(1, 11, 1, 11 + 4),
+											'true',
+										),
+									),
+									// second array value
+									new FrontMatterString([
+										new Quote(new Range(1, 19, 1, 20)),
+										new Word(new Range(1, 20, 1, 20 + 8), 'toolName'),
+										new Quote(new Range(1, 28, 1, 29)),
+									]),
+									// third array value
+									new FrontMatterSequence([
+										new Word(new Range(1, 35, 1, 35 + 4), 'some'),
+										new Dash(new Range(1, 39, 1, 40)),
+										new Word(new Range(1, 40, 1, 40 + 4), 'tool'),
+									]),
+									new RightBracket(new Range(1, 47, 1, 48)),
+								]),
+							]),
+						]);
+				});
 			});
 		});
 	});

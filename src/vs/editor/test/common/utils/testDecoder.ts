@@ -10,11 +10,8 @@ import { BaseToken } from '../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WriteableStream } from '../../../../base/common/stream.js';
-import { CompositeToken } from '../../../common/codecs/compositeToken.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleToken } from '../../../common/codecs/simpleCodec/tokens/simpleToken.js';
-// TODO: @legomushroom - how do we fix this?
-import { difference, flatten } from '../../../../workbench/contrib/chat/common/promptSyntax/utils/treeUtils.js';
 
 /**
  * Kind of decoder tokens consume methods are different ways
@@ -222,29 +219,6 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 				receivedToken,
 				`Expected token '${i}' to be '${expectedToken}', got 'undefined'.`,
 			);
-
-			if (expectedToken instanceof CompositeToken) {
-				assert(
-					receivedToken instanceof CompositeToken,
-					`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}'.`,
-				);
-
-				const diff = difference(expectedToken, receivedToken);
-				if (diff === null) {
-					continue;
-				}
-
-				const flatDiff = flatten(diff);
-				// diff at index `0` is the token itself, so grab its first child instead
-				const firstDiff = flatDiff[1];
-
-				throw new Error([
-					`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}':`,
-					`  First difference (${firstDiff.index}):`,
-					`    Expected: ${firstDiff.object1}`,
-					`    Received: ${firstDiff.object2}`,
-				].join('\n'));
-			}
 
 			const expectedTokenString = (expectedToken instanceof SimpleToken)
 				? `${expectedToken} `

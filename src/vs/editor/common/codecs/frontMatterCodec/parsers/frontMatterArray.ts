@@ -12,6 +12,7 @@ import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 
 /**
  * List of tokens that can go in-between array items
@@ -123,9 +124,8 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
-		// TODO: @legomushroom - check for sequence stop token type?
-
-		// TODO: @legomushroom
+		// is an array item value is allowed at this position, create a new
+		// value parser and start the value parsing process using it
 		if (this.arrayItemAllowed === true) {
 			this.currentValueParser = new PartialFrontMatterValue(
 				(currentToken) => {
@@ -157,7 +157,6 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	 * @throws if the last token in the accumulated token list
 	 * 		   is not a closing bracket ({@link RightBracket}).
 	 */
-	// TODO: @legomushroom - return generic sequence of tokens if not possible to convert?
 	public asArrayToken(): FrontMatterArray {
 		const endToken = this.currentTokens[this.currentTokens.length - 1];
 
@@ -173,9 +172,17 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 		const valueTokens: FrontMatterValueToken[] = [];
 		for (const currentToken of this.currentTokens) {
-			if (currentToken instanceof FrontMatterValueToken) {
-				valueTokens.push(currentToken);
+			if ((currentToken instanceof FrontMatterValueToken) === false) {
+				continue;
 			}
+
+			// the generic sequence tokens can have trailing spacing tokens,
+			// hence trim them to ensure the array contains only "clean" values
+			if (currentToken instanceof FrontMatterSequence) {
+				currentToken.trimEnd();
+			}
+
+			valueTokens.push(currentToken);
 		}
 
 		this.isConsumed = true;
