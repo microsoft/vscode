@@ -13,6 +13,7 @@ import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+import { TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 /**
  * Prefix for all prompt instruction variable IDs.
@@ -56,10 +57,14 @@ export const createPromptVariableId = (
  * 				 This object most likely was explicitly attached by the user.
  */
 export const toChatVariable = (
-	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
+	// TODO: @legomushroom
+	reference: { uri: URI } & (Pick<IPromptFileReference, 'isPromptFile'> | { type: TPromptsType }),
 	isRoot: boolean,
 ): IPromptVariableEntry => {
-	const { uri, isPromptFile } = reference;
+	const { uri } = reference;
+	const isPromptFile = ('isPromptFile' in reference)
+		? reference.isPromptFile
+		: true;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;

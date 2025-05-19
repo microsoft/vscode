@@ -49,7 +49,7 @@ export class PromptFilesLocator {
 	public async listFilesIn(
 		folders: readonly URI[],
 		type: TPromptsType,
-	): Promise<readonly URI[]> {
+	): Promise<URI[]> {
 		return await this.findFilesInLocations(folders, type);
 	}
 
@@ -117,7 +117,7 @@ export class PromptFilesLocator {
 	private async findFilesInLocations(
 		absoluteLocations: readonly URI[],
 		type: TPromptsType,
-	): Promise<readonly URI[]> {
+	): Promise<URI[]> {
 
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns

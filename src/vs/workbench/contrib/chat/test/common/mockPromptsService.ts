@@ -20,7 +20,7 @@ export class MockPromptsService implements IPromptsService {
 	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
 		throw new Error('Method not implemented.');
 	}
-	listPromptFiles(_type: TPromptsType): Promise<readonly IPromptPath[]> {
+	listPromptFiles(_type: TPromptsType): Promise<IPromptPath[]> {
 		throw new Error('Method not implemented.');
 	}
 	getSourceFolders(_type: TPromptsType): readonly IPromptPath[] {

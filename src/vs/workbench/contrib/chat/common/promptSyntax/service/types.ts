@@ -133,7 +133,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]>;
+	listPromptFiles(type: TPromptsType): Promise<IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.

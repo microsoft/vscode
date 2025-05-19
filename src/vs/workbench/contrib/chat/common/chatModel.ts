@@ -200,10 +200,6 @@ export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
 }
 
-export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'promptFile';
-}
-
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
 	readonly value: URI;
@@ -213,7 +209,7 @@ export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEn
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+	| IPromptVariableEntry | ISCMHistoryItemVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';

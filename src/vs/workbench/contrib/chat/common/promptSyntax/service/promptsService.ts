@@ -111,7 +111,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
+	public async listPromptFiles(type: TPromptsType): Promise<IPromptPath[]> {
 		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([

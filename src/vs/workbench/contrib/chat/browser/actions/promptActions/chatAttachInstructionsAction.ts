@@ -3,35 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
+import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IPromptsService, TPromptsStorage } from '../../../common/promptSyntax/service/types.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
-import { compare } from '../../../../../../base/common/strings.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { dirname } from '../../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry } from '../../../common/chatModel.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { toChatVariable } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -184,64 +180,66 @@ export const registerAttachPromptActions = () => {
 	registerAction2(AttachInstructionsAction);
 };
 
+/**
+ * TODO: @legomushroom
+ */
+type TContextPickerItemOrSeparator = IChatContextPickerPickItem | IQuickPickSeparator;
 
 export class ChatInstructionsPickerPick implements IChatContextPickerItem {
-
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
 	readonly icon = Codicon.bookmark;
 	readonly commandId = ATTACH_INSTRUCTIONS_ACTION_ID;
+	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILabelService private readonly labelService: ILabelService
 	) { }
 
-	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+	public isEnabled(widget: IChatWidget): boolean {
 		return widget.attachmentModel.promptInstructions.featureEnabled;
 	}
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> | ((query: string, token: CancellationToken) => Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>) } {
+	public asPicker() {
+		const picks = this.promptsService
+			.listPromptFiles('instructions')
+			// split the instructions by their appropriate storage type
+			.then((instructions) => {
+				return instructions.reduce((
+					acc: Record<TPromptsStorage, IChatContextPickerPickItem[]>,
+					instruction,
+				) => {
+					const { uri, storage } = instruction;
 
-		const picks = this.promptsService.listPromptFiles('instructions').then(value => {
+					acc[storage].push({
+						label: getCleanPromptName(uri),
+						asAttachment: toChatVariable.bind(null, instruction, true),
+					});
 
-			const result: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
+					return acc;
+				}, { local: [], user: [] });
+			})
+			// add a separator between 'local' and 'user' instructions if needed
+			.then((instructions) => {
+				const result: TContextPickerItemOrSeparator[] = instructions.local;
 
-			value = value.slice(0).sort((a, b) => compare(a.storage, b.storage));
-
-			let storageType: string | undefined;
-
-			for (const { uri, storage } of value) {
-
-				if (storageType !== storage) {
-					storageType = storage;
+				if (instructions.user.length > 0) {
 					result.push({
 						type: 'separator',
-						label: storage === 'user'
-							? localize('user-data-dir.capitalized', 'User data folder')
-							: this.labelService.getUriLabel(dirname(uri), { relative: true })
+						label: localize('user-data-folder.capitalized', 'User data folder'),
 					});
 				}
 
-				result.push({
-					label: getCleanPromptName(uri),
-					asAttachment: (): IPromptFileVariableEntry => {
-						return {
-							kind: 'promptFile',
-							id: uri.toString(),
-							value: uri,
-							name: this.labelService.getUriBasenameLabel(uri),
-						};
-					}
-				});
-			}
-			return result;
-		});
+				result.push(...instructions.user);
+
+				return result;
+			});
 
 		return {
-			placeholder: localize('placeholder', 'Select instructions files to attach'),
-			picks
+			placeholder: localize(
+				'chatContext.attach.instructions.picker.placeholder',
+				'Select instructions files to attach',
+			),
+			picks,
 		};
 	}
-
 }
