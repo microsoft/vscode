@@ -1788,9 +1788,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
-	public getFontDecorations(lineNumber: number): model.IModelDecoration[] {
-		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
-		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
+	public getFontDecorations(range: IRange): model.IModelDecoration[] {
+		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 		const result = this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, 0);
 		return result;
 	}
@@ -2460,7 +2460,11 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
-		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		if (options.fontSize) {
+			this.stickiness = model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+		} else {
+			this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		}
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;

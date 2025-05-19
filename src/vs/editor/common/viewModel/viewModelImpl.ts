@@ -219,24 +219,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return modelVisibleRanges;
 	}
 
-	public getFontSizeAtPosition(position: IPosition): number {
-		let fontSize: number = this._configuration.options.get(EditorOption.fontSize);
-		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
-		if (screenReaderOptimized) {
-			return fontSize;
-		}
-		const decorationsInRange = this.model.getDecorationsInRange(Range.fromPositions(position, position));
-		if (decorationsInRange) {
-			for (const decoration of decorationsInRange) {
-				if (decoration.ownerId === this._editorId && decoration.options.fontSize) {
-					fontSize = decoration.options.fontSize;
-					break;
-				}
-			}
-		}
-		return fontSize;
-	}
-
 	public visibleLinesStabilized(): void {
 		const modelVisibleRanges = this.getModelVisibleRanges();
 		this._attachedView.setVisibleLines(modelVisibleRanges, true);
@@ -346,7 +328,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								const inlineDecorations = this.getInlineDecorations(lineNumber);
 								this.model.tokenization.forceTokenization(lineNumber);
 								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-								const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+								const isVariableFontSize = this.model.getFontDecorations(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))).length > 0;
 								lineBreaksComputer.addRequest(lineNumber, line, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							}
 							break;
@@ -360,7 +342,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							const inlineDecorations = this.getInlineDecorations(lineNumber);
 							this.model.tokenization.forceTokenization(lineNumber);
 							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-							const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+							const isVariableFontSize = this.model.getFontDecorations(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))).length > 0;
 							lineBreaksComputer.addRequest(lineNumber, change.detail, injectedText, inlineDecorations, lineTokens, null, isVariableFontSize);
 							break;
 						}
@@ -372,6 +354,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
+							console.log('Flush');
 							this._lines.onModelFlushed();
 							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 							this._decorations.reset();
@@ -477,7 +460,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					this.model.tokenization.forceTokenization(lineNumber);
 					const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 					const lineContent = this.model.getLineContent(lineNumber);
-					const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+					const isVariableFontSize = this.model.getFontDecorations(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))).length > 0;
 					lineBreaksComputer.addRequest(lineNumber, lineContent, null, inlineDecorations, lineTokens, null, isVariableFontSize);
 				}
 				const lineBreaks = lineBreaksComputer.finalizeToArray();

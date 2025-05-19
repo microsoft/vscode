@@ -742,8 +742,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 				}
 
 				// Try to render the textarea with the color/font style to match the text under it
-				const viewPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(startPosition.lineNumber, 1));
-				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
+				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
@@ -755,6 +754,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 				this.textArea.domNode.scrollTop = lineCount * lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
+				console.log('lineHeight : ', lineHeight);
 				this._doRender({
 					lastRenderPosition: null,
 					top: top,
@@ -799,6 +799,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			const lineNumber = this._primaryCursorPosition.lineNumber;
 			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
+			console.log('lineHeight : ', lineHeight);
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
@@ -844,6 +845,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
+		console.log('renderData.height : ', renderData.height);
 		applyFontInfo(ta, this._fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
@@ -857,7 +859,16 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
 			ta.setFontWeight('bold');
 		}
-		const fontSize = this._context.viewModel.getFontSizeAtPosition(this._primaryCursorPosition);
+		const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(this._primaryCursorPosition);
+		let fontSize = this._fontInfo.fontSize;
+		const fontDecorations = this._context.viewModel.model.getFontDecorations(Range.fromPositions(modelPosition));
+		for (const fontDecoration of fontDecorations) {
+			if (fontDecoration.options.fontSize) {
+				fontSize = fontDecoration.options.fontSize;
+				break;
+			}
+		}
+		console.log('fontSize', fontSize);
 		ta.setFontSize(fontSize);
 		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 

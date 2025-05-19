@@ -22,6 +22,7 @@ import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { Position } from '../../../common/core/position.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { Range } from '../../../common/core/range.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -146,7 +147,8 @@ export class ViewLine implements IVisibleLine {
 			}
 		}
 		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
-		const fontDecorationsOnLine = this._viewContext.viewModel.model.getFontDecorations(modelLineNumber);
+		const model = this._viewContext.viewModel.model;
+		const fontDecorationsOnLine = model.getFontDecorations(new Range(modelLineNumber, 1, modelLineNumber, model.getLineMaxColumn(modelLineNumber)));
 		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
 		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
 		const fontInfo = this._viewContext.configuration.options.get(EditorOption.fontInfo);
@@ -222,29 +224,6 @@ export class ViewLine implements IVisibleLine {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
 			this._renderedViewLine.domNode.setLineHeight(lineHeight);
-		}
-	}
-
-	public rerenderLineType(otherType: RenderViewLineType): void {
-		if (!this._renderedViewLine) {
-			return;
-		}
-		const currentType = this._renderedViewLine.type;
-		if (currentType === otherType) {
-			return;
-		}
-		if (currentType === RenderViewLineType.Fast) {
-			this._renderedViewLine = new FastRenderedViewLine(
-				this._renderedViewLine.domNode,
-				this._renderedViewLine.input,
-				this._renderedViewLine.output
-			);
-		} else {
-			this._renderedViewLine = createRenderedLine(
-				this._renderedViewLine.domNode,
-				this._renderedViewLine.input,
-				this._renderedViewLine.output
-			);
 		}
 	}
 
@@ -326,13 +305,7 @@ export class ViewLine implements IVisibleLine {
 	}
 }
 
-export enum RenderViewLineType {
-	Regular,
-	Fast
-}
-
 interface IRenderedViewLine {
-	type: RenderViewLineType;
 	domNode: FastDomNode<HTMLElement> | null;
 	readonly input: RenderLineInput;
 	readonly output: RenderLineOutput;
@@ -358,7 +331,6 @@ const enum Constants {
  */
 class FastRenderedViewLine implements IRenderedViewLine {
 
-	public type: RenderViewLineType = RenderViewLineType.Fast;
 	public domNode: FastDomNode<HTMLElement> | null;
 	public readonly input: RenderLineInput;
 	public readonly output: RenderLineOutput;
@@ -482,7 +454,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
  */
 class RenderedViewLine implements IRenderedViewLine {
 
-	public type: RenderViewLineType = RenderViewLineType.Regular;
 	public domNode: FastDomNode<HTMLElement> | null;
 	public readonly input: RenderLineInput;
 	public readonly output: RenderLineOutput;

@@ -181,7 +181,8 @@ export class DiffEditorViewZones extends Disposable {
 							const inlineDecorations = viewModel.getInlineDecorations(i);
 							viewModel.model.tokenization.forceTokenization(i);
 							const lineTokens = viewModel.model.tokenization.getLineTokens(i);
-							const isVariableFontSize = viewModel.model.getFontDecorations(i).length > 0;
+							const range = new Range(i, 1, i, originalModel.getLineMaxColumn(i));
+							const isVariableFontSize = viewModel.model.getFontDecorations(range).length > 0;
 							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), null, inlineDecorations, lineTokens, null, isVariableFontSize);
 						}
 					}

@@ -654,7 +654,7 @@ export class FindMatch {
  */
 export const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
+	NeverGrowsWhenTypingAtEdges = 1, // <--- use this one
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
 }
@@ -1087,7 +1087,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	getFontDecorations(lineNumber: number): IModelDecoration[];
+	getFontDecorations(range: IRange): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.

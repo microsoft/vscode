@@ -1976,7 +1976,7 @@ declare namespace monaco.editor {
 	 */
 	export enum TrackedRangeStickiness {
 		AlwaysGrowsWhenTypingAtEdges = 0,
-		NeverGrowsWhenTypingAtEdges = 1,
+		NeverGrowsWhenTypingAtEdges = 1,// <--- use this one
 		GrowsOnlyWhenTypingBefore = 2,
 		GrowsOnlyWhenTypingAfter = 3
 	}
@@ -6084,11 +6084,6 @@ declare namespace monaco.editor {
 		 * Get all the decorations for a range (filtering out decorations from other editors).
 		 */
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
-		/**
-		 * Get font size at a position.
-		 * @param position
-		 */
-		getFontSizeAtPosition(position: Position): number;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @deprecated Use `createDecorationsCollection`

@@ -355,7 +355,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	}
 
 	public renderLines(viewportData: ViewportData): void {
-
+		console.log('renderLines : ', viewportData);
 		const inp = this._linesCollection._get();
 
 		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData, this._viewContext);
@@ -393,6 +393,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 
+		console.log('render startLineNumber: ', startLineNumber, ' stopLineNumber: ', stopLineNumber, ' deltaTop: ', deltaTop);
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inContext.rendLineNumberStart,
 			lines: inContext.lines.slice(0),

@@ -139,7 +139,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			const isVariableFontSize = this.model.getFontDecorations(lineNumber).length > 0;
+			const isVariableFontSize = this.model.getFontDecorations(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))).length > 0;
 			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null, isVariableFontSize);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
@@ -349,6 +349,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public onModelFlushed(): void {
+		console.log('onModelFlushed');
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
 

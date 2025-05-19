@@ -14,7 +14,7 @@ import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, Vis
 import { VisibleLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { DomReadingContext } from './domReadingContext.js';
-import { RenderViewLineType, ViewLine } from './viewLine.js';
+import { ViewLine } from './viewLine.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -148,23 +148,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: () => new ViewLine(viewGpuContext, this._context, this._viewLineOptions),
 		});
-		const viewModel = this._context.viewModel;
-		const model = viewModel.model;
-		this._register(model.onDidChangeFont((e) => {
-			for (const change of e.changes) {
-				const lineNumber = change.lineNumber;
-				const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
-				for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-					const viewLine = this._visibleLines.getVisibleLine(i);
-					const fonts = context.viewModel.model.getFontDecorations(i);
-					if (fonts.length > 0) {
-						viewLine.rerenderLineType(RenderViewLineType.Regular);
-					} else {
-						viewLine.rerenderLineType(RenderViewLineType.Fast);
-					}
-				}
-			}
-		}));
 		this.domNode = this._visibleLines.domNode;
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);

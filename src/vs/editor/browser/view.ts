@@ -514,6 +514,7 @@ export class View extends ViewEventHandler {
 					}
 				},
 				renderText: () => {
+					console.log('renderText');
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
 					}
@@ -536,6 +537,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
+		console.log('Flushing accumulated and rendering now');
 		const rendering = this._createCoordinatedRendering();
 		safeInvokeNoArg(() => rendering.prepareRenderText());
 		const data = safeInvokeNoArg(() => rendering.renderText());
@@ -833,6 +835,7 @@ class EditorRenderingCoordinator {
 	}
 
 	private _onRenderScheduled(): void {
+		console.log('_onRenderScheduled');
 		const coordinatedRenderings = this._coordinatedRenderings.slice(0);
 		this._coordinatedRenderings = [];
 
