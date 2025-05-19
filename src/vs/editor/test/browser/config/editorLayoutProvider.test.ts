@@ -1396,7 +1396,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			decorationsWidth: 26,
 
 			contentLeft: 92,
-			contentWidth: 1018,
+			contentWidth: 1004,
 
 			minimap: {
 				renderMinimap: RenderMinimap.Text,
