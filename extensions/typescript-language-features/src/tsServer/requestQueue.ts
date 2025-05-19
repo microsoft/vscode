@@ -60,9 +60,13 @@ export class RequestQueue {
 		return this.queue.shift();
 	}
 
-	public getQueuedCommands(): string[] {
+	public getQueuedCommands(skipLast: boolean = false): string[] {
 		const result: string[] = [];
-		for (let i = this.queue.length - 1; i >= 0; i--) {
+		const end = skipLast ? this.queue.length - 1 : this.queue.length;
+		if (end <= 0) {
+			return result;
+		}
+		for (let i = 0; i < end; i++) {
 			const item = this.queue[i];
 			result.push(item.request.command);
 			if (result.length >= 5) {

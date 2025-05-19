@@ -292,7 +292,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 				pendingResponses
 			};
 			if (queueLength > 0) {
-				data.queuedCommands = this._requestQueue.getQueuedCommands();
+				data.queuedCommands = this._requestQueue.getQueuedCommands(true);
 			}
 			if (pendingResponses > 0) {
 				data.pendingCommands = this.getPendingCommands();
