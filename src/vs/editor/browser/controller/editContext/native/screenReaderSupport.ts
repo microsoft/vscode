@@ -14,7 +14,6 @@ import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } 
 import { FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
@@ -57,30 +56,7 @@ export class ScreenReaderSupport extends Disposable {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		this._context.viewModel.model.onDidChangeTokens((e) => {
-			console.log('ScreenReaderSupport: onDidChangeTokens');
-			if (!this._screenReaderContentState) {
-				this.writeScreenReaderContent();
-			}
-			let rerender = false;
-			const coalesceOffsetRanges = this._screenReaderContentState!.coalesceOffsetRanges();
-			e.ranges.forEach((range) => {
-				const changeOffsetRange = new OffsetRange(range.fromLineNumber, range.toLineNumber);
-				if (coalesceOffsetRanges instanceof OffsetRange) {
-					if (coalesceOffsetRanges.intersect(changeOffsetRange)) {
-						rerender = true;
-					}
-				} else {
-					const offsetRange1 = coalesceOffsetRanges[0];
-					const offsetRange2 = coalesceOffsetRanges[1];
-					if (offsetRange1.intersect(changeOffsetRange) || offsetRange2.intersect(changeOffsetRange)) {
-						rerender = true;
-					}
-				}
-			});
-			console.log('rerender');
-			if (rerender) {
-				this.writeScreenReaderContent();
-			}
+			this.writeScreenReaderContent();
 		});
 		this.writeScreenReaderContent();
 	}
@@ -186,10 +162,11 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
+		console.log('_doRender');
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(top);
+		this._domNode.setTop(top + 100);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
@@ -216,9 +193,11 @@ export class ScreenReaderSupport extends Disposable {
 		console.log('writeScreenReaderContent');
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
+			console.log('early return');
 			return;
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		console.log('isScreenReaderOptimized : ', isScreenReaderOptimized);
 		if (isScreenReaderOptimized) {
 			const primarySelection = this._primarySelection;
 			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);

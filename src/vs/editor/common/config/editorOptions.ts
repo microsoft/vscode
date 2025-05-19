@@ -1947,6 +1947,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		console.log('env.editContextSupported : ', env.editContextSupported);
 		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
