@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -24,7 +24,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	private readonly _virtualTerminalDocumentUri: URI;
 	private readonly _markerFilterDisposable: IDisposable;
 	private _shellType: TerminalShellType | undefined;
-
+	private readonly _onCommandFinishedListener = this._register(new MutableDisposable());
 
 	constructor(
 		capabilityStore: ITerminalCapabilityStore,
@@ -66,7 +66,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
-
+		console.log('content is: ', content + '\n');
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// Remove hardcoded banned content, check with shell type
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
@@ -125,31 +125,29 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
-		// Listen to onCommandFinished event from command detection, if available.
-		if (this._commandDetection && this._commandDetection.onCommandFinished) {
-			this._store.add(this._commandDetection.onCommandFinished((e) => {
-				if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
-					// If command was successful, update virtual document
-					this.setContent(e.command);
-				}
+		const attachListener = () => {
+			this._onCommandFinishedListener.clear(); // clear previous listener via MutableDisposable
 
-			}));
-		}
+			// Listen to onCommandFinished event from command detection, if available.
+			if (this._commandDetection && this._commandDetection.onCommandFinished) {
+				this._onCommandFinishedListener.value = this._commandDetection.onCommandFinished((e) => {
+					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
+						// If command was successful, update virtual document
+						this.setContent(e.command);
+					}
+
+				});
+			}
+		};
+
+		attachListener();
+
 
 		// Listen to onDidAddCapabilityType because command detection is not available until later
-		this._store.add(this._capabilitiesStore.onDidAddCapabilityType(e => {
+		this._register(this._capabilitiesStore.onDidAddCapabilityType(e => {
 			if (e === TerminalCapability.CommandDetection) {
 				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
-
-				if (this._commandDetection && this._commandDetection.onCommandFinished) {
-					this._store.add(this._commandDetection.onCommandFinished((e) => {
-						if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
-							// If command was successful, update virtual document
-							this.setContent(e.command);
-						}
-
-					}));
-				}
+				attachListener();
 			}
 		}));
 
