@@ -756,7 +756,8 @@ export class InlineCompletionsModel extends Disposable {
 		return new TextModelEditReason({
 			extensionId: completion.source.provider.groupId,
 			nes: completion.isInlineEdit,
-			type
+			type,
+			requestUuid: completion.requestUuid,
 		});
 	}
 
