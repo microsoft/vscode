@@ -20,9 +20,8 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	static readonly scheme = Schemas.vscodeTerminal;
 	private _commandDetection: ICommandDetectionCapability | undefined;
 	private _capabilitiesStore: ITerminalCapabilityStore;
-	// private readonly _terminalId: number;
+	private readonly _terminalId: number;
 	private readonly _virtualTerminalDocumentUri: URI;
-	// private _promptInputModel: IPromptInputModel | undefined;
 	private readonly _markerFilterDisposable: IDisposable;
 	private readonly _shellType: TerminalShellType | undefined;
 
@@ -44,7 +43,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		this._registerTerminalCommandFinishedListener();
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
-		// this._promptInputModel = this._commandDetection?.promptInputModel;
+		this._terminalId = terminalId;
 
 		// Install a filter for the virtual document's URI
 		// This will prevent markers for this URI from being reported to consumers
@@ -63,6 +62,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
+
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// Remove hardcoded banned content, check with shell type
 		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
@@ -83,6 +83,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 					const newContent = sanitizedExistingContent + '\n' + content + '\n' + VSCODE_LSP_TERMINAL_PROMPT_TRACKER;
 					model.setValue(newContent);
 				}
+				console.log('my terminal id is: ', this._terminalId + 'my virtual terminal uri is: ' + this._virtualTerminalDocumentUri + 'and the content is:  ' + model.getValue() + '\n');
 			}
 		}
 	}
@@ -116,17 +117,13 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 				model.setValue(newContent);
 			}
-
-			// this._promptInputModel?.onDidChangeInput(state => {
-			// 	// state is of type IPromptInputModelState
-			// 	console.log('Prompt input changed:', state.value + '\n');
-			// });
 		}
 	}
 
 	private _registerTerminalCommandFinishedListener(): void {
-		// TODO: Use one of onCommandFinished or onCommandExecuted
-		if (this._commandDetection) {
+
+		// Listen to onCommandFinished event from command detection, if available.
+		if (this._commandDetection && this._commandDetection.onCommandFinished) {
 			this._store.add(this._commandDetection.onCommandFinished((e) => {
 				if (e.exitCode === 0) {
 					// If command was successful, update virtual document
@@ -134,24 +131,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 				}
 
 			}));
-			// this._store.add(this._commandDetection.onCommandExecuted((e) => {
-			// 	// console.log('command executed:', e.command);
-			// 	// this.setContent(e.command);
-			// 	if (e.exitCode === 0) {
-			// 		// If command was successful, update virtual document
-			// 		this.setContent(e.command);
-			// 	}
-			// }));
-
 		}
 
-		// Have to listen to onDidAddCapabilityType because command detection is not available until later
+		// Listen to onDidAddCapabilityType because command detection is not available until later
 		this._store.add(this._capabilitiesStore.onDidAddCapabilityType(e => {
 			if (e === TerminalCapability.CommandDetection) {
 				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
-				// this._promptInputModel = this._commandDetection?.promptInputModel;
-				if (this._commandDetection) {
-					console.log('command detection is alive \n');
+
+				if (this._commandDetection && this._commandDetection.onCommandFinished) {
 					this._store.add(this._commandDetection.onCommandFinished((e) => {
 						if (e.exitCode === 0) {
 							// If command was successful, update virtual document
@@ -159,25 +146,13 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 						}
 
 					}));
-					this._store.add(this._commandDetection.onCommandExecuted((e) => {
-						console.log('inside executed listener');
-						// console.log('command executed:', e.command);
-						// this.setContent(e.command);
-						if (e.exitCode === 0) {
-							// If command was successful, update virtual document
-							this.setContent(e.command);
-						}
-					}));
-
-				} else {
-					console.log('command detection is not alive \n');
 				}
-
 			}
 		}));
 
 	}
 
+	// TODO: Adapt to support non-python virtual document for non-python REPLs.
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 
@@ -197,13 +172,11 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			if (!languageId) {
 				switch (extension) {
 					case 'py': languageId = 'python'; break;
-					case 'ps1': languageId = 'powershell'; break;
-
-					// Add more mappings as needed??
+					// case 'ps1': languageId = 'powershell'; break;
 					// case 'js': languageId = 'javascript'; break;
 					// case 'ts': languageId = 'typescript'; break;
 					// case 'sh': languageId = 'shellscript'; break;
-					// case 'nu' blah blah..
+					// case 'nu', etc.
 				}
 			}
 		}
@@ -215,4 +188,14 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		return this._modelService.createModel('', languageSelection, resource, false);
 	}
 
+}
+
+/**
+ * Creates a terminal language virtual URI.
+ */
+export function createTerminalLanguageVirtualUri(terminalId: number, languageExtension: string): URI {
+	return URI.from({
+		scheme: Schemas.vscodeTerminal,
+		path: `/terminal${terminalId}.${languageExtension}`,
+	});
 }

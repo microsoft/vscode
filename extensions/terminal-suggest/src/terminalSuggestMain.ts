@@ -149,14 +149,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 
-	vscode.workspace.onDidChangeTextDocument((e) => {
-		if (e && e.document && e.document.uri) {
-			if (e.document.uri.toString().includes('terminal')) {
-				// Handle changes to the virtual document
-				console.log('Virtual document changed:', e.document.getText());
-			}
-		}
-	});
+	// Uncomment to watch document changes
+	// vscode.workspace.onDidChangeTextDocument((e) => {
+	// 	if (e && e.document && e.document.uri) {
+	// 		if (e.document.uri.toString().includes('terminal')) {
+	// 			// Handle changes to the virtual document
+	// 			console.log('Virtual document changed:', e.document.getText());
+	// 		}
+	// 	}
+	// });
 
 }
 

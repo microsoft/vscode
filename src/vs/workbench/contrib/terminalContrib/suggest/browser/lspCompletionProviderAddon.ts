@@ -52,7 +52,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
-		// APPLY EDIT FOR CURRENT REPL LINE, this is not executed yet.
+		// APPLY EDIT FOR CURRENT REPL LINE, this is not executed yet. --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
 
 		const textBeforeCursor = value.substring(0, cursorPosition);

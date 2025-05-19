@@ -34,10 +34,9 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import './terminalSymbolIcons.js';
 import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
-import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
+import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { createTerminalLanguageVirtualUri, ILspTerminalDictionaryService } from '../../../../../platform/terminal/common/capabilities/lspTerminalDictionaryService.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -68,7 +67,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILspTerminalDictionaryService private readonly _lspTerminalDictionaryService: ILspTerminalDictionaryService,
 	) {
 		super();
 		this.add(toDisposable(() => {
@@ -158,7 +156,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-
 		if (
 			this._ctx.instance.shellType !== GeneralShellType.Python &&
 			!this._ctx.instance.shellLaunchConfig.executable?.includes('python')
@@ -172,13 +169,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
 		this.add(this._lspModelProvider.value);
-
-		// TODO: Do we need this?
-		// if (this._lspTerminalDictionaryService) {
-		// 	// set it up so terminal can access the model and set content
-		// 	// TODO: use actual terminal ID
-		// 	this._lspTerminalDictionaryService.set(12345, this._lspModelProvider);
-		// }
 
 		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
