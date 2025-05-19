@@ -18,8 +18,11 @@ import { ILogService } from '../../log/common/log.js';
 import { Promises } from '../../../base/common/async.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { clamp } from '../../../base/common/numbers.js';
+import { extname } from 'path';
+import { getWindowPathExtensions } from '../../../base/node/processes.js';
+import { equalsIgnoreCase } from '../../../base/common/strings.js';
 
-let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
+let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
 /**
  * Resolves the shell environment by spawning a shell. This call will cache
@@ -38,13 +41,6 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 		return {};
 	}
 
-	// Skip on windows
-	else if (isWindows) {
-		logService.trace('resolveShellEnv(): skipped (Windows)');
-
-		return {};
-	}
-
 	// Skip if running from CLI already
 	else if (isLaunchedFromCli(env) && !args['force-user-env']) {
 		logService.trace('resolveShellEnv(): skipped (VSCODE_CLI is set)');
@@ -52,19 +48,19 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 		return {};
 	}
 
-	// Otherwise resolve (macOS, Linux)
+	// Otherwise resolve
 	else {
 		if (isLaunchedFromCli(env)) {
 			logService.trace('resolveShellEnv(): running (--force-user-env)');
 		} else {
-			logService.trace('resolveShellEnv(): running (macOS/Linux)');
+			logService.trace('resolveShellEnv(): running');
 		}
 
 		// Call this only once and cache the promise for
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
-		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
+		if (!shellEnvPromise) {
+			shellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
 				let timeoutValue = 10000; // default to 10 seconds
@@ -81,7 +77,7 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 
 				// Resolve shell env and handle errors
 				try {
-					resolve(await doResolveUnixShellEnv(logService, cts.token));
+					resolve(await doResolveShellEnv(logService, cts.token));
 				} catch (error) {
 					if (!isCancellationError(error) && !cts.token.isCancellationRequested) {
 						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
@@ -95,16 +91,16 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 			});
 		}
 
-		return unixShellEnvPromise;
+		return shellEnvPromise;
 	}
 }
 
-async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
+async function doResolveShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
 	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
+	logService.trace('doResolveShellEnv#runAsNode', runAsNode);
 
 	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
+	logService.trace('doResolveShellEnv#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 	const regex = new RegExp(mark + '({.*})' + mark);
@@ -116,17 +112,25 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		VSCODE_RESOLVING_ENVIRONMENT: '1'
 	};
 
-	logService.trace('getUnixShellEnvironment#env', env);
-	const systemShellUnix = await getSystemShell(OS, env);
-	logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
+	logService.trace('doResolveShellEnv#env', env);
+	const systemShell = await getSystemShell(OS, env); // note: windows always resolves a powershell instance
+	logService.trace('doResolveShellEnv#shell', systemShell);
 
 	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
 			return reject(new CancellationError());
 		}
 
-		// handle popular non-POSIX shells
-		const name = basename(systemShellUnix);
+		// handle popular shells
+		let name = basename(systemShell);
+		// remove any .exe/.cmd/... from the name for matching logic on Windows
+		if (isWindows) {
+			const nameExt = extname(name);
+			if (getWindowPathExtensions().some(e => equalsIgnoreCase(e, nameExt))) {
+				name = name.substring(0, name.length - nameExt.length);
+			}
+		}
+
 		let command: string, shellArgs: Array<string>;
 		const extraArgs = '';
 		if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
@@ -150,10 +154,10 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			}
 		}
 
-		logService.trace('getUnixShellEnvironment#spawn', JSON.stringify(shellArgs), command);
+		logService.trace('doResolveShellEnv#spawn', JSON.stringify(shellArgs), command);
 
-		const child = spawn(systemShellUnix, [...shellArgs, command], {
-			detached: true,
+		const child = spawn(systemShell, [...shellArgs, command], {
+			detached: !isWindows,
 			stdio: ['ignore', 'pipe', 'pipe'],
 			env
 		});
@@ -165,7 +169,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		});
 
 		child.on('error', err => {
-			logService.error('getUnixShellEnvironment#errorChildProcess', toErrorMessage(err));
+			logService.error('doResolveShellEnv#errorChildProcess', toErrorMessage(err));
 			reject(err);
 		});
 
@@ -177,11 +181,11 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 
 		child.on('close', (code, signal) => {
 			const raw = Buffer.concat(buffers).toString('utf8');
-			logService.trace('getUnixShellEnvironment#raw', raw);
+			logService.trace('doResolveShellEnv#raw', raw);
 
 			const stderrStr = Buffer.concat(stderr).toString('utf8');
 			if (stderrStr.trim()) {
-				logService.trace('getUnixShellEnvironment#stderr', stderrStr);
+				logService.trace('doResolveShellEnv#stderr', stderrStr);
 			}
 
 			if (code || signal) {
@@ -211,10 +215,10 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
-				logService.trace('getUnixShellEnvironment#result', env);
+				logService.trace('doResolveShellEnv#result', env);
 				resolve(env);
 			} catch (err) {
-				logService.error('getUnixShellEnvironment#errorCaught', toErrorMessage(err));
+				logService.error('doResolveShellEnv#errorCaught', toErrorMessage(err));
 				reject(err);
 			}
 		});
