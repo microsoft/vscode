@@ -37,4 +37,5 @@ interface ITextModelEditReasonMetadata {
 	extensionId?: string;
 	nes?: boolean;
 	type?: 'word' | 'line';
+	requestUuid?: string;
 }
