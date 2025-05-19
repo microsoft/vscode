@@ -7,7 +7,7 @@ import { Environment, EnvironmentParameters } from '@azure/ms-rest-azure-env';
 import Logger from './logger';
 import { MsalAuthProvider } from './node/authProvider';
 import { UriEventHandler } from './UriEventHandler';
-import { authentication, commands, ExtensionContext, l10n, window, workspace, Disposable } from 'vscode';
+import { authentication, commands, ExtensionContext, l10n, window, workspace, Disposable, Uri } from 'vscode';
 import { MicrosoftAuthenticationTelemetryReporter, MicrosoftSovereignCloudAuthenticationTelemetryReporter } from './common/telemetryReporter';
 
 async function initMicrosoftSovereignCloudAuthProvider(
@@ -79,7 +79,12 @@ export async function activate(context: ExtensionContext, mainTelemetryReporter:
 		'microsoft',
 		'Microsoft',
 		authProvider,
-		{ supportsMultipleAccounts: true }
+		{
+			supportsMultipleAccounts: true,
+			supportedIssuers: [
+				Uri.parse('https://login.microsoftonline.com/*/v2.0')
+			]
+		}
 	));
 
 	let microsoftSovereignCloudAuthProviderDisposable = await initMicrosoftSovereignCloudAuthProvider(context, uriHandler);

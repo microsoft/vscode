@@ -17,6 +17,7 @@ export interface IChatContextPickerPickItem {
 	label: string;
 	iconClass?: string;
 	description?: string;
+	detail?: string;
 	disabled?: boolean;
 	asAttachment(): IChatRequestVariableEntry;
 }

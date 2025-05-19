@@ -25,9 +25,11 @@ import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } f
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -56,6 +58,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super(toolInvocation);
 
@@ -115,7 +118,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				reserveWidth: 19,
 				verticalPadding: 5,
 				editorOptions: {
-					wordWrap: 'on'
+					wordWrap: 'on',
+					tabFocusMode: true
 				}
 			};
 
@@ -221,6 +225,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ tabFocusMode: false });
 							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored
@@ -232,6 +237,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			}
 
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			renderFileWidgets(this.markdownPart.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			elements.message.append(this.markdownPart.domNode);
 
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

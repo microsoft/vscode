@@ -372,16 +372,6 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Emitted when a new notification is added.
-	 */
-	readonly onDidAddNotification: Event<INotification>;
-
-	/**
-	 * Emitted when a notification is removed.
-	 */
-	readonly onDidRemoveNotification: Event<INotification>;
-
-	/**
 	 * Emitted when the notifications filter changed.
 	 */
 	readonly onDidChangeFilter: Event<void>;
