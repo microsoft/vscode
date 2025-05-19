@@ -16,6 +16,11 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
+import { StringEdit, StringReplacement } from '../../../editor/common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../editor/common/core/text/positionToOffset.js';
+import { StringText } from '../../../editor/common/core/text/abstractText.js';
+import { TextEdit } from '../../../editor/common/core/edits/textEdit.js';
 
 suite('Tree Sitter API test', function () {
 
@@ -95,47 +100,11 @@ suite('Tree Sitter API test', function () {
 	test('Test getChangedRanges - ranges are as expected', async () => {
 		const originalTree = parser.parse(smallTestData);
 		assert.notStrictEqual(originalTree, null);
-		originalTree!.edit({
-			startIndex: 152,
-			startPosition: {
-				row: 7,
-				column: 4
-			},
-			oldEndIndex: 179,
-			oldEndPosition: {
-				row: 9,
-				column: 27,
-			},
-			newEndIndex: 152,
-			newEndPosition: {
-				row: 7,
-				column: 4
-			}
-		});
+		const offsetRange = new OffsetRange(152, 179);
+		const replacement = new StringReplacement(offsetRange, '');
 
-		// Edited data will look like this:
+		const editedTestData = applyEditToTree(originalTree!, smallTestData, offsetRange, replacement);
 
-		// export class TreeView extends AbstractTreeView {
-
-		// 	protected activate() {
-		// 		if (!this.activated) {
-		// 			this.createTree();
-		// 			this.activated = true;
-		// 		}
-		//
-		// 		if (!this.activated) {
-		// 			this.createTree();
-		// 			this.activated = true;
-		// 		}
-		// 	}
-		// }
-
-		// interface TreeDragSourceInfo {
-		// 	id: string;
-		// 	itemHandles: string[];
-		// }
-
-		const editedTestData = smallTestData.substring(0, 152) + smallTestData.substring(179);
 		const modifiedTree = parser.parse(editedTestData, originalTree);
 		assert.notStrictEqual(modifiedTree, null);
 		const diff = modifiedTree!.getChangedRanges(originalTree!);
@@ -147,67 +116,17 @@ suite('Tree Sitter API test', function () {
 	test('Test getChangedRanges 2 - ranges are as expected', async () => {
 		const originalTree = parser.parse(smallTestData);
 		assert.notStrictEqual(originalTree, null);
-		// Insert some backticks
-		originalTree!.edit({
-			startIndex: 153,
-			startPosition: {
-				row: 7,
-				column: 5
-			},
-			oldEndIndex: 153,
-			oldEndPosition: {
-				row: 7,
-				column: 5,
-			},
-			newEndIndex: 165,
-			newEndPosition: {
-				row: 7,
-				column: 17
-			}
-		});
-		originalTree!.edit({
-			startIndex: 271,
-			startPosition: {
-				row: 14,
-				column: 5
-			},
-			oldEndIndex: 271,
-			oldEndPosition: {
-				row: 14,
-				column: 5,
-			},
-			newEndIndex: 272,
-			newEndPosition: {
-				row: 14,
-				column: 6
-			}
-		});
 
-		// Edited data will look like this:
+		// Add some backticks
+		const offsetRanges = [new OffsetRange(153, 153), new OffsetRange(271, 271)];
+		const replacements = [new StringReplacement(offsetRanges[0], 'private x =`'), new StringReplacement(offsetRanges[1], '`')];
+		let editedTestData = smallTestData;
+		for (let i = 0; i < offsetRanges.length; i++) {
+			const offsetRange = offsetRanges[i];
+			const replacement = replacements[i];
+			editedTestData = applyEditToTree(originalTree!, editedTestData, offsetRange, replacement);
+		}
 
-		// export class TreeView extends AbstractTreeView {
-
-		// 	protected activate() {
-		// 		if (!this.activated) {
-		// 			this.createTree();
-		// 			this.activated = true;
-		// 		}
-		// 	}private x =`
-
-		// 	protected activate2() {
-		// 		if (!this.activated) {
-		// 			this.createTree();
-		// 			this.activated = true;
-		// 		}
-		// 	}`
-		// }
-
-		// interface TreeDragSourceInfo {
-		// 	id: string;
-		// 	itemHandles: string[];
-		// }
-
-		const editedTestData = smallTestData.substring(0, 153) + 'private x =`' + smallTestData.substring(153, 259) + '`' + smallTestData.substring(259);
 		const modifiedTreeOne = parser.parse(editedTestData, originalTree);
 		assert.notStrictEqual(modifiedTreeOne, null);
 		const diff = originalTree!.getChangedRanges(modifiedTreeOne!);
@@ -215,28 +134,14 @@ suite('Tree Sitter API test', function () {
 		assert.strictEqual(JSON.stringify(diff[0]), '{"startPosition":{"row":7,"column":2},"endPosition":{"row":14,"column":3},"startIndex":153,"endIndex":272}');
 
 		// Remove the last backtick
-		modifiedTreeOne!.edit({
-			startIndex: 271,
-			startPosition: {
-				row: 14,
-				column: 5
-			},
-			oldEndIndex: 272,
-			oldEndPosition: {
-				row: 14,
-				column: 6,
-			},
-			newEndIndex: 271,
-			newEndPosition: {
-				row: 14,
-				column: 5
-			}
-		});
-		const editedTestDataTwo = editedTestData.substring(0, 271) + editedTestData.substring(272);
+		const offsetRange2 = new OffsetRange(271, 272);
+		const replacement2 = new StringReplacement(offsetRange2, '');
+		const editedTestDataTwo = applyEditToTree(modifiedTreeOne!, editedTestData, offsetRange2, replacement2);
+
 		const modifiedTreeTwo = parser.parse(editedTestDataTwo, modifiedTreeOne);
 		const diffTwo = modifiedTreeOne!.getChangedRanges(modifiedTreeTwo!);
 		assert.strictEqual(diffTwo.length, 1);
-		assert.strictEqual(JSON.stringify(diffTwo[0]), '{"startPosition":{"row":7,"column":13},"endPosition":{"row":14,"column":5},"startIndex":164,"endIndex":271}');
+		assert.strictEqual(JSON.stringify(diffTwo[0]), '{"startPosition":{"row":7,"column":13},"endPosition":{"row":14,"column":2},"startIndex":164,"endIndex":271}');
 		originalTree?.delete();
 		modifiedTreeOne?.delete();
 		modifiedTreeTwo?.delete();
@@ -244,32 +149,50 @@ suite('Tree Sitter API test', function () {
 
 	test('Test getChangedRanges 3 - ranges are not as expected because the syntax doesn\'t change', async () => {
 		const initialTestData = 'const x = 1;\nconst y = 2;';
-		const editedTestData = 'const x = 30;\nconst y = 2;';
 
 		const originalTree = parser.parse(initialTestData);
 		assert.notStrictEqual(originalTree, null);
-		originalTree!.edit({
-			startIndex: 10,
-			startPosition: {
-				row: 0,
-				column: 10
-			},
-			oldEndIndex: 11,
-			oldEndPosition: {
-				row: 0,
-				column: 11,
-			},
-			newEndIndex: 12,
-			newEndPosition: {
-				row: 0,
-				column: 12
-			}
-		});
+
+		const offsetRange = new OffsetRange(10, 11);
+		const replacement = new StringReplacement(offsetRange, '30');
+		const editedTestData = applyEditToTree(originalTree!, initialTestData, offsetRange, replacement);
+
+
 		const modifiedTree = parser.parse(editedTestData, originalTree);
 		assert.notStrictEqual(modifiedTree, null);
 		const diff = originalTree!.getChangedRanges(modifiedTree!);
 		assert.strictEqual(diff.length, 0);
 	});
+
+	function applyEditToTree(tree: Parser.Tree, baseText: string, offsetRange: OffsetRange, stringReplacement: StringReplacement): string {
+		const stringEdit = new StringEdit([stringReplacement]);
+		const edit = new PositionOffsetTransformer(baseText).getTextEdit(stringEdit);
+
+		const replacement = edit.replacements[0];
+		const textWithEdits = new TextEdit([replacement]).apply(new StringText(baseText));
+		const newRange = edit.getNewRanges()[0];
+		const transformer = new PositionOffsetTransformer(textWithEdits);
+		const endOffset = transformer.getOffset(newRange.getEndPosition());
+
+		tree!.edit({
+			startIndex: offsetRange.start,
+			startPosition: {
+				row: replacement.range.startLineNumber - 1,
+				column: replacement.range.startColumn - 1
+			},
+			oldEndIndex: offsetRange.endExclusive,
+			oldEndPosition: {
+				row: replacement.range.endLineNumber - 1,
+				column: replacement.range.endColumn - 1,
+			},
+			newEndIndex: endOffset,
+			newEndPosition: {
+				row: newRange.endLineNumber - 1,
+				column: newRange.endColumn - 1
+			}
+		});
+		return textWithEdits;
+	}
 
 	function printTree(tree: Parser.Tree, simple: boolean = false): string {
 		return JSON.stringify(expandNode(tree.rootNode, simple));
@@ -299,22 +222,7 @@ suite('Tree Sitter API test', function () {
 		};
 	}
 
-	const smallTestData = `export class TreeView extends AbstractTreeView {
-
-	protected activate() {
-		if (!this.activated) {
-			this.createTree();
-			this.activated = true;
-		}
-	}
-
-	protected activate2() {
-		if (!this.activated) {
-			this.createTree();
-			this.activated = true;
-		}
-	}
-}`;
+	const smallTestData = "export class TreeView extends AbstractTreeView {\n\n\tprotected activate() {\n\t\tif (!this.activated) {\n\t\t\tthis.createTree();\n\t\t\tthis.activated = true;\n\t\t}\n\t}\n\n\tprotected activate2() {\n\t\tif (!this.activated) {\n\t\t\tthis.createTree();\n\t\t\tthis.activated = true;\n\t\t}\n\t}\n}";
 
 	const largeTestData = `
 /*---------------------------------------------------------------------------------------------
