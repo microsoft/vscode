@@ -95,6 +95,7 @@ export class ScreenReaderSupport extends Disposable {
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
+		this._domNode.domNode.contentEditable = 'true';
 		this._domNode.domNode.setAttribute('role', 'textbox');
 		this._domNode.domNode.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this._domNode.domNode.setAttribute('aria-multiline', 'true');
@@ -112,13 +113,10 @@ export class ScreenReaderSupport extends Disposable {
 
 	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-		if (!this._renderedLines) {
-			return;
-		}
-		this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._primarySelection);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
+		this.writeScreenReaderContent();
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 	}
 
@@ -166,10 +164,11 @@ export class ScreenReaderSupport extends Disposable {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(top + 100);
+		this._domNode.setTop(300);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
-		this._domNode.setHeight(height);
+		this._domNode.setHeight(500);
+		console.log('this._domNode : ', this._domNode.domNode);
 		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
@@ -201,10 +200,15 @@ export class ScreenReaderSupport extends Disposable {
 		if (isScreenReaderOptimized) {
 			const primarySelection = this._primarySelection;
 			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);
+			//if (!this._screenReaderContentState) {
 			const renderedLines = this._renderScreenReaderContent(screenReaderContentState);
 			this._screenReaderContentState = screenReaderContentState;
 			this._renderedLines = renderedLines;
-			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._primarySelection);
+			//}
+			// if (noChangeToScreenReaderContent && this._screenReaderContentState.equals(screenReaderContentState)) {
+			//	return;
+			// }
+			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines!, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
@@ -256,13 +260,14 @@ export class ScreenReaderSupport extends Disposable {
 		);
 		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 		const sb = new StringBuilder(10000);
-		const renderOutput = renderViewLine(renderLineInput, sb, true);
+		const renderOutput = renderViewLine(renderLineInput, sb, true, false);
 		const html = sb.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
 		const stringifiedLineHeight = String(lineHeight) + 'px';
 		domNode.style.lineHeight = stringifiedLineHeight;
 		domNode.style.height = stringifiedLineHeight;
+		domNode.role = 'text';
 		domNode.innerHTML = trustedhtml as string;
 		const characterMapping = renderOutput.characterMapping;
 		return new RenderedScreenReaderLine(domNode, characterMapping);
@@ -349,6 +354,7 @@ export class ScreenReaderSupport extends Disposable {
 		console.log('_setSelectionOfScreenReaderContent');
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
 		if (!activeDocumentSelection) {
 			return;
 		}
@@ -372,13 +378,8 @@ export class ScreenReaderSupport extends Disposable {
 		const endDomPosition = endRenderedLine.characterMapping.getDomPosition(characterCountForEnd);
 		const startDomNode = startRenderedLine.domNode;
 		const endDomNode = endRenderedLine.domNode;
-		const startInnerSpan = startDomNode.firstChild;
-		const endInnerSpan = endDomNode.firstChild;
-		if (!startInnerSpan || !endInnerSpan) {
-			return;
-		}
-		const startChildren = startInnerSpan.childNodes;
-		const endChildren = endInnerSpan.childNodes;
+		const startChildren = startDomNode.childNodes;
+		const endChildren = endDomNode.childNodes;
 		const startNode = startChildren.item(startDomPosition.partIndex);
 		const endNode = endChildren.item(endDomPosition.partIndex);
 		if (startNode.firstChild && endNode.firstChild) {
@@ -397,8 +398,10 @@ export class ScreenReaderSupport extends Disposable {
 				range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
 			}
 			this.setIgnoreSelectionChangeTime('setRange');
-			activeDocumentSelection.removeAllRanges();
-			activeDocumentSelection.addRange(range);
+			console.log('Changing selection');
+			console.log('range : ', range);
+			activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+			console.log('activeDocumentSelection : ', activeDocumentSelection);
 		}
 	}
 }

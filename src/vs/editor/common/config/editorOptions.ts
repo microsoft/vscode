@@ -1948,6 +1948,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		console.log('env.editContextSupported : ', env.editContextSupported);
+		console.log('options.get(EditorOption.experimentalEditContextEnabled) : ', options.get(EditorOption.experimentalEditContextEnabled));
 		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
@@ -2700,7 +2701,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
 		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
-		const wordWrap = 'on';  // (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
@@ -2752,7 +2753,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			// Force viewport width wrapping if model is dominated by long lines
 			isWordWrapMinified = true;
 			isViewportWrapping = true;
-		} else if (wordWrap === 'on') { // || wordWrap === 'bounded'
+		} else if (wordWrap === 'on' || wordWrap === 'bounded') {
 			isViewportWrapping = true;
 		} else if (wordWrap === 'wordWrapColumn') {
 			wrappingColumn = wordWrapColumn;
@@ -2791,9 +2792,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
 			wrappingColumn = Math.max(1, viewportColumn);
-			// if (wordWrap === 'bounded') {
-			// 	wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
-			// }
+			if (wordWrap === 'bounded') {
+				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
+			}
 		}
 
 		return {
