@@ -42,6 +42,8 @@ export class HoverService extends Disposable implements IHoverService {
 	private _currentDelayedHoverGroupId: number | string | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
 
+	private _enabled = true;
+
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
 	private readonly _delayedHovers = new Map<HTMLElement, { show: (focus: boolean) => void }>();
@@ -67,6 +69,10 @@ export class HoverService extends Disposable implements IHoverService {
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			handler: () => { this._showAndFocusHoverForActiveElement(); },
 		}));
+	}
+
+	get enable() {
+		return this._enabled;
 	}
 
 	showInstantHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
@@ -289,11 +295,20 @@ export class HoverService extends Disposable implements IHoverService {
 		return hover;
 	}
 
+	enableHover(enabled: boolean) {
+		this._enabled = enabled;
+		if (!enabled) {
+			this.hideHover(true);
+		}
+	}
+
 	private _showHover(hover: HoverWidget, options: IHoverOptions, focus?: boolean) {
-		this._contextViewHandler.showContextView(
-			new HoverContextViewDelegate(hover, focus),
-			options.container
-		);
+		if (this.enable) {
+			this._contextViewHandler.showContextView(
+				new HoverContextViewDelegate(hover, focus),
+				options.container
+			);
+		}
 	}
 
 	hideHover(force?: boolean): void {
