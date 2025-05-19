@@ -33,7 +33,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -270,7 +270,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				if (prepared?.confirmationMessages) {
-					this.playAccessibilitySignal(prepared.confirmationMessages);
+					this.playAccessibilitySignal([toolInvocation]);
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
 						throw new CancellationError();
@@ -364,11 +364,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return prepared;
 	}
 
-	private playAccessibilitySignal(confirmationMessages: IToolConfirmationMessages): void {
+	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
 		const hasFocusedWindow = getFocusedWindow();
 		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
 		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || hasFocusedWindow))) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, confirmationMessages.title), userGesture: true });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
 		}
 	}
 
