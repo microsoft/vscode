@@ -1705,6 +1705,10 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
+	async showCommit(ref: string): Promise<string> {
+		return await this.run(Operation.Show, () => this.repository.showCommit(ref));
+	}
+
 	async getEmptyTree(): Promise<string> {
 		if (!this._EMPTY_TREE) {
 			const result = await this.repository.exec(['hash-object', '-t', 'tree', '/dev/null']);

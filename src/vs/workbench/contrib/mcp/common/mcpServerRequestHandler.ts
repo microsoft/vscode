@@ -11,7 +11,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { canLog, ILogger, LogLevel } from '../../../../platform/log/common/log.js';
+import { canLog, ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpConnectionState, MpcResponseError } from './mcpTypes.js';
@@ -84,8 +84,8 @@ export class McpServerRequestHandler extends Disposable {
 	 * Connects to the MCP server and does the initialization handshake.
 	 * @throws MpcResponseError if the server fails to initialize.
 	 */
-	public static async create(instaService: IInstantiationService, launch: IMcpMessageTransport, logger: ILogger, token?: CancellationToken) {
-		const mcp = new McpServerRequestHandler(launch, logger);
+	public static async create(instaService: IInstantiationService, launch: IMcpMessageTransport, logger: ILogger, requestLogLevel = LogLevel.Debug, token?: CancellationToken) {
+		const mcp = new McpServerRequestHandler(launch, logger, requestLogLevel);
 		const store = new DisposableStore();
 		try {
 			const timer = store.add(new IntervalTimer());
@@ -128,6 +128,7 @@ export class McpServerRequestHandler extends Disposable {
 	protected constructor(
 		private readonly launch: IMcpMessageTransport,
 		public readonly logger: ILogger,
+		private readonly requestLogLevel: LogLevel,
 	) {
 		super();
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
@@ -190,8 +191,8 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private send(mcp: MCP.JSONRPCMessage) {
-		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
-			this.logger.debug(`[editor -> server] ${JSON.stringify(mcp)}`);
+		if (canLog(this.logger.getLevel(), this.requestLogLevel)) { // avoid building the string if we don't need to
+			log(this.logger, this.requestLogLevel, `[editor -> server] ${JSON.stringify(mcp)}`);
 		}
 
 		this.launch.send(mcp);
@@ -232,8 +233,8 @@ export class McpServerRequestHandler extends Disposable {
 	 * Handle incoming messages from the server
 	 */
 	private handleMessage(message: MCP.JSONRPCMessage): void {
-		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
-			this.logger.debug(`[server <- editor] ${JSON.stringify(message)}`);
+		if (canLog(this.logger.getLevel(), this.requestLogLevel)) { // avoid building the string if we don't need to
+			log(this.logger, this.requestLogLevel, `[server -> editor] ${JSON.stringify(message)}`);
 		}
 
 		// Handle responses to our requests

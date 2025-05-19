@@ -21,7 +21,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_COMPACT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
 import { BaseWindow } from '../../../browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -319,7 +319,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height: activeWindow.outerHeight
 		};
 
-		const defaultSize = options?.compact ? DEFAULT_COMPACT_AUX_WINDOW_SIZE : DEFAULT_AUX_WINDOW_SIZE;
+		const defaultSize = DEFAULT_AUX_WINDOW_SIZE;
 
 		const width = Math.max(options?.bounds?.width ?? defaultSize.width, WindowMinimumSize.WIDTH);
 		const height = Math.max(options?.bounds?.height ?? defaultSize.height, WindowMinimumSize.HEIGHT);

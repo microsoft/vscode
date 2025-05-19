@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, RefType, Repository } from './typings/git';
-import { publishRepository } from './publish';
-import { DisposableStore, getRepositoryFromUrl } from './util';
-import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links';
+import { API as GitAPI, RefType, Repository } from './typings/git.js';
+import { publishRepository } from './publish.js';
+import { DisposableStore, getRepositoryFromUrl } from './util.js';
+import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {

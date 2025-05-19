@@ -18,6 +18,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -54,9 +55,10 @@ import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languag
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
-import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
+import { CopilotTitleBarMenuRendering, registerChatActions, ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
+import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
+import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
@@ -74,6 +76,7 @@ import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatW
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
+import { ChatContextPickService, IChatContextPickService } from './chatContextPickService.js';
 import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
@@ -100,7 +103,6 @@ import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
-import './promptSyntax/contributions/attachInstructionsCommand.js';
 import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 
@@ -267,6 +269,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
 			default: true,
+			tags: ['preview'],
 			policy: {
 				name: 'ChatAgentExtensionTools',
 				minimumVersion: '1.99',
@@ -301,6 +304,18 @@ configurationRegistry.registerConfiguration({
 			],
 			default: true,
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
+		},
+		[mcpGalleryServiceUrlConfig]: {
+			type: 'string',
+			description: nls.localize('mcp.gallery.serviceUrl', "Configure the MCP Gallery service URL to connect to"),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['usesOnlineServices'],
+			included: false,
+			policy: {
+				name: 'McpGalleryServiceUrl',
+				minimumVersion: '1.101',
+			},
 		},
 		[PromptsConfig.KEY]: {
 			type: 'boolean',
@@ -383,6 +398,12 @@ configurationRegistry.registerConfiguration({
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
+		},
+		'chat.setup.signInWithAlternateProvider': {
+			type: 'boolean',
+			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
+			default: false,
+			tags: ['onExp', 'experimental'],
 		},
 	}
 });
@@ -617,6 +638,7 @@ registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOve
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();
@@ -658,6 +680,7 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 

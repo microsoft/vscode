@@ -11,7 +11,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
 import { singleTextRemoveCommonPrefix } from '../../../model/singleTextEditHelpers.js';
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
@@ -37,7 +37,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit.edits[0] ?? null);
+		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit.replacements[0] ?? null);
 
 		const startPosition = firstEdit.map(edit => edit ? singleTextRemoveCommonPrefix(edit, this._editor.getModel()!).range.getStartPosition() : null);
 		const observedStartPoint = this._editorObs.observePosition(startPosition, this._store);

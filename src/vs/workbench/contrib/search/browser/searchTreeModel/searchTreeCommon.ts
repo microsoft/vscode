@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -97,8 +97,7 @@ export interface ISearchModel {
 	replaceString: string;
 	preserveCase: boolean;
 	searchResult: ISearchResult;
-	addAIResults(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
-	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	aiSearch(): Promise<ISearchComplete>;
 	hasAIResults: boolean;
 	hasPlainResults: boolean;
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {

@@ -5,10 +5,10 @@
 
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
-import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
-import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { FrontMatterValueToken, FrontMatterRecordName, type TRecordNameToken, type TRecordSpaceToken, FrontMatterRecordDelimiter, FrontMatterRecord } from '../tokens/index.js';
+import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord, type TRecordNameToken, type TRecordSpaceToken } from '../tokens/index.js';
 
 /**
  * Tokens that can be used inside a record name.
@@ -220,11 +220,21 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 				this.currentTokens.push(nextParser);
 				delete this.currentValueParser;
 
+				// sanity checks on the original tokens the parser was created with
+				assert(
+					this.currentTokens[0] instanceof FrontMatterRecordName,
+					`Expected a front matter record name, got '${this.currentTokens[0]}'.`,
+				);
+				assert(
+					this.currentTokens[1] instanceof FrontMatterRecordDelimiter,
+					`Expected a front matter record delimiter, got '${this.currentTokens[1]}'.`,
+				);
+
 				this.isConsumed = true;
 				try {
 					return {
 						result: 'success',
-						nextParser: FrontMatterRecord.fromTokens([
+						nextParser: new FrontMatterRecord([
 							this.currentTokens[0],
 							this.currentTokens[1],
 							nextParser,

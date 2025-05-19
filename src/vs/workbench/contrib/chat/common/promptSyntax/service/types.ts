@@ -128,7 +128,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	getSyntaxParserFor(
 		model: ITextModel,
-	): TSharedPrompt & { disposed: false };
+	): TSharedPrompt & { isDisposed: false };
 
 	/**
 	 * List all available prompt files.

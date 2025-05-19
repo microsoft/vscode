@@ -9,7 +9,7 @@ import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { Event } from '../../base/common/event.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
-import { IDimension } from '../common/core/dimension.js';
+import { IDimension } from '../common/core/2d/dimension.js';
 import { IPosition, Position } from '../common/core/position.js';
 import { IRange, Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -1078,7 +1078,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the line height for the line number.
 	 */
-	getLineHeightForLineNumber(lineNumber: number): number;
+	getLineHeightForPosition(position: IPosition): number;
 
 	/**
 	 * Set the model ranges that will be hidden in the view.

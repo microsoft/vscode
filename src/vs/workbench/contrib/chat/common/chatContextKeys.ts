@@ -57,13 +57,13 @@ export namespace ChatContextKeys {
 	};
 
 	export const Entitlement = {
-		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
-		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true),				// True when user is a chat pro user.
-		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 		// True when user is a chat pro plus user.
-		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 		// True when user is a chat business user.
-		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 	// True when user is a chat enterprise user.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat limited user.
+		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),			// True when user is a chat limited user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
+		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
+		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
+		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 		// True when user is a chat enterprise user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);

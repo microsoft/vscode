@@ -107,9 +107,9 @@ export namespace PromptsConfig {
 			}
 
 			// copy all the enabled paths to the result list
-			for (const [path, enabled] of Object.entries(value)) {
+			for (const [path, enabledValue] of Object.entries(value)) {
 				// we already added the default source folder, so skip it
-				if ((enabled === false) || (path === defaultSourceFolder)) {
+				if ((enabledValue === false) || (path === defaultSourceFolder)) {
 					continue;
 				}
 
@@ -132,7 +132,7 @@ export namespace PromptsConfig {
  * 			be clearly mapped to a boolean (e.g., `"true"`, `"TRUE"`, `"FaLSe"`, etc.),
  * 			`undefined` for rest of the values
  */
-export const asBoolean = (value: any): boolean | undefined => {
+export const asBoolean = (value: unknown): boolean | undefined => {
 	if (typeof value === 'boolean') {
 		return value;
 	}

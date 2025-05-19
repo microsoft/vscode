@@ -13,7 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
  * characters without stop characters, like a `space`,
  * a `tab`, or a `new line`.
  */
-export class Word extends BaseToken {
+export class Word<TText extends string = string> extends BaseToken<TText> {
 	constructor(
 		/**
 		 * The word range.
@@ -23,7 +23,7 @@ export class Word extends BaseToken {
 		/**
 		 * The string value of the word.
 		 */
-		public readonly text: string,
+		public readonly text: TText,
 	) {
 		super(range);
 	}
@@ -46,21 +46,6 @@ export class Word extends BaseToken {
 			Range.fromPositions(startPosition, endPosition),
 			text,
 		);
-	}
-
-	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.equals(other)) {
-			return false;
-		}
-
-		if (!(other instanceof Word)) {
-			return false;
-		}
-
-		return this.text === other.text;
 	}
 
 	/**

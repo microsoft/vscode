@@ -5,11 +5,11 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { assertFn } from '../../../../base/common/assert.js';
-import { LineRange } from '../../core/lineRange.js';
-import { OffsetRange } from '../../core/offsetRange.js';
+import { LineRange } from '../../core/ranges/lineRange.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
-import { ArrayText } from '../../core/textEdit.js';
+import { ArrayText } from '../../core/text/abstractText.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from '../linesDiffComputer.js';
 import { DetailedLineRangeMapping, LineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../rangeMapping.js';
 import { DateTimeout, InfiniteTimeout, ITimeout, SequenceDiff } from './algorithms/diffAlgorithm.js';

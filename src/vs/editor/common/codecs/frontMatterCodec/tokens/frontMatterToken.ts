@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseToken } from '../../baseToken.js';
+import { CompositeToken } from '../../compositeToken.js';
 
 /**
  * Base class for all tokens inside a Front Matter header.
  */
-export abstract class FrontMatterToken extends BaseToken { }
+export abstract class FrontMatterToken<
+	TTokens extends readonly BaseToken[] = readonly BaseToken[],
+> extends CompositeToken<TTokens> { }
 
 /**
  * List of all currently supported value types.
@@ -18,7 +21,10 @@ export type TValueTypeName = 'string' | 'boolean' | 'array';
 /**
  * Base class for all tokens that represent a `value` inside a Front Matter header.
  */
-export abstract class FrontMatterValueToken<TTypeName extends TValueTypeName = TValueTypeName> extends FrontMatterToken {
+export abstract class FrontMatterValueToken<
+	TTypeName extends TValueTypeName = TValueTypeName,
+	TTokens extends readonly BaseToken[] = readonly BaseToken[],
+> extends FrontMatterToken<TTokens> {
 	/**
 	 * Type name of the `value` represented by this token.
 	 */

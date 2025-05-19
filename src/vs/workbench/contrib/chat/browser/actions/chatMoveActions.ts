@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -78,13 +79,15 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInSidebar`,
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
+				icon: Codicon.layoutSidebarRight,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
-				menu: [{
-					id: MenuId.EditorTitle,
-					order: 0,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
+					group: id === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}]
+					order: 0
+				}))
 			});
 		}
 
@@ -101,7 +104,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, compact: moveTo === MoveToNewLocation.Window } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -111,7 +114,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	widget.clear();
 	await widget.waitForReady();
 
-	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, compact: moveTo === MoveToNewLocation.Window };
+	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 

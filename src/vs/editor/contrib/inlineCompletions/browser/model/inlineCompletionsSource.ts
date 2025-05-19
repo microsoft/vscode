@@ -16,63 +16,32 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { OffsetEdit } from '../../../../common/core/offsetEdit.js';
+import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionContext, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
-import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
+import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
 
-	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
+	private readonly _updateOperation;
 
-	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+	private readonly _loggingEnabled;
 
-	private readonly _structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
-		{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
-		| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
-	>(),
-		'editor.inlineSuggest.logFetch.commandId'
-	));
+	private readonly _structuredFetchLogger;
 
-	private readonly _state = observableReducerSettable(this, {
-		initial: () => ({
-			inlineCompletions: InlineCompletionsState.createEmpty(),
-			suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty(),
-		}),
-		disposeFinal: (values) => {
-			values.inlineCompletions.dispose();
-			values.suggestWidgetInlineCompletions.dispose();
-		},
-		changeTracker: recordChanges({ versionId: this._versionId }),
-		update: (reader, previousValue, changes) => {
-			const edit = OffsetEdit.join(changes.changes.map(c => c.change ? OffsetEdits.fromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
+	private readonly _state;
 
-			if (edit.isEmpty) {
-				return previousValue;
-			}
-			try {
-				return {
-					inlineCompletions: previousValue.inlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
-					suggestWidgetInlineCompletions: previousValue.suggestWidgetInlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
-				};
-			} finally {
-				previousValue.inlineCompletions.dispose();
-				previousValue.suggestWidgetInlineCompletions.dispose();
-			}
-		}
-	});
-
-	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
-	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
+	public readonly inlineCompletions;
+	public readonly suggestWidgetInlineCompletions;
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -84,15 +53,55 @@ export class InlineCompletionsSource extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._updateOperation = this._register(new MutableDisposable<UpdateOperation>());
+		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
+			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+			| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+		>(),
+			'editor.inlineSuggest.logFetch.commandId'
+		));
+		this._state = observableReducerSettable(this, {
+			initial: () => ({
+				inlineCompletions: InlineCompletionsState.createEmpty(),
+				suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty(),
+			}),
+			disposeFinal: (values) => {
+				values.inlineCompletions.dispose();
+				values.suggestWidgetInlineCompletions.dispose();
+			},
+			changeTracker: recordChanges({ versionId: this._versionId }),
+			update: (reader, previousValue, changes) => {
+				const edit = StringEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : StringEdit.empty).filter(isDefined));
+
+				if (edit.isEmpty()) {
+					return previousValue;
+				}
+				try {
+					return {
+						inlineCompletions: previousValue.inlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
+						suggestWidgetInlineCompletions: previousValue.suggestWidgetInlineCompletions.createStateWithAppliedEdit(edit, this._textModel),
+					};
+				} finally {
+					previousValue.inlineCompletions.dispose();
+					previousValue.suggestWidgetInlineCompletions.dispose();
+				}
+			}
+		});
+		this.inlineCompletions = this._state.map(this, v => v.inlineCompletions);
+		this.suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
+		this.clearOperationOnTextModelChange = derived(this, reader => {
+			this._versionId.read(reader);
+			this._updateOperation.clear();
+			return undefined; // always constant
+		});
+		this._loadingCount = observableValue(this, 0);
+		this.loading = this._loadingCount.map(this, v => v > 0);
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 	}
 
-	public readonly clearOperationOnTextModelChange = derived(this, reader => {
-		this._versionId.read(reader);
-		this._updateOperation.clear();
-		return undefined; // always constant
-	});
+	public readonly clearOperationOnTextModelChange;
 
 	private _log(entry:
 		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
@@ -104,10 +113,10 @@ export class InlineCompletionsSource extends Disposable {
 		this._structuredFetchLogger.log(entry);
 	}
 
-	private readonly _loadingCount = observableValue(this, 0);
-	public readonly loading = this._loadingCount.map(this, v => v > 0);
+	private readonly _loadingCount;
+	public readonly loading;
 
-	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean): Promise<boolean> {
+	public fetch(providers: InlineCompletionsProvider[], position: Position, context: InlineCompletionContextWithoutUuid, activeInlineCompletion: InlineSuggestionIdentity | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>, providerhasChangedCompletion: boolean): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
@@ -267,7 +276,7 @@ export class InlineCompletionsSource extends Disposable {
 class UpdateRequest {
 	constructor(
 		public readonly position: Position,
-		public readonly context: InlineCompletionContext,
+		public readonly context: InlineCompletionContextWithoutUuid,
 		public readonly versionId: number,
 	) {
 	}
@@ -333,7 +342,7 @@ class InlineCompletionsState extends Disposable {
 	/**
 	 * Applies the edit on the state.
 	*/
-	public createStateWithAppliedEdit(edit: OffsetEdit, textModel: ITextModel): InlineCompletionsState {
+	public createStateWithAppliedEdit(edit: StringEdit, textModel: ITextModel): InlineCompletionsState {
 		const newInlineCompletions = this.inlineCompletions.map(i => i.withEdit(edit, textModel)).filter(isDefined);
 		return new InlineCompletionsState(newInlineCompletions, this.request);
 	}

@@ -2010,12 +2010,12 @@ export class CommandCenter {
 
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffs: ${JSON.stringify(selectedDiffs)}`);
 
-		if (modifiedUri.scheme === 'file') {
-			// Editor
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(selectedDiffs)}`);
-			await this._unstageChanges(textEditor, selectedDiffs);
-			return;
-		}
+		// if (modifiedUri.scheme === 'file') {
+		// 	// Editor
+		// 	this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(selectedDiffs)}`);
+		// 	await this._unstageChanges(textEditor, selectedDiffs);
+		// 	return;
+		// }
 
 		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);

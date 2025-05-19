@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ObjectStream } from '../utils/objectStream.js';
 import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
-import { TokenStream } from '../utils/tokenStream.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
@@ -29,9 +29,9 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 	private current?: PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord;
 
 	constructor(
-		stream: ReadableStream<VSBuffer> | TokenStream<TSimpleDecoderToken>,
+		stream: ReadableStream<VSBuffer> | ObjectStream<TSimpleDecoderToken>,
 	) {
-		if (stream instanceof TokenStream) {
+		if (stream instanceof ObjectStream) {
 			super(stream);
 
 			return;

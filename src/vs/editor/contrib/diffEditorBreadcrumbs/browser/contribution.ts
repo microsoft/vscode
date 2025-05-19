@@ -7,7 +7,7 @@ import { reverseOrder, compareBy, numberComparator } from '../../../../base/comm
 import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable.js';
 import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils.js';
-import { LineRange } from '../../../common/core/lineRange.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IOutlineModelService, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
