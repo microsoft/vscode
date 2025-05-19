@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../../../base/common/assert.js';
+import { BaseToken } from '../../baseToken.js';
+import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
+import { assertDefined } from '../../../../../base/common/types.js';
+import { PartialFrontMatterSequence } from './frontMatterSequence.js';
+import { assert, assertNever } from '../../../../../base/common/assert.js';
+import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { Colon, Word, Dash, Space, Tab } from '../../simpleCodec/tokens/index.js';
-import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord, type TRecordNameToken, type TRecordSpaceToken } from '../tokens/index.js';
+import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { Colon, Word, Dash, Space, Tab, FormFeed, VerticalTab } from '../../simpleCodec/tokens/index.js';
+import { FrontMatterValueToken, FrontMatterRecordName, type TRecordNameToken, type TRecordSpaceToken, FrontMatterRecordDelimiter, FrontMatterRecord } from '../tokens/index.js';
 
 /**
  * Tokens that can be used inside a record name.
@@ -28,7 +33,7 @@ const VALID_NAME_TOKENS = [
  * ```
  */
 const VALID_SPACE_TOKENS = [
-	Space, Tab,
+	Space, Tab, VerticalTab,
 ];
 
 /**
@@ -188,16 +193,28 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<FrontM
  * ```
  */
 export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, PartialFrontMatterRecord | FrontMatterRecord> {
+	/**
+	 * Token that represents the 'name' part of the record.
+	 */
+	private readonly recordNameToken: FrontMatterRecordName;
+
+	/**
+	 * Token that represents the 'delimiter' part of the record.
+	 */
+	private readonly recordDelimiterToken: FrontMatterRecordDelimiter;
+
 	constructor(
 		tokens: [FrontMatterRecordName, FrontMatterRecordDelimiter],
 	) {
 		super(tokens);
+		this.recordNameToken = tokens[0];
+		this.recordDelimiterToken = tokens[1];
 	}
 
 	/**
 	 * Current parser reference responsible for parsing the "value" part of the record.
 	 */
-	private currentValueParser?: PartialFrontMatterValue;
+	private currentValueParser?: PartialFrontMatterValue | PartialFrontMatterSequence;
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterRecord | FrontMatterRecord> {
@@ -235,8 +252,8 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 					return {
 						result: 'success',
 						nextParser: new FrontMatterRecord([
-							this.currentTokens[0],
-							this.currentTokens[1],
+							this.recordNameToken,
+							this.recordDelimiterToken,
 							nextParser,
 						]),
 						wasTokenConsumed,
@@ -272,16 +289,90 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, Pa
 
 		// if token can start a "value" sequence, parse the value
 		if (PartialFrontMatterValue.isValueStartToken(token)) {
-			this.currentValueParser = new PartialFrontMatterValue();
+			this.currentValueParser = new PartialFrontMatterValue(shouldEndTokenSequence);
 
 			return this.accept(token);
 		}
 
-		// otherwise fail due to the unexpected token type for a record value
-		this.isConsumed = true;
-		return {
-			result: 'failure',
-			wasTokenConsumed: false,
-		};
+		// in all other cases, collect all the subsequent tokens into
+		// a "sequence of tokens" until a new line is found
+		this.currentValueParser = new PartialFrontMatterSequence(
+			shouldEndTokenSequence,
+		);
+
+		// if we reached this "generic sequence" parser point, and the current token
+		// is already of a type that stops the sequence, we must have accumulated
+		// some space tokens already, so pass those to the parser and end the sequence
+		if (shouldEndTokenSequence(token)) {
+			const spaceTokens = this.currentTokens.slice(this.startTokensCount);
+
+			// if no space tokens accumulated at all, create an "empty" one
+			if (spaceTokens.length === 0) {
+				spaceTokens.push(
+					Word.newOnLine(
+						'',
+						token.range.startLineNumber,
+						token.range.startColumn,
+					),
+				);
+			}
+
+			this.currentValueParser.addTokens(spaceTokens);
+
+			return {
+				result: 'success',
+				nextParser: this.asRecordToken(),
+				wasTokenConsumed: false,
+			};
+		}
+
+		return this.accept(token);
+	}
+
+	/**
+	 * Convert current parser into a {@link FrontMatterRecord} token.
+	 *
+	 * @throws if no current parser is present, or it is not of the {@link PartialFrontMatterValue}
+	 *         or {@link PartialFrontMatterSequence} types
+	 */
+	public asRecordToken(): FrontMatterRecord {
+		assertDefined(
+			this.currentValueParser,
+			'Current value parser must be defined.'
+		);
+
+		if (
+			(this.currentValueParser instanceof PartialFrontMatterValue)
+			|| (this.currentValueParser instanceof PartialFrontMatterSequence)
+		) {
+			const valueToken = this.currentValueParser.asSequenceToken();
+			this.currentTokens.push(valueToken);
+
+			this.isConsumed = true;
+			return new FrontMatterRecord([
+				this.recordNameToken,
+				this.recordDelimiterToken,
+				valueToken,
+			]);
+		}
+
+		assertNever(
+			this.currentValueParser,
+			`Unexpected value parser '${this.currentValueParser}'.`,
+		);
 	}
 }
+
+/**
+ * Callback to check if a current token should end a
+ * record value that is a generic sequence of tokens.
+ */
+const shouldEndTokenSequence = (
+	token: BaseToken,
+): token is (NewLine | CarriageReturn | FormFeed) => {
+	return (
+		(token instanceof NewLine)
+		|| (token instanceof CarriageReturn)
+		|| (token instanceof FormFeed)
+	);
+};

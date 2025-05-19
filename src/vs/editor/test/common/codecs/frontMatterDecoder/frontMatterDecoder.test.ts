@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../common/core/range.js';
-import { TestDecoder } from '../utils/testDecoder.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { newWriteableStream } from '../../../../base/common/stream.js';
-import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
-import { DoubleQuote } from '../../../common/codecs/simpleCodec/tokens/doubleQuote.js';
-import { type TSimpleDecoderToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
-import { FrontMatterDecoder } from '../../../common/codecs/frontMatterCodec/frontMatterDecoder.js';
-import { ExclamationMark, Quote, Tab, Word, Space, Colon, Dash } from '../../../common/codecs/simpleCodec/tokens/index.js';
-import { FrontMatterBoolean, FrontMatterString, FrontMatterArray, FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../common/codecs/frontMatterCodec/tokens/index.js';
+
+import { Range } from '../../../../common/core/range.js';
+import { TestDecoder } from '../../utils/testDecoder.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { newWriteableStream } from '../../../../../base/common/stream.js';
+import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
+import { DoubleQuote } from '../../../../common/codecs/simpleCodec/tokens/doubleQuote.js';
+import { type TSimpleDecoderToken } from '../../../../common/codecs/simpleCodec/simpleDecoder.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { LeftBracket, RightBracket } from '../../../../common/codecs/simpleCodec/tokens/brackets.js';
+import { FrontMatterDecoder } from '../../../../common/codecs/frontMatterCodec/frontMatterDecoder.js';
+import { ExclamationMark, Quote, Tab, Word, Space, Colon, Dash } from '../../../../common/codecs/simpleCodec/tokens/index.js';
+import { FrontMatterBoolean, FrontMatterString, FrontMatterArray, FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../../common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * Front Matter decoder for testing purposes.

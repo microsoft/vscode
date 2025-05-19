@@ -16,13 +16,13 @@ export type TQuoteToken = Quote | DoubleQuote;
  * Token that represents a string value in a Front Matter header.
  */
 export class FrontMatterString<TQuote extends TQuoteToken = Quote> extends FrontMatterValueToken<
-	'string',
+	'quoted-string',
 	readonly [TQuote, ...BaseToken[], TQuote]
 > {
 	/**
 	 * Name of the `string` value type.
 	 */
-	public override readonly valueTypeName = 'string';
+	public override readonly valueTypeName = 'quoted-string';
 
 	/**
 	 * Text of the string value without the wrapping quotes.
