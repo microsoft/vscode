@@ -20,7 +20,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	static readonly scheme = Schemas.vscodeTerminal;
 	private _commandDetection: ICommandDetectionCapability | undefined;
 	private _capabilitiesStore: ITerminalCapabilityStore;
-	private readonly _terminalId: number;
 	private readonly _virtualTerminalDocumentUri: URI;
 	private readonly _markerFilterDisposable: IDisposable;
 	private _shellType: TerminalShellType | undefined;
@@ -43,7 +42,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		this._registerTerminalCommandFinishedListener();
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
-		this._terminalId = terminalId;
 
 		// Install a filter for the virtual document's URI
 		// This will prevent markers for this URI from being reported to consumers
@@ -68,11 +66,9 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	setContent(content: string): void {
 		console.log('content is: ', content + '\n');
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		// Remove hardcoded banned content, check with shell type
-		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
-			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py`
-			&& content !== 'exit()') {
 
+		// Trailing coming from Python itself shouldn't be included in the REPL.
+		if (content !== 'exit()') {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -87,7 +83,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 					const newContent = sanitizedExistingContent + '\n' + content + '\n' + VSCODE_LSP_TERMINAL_PROMPT_TRACKER;
 					model.setValue(newContent);
 				}
-				console.log('my terminal id is: ', this._terminalId + 'my virtual terminal uri is: ' + this._virtualTerminalDocumentUri + 'and the content is:  ' + model.getValue() + '\n');
 			}
 		}
 	}
@@ -99,7 +94,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Note: This is for non-executed command.
 	*/
 	trackPromptInputToVirtualFile(content: string): void {
-		console.log('shell type is: ', this._shellType + '\n');
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// TODO: Remove hardcoded banned content, check with shell type
