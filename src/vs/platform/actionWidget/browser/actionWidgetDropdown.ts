@@ -48,7 +48,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 	}
 
 	override show(): void {
-		const actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
+		let actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
 		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
 		const actionWidgetItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
 
@@ -56,7 +56,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		for (const action of actions) {
 			let category = action.category;
 			if (!category) {
-				category = { label: '', order: Number.MAX_SAFE_INTEGER };
+				category = { label: '', order: Number.MIN_SAFE_INTEGER };
 			}
 			if (!actionsByCategory.has(category.label)) {
 				actionsByCategory.set(category.label, []);
@@ -74,7 +74,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		for (const [categoryLabel, categoryActions] of sortedCategories) {
 
-			if (categoryLabel) {
+			if (categoryLabel !== '') {
 				// Push headers for each category
 				actionWidgetItems.push({
 					label: categoryLabel,
@@ -105,10 +105,11 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		const previouslyFocusedElement = getActiveElement();
 
+
 		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
 			onSelect: (action, preview) => {
-				action.run();
 				this.actionWidgetService.hide();
+				action.run();
 			},
 			onHide: () => {
 				if (isHTMLElement(previouslyFocusedElement)) {
@@ -116,6 +117,14 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				}
 			}
 		};
+
+		actionBarActions = actionBarActions.map(action => ({
+			...action,
+			run: async (...args: any[]) => {
+				this.actionWidgetService.hide();
+				return action.run(...args);
+			}
+		}));
 
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',

@@ -275,8 +275,12 @@ export class LanguageModelToolsExtensionPointHandler extends Disposable implemen
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 						alwaysDisplayInputOutput: !isBuiltinTool,
 					};
-					const disposable = _languageModelToolsService.registerToolData(tool);
-					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);
+					try {
+						const disposable = _languageModelToolsService.registerToolData(tool);
+						this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);
+					} catch (e) {
+						extension.collector.error(`Failed to register tool '${rawTool.name}': ${e}`);
+					}
 				}
 			}
 

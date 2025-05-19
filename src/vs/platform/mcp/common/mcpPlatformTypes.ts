@@ -15,7 +15,18 @@ export interface IMcpConfiguration {
 
 export type McpConfigurationServer = IMcpConfigurationStdio | IMcpConfigurationHTTP;
 
-export interface IMcpConfigurationStdio {
+export interface IMcpDevModeConfig {
+	/** Pattern or list of glob patterns to watch relative to the workspace folder. */
+	watch?: string | string[];
+	/** Whether to debug the MCP server when it's started. */
+	debug?: { type: 'node' } | { type: 'debugpy'; debugpyPath?: string };
+}
+
+export interface IMcpConfigurationCommon {
+	dev?: IMcpDevModeConfig;
+}
+
+export interface IMcpConfigurationStdio extends IMcpConfigurationCommon {
 	type?: 'stdio';
 	command: string;
 	args?: readonly string[];
@@ -23,7 +34,7 @@ export interface IMcpConfigurationStdio {
 	envFile?: string;
 }
 
-export interface IMcpConfigurationHTTP {
+export interface IMcpConfigurationHTTP extends IMcpConfigurationCommon {
 	type?: 'http';
 	url: string;
 	headers?: Record<string, string>;

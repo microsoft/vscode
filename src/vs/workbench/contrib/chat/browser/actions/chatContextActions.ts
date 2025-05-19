@@ -54,8 +54,30 @@ export function registerChatContextActions() {
 	registerPromptActions();
 }
 
+async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
+	const viewsService = accessor.get(IViewsService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+
+	if (chatWidgetService.lastFocusedWidget) {
+		return chatWidgetService.lastFocusedWidget;
+	}
+	return showChatView(viewsService);
+}
+
 abstract class AttachResourceAction extends Action2 {
-	getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const instaService = accessor.get(IInstantiationService);
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+		return instaService.invokeFunction(this.runWithWidget.bind(this), widget, ...args);
+	}
+
+	abstract runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void>;
+
+	protected _getResources(accessor: ServicesAccessor, ...args: any[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
 		const contexts = Array.isArray(args[1]) ? args[1] : [args[0]];
@@ -100,13 +122,11 @@ class AttachFileToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const files = this.getResources(accessor, ...args);
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+		const files = this._getResources(accessor, ...args);
 		if (!files.length) {
 			return;
 		}
-		const widget = await showChatView(viewsService);
 		if (widget) {
 			widget.focusInput();
 			for (const file of files) {
@@ -129,14 +149,11 @@ class AttachFolderToChatAction extends AttachResourceAction {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-
-		const folders = this.getResources(accessor, ...args);
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: any[]): Promise<void> {
+		const folders = this._getResources(accessor, ...args);
 		if (!folders.length) {
 			return;
 		}
-		const widget = await showChatView(viewsService);
 		if (widget) {
 			widget.focusInput();
 			for (const folder of folders) {
@@ -161,9 +178,8 @@ class AttachSelectionToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 
-		const widget = await showChatView(viewsService);
+		const widget = await accessor.get(IInstantiationService).invokeFunction(withChatView);
 		if (!widget) {
 			return;
 		}
@@ -229,7 +245,7 @@ export class AttachSearchResultAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor) {
 		const logService = accessor.get(ILogService);
-		const widget = await showChatView(accessor.get(IViewsService));
+		const widget = await accessor.get(IInstantiationService).invokeFunction(withChatView);
 
 		if (!widget) {
 			logService.trace('InsertSearchResultAction: no chat view available');
@@ -479,6 +495,7 @@ export class AttachContextAction extends Action2 {
 
 		qp.placeholder = pickerConfig.placeholder;
 		qp.matchOnDescription = true;
+		qp.matchOnDetail = true;
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;

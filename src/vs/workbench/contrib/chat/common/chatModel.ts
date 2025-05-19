@@ -208,11 +208,17 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly kind: 'promptFile';
 }
 
+export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItem';
+	readonly title: string;
+	readonly value: URI;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry;
+	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -248,6 +254,10 @@ export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVar
 		entry !== null &&
 		typeof entry.id === 'string' &&
 		typeof entry.name === 'string';
+}
+
+export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
+	return obj.kind === 'scmHistoryItem';
 }
 
 export interface IChatRequestVariableData {

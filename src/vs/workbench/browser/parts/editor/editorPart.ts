@@ -25,7 +25,7 @@ import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
-import { DeepPartial, assertIsDefined, assertType } from '../../../../base/common/types.js';
+import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from '../../../common/contextkeys.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -145,9 +145,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	protected container: HTMLElement | undefined;
+	protected readonly container = $('.content');
 
-	private scopedInstantiationService!: IInstantiationService;
+	readonly scopedInstantiationService: IInstantiationService;
+	private readonly scopedContextKeyService: IContextKeyService;
 
 	private centeredLayoutWidget!: CenteredViewLayout;
 
@@ -169,6 +170,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this.scopedContextKeyService]
+		)));
 
 		this._partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
@@ -983,8 +989,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	override updateStyles(): void {
-		const container = assertIsDefined(this.container);
-		container.style.backgroundColor = this.getColor(editorBackground) || '';
+		this.container.style.backgroundColor = this.getColor(editorBackground) || '';
 
 		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
 		this.gridWidget.style(separatorBorderStyle);
@@ -995,17 +1000,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Container
 		this.element = parent;
-		this.container = $('.content');
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
 		parent.appendChild(this.container);
-
-		// Scoped instantiation service
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService]
-		)));
 
 		// Grid control
 		this._willRestoreState = !options || options.restorePreviousState;
@@ -1019,7 +1017,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.setupDragAndDropSupport(parent, this.container);
 
 		// Context keys
-		this.handleContextKeys(scopedContextKeyService);
+		this.handleContextKeys();
 
 		// Signal ready
 		this.whenReadyPromise.complete();
@@ -1033,12 +1031,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return this.container;
 	}
 
-	private handleContextKeys(contextKeyService: IContextKeyService): void {
-		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
-		isAuxiliaryEditorPartContext.set(this.windowId !== mainWindow.vscodeWindowId);
+	private handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
+		isAuxiliaryWindowContext.set(this.windowId !== mainWindow.vscodeWindowId);
 
-		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
-		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
+		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
+		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
@@ -1286,8 +1284,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private updateContainer(): void {
-		const container = assertIsDefined(this.container);
-		container.classList.toggle('empty', this.isEmpty);
+		this.container.classList.toggle('empty', this.isEmpty);
 	}
 
 	private notifyGroupIndexChange(): void {

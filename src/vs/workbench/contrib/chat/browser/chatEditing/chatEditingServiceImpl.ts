@@ -292,18 +292,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach(edit => {
+						newEdits.forEach((edit, idx) => {
+							const done = part.done ? idx === newEdits.length - 1 : false;
 							if (TextEdit.isTextEdit(edit)) {
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit]);
+								entry.streaming.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[]);
+						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 

@@ -123,7 +123,7 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		};
 	}
 
-	async installFromGallery(server: IGalleryMcpServer, packageType: PackageType): Promise<void> {
+	async installFromGallery(server: IGalleryMcpServer, packageType?: PackageType): Promise<void> {
 		this.logService.trace('MCP Management Service: installGallery', server.url);
 		this._onInstallMcpServer.fire({ name: server.name });
 
@@ -209,7 +209,11 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 	}
 
-	private getServerConfig(manifest: IMcpServerManifest, packageType: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+	private getServerConfig(manifest: IMcpServerManifest, packageType?: PackageType): McpConfigurationServer & { inputs?: IMcpServerVariable[] } {
+		if (packageType === undefined) {
+			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
+		}
+
 		if (packageType === PackageType.REMOTE) {
 			const inputs: IMcpServerVariable[] = [];
 			const headers: Record<string, string> = {};
@@ -253,9 +257,14 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		}
 
 		for (const input of serverPackage.environment_variables ?? []) {
-			env[input.name] = input.value;
-			if (input.variables) {
-				inputs.push(...this.getVariables(input.variables));
+			const variables = input.variables ? this.getVariables(input.variables) : [];
+			let value = input.value;
+			for (const variable of variables) {
+				value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+			}
+			env[input.name] = value;
+			if (variables.length) {
+				inputs.push(...variables);
 			}
 			if (serverPackage.registry_name === PackageType.DOCKER) {
 				args.push('-e');
