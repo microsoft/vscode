@@ -16,11 +16,11 @@ import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { ISCMHistoryItem } from '../common/history.js';
 import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -49,6 +49,20 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.scmHistoryItems', 'Source Control History Items...');
 	readonly icon = Codicon.gitCommit;
+
+	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
+		const historyItemTitle = getHistoryItemEditorTitle(historyItem);
+		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+
+		return {
+			id: historyItem.id,
+			name: attachmentName,
+			value: multiDiffSourceUri,
+			title: historyItemTitle,
+			kind: 'scmHistoryItem'
+		} satisfies ISCMHistoryItemVariableEntry;
+	}
 
 	constructor(
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
@@ -93,19 +107,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
 						label: historyItem.subject,
 						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-						asAttachment: () => {
-							const historyItemTitle = getHistoryItemEditorTitle(historyItem);
-							const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.provider, historyItem);
-							const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
-
-							return {
-								id: historyItem.id,
-								name: attachmentName,
-								value: multiDiffSourceUri,
-								title: historyItemTitle,
-								kind: 'scmHistoryItem'
-							} satisfies ISCMHistoryItemVariableEntry;
-						}
+						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
 					} satisfies IChatContextPickerPickItem;
 				});
 			}
@@ -160,22 +162,37 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0];
+		const viewsService = accessor.get(IViewsService);
+		const widget = await showChatView(viewsService);
 		if (!provider || !historyItem || !widget) {
 			return;
 		}
 
-		const historyItemTitle = getHistoryItemEditorTitle(historyItem);
-		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
-		const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
+	}
+});
 
-		widget.attachmentModel.addContext({
-			id: historyItem.id,
-			name: attachmentName,
-			value: multiDiffSourceUri,
-			title: historyItemTitle,
-			kind: 'scmHistoryItem'
-		} satisfies ISCMHistoryItemVariableEntry);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.summarizeHistoryItem',
+			title: localize('chat.action.scmHistoryItemSummarize', 'Summarize History Item'),
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItemChatContext,
+				when: ChatContextKeys.Setup.installed
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const widget = await showChatView(viewsService);
+		if (!provider || !historyItem || !widget) {
+			return;
+		}
+
+		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
+		await widget.acceptInput('Summarize the attached history item');
 	}
 });
