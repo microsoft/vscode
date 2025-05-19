@@ -199,7 +199,7 @@ export class McpService extends Disposable implements IMcpService {
 			const toolSet = this._toolsService.createToolSet(
 				{ type: 'mcp', label: def.serverDefinition.label, collectionId: def.collectionDefinition.id, definitionId: def.serverDefinition.id },
 				def.serverDefinition.id, def.serverDefinition.label,
-				{ icon: Codicon.tools }
+				{ icon: Codicon.mcp }
 			);
 			store.add(object);
 			this._syncTools(object, toolSet, store);
