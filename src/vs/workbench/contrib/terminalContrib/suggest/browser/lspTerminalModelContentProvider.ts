@@ -48,12 +48,13 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		// like the Problems panel, effectively hiding them.
 		this._markerFilterDisposable = this._markerService.installResourceFilter(
 			this._virtualTerminalDocumentUri,
-			'Terminal virtual document for LSP suggestions' // Reason for filtering
+			'Diagnostics for Terminal LSP REPL is stopped.'
 		);
 		this._register(this._markerFilterDisposable); // Ensure the filter is disposed when this provider is disposed
 		this._shellType = shellType;
 	}
 
+	// Listens to onDidChangeShellType event from `terminal.suggest.contribution.ts`
 	shellTypeChanged(shellType: TerminalShellType | undefined): void {
 		this._shellType = shellType;
 	}
@@ -64,9 +65,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
-		console.log('content is: ', content + '\n');
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-
 		// Trailing coming from Python itself shouldn't be included in the REPL.
 		if (content !== 'exit()') {
 			if (model) {
@@ -96,11 +95,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	trackPromptInputToVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		// TODO: Remove hardcoded banned content, check with shell type
-		// TODO: Listen to onDidChangeShellType change.
-		if (content !== `source /Users/anthonykim/Desktop/Skeleton/.venv/bin/activate` &&
-			content !== `export PYTHONSTARTUP=/Users/anthonykim/Desktop/vscode-python/python_files/pythonrc.py` &&
-			content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
@@ -135,7 +130,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		};
 
 		attachListener();
-
 
 		// Listen to onDidAddCapabilityType because command detection is not available until later
 		this._register(this._capabilitiesStore.onDidAddCapabilityType(e => {

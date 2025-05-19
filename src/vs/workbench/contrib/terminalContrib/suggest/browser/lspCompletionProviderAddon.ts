@@ -33,7 +33,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
 	) {
 		super();
-		// this._capabilitiesStore = capabilityStore;
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
@@ -45,24 +44,17 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('activate');
 	}
 
-	// On higher level, where we instantiate LSPCompletionProviderAddon (terminal.suggest.contribution.ts for now), we should:
-	// 1. Identify shell type
-	// 2. Create appropriate virtual document (vscodeTerminal scheme) with appropriate extension (e.g. .py)
-	// 3. Then have each of the relevant providers call its provideCompletions method
-
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 
-		// APPLY EDIT FOR CURRENT REPL LINE, this is not executed yet. --> Pretend we are typing in the real-document.
+		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
-		// const lineNumber = lines.length;
 		const column = lines[lines.length - 1].length + 1;
 
 		// get line from virtualDocument, not from terminal
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
-		// const position = new Position(lineNumber, column);
 		const positionVirtualDocument = new Position(lineNum, column);
 
 		// Calculate replacement index and length, similar to pwshCompletionProviderAddon
@@ -86,24 +78,17 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// call to get replacement index
 		const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, undefined, undefined, undefined);
-		// console.log('completionItemTemp replacementIndex: ', completionItemTemp.replacementIndex + "\n");
-		// console.log('completionItemTemp replacementLength: ', completionItemTemp.replacementLength + "\n");
-		// console.log('completionItemTemp detail is: ', completionItemTemp.detail + "\n");
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
-
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			// console.log('position of virtual document is: ', positionVirtualDocument);
-
-
 			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
 			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
+
 			completions.push(...(result?.suggestions || []).map((e: any) => {
 				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
-
 				return {
 					// TODO: Investigate insertTextRules, edits, etc
 					label: e.insertText,
@@ -124,7 +109,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		return completions;
 	}
 }
-// TODO: Handle both spaces and dots.
 
 // prefix: commandLine to cursorPosition
 export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: any, label: any, detail?: string): any {

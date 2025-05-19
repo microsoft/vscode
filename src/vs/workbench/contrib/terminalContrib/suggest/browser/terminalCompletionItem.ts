@@ -42,7 +42,7 @@ export function mapLspKindToTerminalKind(lspKind: CompletionItemKind): TerminalC
 		case CompletionItemKind.Keyword:
 			return TerminalCompletionItemKind.Alias;
 		default:
-			return TerminalCompletionItemKind.Method; // Low priority..
+			return TerminalCompletionItemKind.Method;
 	}
 }
 
