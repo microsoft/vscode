@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../nls.js';
 import { IMcpCollectionContribution } from '../../../../platform/extensions/common/extensions.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
@@ -61,6 +61,56 @@ const httpSchemaExamples = {
 	}
 };
 
+const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
+	dev: {
+		type: 'object',
+		markdownDescription: localize('app.mcp.dev', 'Enabled development mode for the server. When present, the server will be started eagerly and output will be included in its output. Properties inside the `dev` object can configure additional behavior.'),
+		examples: [{ watch: 'src/**/*.ts', debug: { type: 'node' } }],
+		properties: {
+			watch: {
+				description: localize('app.mcp.dev.watch', 'A glob pattern or list of glob patterns relative to the workspace folder to watch. The MCP server will be restarted when these files change.'),
+				examples: ['src/**/*.ts'],
+				oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+			},
+			...(stdio && {
+				debug: {
+					markdownDescription: localize('app.mcp.dev.debug', 'If set, debugs the MCP server using the given runtime as it\'s started.'),
+					oneOf: [
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['node'],
+									description: localize('app.mcp.dev.debug.type.node', "Debug the MCP server using Node.js.")
+								}
+							},
+							additionalProperties: false
+						},
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['debugpy'],
+									description: localize('app.mcp.dev.debug.type.python', "Debug the MCP server using Python and debugpy.")
+								},
+								debugpyPath: {
+									type: 'string',
+									description: localize('app.mcp.dev.debug.debugpyPath', "Path to the debugpy executable.")
+								},
+							},
+							additionalProperties: false
+						}
+					]
+				}
+			})
+		}
+	}
+});
+
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -74,6 +124,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
+		},
+		cwd: {
+			type: 'string',
+			description: localize('app.mcp.json.cwd', "The working directory for the server command. Defaults to the workspace folder when run in a workspace."),
+			examples: ['${workspaceFolder}'],
 		},
 		args: {
 			type: 'array',
@@ -97,6 +152,7 @@ export const mcpStdioServerSchema: IJSONSchema = {
 				]
 			}
 		},
+		...mcpDevModeProps(true),
 	}
 };
 
@@ -114,31 +170,34 @@ export const mcpServerSchema: IJSONSchema = {
 				httpSchemaExamples,
 			],
 			additionalProperties: {
-				oneOf: [mcpStdioServerSchema, {
-					type: 'object',
-					additionalProperties: false,
-					required: ['url'],
-					examples: [httpSchemaExamples['my-mcp-server']],
-					properties: {
-						type: {
-							type: 'string',
-							enum: ['http', 'sse'],
-							description: localize('app.mcp.json.type', "The type of the server.")
-						},
-						url: {
-							type: 'string',
-							format: 'uri',
-							pattern: '^https?:\\/\\/.+',
-							patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
-							description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
-						},
-						headers: {
-							type: 'object',
-							description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
-							additionalProperties: { type: 'string' },
-						},
-					}
-				}]
+				oneOf: [
+					mcpStdioServerSchema, {
+						type: 'object',
+						additionalProperties: false,
+						required: ['url'],
+						examples: [httpSchemaExamples['my-mcp-server']],
+						properties: {
+							type: {
+								type: 'string',
+								enum: ['http', 'sse'],
+								description: localize('app.mcp.json.type', "The type of the server.")
+							},
+							url: {
+								type: 'string',
+								format: 'uri',
+								pattern: '^https?:\\/\\/.+',
+								patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
+								description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
+							},
+							headers: {
+								type: 'object',
+								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
+								additionalProperties: { type: 'string' },
+							},
+							...mcpDevModeProps(false),
+						}
+					},
+				]
 			}
 		},
 		inputs: inputsSchema.definitions!.inputs

@@ -118,8 +118,10 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				reserveWidth: 19,
 				verticalPadding: 5,
 				editorOptions: {
-					wordWrap: 'on'
-				}
+					wordWrap: 'on',
+					tabFocusMode: true,
+					ariaLabel: title
+				},
 			};
 
 			const elements = dom.h('div', [
@@ -138,7 +140,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'off',
-						readOnly: false
+						readOnly: false,
+						ariaLabel: toolInvocation.confirmationMessages.title
 					}
 				};
 
@@ -224,6 +227,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ tabFocusMode: false });
 							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored

@@ -60,6 +60,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return model.tabAction.read(reader);
 		});
 
+		this._hoverVisible = observableValue(this, false);
+		this.isHoverVisible = this._hoverVisible;
+		this._isHoveredOverIcon = observableValue(this, false);
+		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
+		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
 			switch (v) {
 				case InlineEditTabAction.Inactive: return {
@@ -287,11 +294,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		});
 		this._iconRef = n.ref<HTMLDivElement>();
 		this.isVisible = this._layout.map(l => !!l);
-		this._hoverVisible = observableValue(this, false);
-		this.isHoverVisible = this._hoverVisible;
-		this._isHoveredOverIcon = observableValue(this, false);
-		this._isHoveredOverIconDebounced = debouncedObservable(this._isHoveredOverIcon, 100);
-		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
 		this._indicator = n.div({
 			class: 'inline-edits-view-gutter-indicator',
 			onclick: () => {
@@ -393,8 +395,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {

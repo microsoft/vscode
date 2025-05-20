@@ -50,6 +50,8 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
+import { IChatContentReference } from '../common/chatService.js';
+import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -94,6 +96,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			hoverDelegate: this.hoverDelegate,
 			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
+		clearButton.element.tabIndex = -1;
 		clearButton.icon = Codicon.close;
 		this._register(clearButton);
 		this._register(event.Event.once(clearButton.onDidClick)((e) => {
@@ -162,6 +165,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI,
 		range: IRange | undefined,
 		attachment: IChatRequestVariableEntry,
+		correspondingContentReference: IChatContentReference | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -185,7 +189,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			ariaLabel = localize('chat.omittedFileAttachment', "Omitted this file: {0}", attachment.name);
 			this.renderOmittedWarning(friendlyName, ariaLabel, hoverDelegate);
 		} else {
-			const fileOptions: IFileLabelOptions = { hidePath: true };
+			const fileOptions: IFileLabelOptions = { hidePath: true, title: correspondingContentReference?.options?.status?.description };
 			this.label.setFile(resource, attachment.kind === 'file' ? {
 				...fileOptions,
 				fileKind: FileKind.FILE,
@@ -418,6 +422,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		range: IRange | undefined,
 		attachment: IChatRequestVariableEntry,
+		correspondingContentReference: IChatContentReference | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -432,7 +437,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-		this.label.setLabel(withIcon, undefined);
+		this.label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		if (attachment.kind === 'diagnostic') {
@@ -605,7 +610,9 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		contextResourceLabels: ResourceLabels,
 		hoverDelegate: IHoverDelegate,
 		@ICommandService commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IHoverService hoverService: IHoverService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -613,6 +620,8 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -632,7 +641,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
-			title: attachment.title, multiDiffSourceUri: attachment.value
+			title: getHistoryItemEditorTitle(attachment.historyItem), multiDiffSourceUri: attachment.value
 		});
 	}
 }

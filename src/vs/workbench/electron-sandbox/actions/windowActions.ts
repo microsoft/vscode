@@ -454,7 +454,7 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: EnableWindowAlwaysOnTopAction.ID,
-			title: localize('enableWindowAlwaysOnTop', "Set Always on Top"),
+			title: localize('enableWindowAlwaysOnTop', "Turn On Always on Top"),
 			icon: Codicon.pin,
 			menu: {
 				id: MenuId.LayoutControlMenu,
@@ -483,7 +483,7 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: DisableWindowAlwaysOnTopAction.ID,
-			title: localize('disableWindowAlwaysOnTop', "Unset Always on Top"),
+			title: localize('disableWindowAlwaysOnTop', "Turn Off Always on Top"),
 			icon: Codicon.pinned,
 			menu: {
 				id: MenuId.LayoutControlMenu,

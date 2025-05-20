@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../common/assert.js';
+import { isOneOf } from '../../common/types.js';
 import { randomInt } from '../../common/numbers.js';
-import { assertOneOf } from '../../common/types.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -66,9 +67,8 @@ export function mockObject<TObject extends Object>(
 		{
 			get: (_target, key: string | number | Symbol) => {
 				// sanity check for the provided `key`
-				assertOneOf(
-					key,
-					keys,
+				assert(
+					isOneOf(key, keys),
 					`The '${key}' is not mocked.`,
 				);
 

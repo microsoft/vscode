@@ -16,17 +16,26 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
 import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatToolInvocation } from '../common/chatService.js';
 
-export const getToolConfirmationAlert = (accessor: ServicesAccessor, title: string) => {
+export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
 	const contextKeyService = accessor.get(IContextKeyService);
 
 	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
 	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();
+	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
+		let input = '';
+		if (v.toolSpecificData) {
+			input = v.toolSpecificData?.kind === 'terminal' ? v.toolSpecificData.command : JSON.stringify(v.toolSpecificData.rawInput);
+		}
+		const title = v.confirmationMessages?.title || '';
+		return (title + (input ? ': ' + input : '')).trim();
+	}).filter(v => !!v);
 
 	return acceptKb && cancelKb
-		? localize('toolInvocationsHintKb', "Action required to confirm tool action: {0}. Press {1} to accept or {2} to cancel.", title, acceptKb, cancelKb)
-		: localize('toolInvocationsHint', "Action required to confirm tool action: {0}", title);
+		? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", titles.join(', '), acceptKb, cancelKb)
+		: localize('toolInvocationsHint', "Chat confirmation required: {0}", titles.join(', '));
 };
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
@@ -69,10 +78,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		if (toolInvocation.length) {
 			const waitingForConfirmation = toolInvocation.filter(v => !v.isComplete);
 			if (waitingForConfirmation.length) {
-				const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
-				if (titles.length) {
-					toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, titles.join(', '));
-				}
+				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			} else { // all completed
 				for (const invocation of toolInvocation) {
 					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", invocation.confirmationMessages?.title);
