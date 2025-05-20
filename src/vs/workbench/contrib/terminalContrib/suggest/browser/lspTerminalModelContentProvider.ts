@@ -113,17 +113,19 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	private _registerTerminalCommandFinishedListener(): void {
 		const attachListener = () => {
-			this._onCommandFinishedListener.clear(); // clear previous listener via MutableDisposable
+			if (this._onCommandFinishedListener.value) {
+				return;
+			}
 
 			// Listen to onCommandFinished event from command detection, if available.
 			if (this._commandDetection && this._commandDetection.onCommandFinished) {
-				this._onCommandFinishedListener.value = this._commandDetection.onCommandFinished((e) => {
+				this._onCommandFinishedListener.value = this._register(this._commandDetection.onCommandFinished((e) => {
 					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
 						// If command was successful, update virtual document
 						this.setContent(e.command);
 					}
 
-				});
+				}));
 			}
 		};
 
