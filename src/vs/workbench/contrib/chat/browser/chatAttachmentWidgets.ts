@@ -100,6 +100,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			hoverDelegate: this.hoverDelegate,
 			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
+		clearButton.element.tabIndex = -1;
 		clearButton.icon = Codicon.close;
 		this._register(clearButton);
 		this._register(event.Event.once(clearButton.onDidClick)((e) => {
