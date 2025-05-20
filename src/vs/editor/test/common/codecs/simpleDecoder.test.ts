@@ -37,6 +37,15 @@ import {
 	Comma,
 } from '../../../common/codecs/simpleCodec/tokens/index.js';
 
+
+class Test {
+
+}
+
+
+const t = new Test();
+
+
 /**
  * A reusable test utility that asserts that a `SimpleDecoder` instance
  * correctly decodes `inputData` into a stream of `TSimpleToken` tokens.

@@ -14,6 +14,7 @@ import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { arrayToGenerator, ObjectStream } from '../../../../common/codecs/utils/objectStream.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { objectStreamFromTextModel } from '../../../../common/codecs/utils/objectStreamFromTextModel.js';
 
 suite('ObjectStream', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,7 +50,7 @@ suite('ObjectStream', () => {
 					URI.file('/foo.js'),
 				),
 			);
-			const stream = disposables.add(ObjectStream.fromTextModel(model));
+			const stream = disposables.add(objectStreamFromTextModel(model));
 
 			const receivedData = await consume(stream);
 
@@ -102,7 +103,7 @@ suite('ObjectStream', () => {
 			};
 
 			const stream = disposables.add(
-				ObjectStream.fromTextModel(model, cancellation.token),
+				objectStreamFromTextModel(model, cancellation.token),
 			);
 
 			const receivedData = await consume(stream);
