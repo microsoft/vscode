@@ -131,7 +131,6 @@ export interface TerminalCompletionItem {
 	 */
 	detail?: string;
 
-
 	/**
 	 * A human-readable string that represents a doc-comment.
 	 */

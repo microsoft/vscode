@@ -184,7 +184,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@ILayoutService layoutService: ILayoutService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
 

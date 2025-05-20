@@ -398,7 +398,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
-
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
