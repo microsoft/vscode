@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-8TXwJF4lf6BC+0Kve/BD7lzDnK4M7vmJ802hpOYmdlg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -36,6 +36,8 @@
 		const onElectron = searchParams.get('platform') === 'electron';
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
 
 		/**
 		 * Use polling to track focus of main webview and iframes within the webview
@@ -265,7 +267,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -1202,6 +1205,17 @@
 					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 

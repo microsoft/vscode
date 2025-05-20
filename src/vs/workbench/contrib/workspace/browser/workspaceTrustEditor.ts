@@ -42,7 +42,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { debugIconStartForeground } from '../../debug/browser/debugColors.js';
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
-import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkspaceTrustEditorInput } from '../../../services/workspaces/browser/workspaceTrustEditorInput.js';
@@ -889,7 +889,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const property = configurationRegistry.getConfigurationProperties()[key];
 
 			// cannot be configured in workspace
-			if (property.scope === ConfigurationScope.APPLICATION || property.scope === ConfigurationScope.MACHINE) {
+			if (property.scope && (APPLICATION_SCOPES.includes(property.scope) || property.scope === ConfigurationScope.MACHINE)) {
 				return false;
 			}
 
@@ -1052,9 +1052,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustAction = new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
+		const trustAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
 			await this.workspaceTrustManagementService.setWorkspaceTrust(true);
-		});
+		}));
 
 		const trustActions = [{ action: trustAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0] }];
 
@@ -1065,9 +1065,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
 
-			const trustParentAction = new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+			const trustParentAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setParentFolderTrust(true);
-			});
+			}));
 
 			trustActions.push({ action: trustParentAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Shift+Enter' : 'Ctrl+Shift+Enter')[0] });
 		}
@@ -1077,9 +1077,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private addDontTrustButtonToElement(parent: HTMLElement): void {
 		this.createButtonRow(parent, [{
-			action: new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
+			action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setWorkspaceTrust(false);
-			}),
+			})),
 			keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0]
 		}]);
 	}
@@ -1091,7 +1091,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the trusted folders below.");
 		} else {
 			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
 		}

@@ -30,4 +30,4 @@ if (process.env['VSCODE_DEV']) {
 await bootstrapESM();
 
 // Load Server
-await import('./vs/server/node/server.cli');
+await import('./vs/server/node/server.cli.js');

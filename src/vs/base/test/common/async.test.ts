@@ -48,6 +48,22 @@ suite('Async', () => {
 			return result;
 		});
 
+		test('cancel disposes result', function () {
+
+			const store = new DisposableStore();
+
+			const promise = async.createCancelablePromise(async token => {
+				return store;
+			});
+			promise.then(_ => assert.ok(false), err => {
+
+				assert.ok(isCancellationError(err));
+				assert.ok(store.isDisposed);
+			});
+
+			promise.cancel();
+		});
+
 		// Cancelling a sync cancelable promise will fire the cancelled token.
 		// Also, every `then` callback runs in another execution frame.
 		test('execution order (sync)', function () {

@@ -37,7 +37,8 @@ export const enum HoverStartMode {
 
 export const enum HoverStartSource {
 	Mouse = 0,
-	Keyboard = 1
+	Click = 1,
+	Keyboard = 2
 }
 
 export class HoverResult<TArgs, TResult> {
@@ -107,6 +108,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	}
 
 	private _setState(state: HoverOperationState, options: TArgs): void {
+		this._options = options;
 		this._state = state;
 		this._fireResult(options);
 	}

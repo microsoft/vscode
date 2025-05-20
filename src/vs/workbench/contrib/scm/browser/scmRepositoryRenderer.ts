@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -116,9 +116,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		templateData.elementDisposables.add(autorun(reader => {
+		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
 			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+			statusPrimaryActions = commands.map(c => store.add(new StatusBarAction(c, this.commandService)));
 			updateToolbar();
 		}));
 
@@ -150,5 +150,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	disposeTemplate(templateData: RepositoryTemplate): void {
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
+		templateData.count.dispose();
 	}
 }

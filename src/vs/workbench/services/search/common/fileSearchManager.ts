@@ -11,7 +11,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
-import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
+import { FileSearchProviderFolderOptions, FileSearchProvider2, FileSearchProviderOptions } from './searchExtTypes.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 
@@ -54,7 +54,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionLifecycle?: SessionLifecycle) {
+	constructor(private config: IFileQuery, private provider: FileSearchProvider2, private sessionLifecycle?: SessionLifecycle) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || undefined;
@@ -334,7 +334,7 @@ export class FileSearchManager {
 
 	private readonly sessions = new Map<string, SessionLifecycle>();
 
-	fileSearch(config: IFileQuery, provider: FileSearchProviderNew, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+	fileSearch(config: IFileQuery, provider: FileSearchProvider2, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
 		const engine = new FileSearchEngine(config, provider, sessionTokenSource);
 

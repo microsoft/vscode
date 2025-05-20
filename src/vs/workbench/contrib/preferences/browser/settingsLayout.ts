@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ExtensionToggleData } from '../common/preferences.js';
 
@@ -12,21 +13,21 @@ export interface ITOCEntry<T> {
 	order?: number;
 	children?: ITOCEntry<T>[];
 	settings?: Array<T>;
+	hide?: boolean;
 }
 
 const defaultCommonlyUsedSettings: string[] = [
-	'files.autoSave',
 	'editor.fontSize',
+	'editor.formatOnSave',
+	'files.autoSave',
+	'editor.defaultFormatter',
 	'editor.fontFamily',
-	'editor.tabSize',
-	'editor.renderWhitespace',
-	'editor.cursorStyle',
-	'editor.multiCursorModifier',
-	'editor.insertSpaces',
 	'editor.wordWrap',
 	'files.exclude',
-	'files.associations',
-	'workbench.editor.enablePreview'
+	'workbench.colorTheme',
+	'editor.tabSize',
+	'editor.mouseWheelZoom',
+	'editor.formatOnPaste'
 ];
 
 export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
@@ -234,12 +235,13 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*']
+					settings: ['chat.*', 'inlineChat.*', 'mcp']
 				},
 				{
 					id: 'features/issueReporter',
 					label: localize('issueReporter', 'Issue Reporter'),
-					settings: ['issueReporter.*']
+					settings: ['issueReporter.*'],
+					hide: !isWeb
 				}
 			]
 		},
@@ -280,7 +282,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'application/other',
 					label: localize('other', "Other"),
-					settings: ['application.*']
+					settings: ['application.*'],
+					hide: isWindows
 				}
 			]
 		},
@@ -298,24 +301,3 @@ export const tocData: ITOCEntry<string> = {
 		}
 	]
 };
-
-export const knownAcronyms = new Set<string>();
-[
-	'css',
-	'html',
-	'scss',
-	'less',
-	'json',
-	'js',
-	'ts',
-	'ie',
-	'id',
-	'php',
-	'scm',
-].forEach(str => knownAcronyms.add(str));
-
-export const knownTermMappings = new Map<string, string>();
-knownTermMappings.set('power shell', 'PowerShell');
-knownTermMappings.set('powershell', 'PowerShell');
-knownTermMappings.set('javascript', 'JavaScript');
-knownTermMappings.set('typescript', 'TypeScript');

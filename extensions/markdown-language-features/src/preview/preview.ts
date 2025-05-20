@@ -221,7 +221,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		this._logger.verbose('MarkdownPreview', 'updateForView', { markdownFile: this._resource });
+		this._logger.trace('MarkdownPreview', 'updateForView', { markdownFile: this._resource });
 		this._line = topLine;
 		this.postMessage({
 			type: 'updateView',
@@ -428,7 +428,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	get cspSource() {
-		return this._webviewPanel.webview.cspSource;
+		return [
+			this._webviewPanel.webview.cspSource,
+			...this._contributionProvider.contributions.previewResourceRoots.map(root => {
+				const dirRoot = root.path.endsWith('/') ? root : root.with({ path: root.path + '/' });
+				return dirRoot.toString();
+			}),
+		].join(' ');
 	}
 
 	//#endregion

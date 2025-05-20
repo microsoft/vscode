@@ -123,9 +123,9 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 			//               ^moduleId ^nlsKeys                               ^moduleId      ^nlsKey ^nlsValue
 			= await Promise.all([
 				fs.promises.mkdir(commitLanguagePackCachePath, { recursive: true }),
-				JSON.parse(await fs.promises.readFile(path.join(nlsMetadataPath, 'nls.keys.json'), 'utf-8')),
-				JSON.parse(await fs.promises.readFile(path.join(nlsMetadataPath, 'nls.messages.json'), 'utf-8')),
-				JSON.parse(await fs.promises.readFile(mainLanguagePackPath, 'utf-8'))
+				fs.promises.readFile(path.join(nlsMetadataPath, 'nls.keys.json'), 'utf-8').then(content => JSON.parse(content)),
+				fs.promises.readFile(path.join(nlsMetadataPath, 'nls.messages.json'), 'utf-8').then(content => JSON.parse(content)),
+				fs.promises.readFile(mainLanguagePackPath, 'utf-8').then(content => JSON.parse(content)),
 			]);
 
 		const nlsResult: string[] = [];

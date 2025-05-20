@@ -564,6 +564,9 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
 	getExecution(notebook: URI): INotebookExecution | undefined {
 		return;
 	}

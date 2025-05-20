@@ -17,6 +17,7 @@ import { KeyCode } from '../../../common/keyCodes.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHistory } from '../../../common/history.js';
 
 
 export interface IReplaceInputOptions {
@@ -29,7 +30,7 @@ export interface IReplaceInputOptions {
 	readonly flexibleMaxHeight?: number;
 
 	readonly appendPreserveCaseLabel?: string;
-	readonly history?: string[];
+	readonly history?: IHistory<string>;
 	readonly showHistoryHint?: () => boolean;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly toggleStyles: IToggleStyles;
@@ -94,7 +95,7 @@ export class ReplaceInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		const appendPreserveCaseLabel = options.appendPreserveCaseLabel || '';
-		const history = options.history || [];
+		const history = options.history || new Set([]);
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;

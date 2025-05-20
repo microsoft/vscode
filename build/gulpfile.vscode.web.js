@@ -19,7 +19,7 @@ const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
-const { compileBuildTask } = require('./gulpfile.compile');
+const { compileBuildWithManglingTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
 const VinylFile = require('vinyl');
 
@@ -51,6 +51,9 @@ const vscodeWebResourceIncludes = [
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
+
+	// Tree Sitter injections
+	'out-build/vs/editor/common/languages/injections/*.scm',
 
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
@@ -164,7 +167,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, type: 'module' }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
@@ -202,7 +205,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
 	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
-	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));
@@ -223,7 +226,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		compileBuildTask,
+		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));
 	gulp.task(vscodeWebTask);

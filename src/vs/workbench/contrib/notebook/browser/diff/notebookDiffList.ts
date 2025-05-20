@@ -6,6 +6,7 @@
 import './notebookDiff.css';
 import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../../base/browser/domStylesheets.js';
 import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from '../../../../../base/browser/ui/list/listWidget.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -481,7 +482,7 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
-			this.styleElement = DOM.createStyleSheet(this.view.domNode);
+			this.styleElement = domStylesheets.createStyleSheet(this.view.domNode);
 		}
 		const suffix = selectorSuffix && `.${selectorSuffix}`;
 		const content: string[] = [];
@@ -510,14 +511,14 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -550,7 +551,7 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { $, append, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
 import { DomEmitter } from '../../event.js';
 import { EventType, Gesture } from '../../touch.js';
 import { Delayer } from '../../../common/async.js';

@@ -14,6 +14,8 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 import { isNumber } from '../../../base/common/types.js';
+import * as htmlContent from '../../../base/common/htmlContent.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
@@ -43,6 +45,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	private _text: string = '';
 	private _tooltip?: string | vscode.MarkdownString;
+	private _tooltip2?: string | vscode.MarkdownString | undefined | ((token: vscode.CancellationToken) => Promise<string | vscode.MarkdownString | undefined>);
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
@@ -57,9 +60,9 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _timeoutHandle: any;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number, _onDispose?: () => void);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number, _onDispose?: () => void);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, private _onDispose?: () => void) {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
@@ -113,6 +116,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._id ?? this._extension!.identifier.value;
 	}
 
+	public get entryId(): string {
+		return this._entryId;
+	}
+
 	public get alignment(): vscode.StatusBarAlignment {
 		return this._alignment;
 	}
@@ -131,6 +138,14 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public get tooltip(): vscode.MarkdownString | string | undefined {
 		return this._tooltip;
+	}
+
+	public get tooltip2(): vscode.MarkdownString | string | undefined | ((token: vscode.CancellationToken) => Promise<vscode.MarkdownString | string | undefined>) {
+		if (this._extension) {
+			checkProposedApiEnabled(this._extension, 'statusBarItemTooltip');
+		}
+
+		return this._tooltip2;
 	}
 
 	public get color(): string | ThemeColor | undefined {
@@ -161,6 +176,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
 		this._tooltip = tooltip;
+		this.update();
+	}
+
+	public set tooltip2(tooltip: vscode.MarkdownString | string | undefined | ((token: vscode.CancellationToken) => Promise<vscode.MarkdownString | string | undefined>)) {
+		if (this._extension) {
+			checkProposedApiEnabled(this._extension, 'statusBarItemTooltip');
+		}
+
+		this._tooltip2 = tooltip;
 		this.update();
 	}
 
@@ -258,10 +282,18 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
-			const tooltip = MarkdownString.fromStrict(this._tooltip);
+			let tooltip: undefined | string | htmlContent.IMarkdownString;
+			let hasTooltipProvider: boolean;
+			if (typeof this._tooltip2 === 'function') {
+				tooltip = MarkdownString.fromStrict(this._tooltip);
+				hasTooltipProvider = true;
+			} else {
+				tooltip = MarkdownString.fromStrict(this._tooltip2 ?? this._tooltip);
+				hasTooltipProvider = false;
+			}
 
 			// Set to status bar
-			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, this._command?.internal, color,
+			this.#proxy.$setEntry(this._entryId, id, this._extension?.identifier.value, name, this._text, tooltip, hasTooltipProvider, this._command?.internal, color,
 				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 
@@ -272,6 +304,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public dispose(): void {
 		this.hide();
+		this._onDispose?.();
 		this._disposed = true;
 	}
 }
@@ -320,6 +353,7 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 	private readonly _proxy: MainThreadStatusBarShape;
 	private readonly _commands: CommandsConverter;
 	private readonly _statusMessage: StatusBarMessage;
+	private readonly _entries = new Map<string, ExtHostStatusBarEntry>();
 	private readonly _existingItems = new Map<string, StatusBarItemDto>();
 
 	constructor(mainContext: IMainContext, commands: CommandsConverter) {
@@ -334,10 +368,23 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		}
 	}
 
+	async $provideTooltip(entryId: string, cancellation: vscode.CancellationToken): Promise<string | htmlContent.IMarkdownString | undefined> {
+		const entry = this._entries.get(entryId);
+		if (!entry) {
+			return undefined;
+		}
+
+		const tooltip = typeof entry.tooltip2 === 'function' ? await entry.tooltip2(cancellation) : entry.tooltip2;
+		return !cancellation.isCancellationRequested ? MarkdownString.fromStrict(tooltip) : undefined;
+	}
+
 	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
 	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
 	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority);
+		const entry = new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority, () => this._entries.delete(entry.entryId));
+		this._entries.set(entry.entryId, entry);
+
+		return entry;
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

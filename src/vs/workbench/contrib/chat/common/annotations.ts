@@ -57,7 +57,8 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 			}
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
-				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const isEditText = item.isEdit ? ` isEdit` : '';
+				const markdownText = `<vscode_codeblock_uri${isEditText}>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				result[previousItemIndex] = { ...previousItem, content: merged };
 			}
@@ -99,12 +100,15 @@ export function annotateVulnerabilitiesInText(response: ReadonlyArray<IChatProgr
 	return result;
 }
 
-export function extractCodeblockUrisFromText(text: string): { uri: URI; textWithoutResult: string } | undefined {
-	const match = /<vscode_codeblock_uri>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
-	if (match && match[1]) {
-		const result = URI.parse(match[1]);
-		const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + match[0].length);
-		return { uri: result, textWithoutResult };
+export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; textWithoutResult: string } | undefined {
+	const match = /<vscode_codeblock_uri( isEdit)?>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
+	if (match) {
+		const [all, isEdit, uriString] = match;
+		if (uriString) {
+			const result = URI.parse(uriString);
+			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
+			return { uri: result, textWithoutResult, isEdit: !!isEdit };
+		}
 	}
 	return undefined;
 }

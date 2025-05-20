@@ -189,7 +189,13 @@ export class ExplorerItem {
 	}
 
 	getId(): string {
-		return this.root.resource.toString() + '::' + this.resource.toString();
+		let id = this.root.resource.toString() + '::' + this.resource.toString();
+
+		if (this.isMarkedAsFiltered()) {
+			id += '::findFilterResult';
+		}
+
+		return id;
 	}
 
 	toString(): string {
@@ -492,6 +498,22 @@ export class ExplorerItem {
 		}
 
 		return null;
+	}
+
+	// Find
+	private markedAsFindResult = false;
+	isMarkedAsFiltered(): boolean {
+		return this.markedAsFindResult;
+	}
+
+	markItemAndParentsAsFiltered(): void {
+		this.markedAsFindResult = true;
+		this.parent?.markItemAndParentsAsFiltered();
+	}
+
+	unmarkItemAndChildren(): void {
+		this.markedAsFindResult = false;
+		this.children.forEach(child => child.unmarkItemAndChildren());
 	}
 }
 

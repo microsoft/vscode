@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITerminalInstance } from './terminal.js';
 import { ITerminalProfileResolverService } from '../common/terminal.js';
 import { ansiColorMap } from '../common/terminalColorRegistry.js';
-import { createStyleSheet } from '../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 

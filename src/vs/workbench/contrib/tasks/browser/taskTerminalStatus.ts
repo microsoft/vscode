@@ -94,7 +94,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
-		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
+		if ((event.exitCode === 0) && (!terminalData.problemMatcher.maxMarkerSeverity || terminalData.problemMatcher.maxMarkerSeverity < MarkerSeverity.Warning)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskCompleted);
 			if (terminalData.task.configurationProperties.isBackground) {
 				for (const status of terminalData.terminal.statusList.statuses) {
@@ -103,7 +103,7 @@ export class TaskTerminalStatus extends Disposable {
 			} else {
 				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 			}
-		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+		} else if (event.exitCode || (terminalData.problemMatcher.maxMarkerSeverity !== undefined && terminalData.problemMatcher.maxMarkerSeverity >= MarkerSeverity.Warning)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {

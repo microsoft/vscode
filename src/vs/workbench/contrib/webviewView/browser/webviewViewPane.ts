@@ -17,7 +17,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
@@ -74,7 +73,6 @@ export class WebviewViewPane extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -86,7 +84,7 @@ export class WebviewViewPane extends ViewPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 

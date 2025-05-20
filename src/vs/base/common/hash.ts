@@ -18,7 +18,7 @@ export function hash<T>(obj: T extends NotSyncHashable ? never : T): number {
 	return doHash(obj, 0);
 }
 
-export function doHash(obj: any, hashVal: number): number {
+export function doHash(obj: unknown, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -69,6 +69,8 @@ function objectHash(obj: any, initialHashVal: number): number {
 	}, initialHashVal);
 }
 
+
+
 /** Hashes the input as SHA-1, returning a hex-encoded string. */
 export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
 	// Note: I would very much like to expose a streaming interface for hashing
@@ -91,7 +93,7 @@ export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
 		buff = input;
 	}
 
-	return crypto.subtle.digest('sha-1', buff).then(toHexString);
+	return crypto.subtle.digest('sha-1', buff as ArrayBufferView<ArrayBuffer>).then(toHexString);
 };
 
 const enum SHA1Constant {

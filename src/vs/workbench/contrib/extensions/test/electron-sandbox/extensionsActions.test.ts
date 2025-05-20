@@ -101,9 +101,10 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		onDidUninstallExtension: didUninstallEvent.event as any,
 		onDidUpdateExtensionMetadata: Event.None,
 		onDidChangeProfile: Event.None,
+		onProfileAwareDidInstallExtensions: Event.None,
 		async getInstalled() { return []; },
 		async getInstalledWorkspaceExtensions() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -1030,6 +1031,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
@@ -1118,6 +1120,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
@@ -2640,6 +2643,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 		onDidUninstallExtension: Event.None,
 		onDidChangeProfile: Event.None,
 		onDidUpdateExtensionMetadata: Event.None,
+		onProfileAwareDidInstallExtensions: Event.None,
 		getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 		canInstall: async (extension: IGalleryExtension) => { return true; },
 		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
@@ -2650,6 +2654,6 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 	};
 }

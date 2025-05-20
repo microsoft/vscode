@@ -34,6 +34,8 @@
 		const onElectron = searchParams.get('platform') === 'electron';
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
 
 		/**
 		 * Use polling to track focus of main webview and iframes within the webview
@@ -259,7 +261,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -1165,6 +1168,17 @@
 					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 

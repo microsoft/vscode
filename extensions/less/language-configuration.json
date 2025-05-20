@@ -1,26 +1,88 @@
 {
 	"comments": {
-		"blockComment": ["/*", "*/"],
+		"blockComment": [
+			"/*",
+			"*/"
+		],
 		"lineComment": "//"
 	},
 	"brackets": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
 	],
 	"autoClosingPairs": [
-		{ "open": "{", "close": "}", "notIn": ["string", "comment"] },
-		{ "open": "[", "close": "]", "notIn": ["string", "comment"] },
-		{ "open": "(", "close": ")", "notIn": ["string", "comment"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] }
+		{
+			"open": "{",
+			"close": "}",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "[",
+			"close": "]",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "(",
+			"close": ")",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "\"",
+			"close": "\"",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "'",
+			"close": "'",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		}
 	],
 	"surroundingPairs": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"],
-		["\"", "\""],
-		["'", "'"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"\"",
+			"\""
+		],
+		[
+			"'",
+			"'"
+		]
 	],
 	"folding": {
 		"markers": {
@@ -32,5 +94,20 @@
 		"increaseIndentPattern": "(^.*\\{[^}]*$)",
 		"decreaseIndentPattern": "^\\s*\\}"
 	},
-	"wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])"
+	"wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])",
+	"onEnterRules": [
+		// Add // when pressing enter from inside line comment
+		{
+			"beforeText": {
+				"pattern": "\/\/.*"
+			},
+			"afterText": {
+				"pattern": "^(?!\\s*$).+"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "// "
+			}
+		},
+	]
 }

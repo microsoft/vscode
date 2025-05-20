@@ -52,10 +52,13 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 	if ('cell' in options) {
 		const cell = options.cell;
 		const metadata = {
+			execution_count: null,
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
-		};
-
+		} satisfies CellMetadata;
+		if (cell.kind === NotebookCellKindMarkup) {
+			delete (metadata as any).execution_count;
+		}
 		return metadata;
 	} else {
 		const cell = options;
@@ -64,7 +67,7 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 			...(cell.metadata ?? {})
 		};
 
-		return metadata;
+		return metadata as CellMetadata;
 	}
 }
 

@@ -13,7 +13,7 @@ import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/async
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
@@ -23,7 +23,7 @@ import { posix } from '../../../../base/common/path.js';
 import { commonSuffixLength } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ICommandActionTitle, Icon } from '../../../../platform/action/common/action.js';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -34,7 +34,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -45,7 +44,7 @@ import { renderViewTree } from './baseDebugView.js';
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from './debugCommands.js';
 import * as icons from './debugIcons.js';
 import { createDisconnectMenuItemAction } from './debugToolBar.js';
-import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from '../common/debug.js';
+import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_FOCUSED, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from '../common/debug.js';
 import { StackFrame, Thread, ThreadAndSessionIds } from '../common/debugModel.js';
 import { isSessionAttach } from '../common/debugUtils.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -158,11 +157,10 @@ export class CallStackView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = this._register(new RunOnceScheduler(async () => {
@@ -191,7 +189,6 @@ export class CallStackView extends ViewPane {
 			this.updateActions();
 
 			this.needsRefresh = false;
-			this.dataSource.deemphasizedStackFramesToShow = [];
 			await this.tree.updateChildren();
 			try {
 				const toExpand = new Set<IDebugSession>();
@@ -231,7 +228,7 @@ export class CallStackView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
 			this.instantiationService.createInstance(SessionsRenderer),
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),
@@ -283,6 +280,8 @@ export class CallStackView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
+		CONTEXT_CALLSTACK_FOCUSED.bindTo(this.tree.contextKeyService);
+
 		this.tree.setInput(this.debugService.getModel());
 		this._register(this.tree);
 		this._register(this.tree.onDidOpen(async e => {
@@ -326,7 +325,7 @@ export class CallStackView extends ViewPane {
 				}
 			}
 			if (element instanceof Array) {
-				this.dataSource.deemphasizedStackFramesToShow.push(...element);
+				element.forEach(sf => this.dataSource.deemphasizedStackFramesToShow.add(sf));
 				this.tree.updateChildren();
 			}
 		}));
@@ -461,12 +460,9 @@ export class CallStackView extends ViewPane {
 			overlay = getStackFrameContextOverlay(element);
 		}
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.getMenuActions(MenuId.DebugCallStackContext, contextKeyService, { arg: getContextForContributedActions(element), shouldForwardArgs: true });
-		createAndFillInContextMenuActions(menu, result, 'inline');
+		const result = getContextMenuActions(menu, 'inline');
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
@@ -512,6 +508,7 @@ interface IStackFrameTemplateData {
 	label: HighlightedLabel;
 	actionBar: ActionBar;
 	templateDisposable: DisposableStore;
+	elementDisposables: DisposableStore;
 }
 
 function getSessionContextOverlay(session: IDebugSession): [string, any][] {
@@ -592,11 +589,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const setupActionBar = () => {
 			data.actionBar.clear();
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline');
+			const { primary } = getActionBarActions(menu.getActions({ arg: getContextForContributedActions(session), shouldForwardArgs: true }), 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
@@ -681,11 +674,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const setupActionBar = () => {
 			data.actionBar.clear();
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline');
+			const { primary } = getActionBarActions(menu.getActions({ arg: getContextForContributedActions(thread), shouldForwardArgs: true }), 'inline');
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
@@ -737,11 +726,12 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 
 		const templateDisposable = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		templateDisposable.add(elementDisposables);
 		const label = templateDisposable.add(new HighlightedLabel(labelDiv));
-
 		const actionBar = templateDisposable.add(new ActionBar(stackFrame));
 
-		return { file, fileName, label, lineNumber, stackFrame, actionBar, templateDisposable };
+		return { file, fileName, label, lineNumber, stackFrame, actionBar, templateDisposable, elementDisposables };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
@@ -755,7 +745,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		if (stackFrame.source.raw.origin) {
 			title += `\n${stackFrame.source.raw.origin}`;
 		}
-		data.templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.file, title));
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.file, title));
 
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
 		data.fileName.textContent = getSpecificSourceName(stackFrame);
@@ -771,13 +761,13 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
+			const action = data.elementDisposables.add(new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
 				try {
 					await stackFrame.restart();
 				} catch (e) {
 					this.notificationService.error(e);
 				}
-			});
+			}));
 			data.actionBar.push(action, { icon: true, label: false });
 		}
 	}
@@ -785,9 +775,12 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IStackFrame>, FuzzyScore>, index: number, templateData: IStackFrameTemplateData, height: number | undefined): void {
 		throw new Error('Method not implemented.');
 	}
+	disposeElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, templateData: IStackFrameTemplateData, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
 
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
-		templateData.actionBar.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }
 
@@ -940,7 +933,7 @@ function isDebugSession(obj: any): obj is IDebugSession {
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
-	deemphasizedStackFramesToShow: IStackFrame[] = [];
+	deemphasizedStackFramesToShow = new WeakSet<IStackFrame>();
 
 	constructor(private debugService: IDebugService) { }
 
@@ -988,7 +981,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			children.forEach((child, index) => {
 				if (child instanceof StackFrame && child.source && isFrameDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
-					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
+					if (!this.deemphasizedStackFramesToShow.has(child)) {
 						if (result.length) {
 							const last = result[result.length - 1];
 							if (last instanceof Array) {

@@ -358,48 +358,56 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					}
 				} catch (error) {
 					if (error.code !== 'ENOENT') {
-						this.logService.trace(error); // ignore any errors here and try to just write
+						this.logService.trace(error); // log errors but do not give up writing
 					}
 				}
 			}
 
-			// Determine file flags for opening (read vs write)
-			let flags: string | undefined = undefined;
-			if (isFileOpenForWriteOptions(opts)) {
-				if (isWindows) {
-					try {
+			// Windows gets special treatment (write only)
+			if (isWindows && isFileOpenForWriteOptions(opts)) {
+				try {
 
-						// On Windows and if the file exists, we use a different strategy of saving the file
-						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
-						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
-						// (see https://github.com/microsoft/vscode/issues/6363)
-						await promises.truncate(filePath, 0);
+					// We try to use 'r+' for opening (which will fail if the file does not exist)
+					// to prevent issues when saving hidden files or preserving alternate data
+					// streams.
+					// Related issues:
+					// - https://github.com/microsoft/vscode/issues/931
+					// - https://github.com/microsoft/vscode/issues/6363
+					fd = await Promises.open(filePath, 'r+');
 
-						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
-						flags = 'r+';
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							this.logService.trace(error);
+					// The flag 'r+' will not truncate the file, so we have to do this manually
+					await Promises.ftruncate(fd, 0);
+				} catch (error) {
+					if (error.code !== 'ENOENT') {
+						this.logService.trace(error); // log errors but do not give up writing
+					}
+
+					// Make sure to close the file handle if we have one
+					if (typeof fd === 'number') {
+						try {
+							await Promises.close(fd);
+						} catch (error) {
+							this.logService.trace(error); // log errors but do not give up writing
 						}
+
+						// Reset `fd` to be able to try again with 'w'
+						fd = undefined;
 					}
 				}
-
-				// We take opts.create as a hint that the file is opened for writing
-				// as such we use 'w' to truncate an existing or create the
-				// file otherwise. we do not allow reading.
-				if (!flags) {
-					flags = 'w';
-				}
-			} else {
-
-				// Otherwise we assume the file is opened for reading
-				// as such we use 'r' to neither truncate, nor create
-				// the file.
-				flags = 'r';
 			}
 
-			// Finally open handle to file path
-			fd = await Promises.open(filePath, flags);
+			if (typeof fd !== 'number') {
+				fd = await Promises.open(filePath, isFileOpenForWriteOptions(opts) ?
+					// We take `opts.create` as a hint that the file is opened for writing
+					// as such we use 'w' to truncate an existing or create the
+					// file otherwise. we do not allow reading.
+					'w' :
+					// Otherwise we assume the file is opened for reading
+					// as such we use 'r' to neither truncate, nor create
+					// the file.
+					'r'
+				);
+			}
 
 		} catch (error) {
 

@@ -61,6 +61,15 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
+	isListeningToModel(uri: URI): boolean {
+		for (const key of this._modelListener.keys()) {
+			if (key.resource.toString() === uri.toString()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	protected async createReferencedObject(key: string, notebookType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits, isScratchpad?: boolean, viewType?: string): Promise<IResolvedNotebookEditorModel> {
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
@@ -71,8 +80,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
 			const factory = new NotebookFileWorkingCopyModelFactory(notebookType, this._notebookService, this._configurationService, this._telemetryService, this._notebookLoggingService);
-			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-				FileWorkingCopyManager,
+			workingCopyManager = this._instantiationService.createInstance(
+				FileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 				workingCopyTypeId,
 				factory,
 				factory,
@@ -186,7 +195,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
 		for (let counter = 1; ; counter++) {
 			const candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: notebookType });
-			if (!this._notebookService.getNotebookTextModel(candidate)) {
+			if (!this._notebookService.getNotebookTextModel(candidate) && !this._data.isListeningToModel(candidate)) {
 				return candidate;
 			}
 		}

@@ -39,6 +39,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				versionId: 1,
 				lines: ['foo'],
 				EOL: '\n',
+				encoding: 'utf8'
 			}]
 		});
 		documents = new ExtHostDocuments(SingleProxyRPCProtocol(null), documentsAndEditors);

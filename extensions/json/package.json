@@ -62,6 +62,7 @@
         ],
         "filenames": [
           "babel.config.json",
+          "bun.lock",
           ".babelrc.json",
           ".ember-cli",
           "typedoc.json"
@@ -74,7 +75,8 @@
           "JSON Lines"
         ],
         "extensions": [
-          ".jsonl"
+          ".jsonl",
+          ".ndjson"
         ],
         "filenames": [],
         "configuration": "./language-configuration.json"

@@ -91,7 +91,6 @@ export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IRea
 			cancellationTokenSource = new CancellationTokenSource();
 			return computeFn(r, cancellationTokenSource.token);
 		}, undefined,
-		undefined,
 		() => cancellationTokenSource?.dispose(),
 		strictEquals
 	);
