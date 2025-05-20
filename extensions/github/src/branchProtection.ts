@@ -133,7 +133,11 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 
 	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
 		const graphql = await getOctokitGraphql();
-		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
+		const { repository } = await graphql<{ repository: GitHubRepository }>({
+			query: REPOSITORY_QUERY,
+			owner,
+			repo
+		});
 
 		return repository;
 	}
@@ -145,7 +149,12 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		const graphql = await getOctokitGraphql();
 
 		while (true) {
-			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
+			const { repository } = await graphql<{ repository: GitHubRepository }>({
+				query: REPOSITORY_RULESETS_QUERY,
+				owner,
+				repo,
+				cursor
+			});
 
 			rulesets.push(...(repository.rulesets?.nodes ?? [])
 				// Active branch ruleset that contains the pull request required rule

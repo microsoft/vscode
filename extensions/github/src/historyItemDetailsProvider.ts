@@ -266,7 +266,10 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 		try {
 			const graphql = await getOctokitGraphql();
-			const { repository } = await graphql<{ repository: GitHubRepository }>(ASSIGNABLE_USERS_QUERY, descriptor);
+			const { repository } = await graphql<{ repository: GitHubRepository }>({
+				query: ASSIGNABLE_USERS_QUERY,
+				...descriptor
+			});
 
 			const users: GitHubUser[] = [];
 			for (const node of repository.assignableUsers.nodes ?? []) {
@@ -296,7 +299,11 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 		try {
 			const graphql = await getOctokitGraphql();
-			const { repository } = await graphql<{ repository: GitHubRepository }>(COMMIT_AUTHOR_QUERY, { ...descriptor, commit });
+			const { repository } = await graphql<{ repository: GitHubRepository }>({
+				query: COMMIT_AUTHOR_QUERY,
+				...descriptor,
+				commit
+			});
 
 			const commitAuthor = (repository.object as Commit).author;
 			if (!commitAuthor?.user?.id || !commitAuthor.user?.login ||
