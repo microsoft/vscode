@@ -4,18 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptApplyToMetadata } from './metadata/applyTo.js';
-import { HeaderBase, IHeaderMetadata } from './headerBase.js';
+import { HeaderBase, IHeaderMetadata, type TCleanMetadata } from './headerBase.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * TODO: @legomushroom
  */
-export interface IInstructionsMetadata extends IHeaderMetadata {
+interface IInstructionsMetadata extends IHeaderMetadata {
 	/**
 	 * Chat 'applyTo' metadata in the prompt header.
 	 */
-	applyTo?: PromptApplyToMetadata;
+	applyTo: PromptApplyToMetadata;
 }
+
+/**
+ * TODO: @legomushroom
+ */
+export type TInstructionsMetadata = TCleanMetadata<IInstructionsMetadata>;
 
 /**
  * TODO: @legomushroom

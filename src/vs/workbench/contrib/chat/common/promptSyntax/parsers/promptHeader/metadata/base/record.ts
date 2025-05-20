@@ -9,10 +9,16 @@ import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } 
 import { FrontMatterRecord } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
+ * TODO: @legomushroom
+ */
+export interface IWithValue<T> {
+	readonly value: T | undefined;
+}
+
+/**
  * Abstract class for all metadata records in the prompt header.
  */
-export abstract class PromptMetadataRecord {
-
+export abstract class PromptMetadataRecord<TValue> implements IWithValue<TValue> {
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -60,6 +66,11 @@ export abstract class PromptMetadataRecord {
 	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
 		return this.issues;
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public abstract get value(): TValue | undefined;
 
 	/**
 	 * List of all `error` issue diagnostics.

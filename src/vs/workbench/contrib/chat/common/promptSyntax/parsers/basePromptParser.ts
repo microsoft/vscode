@@ -5,7 +5,6 @@
 
 import { TopError } from './topError.js';
 import { ChatMode } from '../../constants.js';
-import { PromptHeader } from './promptHeader/headerBase.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';
@@ -13,27 +12,29 @@ import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
+import type { IPromptContentsProvider } from '../contentProviders/types.js';
+import type { TPromptReference, IResolveError, ITopError } from './types.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import type { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
+import { InstructionsHeader, type TInstructionsMetadata } from './promptHeader/instructionsHeader.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
-import { IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
@@ -91,13 +92,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	private promptHeader?: PromptHeader;
+	private promptHeader?: PromptHeader | InstructionsHeader | undefined;
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	public get header(): PromptHeader | undefined {
+	public get header(): PromptHeader | InstructionsHeader | undefined {
 		return this.promptHeader;
 	}
 
@@ -567,29 +568,27 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
-	public get metadata(): IPromptMetadata {
+	public get metadata(): Partial<TPromptMetadata | TInstructionsMetadata> {
 		if (this.header === undefined) {
 			return {};
 		}
 
-		const { metadata } = this.header;
-		if (metadata === undefined) {
-			return {};
+		if (this.header instanceof InstructionsHeader) {
+			return this.header.metadata;
 		}
 
-		const { tools, mode, description, applyTo } = metadata;
+		const { tools, mode, description } = this.header.metadata;
 
 		// compute resulting mode based on presence
 		// of `tools` metadata in the prompt header
 		const resultingMode = (tools !== undefined)
 			? ChatMode.Agent
-			: mode?.chatMode;
+			: mode;
 
 		return {
+			tools,
+			description,
 			mode: resultingMode,
-			description: description?.text,
-			tools: tools?.toolNames,
-			applyTo: applyTo?.text,
 		};
 	}
 
@@ -600,6 +599,11 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	public get allToolsMetadata(): readonly string[] | null {
 		let hasTools = false;
 		const result: string[] = [];
+
+		// TODO: @legomushroom - cleanup the if statement
+		if (!('tools' in this.metadata) && !('mode' in this.metadata)) {
+			return null;
+		}
 
 		const { tools, mode } = this.metadata;
 
@@ -912,7 +916,8 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		return this.parser.allReferences;
 	}
 
-	public get metadata(): IPromptMetadata {
+	// TODO: @legomushroom - add return type
+	public get metadata() {
 		return this.parser.metadata;
 	}
 

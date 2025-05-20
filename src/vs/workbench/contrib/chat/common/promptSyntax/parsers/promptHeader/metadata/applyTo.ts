@@ -18,7 +18,7 @@ const RECORD_NAME = 'applyTo';
 /**
  * Prompt `applyTo` metadata record inside the prompt header.
  */
-export class PromptApplyToMetadata extends PromptStringMetadata {
+export class PromptApplyToMetadata extends PromptStringMetadata<string> {
 	constructor(
 		recordToken: FrontMatterRecord,
 		languageId: string,

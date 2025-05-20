@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TPromptMetadata } from './promptHeader/promptHeader.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { TInstructionsMetadata } from './promptHeader/instructionsHeader.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 
 /**
@@ -49,30 +50,31 @@ export interface ITopError extends IResolveError {
 	readonly localizedMessage: string;
 }
 
-/**
- * Metadata defined in the prompt header.
- */
-export interface IPromptMetadata {
-	/**
-	 * Description metadata in the prompt header.
-	 */
-	description?: string;
+// TODO: @legomushroom  - remove
+// /**
+//  * Metadata defined in the prompt header.
+//  */
+// export interface IPromptMetadata {
+// 	/**
+// 	 * Description metadata in the prompt header.
+// 	 */
+// 	description?: string;
 
-	/**
-	 * Tools metadata in the prompt header.
-	 */
-	tools?: readonly string[];
+// 	/**
+// 	 * Tools metadata in the prompt header.
+// 	 */
+// 	tools?: readonly string[];
 
-	/**
-	 * Chat mode metadata in the prompt header.
-	 */
-	mode?: ChatMode;
+// 	/**
+// 	 * Chat mode metadata in the prompt header.
+// 	 */
+// 	mode?: ChatMode;
 
-	/**
-	 * Chat 'applyTo' metadata in the prompt header.
-	 */
-	applyTo?: string;
-}
+// 	/**
+// 	 * Chat 'applyTo' metadata in the prompt header.
+// 	 */
+// 	applyTo?: string;
+// }
 
 /**
  * Base interface for a generic prompt reference.
@@ -185,7 +187,7 @@ interface IPromptReferenceBase extends IDisposable {
 	/**
 	 * Metadata defined in the prompt header.
 	 */
-	readonly metadata: IPromptMetadata;
+	readonly metadata: Partial<TPromptMetadata | TInstructionsMetadata>;
 
 	/**
 	 * Returns a promise that resolves when the reference contents

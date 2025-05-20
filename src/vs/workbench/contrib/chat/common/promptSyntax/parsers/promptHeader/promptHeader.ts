@@ -6,26 +6,31 @@
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
 import { PromptMetadataWarning } from './diagnostics.js';
-import { HeaderBase, IHeaderMetadata } from './headerBase.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
+import { HeaderBase, IHeaderMetadata, type TCleanMetadata } from './headerBase.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
  * TODO: @legomushroom
  */
-export interface IPromptMetadata extends IHeaderMetadata {
+interface IPromptMetadata extends IHeaderMetadata {
 	/**
 	 * Tools metadata in the prompt header.
 	 */
-	tools?: PromptToolsMetadata;
+	tools: PromptToolsMetadata;
 
 	/**
 	 * Chat mode metadata in the prompt header.
 	 */
-	mode?: PromptModeMetadata;
+	mode: PromptModeMetadata;
 }
+
+/**
+ * TODO: @legomushroom
+ */
+export type TPromptMetadata = TCleanMetadata<IPromptMetadata>;
 
 /**
  * TODO: @legomushroom
@@ -75,13 +80,13 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 
 		// if 'mode' is not set or invalid it will be ignored,
 		// therefore treat it as if it was not set
-		if (mode?.chatMode === undefined) {
+		if (mode?.value === undefined) {
 			return true;
 		}
 
 		// when mode is set, valid, and tools are present,
 		// the only valid value for the mode is 'agent'
-		return (mode.chatMode === ChatMode.Agent);
+		return (mode.value === ChatMode.Agent);
 	}
 
 	/**
@@ -105,7 +110,7 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 			'Mode metadata must have been present.',
 		);
 		assert(
-			mode.chatMode !== ChatMode.Agent,
+			mode.value !== ChatMode.Agent,
 			'Mode metadata must not be agent mode.',
 		);
 

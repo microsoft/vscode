@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../nls.js';
+import { IWithValue } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
-import { PromptMetadataRecord } from './metadata/base/record.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
@@ -14,6 +14,15 @@ import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCod
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
+type TValuesOf<T extends IHeaderMetadata> = {
+	[K in keyof T]: T[K] extends IWithValue<infer U> ? (U extends undefined ? undefined : NonNullable<U>) : undefined;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export type TCleanMetadata<TMetadata extends IHeaderMetadata> = TValuesOf<TMetadata>;
+
 /**
  * Metadata defined in the prompt header.
  */
@@ -21,18 +30,15 @@ export interface IHeaderMetadata {
 	/**
 	 * Description metadata in the prompt header.
 	 */
-	description?: PromptDescriptionMetadata;
+	description: PromptDescriptionMetadata;
 }
 
 /**
  * TODO: @legomushroom
  */
-type TMetadataObject<T extends IHeaderMetadata> = T & Partial<{ [P in keyof T]: PromptMetadataRecord; }>; //Record<keyof T, PromptMetadataRecord | undefined>;
-
-/**
- * TODO: @legomushroom
- */
-export abstract class HeaderBase<TMetadata extends TMetadataObject<IHeaderMetadata>> extends Disposable {
+export abstract class HeaderBase<
+	TMetadata extends IHeaderMetadata,
+> extends Disposable {
 	/**
 	 * Underlying decoder for a Front Matter header.
 	 */
@@ -42,11 +48,30 @@ export abstract class HeaderBase<TMetadata extends TMetadataObject<IHeaderMetada
 	 * Metadata records.
 	 */
 	protected readonly meta: Partial<TMetadata>;
+	// /**
+	//  * Metadata records.
+	//  */
+	// public get metadata(): Readonly<Partial<TMetadata>> {
+	// 	return Object.freeze({ ...this.meta });
+	// }
+
 	/**
 	 * Metadata records.
 	 */
-	public get metadata(): Readonly<Partial<TMetadata>> {
-		return Object.freeze({ ...this.meta });
+	public get metadata(): Partial<TCleanMetadata<TMetadata>> {
+		const result: Partial<TCleanMetadata<TMetadata>> = {};
+
+		for (const [entryName, entryValue] of Object.entries(this.meta)) {
+			if (entryValue === undefined) {
+				continue;
+			}
+
+			Object.assign(result, {
+				[entryName]: entryValue.value,
+			});
+		}
+
+		return result;
 	}
 
 	/**
@@ -152,12 +177,13 @@ export abstract class HeaderBase<TMetadata extends TMetadataObject<IHeaderMetada
 			return;
 		}
 
-		// TODO: @legomushroom
+		// pipe the token to the actual implementation class
+		// that might to handle it based on the token type
 		if (this.handleToken(token)) {
 			return;
 		}
 
-		// all other records are currently not supported
+		// all other records are "unknown" ones
 		this.issues.push(
 			new PromptMetadataWarning(
 				token.range,

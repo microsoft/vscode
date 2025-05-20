@@ -17,7 +17,21 @@ const RECORD_NAME = 'tools';
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
-export class PromptToolsMetadata extends PromptMetadataRecord {
+export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
+
+	/**
+	 * List of all valid tool names that were found in
+	 * this metadata record.
+	 */
+	public override get value(): string[] | undefined {
+		// TODO: @legomushroom
+		if (this.validToolNames === undefined) {
+			return [];
+		}
+
+		return [...this.validToolNames.values()];
+	}
+
 	public override get recordName(): string {
 		return RECORD_NAME;
 	}
@@ -32,18 +46,6 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 * this metadata record.
 	 */
 	private validToolNames: Set<string> | undefined;
-
-	/**
-	 * List of all valid tool names that were found in
-	 * this metadata record.
-	 */
-	public get toolNames(): readonly string[] {
-		if (this.validToolNames === undefined) {
-			return [];
-		}
-
-		return [...this.validToolNames.values()];
-	}
 
 	constructor(
 		recordToken: FrontMatterRecord,
