@@ -152,7 +152,7 @@ export class ScreenReaderSupport extends Disposable {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		this._doRender(top, top, this._contentLeft, this._divWidth, lineHeight);
+		this._doRender(top, top, this._contentLeft, this._contentWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -164,10 +164,14 @@ export class ScreenReaderSupport extends Disposable {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
+		console.log('width : ', width);
+		console.log('this._contentWidth : ', this._contentWidth);
+		console.log('this._contentLeft : ', this._contentLeft);
 		this._domNode.setTop(300);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(500);
+		this._domNode.setLineHeight(height);
 		console.log('this._domNode : ', this._domNode.domNode);
 		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;

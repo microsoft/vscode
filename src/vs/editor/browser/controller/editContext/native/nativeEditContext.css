@@ -10,6 +10,7 @@
 	overflow-y: scroll;
 	scrollbar-width: none;
 	z-index: 10;
+	white-space: pre-wrap;
 }
 
 .monaco-editor .ime-text-area {
