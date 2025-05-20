@@ -57,7 +57,10 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 			id: historyItem.id,
 			name: attachmentName,
 			value: multiDiffSourceUri,
-			historyItem,
+			historyItem: {
+				...historyItem,
+				references: []
+			},
 			kind: 'scmHistoryItem'
 		} satisfies ISCMHistoryItemVariableEntry;
 	}
