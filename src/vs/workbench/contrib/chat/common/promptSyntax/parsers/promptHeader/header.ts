@@ -94,7 +94,7 @@ export class PromptHeader extends Disposable {
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				ObjectStream.fromArray([...contentsToken.tokens]),
+				ObjectStream.fromArray([...contentsToken.children]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));
@@ -139,7 +139,7 @@ export class PromptHeader extends Disposable {
 					token.range,
 					localize(
 						'prompt.header.metadata.diagnostics.duplicate-record',
-						"Duplicate metadata record '{0}' will be ignored.",
+						"Duplicate metadata '{0}' will be ignored.",
 						recordName,
 					),
 				),
@@ -203,7 +203,7 @@ export class PromptHeader extends Disposable {
 				token.range,
 				localize(
 					'prompt.header.metadata.diagnostics.unknown-record',
-					"Unknown metadata record '{0}' will be ignored.",
+					"Unknown metadata '{0}' will be ignored.",
 					recordName,
 				),
 			),

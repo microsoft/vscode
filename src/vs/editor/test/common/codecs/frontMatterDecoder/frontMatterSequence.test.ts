@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { Range } from '../../../../common/core/range.js';
-import { Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from '../../../../common/codecs/frontMatterCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Space, Tab, VerticalTab, Word } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterSequence } from '../../../../common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
 
 suite('FrontMatterSequence', () => {
@@ -25,6 +25,77 @@ suite('FrontMatterSequence', () => {
 			sequence instanceof FrontMatterValueToken,
 			'Must extend FrontMatterValueToken class.',
 		);
+	});
+
+	suite('• trimEnd()', () => {
+		test('• trims space tokens at the end of the sequence', () => {
+			const sequence = new FrontMatterSequence([
+				new Word(new Range(4, 18, 4, 18 + 10), 'some-value'),
+				new Space(new Range(4, 28, 4, 29)),
+				new Space(new Range(4, 29, 4, 30)),
+				new VerticalTab(new Range(4, 30, 4, 31)),
+				new Tab(new Range(4, 31, 4, 32)),
+				new Space(new Range(4, 32, 4, 33)),
+			]);
+
+			const trimmed = sequence.trimEnd();
+			assert.deepStrictEqual(
+				trimmed,
+				[
+					new Space(new Range(4, 28, 4, 29)),
+					new Space(new Range(4, 29, 4, 30)),
+					new VerticalTab(new Range(4, 30, 4, 31)),
+					new Tab(new Range(4, 31, 4, 32)),
+					new Space(new Range(4, 32, 4, 33)),
+				],
+				'Must return correct trimmed list of spacing tokens.',
+			);
+
+			assert(
+				sequence.range.equalsRange(
+					new Range(4, 18, 4, 28),
+				),
+				'Must correctly update token range.',
+			);
+		});
+
+		test('• remains functional if only spacing tokens were present', () => {
+			const sequence = new FrontMatterSequence([
+				new Space(new Range(4, 28, 4, 29)),
+				new Space(new Range(4, 29, 4, 30)),
+				new VerticalTab(new Range(4, 30, 4, 31)),
+				new Tab(new Range(4, 31, 4, 32)),
+				new Space(new Range(4, 32, 4, 33)),
+			]);
+
+			const trimmed = sequence.trimEnd();
+			assert.deepStrictEqual(
+				trimmed,
+				[
+					new Space(new Range(4, 28, 4, 29)),
+					new Space(new Range(4, 29, 4, 30)),
+					new VerticalTab(new Range(4, 30, 4, 31)),
+					new Tab(new Range(4, 31, 4, 32)),
+					new Space(new Range(4, 32, 4, 33)),
+				],
+				'Must return correct trimmed list of spacing tokens.',
+			);
+
+			assert(
+				sequence.range.equalsRange(
+					new Range(4, 28, 4, 28),
+				),
+				'Must correctly update token range.',
+			);
+
+			assert.deepStrictEqual(
+				sequence.children,
+				[
+					new Word(new Range(4, 28, 4, 28), ''),
+				],
+				'Must contain a single empty token.',
+			);
+		});
 	});
 
 	test('• throws if no tokens provided', () => {
