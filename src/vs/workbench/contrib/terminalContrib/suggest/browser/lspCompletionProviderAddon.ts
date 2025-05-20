@@ -17,8 +17,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
 	readonly isBuiltin = true;
-	// TODO: Define this, it's determined by the language features that we don't get until later currently?
-	//	- Depending on the providerthat gets passed into constructor & shell info, use different triggerCharacters
 	readonly triggerCharacters?: string[];
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
@@ -27,7 +25,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	constructor(
 		provider: CompletionItemProvider,
 		textVirtualModel: IReference<IResolvedTextEditorModel>,
-		// triggerCharacters: string[] | undefined,
 		lspTerminalModelContentProvider: LspTerminalModelContentProvider,
 	) {
 		super();
@@ -55,24 +52,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
-		// Calculate replacement index and length, similar to pwshCompletionProviderAddon
-		let replacementIndex = 0;
-		let replacementLength = 0;
-
-		// Scan backwards from cursor position to find the start of the current word
-		const lastLine = lines[lines.length - 1];
-		const wordStartRegex = /[a-zA-Z0-9_\-\.]*$/;
-		const match = lastLine.match(wordStartRegex);
-
-		if (match && match.index !== undefined) {
-			// Calculate the replacement index - position where the word starts
-			replacementIndex = match.index;
-			// Calculate replacement length - length of the word being replaced
-			replacementLength = match[0].length;
-		} else {
-			// If no match, set replacement length to cursor position on current line
-			replacementLength = lastLine.length;
-		}
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
@@ -100,7 +79,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 			console.log(result?.suggestions);
 		}
-		// const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();
+		// const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();A
 
 		return completions;
 	}
