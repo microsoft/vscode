@@ -17,7 +17,7 @@ import { EndOfLinePreference } from '../../../../common/model.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
+import { IPagedScreenReaderStrategy, ISimpleModel } from '../screenReaderUtils.js';
 import { IScreenReaderContent } from './nativeEditContextUtils.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
@@ -28,8 +28,8 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 	private _ignoreSelectionChangeTime: number = 0;
 	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
-	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
-	private _nativeEditContextScreenReaderStrategy: NativeEditContextPagedScreenReaderStrategy = new NativeEditContextPagedScreenReaderStrategy();
+	private _screenReaderContentState: ComplexScreenReaderContentState | undefined;
+	private _nativeEditContextScreenReaderStrategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -53,7 +53,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		this._ignoreSelectionChangeTime = 0;
 	}
 
-	public writeScreenReaderContent(primarySelection: Selection): void {
+	public write(primarySelection: Selection): void {
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -80,7 +80,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		}
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: NativeEditContextScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
+	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
 		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
 		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
 		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
@@ -232,8 +232,8 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		}
 	}
 
-	private _getScreenReaderContentState(primarySelection: Selection): NativeEditContextScreenReaderContentState {
-		const simpleModel: ISimpleScreenReaderContext = {
+	private _getScreenReaderContentState(primarySelection: Selection): ComplexScreenReaderContentState {
+		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
 			},
@@ -261,7 +261,7 @@ class RenderedScreenReaderLine {
 	) { }
 }
 
-export class NativeEditContextScreenReaderContentState {
+export class ComplexScreenReaderContentState {
 
 	constructor(
 		readonly startSelectionLineNumber: number,
@@ -272,7 +272,7 @@ export class NativeEditContextScreenReaderContentState {
 		readonly preEndOffsetRange: OffsetRange | undefined,
 	) { }
 
-	equals(other: NativeEditContextScreenReaderContentState): boolean {
+	equals(other: ComplexScreenReaderContentState): boolean {
 		const coalesceOffsetRanges = this.coalesceOffsetRanges();
 		const otherCoalesceOffsetRanges = other.coalesceOffsetRanges();
 		if (coalesceOffsetRanges instanceof OffsetRange && otherCoalesceOffsetRanges instanceof OffsetRange) {
@@ -302,7 +302,7 @@ export class NativeEditContextScreenReaderContentState {
 	}
 }
 
-export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<NativeEditContextScreenReaderContentState> {
+export class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ComplexScreenReaderContentState> {
 
 	constructor() { }
 
@@ -317,7 +317,7 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(context: ISimpleScreenReaderContext, viewSelection: Selection, linesPerPage: number): NativeEditContextScreenReaderContentState {
+	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): ComplexScreenReaderContentState {
 
 		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
@@ -364,7 +364,7 @@ export class NativeEditContextPagedScreenReaderStrategy implements IPagedScreenR
 		}
 
 		const resolvedEndSelectionLineNumber = viewSelection.startLineNumber !== viewSelection.endLineNumber ? viewSelection.endLineNumber : undefined;
-		return new NativeEditContextScreenReaderContentState(
+		return new ComplexScreenReaderContentState(
 			startSelectionLineNumber,
 			resolvedEndSelectionLineNumber,
 			preStartOffsetRange,

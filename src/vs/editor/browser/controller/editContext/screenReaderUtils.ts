@@ -20,7 +20,11 @@ export interface ISimpleModel {
 	modifyPosition(position: Position, offset: number): Position;
 }
 
-export interface ScreenReaderContentState {
+export interface IPagedScreenReaderStrategy<T> {
+	fromEditorSelection(model: ISimpleModel, selection: Selection, linesPerPage: number, trimLongText: boolean): T;
+}
+
+export interface ISimpleScreenReaderContentState {
 	value: string;
 
 	/** the offset where selection starts inside `value` */
@@ -39,28 +43,29 @@ export interface ScreenReaderContentState {
 	newlineCountBeforeSelection: number;
 }
 
-export class PagedScreenReaderStrategy {
-	private static _getPageOfLine(lineNumber: number, linesPerPage: number): number {
+export class SimplePagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ISimpleScreenReaderContentState> {
+
+	private _getPageOfLine(lineNumber: number, linesPerPage: number): number {
 		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
 
-	private static _getRangeForPage(page: number, linesPerPage: number): Range {
+	private _getRangeForPage(page: number, linesPerPage: number): Range {
 		const offset = page * linesPerPage;
 		const startLineNumber = offset + 1;
 		const endLineNumber = offset + linesPerPage;
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ScreenReaderContentState {
+	public fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ISimpleScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
 
-		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
-		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
+		const selectionStartPage = this._getPageOfLine(selection.startLineNumber, linesPerPage);
+		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
 
-		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
-		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
+		const selectionEndPage = this._getPageOfLine(selection.endLineNumber, linesPerPage);
+		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
@@ -140,16 +145,4 @@ export function newlinecount(text: string): number {
 		result++;
 	} while (true);
 	return result;
-}
-
-export interface ISimpleScreenReaderContext {
-	getLineCount(): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	modifyPosition(position: Position, offset: number): Position;
-}
-
-export interface IPagedScreenReaderStrategy<T> {
-	fromEditorSelection(model: ISimpleScreenReaderContext, selection: Selection, linesPerPage: number, trimLongText: boolean): T;
 }

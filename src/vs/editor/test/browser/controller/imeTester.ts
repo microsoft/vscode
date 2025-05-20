@@ -12,7 +12,7 @@ import * as platform from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
-import { ISimpleModel, PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
+import { ISimpleModel, SimplePagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
 import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
@@ -97,14 +97,13 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	startBtn.innerText = 'Start';
 	container.appendChild(startBtn);
 
-
 	const input = document.createElement('textarea');
 	input.setAttribute('rows', '10');
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
 	const model = new SingleLineTestModel('some  text');
-
+	const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	const textAreaInputHost: ITextAreaInputHost = {
 		getDataToCopy: () => {
 			return {
@@ -117,8 +116,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		},
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
-
-			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

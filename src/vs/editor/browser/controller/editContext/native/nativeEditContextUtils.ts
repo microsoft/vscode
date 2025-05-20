@@ -86,6 +86,8 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 
 export interface IScreenReaderContent {
 
+	write(primarySelection: Selection): void;
+
 	onConfigurationChanged(options: IComputedEditorOptions): void;
 
 	setIgnoreSelectionChangeTime(reason: string): void;
@@ -93,6 +95,4 @@ export interface IScreenReaderContent {
 	getIgnoreSelectionChangeTime(): number;
 
 	resetSelectionChangeTime(): void;
-
-	writeScreenReaderContent(primarySelection: Selection): void;
 }

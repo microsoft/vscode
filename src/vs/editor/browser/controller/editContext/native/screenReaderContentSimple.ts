@@ -12,14 +12,15 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
-import { ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
+import { ISimpleModel, SimplePagedScreenReaderStrategy, ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
 import { IScreenReaderContent } from './nativeEditContextUtils.js';
 
 export class SimpleScreenReaderContent implements IScreenReaderContent {
 
 	private _ignoreSelectionChangeTime: number = 0;
 	private _accessibilityPageSize: number = 1;
-	private _screenReaderContentState: ScreenReaderContentState | undefined;
+	private _screenReaderContentState: ISimpleScreenReaderContentState | undefined;
+	private _screenReaderStrategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -43,7 +44,7 @@ export class SimpleScreenReaderContent implements IScreenReaderContent {
 		this._ignoreSelectionChangeTime = 0;
 	}
 
-	public writeScreenReaderContent(primarySelection: Selection): void {
+	public write(primarySelection: Selection): void {
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -68,7 +69,7 @@ export class SimpleScreenReaderContent implements IScreenReaderContent {
 		}
 	}
 
-	private _getScreenReaderContentState(primarySelection: Selection): ScreenReaderContentState {
+	private _getScreenReaderContentState(primarySelection: Selection): ISimpleScreenReaderContentState {
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -86,7 +87,7 @@ export class SimpleScreenReaderContent implements IScreenReaderContent {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
+		return this._screenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {

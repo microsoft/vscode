@@ -31,6 +31,7 @@ export class ScreenReaderSupport {
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
 	private _screenReaderContent: IScreenReaderContent;
+	private _renderComplexScreenReaderContent: boolean;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -40,8 +41,8 @@ export class ScreenReaderSupport {
 	) {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
-		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
-		if (renderComplexScreenReaderContent) {
+		this._renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
+		if (this._renderComplexScreenReaderContent) {
 			this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._accessibilityService);
 		} else {
 			this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._accessibilityService);
@@ -61,7 +62,17 @@ export class ScreenReaderSupport {
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
-		this._screenReaderContent.onConfigurationChanged(this._context.configuration.options);
+		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
+		if (this._renderComplexScreenReaderContent !== renderComplexScreenReaderContent) {
+			if (renderComplexScreenReaderContent) {
+				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+			} else {
+				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+			}
+			this._renderComplexScreenReaderContent = renderComplexScreenReaderContent;
+		} else {
+			this._screenReaderContent.onConfigurationChanged(this._context.configuration.options);
+		}
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -168,6 +179,6 @@ export class ScreenReaderSupport {
 	}
 
 	public writeScreenReaderContent(): void {
-		this._screenReaderContent.writeScreenReaderContent(this._primarySelection);
+		this._screenReaderContent.write(this._primarySelection);
 	}
 }
