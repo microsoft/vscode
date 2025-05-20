@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { Word, SpacingToken } from '../../simpleCodec/tokens/index.js';
 import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
@@ -10,7 +11,7 @@ import { type TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 /**
  * Token represents a generic sequence of tokens in a Front Matter header.
  */
-export class FrontMatterSequence extends FrontMatterValueToken<string, readonly TSimpleDecoderToken[]> {
+export class FrontMatterSequence extends FrontMatterValueToken<FrontMatterSequence, readonly TSimpleDecoderToken[]> {
 	/**
 	 * @override Because this token represent a generic sequence of tokens,
 	 *           the type name is represented by the sequence of tokens itself

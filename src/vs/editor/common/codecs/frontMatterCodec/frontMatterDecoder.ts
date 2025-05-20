@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
 import { ObjectStream } from '../utils/objectStream.js';
 import { assert } from '../../../../base/common/assert.js';
