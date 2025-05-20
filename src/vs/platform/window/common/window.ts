@@ -148,7 +148,7 @@ export function hasNativeContextMenu(configurationService: IConfigurationService
 
 	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
 		// Do not support native menu with custom title bar
-		if (!nativeTitle) {
+		if (!isMacintosh && !nativeTitle) {
 			return false;
 		}
 		return true;
