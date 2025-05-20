@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, isThenable, raceCancellationError } from '../../../../../base/common/async.js';
+import { cancellableIterable, DeferredPromise, isThenable, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertType, isObject } from '../../../../../base/common/types.js';
+import { assertType, isAsyncIterable, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -39,10 +39,10 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatContextValueItem, IChatContextPickService, IChatContextPickerItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
@@ -493,6 +493,10 @@ export class AttachContextAction extends Action2 {
 
 		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
 
+		const cts = new CancellationTokenSource();
+		store.add(qp.onDidHide(() => cts.cancel()));
+		store.add(toDisposable(() => cts.dispose(true)));
+
 		qp.placeholder = pickerConfig.placeholder;
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
@@ -508,22 +512,27 @@ export class AttachContextAction extends Action2 {
 
 			qp.items = items;
 			qp.busy = false;
+		} else if (isAsyncIterable(pickerConfig.picks)) {
+			for await (const items of cancellableIterable(pickerConfig.picks, cts.token)) {
+				qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
+			}
+			qp.busy = false;
 		} else {
 
-			let cts: CancellationTokenSource | undefined;
+			let typeCts: CancellationTokenSource | undefined;
 
 			const update = async () => {
 				assertType(typeof pickerConfig.picks === 'function');
 
-				if (cts) {
-					cts.cancel();
-					store.delete(cts);
+				if (typeCts) {
+					typeCts.cancel();
+					store.delete(typeCts);
 				}
-				cts = store.add(new CancellationTokenSource());
+				typeCts = store.add(new CancellationTokenSource(cts.token));
 
 				try {
 					qp.busy = true;
-					const items = await raceCancellationError(pickerConfig.picks(qp.value, cts.token), cts.token);
+					const items = await raceCancellationError(pickerConfig.picks(qp.value, typeCts.token), typeCts.token);
 					qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
 				} finally {
 					qp.busy = false;
@@ -534,12 +543,22 @@ export class AttachContextAction extends Action2 {
 			update();
 		}
 
+		if (cts.token.isCancellationRequested) {
+			return true; // picker got hidden already
+		}
+
 		const defer = new DeferredPromise<boolean>();
+		const addPromises: Promise<void>[] = [];
 
 		store.add(qp.onDidAccept(e => {
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
-				widget.attachmentModel.addContext(selected.asAttachment());
+				const attachment = selected.asAttachment();
+				if (isThenable(attachment)) {
+					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+				} else {
+					widget.attachmentModel.addContext(attachment);
+				}
 			}
 			if (selected === goBackItem) {
 				defer.complete(false);
@@ -554,7 +573,10 @@ export class AttachContextAction extends Action2 {
 		}));
 
 		try {
-			return await defer.p;
+			const result = await defer.p;
+			qp.busy = true; // if still visible
+			await Promise.all(addPromises);
+			return result;
 		} finally {
 			store.dispose();
 		}

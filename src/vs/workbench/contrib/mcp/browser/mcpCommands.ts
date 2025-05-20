@@ -37,7 +37,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerCacheState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 
@@ -249,23 +249,21 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			Refreshing,
 		}
 
-
-
 		const displayedState = derived((reader) => {
 			const servers = mcpService.servers.read(reader);
 			const serversPerState: IMcpServer[][] = [];
 			for (const server of servers) {
 				let thisState = DisplayedState.None;
-				switch (server.toolsState.read(reader)) {
-					case McpServerToolsState.Unknown:
-					case McpServerToolsState.Outdated:
+				switch (server.cacheState.read(reader)) {
+					case McpServerCacheState.Unknown:
+					case McpServerCacheState.Outdated:
 						if (server.trusted.read(reader) === false) {
 							thisState = DisplayedState.None;
 						} else {
 							thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
 						}
 						break;
-					case McpServerToolsState.RefreshingFromUnknown:
+					case McpServerCacheState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
 						break;
 					default:

@@ -19,7 +19,7 @@ export interface IChatContextPickerPickItem {
 	description?: string;
 	detail?: string;
 	disabled?: boolean;
-	asAttachment(): IChatRequestVariableEntry;
+	asAttachment(): IChatRequestVariableEntry | Promise<IChatRequestVariableEntry>;
 }
 
 export function isChatContextPickerPickItem(item: unknown): item is IChatContextPickerPickItem {
@@ -40,12 +40,21 @@ export interface IChatContextValueItem extends IChatContextItem {
 	asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | IChatRequestVariableEntry[] | undefined>;
 }
 
+export type ChatContextPick = IChatContextPickerPickItem | IQuickPickSeparator;
+
 export interface IChatContextPickerItem extends IChatContextItem {
 	readonly type: 'pickerPick';
 
 	asPicker(widget: IChatWidget): {
 		readonly placeholder: string;
-		readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> | ((query: string, token: CancellationToken) => Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>);
+		/**
+		 * Picks that should either be:
+		 * - A promise that resolves to the picked items
+		 * - An async iterable that emits items as they are discovered. Note that
+		 *   each emission should include _all_ items to be displayed.
+		 * - A function that allows filtering items as they are queried
+		 */
+		readonly picks: Promise<ChatContextPick[]> | AsyncIterable<ChatContextPick[]> | ((query: string, token: CancellationToken) => Promise<ChatContextPick[]>);
 	};
 }
 

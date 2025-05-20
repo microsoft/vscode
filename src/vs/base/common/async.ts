@@ -1865,7 +1865,7 @@ export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
-	(emitter: AsyncIterableEmitter<T>): void | Promise<void>;
+	(emitter: AsyncIterableEmitter<T>): unknown | Promise<unknown>;
 }
 
 /**
@@ -2167,6 +2167,25 @@ export class AsyncIterableSource<T> {
 	emitOne(item: T): void {
 		this._emitFn(item);
 	}
+}
+
+export function cancellableIterable<T>(iterableOrIterator: AsyncIterator<T> | AsyncIterable<T>, token: CancellationToken): AsyncIterableIterator<T> {
+	const iterator = Symbol.asyncIterator in iterableOrIterator ? iterableOrIterator[Symbol.asyncIterator]() : iterableOrIterator;
+
+	return {
+		async next(): Promise<IteratorResult<T>> {
+			if (token.isCancellationRequested) {
+				return { done: true, value: undefined };
+			}
+			const result = await raceCancellation(iterator.next(), token);
+			return result || { done: true, value: undefined };
+		},
+		throw: iterator.throw?.bind(iterator),
+		return: iterator.return?.bind(iterator),
+		[Symbol.asyncIterator]() {
+			return this;
+		}
+	};
 }
 
 //#endregion

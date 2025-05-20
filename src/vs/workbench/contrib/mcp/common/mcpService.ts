@@ -20,7 +20,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -79,8 +79,8 @@ export class McpService extends Disposable implements IMcpService {
 		const todo: Promise<unknown>[] = [];
 		for (const { object: server } of this._servers.get()) {
 			if (collectionIds.has(server.collection.id)) {
-				const state = server.toolsState.get();
-				if (state === McpServerToolsState.Unknown) {
+				const state = server.cacheState.get();
+				if (state === McpServerCacheState.Unknown) {
 					todo.push(server.start());
 				}
 			}
