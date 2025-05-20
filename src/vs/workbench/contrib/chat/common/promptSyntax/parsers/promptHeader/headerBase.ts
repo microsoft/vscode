@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
-import { PromptApplyToMetadata } from './metadata/applyTo.js';
-import { assert } from '../../../../../../../base/common/assert.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
+import { PromptDescriptionMetadata } from './metadata/index.js';
+import { PromptMetadataRecord } from './metadata/base/record.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
 import { PromptMetadataError, PromptMetadataWarning, type TDiagnostic } from './diagnostics.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
@@ -30,32 +27,12 @@ export interface IHeaderMetadata {
 /**
  * TODO: @legomushroom
  */
-export interface IPromptMetadata extends IHeaderMetadata {
-	/**
-	 * Tools metadata in the prompt header.
-	 */
-	tools?: PromptToolsMetadata;
-
-	/**
-	 * Chat mode metadata in the prompt header.
-	 */
-	mode?: PromptModeMetadata;
-}
+type TMetadataObject<T extends IHeaderMetadata> = T & Partial<{ [P in keyof T]: PromptMetadataRecord; }>; //Record<keyof T, PromptMetadataRecord | undefined>;
 
 /**
  * TODO: @legomushroom
  */
-export interface IInstructionsMetadata extends IHeaderMetadata {
-	/**
-	 * Chat 'applyTo' metadata in the prompt header.
-	 */
-	applyTo?: PromptApplyToMetadata;
-}
-
-/**
- * TODO: @legomushroom
- */
-abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetadata> extends Disposable {
+export abstract class HeaderBase<TMetadata extends TMetadataObject<IHeaderMetadata>> extends Disposable {
 	/**
 	 * Underlying decoder for a Front Matter header.
 	 */
@@ -64,22 +41,18 @@ abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetad
 	/**
 	 * Metadata records.
 	 */
-	protected readonly meta: TMetadata;
+	protected readonly meta: Partial<TMetadata>;
 	/**
 	 * Metadata records.
 	 */
-	public get metadata(): Readonly<TMetadata> {
-		return Object.freeze({
-			...this.meta,
-			// TODO: @legomushroom - remove the type assertion
-		}) as unknown as TMetadata;
+	public get metadata(): Readonly<Partial<TMetadata>> {
+		return Object.freeze({ ...this.meta });
 	}
 
 	/**
 	 * List of all unique metadata record names.
 	 */
-	// TODO: @legomushroom - make private?
-	protected readonly recordNames: Set<string>;
+	private readonly recordNames: Set<string>;
 
 	/**
 	 * List of all issues found while parsing the prompt header.
@@ -101,10 +74,7 @@ abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetad
 		super();
 
 		this.issues = [];
-
-		// TODO: @legomushroom - remove the type assertion
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		this.meta = {} as TMetadata;
+		this.meta = {};
 		this.recordNames = new Set<string>();
 
 		this.stream = this._register(
@@ -169,6 +139,7 @@ abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetad
 
 			return;
 		}
+		this.recordNames.add(recordName);
 
 		// if the record might be a "description" metadata
 		// add it to the list of parsed metadata records
@@ -230,130 +201,5 @@ abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetad
 		this.stream.start();
 
 		return this;
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class PromptHeader extends HeaderBase<IPromptMetadata> {
-	// TODO: @legomushroom - return a record name instead?
-	protected override handleToken(token: FrontMatterRecord): boolean {
-		const recordName = token.nameToken.text;
-
-		// if the record might be a "tools" metadata
-		// add it to the list of parsed metadata records
-		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const metadata = new PromptToolsMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.tools = metadata;
-			this.recordNames.add(recordName);
-
-			this.validateToolsAndModeCompatibility();
-			return true;
-		}
-
-		// if the record might be a "mode" metadata
-		// add it to the list of parsed metadata records
-		if (PromptModeMetadata.isModeRecord(token)) {
-			const metadata = new PromptModeMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.mode = metadata;
-			this.recordNames.add(recordName);
-
-			this.validateToolsAndModeCompatibility();
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Check if value of `tools` and `mode` metadata
-	 * are compatible with each other.
-	 */
-	private get toolsAndModeCompatible(): boolean {
-		const { tools, mode } = this.meta;
-
-		// if 'tools' is not set, then the mode metadata
-		// can have any value so skip the validation
-		if (tools === undefined) {
-			return true;
-		}
-
-		// if 'mode' is not set or invalid it will be ignored,
-		// therefore treat it as if it was not set
-		if (mode?.chatMode === undefined) {
-			return true;
-		}
-
-		// when mode is set, valid, and tools are present,
-		// the only valid value for the mode is 'agent'
-		return (mode.chatMode === ChatMode.Agent);
-	}
-
-	/**
-	 * Validate that the `tools` and `mode` metadata are compatible
-	 * with each other. If not, add a warning diagnostic.
-	 */
-	private validateToolsAndModeCompatibility(): void {
-		if (this.toolsAndModeCompatible === true) {
-			return;
-		}
-
-		const { tools, mode } = this.meta;
-
-		// sanity checks on the behavior of the `toolsAndModeCompatible` getter
-		assertDefined(
-			tools,
-			'Tools metadata must have been present.',
-		);
-		assertDefined(
-			mode,
-			'Mode metadata must have been present.',
-		);
-		assert(
-			mode.chatMode !== ChatMode.Agent,
-			'Mode metadata must not be agent mode.',
-		);
-
-		this.issues.push(
-			new PromptMetadataWarning(
-				mode.range,
-				localize(
-					'prompt.header.metadata.mode.diagnostics.incompatible-with-tools',
-					"Record '{0}' is implied to have the '{1}' value if '{2}' record is present so the specified value will be ignored.",
-					mode.recordName,
-					ChatMode.Agent,
-					tools.recordName,
-				),
-			),
-		);
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
-	// TODO: @legomushroom - return a record name instead?
-	protected override handleToken(token: FrontMatterRecord): boolean {
-		const recordName = token.nameToken.text;
-
-		// if the record might be a "applyTo" metadata
-		// add it to the list of parsed metadata records
-		if (PromptApplyToMetadata.isApplyToRecord(token)) {
-			const metadata = new PromptApplyToMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.applyTo = metadata;
-			this.recordNames.add(recordName);
-
-			return true;
-		}
-
-		return false;
 	}
 }
