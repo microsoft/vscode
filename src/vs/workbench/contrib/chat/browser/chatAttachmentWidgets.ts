@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import * as event from '../../../../base/common/event.js';
-import * as platform from '../../../../base/common/platform.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -52,10 +51,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { fromNow, safeIntl } from '../../../../base/common/date.js';
-import { historyItemHoverAdditionsForeground, historyItemHoverDeletionsForeground } from '../../scm/browser/scmHistory.js';
-import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
+import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -616,7 +612,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService themeService: IThemeService
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -625,7 +621,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => this._getHoverContent(attachment), { trapFocus: true }));
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -641,60 +637,6 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		}));
 
 		this.attachClearButton();
-	}
-
-	private _getHoverContent(attachment: ISCMHistoryItemVariableEntry): IManagedHoverTooltipMarkdownString {
-		const historyItem = attachment.historyItem;
-		const colorTheme = this.themeService.getColorTheme();
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-
-		if (historyItem.author) {
-			const icon = URI.isUri(historyItem.authorIcon)
-				? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
-				: ThemeIcon.isThemeIcon(historyItem.authorIcon)
-					? `$(${historyItem.authorIcon.id})`
-					: '$(account)';
-
-			if (historyItem.authorEmail) {
-				const emailTitle = localize('emailLinkTitle', "Email");
-				markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
-			} else {
-				markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
-			}
-
-			if (historyItem.timestamp) {
-				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).value;
-				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
-			}
-
-			markdown.appendMarkdown('\n\n');
-		}
-
-		markdown.appendMarkdown(`${historyItem.message.replace(/\r\n|\r|\n/g, '\n\n')}\n\n`);
-
-		if (historyItem.statistics) {
-			markdown.appendMarkdown(`---\n\n`);
-
-			markdown.appendMarkdown(`<span>${historyItem.statistics.files === 1 ?
-				localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
-				localize('filesChanged', "{0} files changed", historyItem.statistics.files)}</span>`);
-
-			if (historyItem.statistics.insertions) {
-				const additionsForegroundColor = colorTheme.getColor(historyItemHoverAdditionsForeground);
-				markdown.appendMarkdown(`,&nbsp;<span style="color:${additionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
-					localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
-					localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)')}</span>`);
-			}
-
-			if (historyItem.statistics.deletions) {
-				const deletionsForegroundColor = colorTheme.getColor(historyItemHoverDeletionsForeground);
-				markdown.appendMarkdown(`,&nbsp;<span style="color:${deletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
-					localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
-					localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);
-			}
-		}
-
-		return { markdown, markdownNotSupportedFallback: historyItem.message };
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
