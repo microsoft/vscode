@@ -944,7 +944,10 @@ export function getActiveWindow(): CodeWindow {
 
 export function getFocusedWindow(): CodeWindow | undefined {
 	const document = getActiveDocument();
-	return (document.defaultView?.window) as CodeWindow | undefined;
+	if (document.defaultView?.window.document.hasFocus()) {
+		return (document.defaultView?.window) as CodeWindow;
+	}
+	return;
 }
 
 interface IMutationObserver {

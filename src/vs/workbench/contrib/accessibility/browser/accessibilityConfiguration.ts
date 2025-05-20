@@ -761,7 +761,7 @@ const configuration: IConfigurationNode = {
 					'enum': ['auto', 'on', 'off'],
 					'default': 'auto',
 					'enumDescriptions': [
-						localize('sound.enabled.autoWindow', "Enable sound when a screen reader is attached or when the current window is focused."),
+						localize('sound.enabled.autoWindow', "Enable sound when a screen reader is attached or when the current window is not focused."),
 						localize('sound.enabled.on', "Enable sound."),
 						localize('sound.enabled.off', "Disable sound.")
 					],
