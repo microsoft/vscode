@@ -574,7 +574,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			console.log('selectionchange');
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this.isFocused() || !isScreenReaderOptimized || !IME.enabled) {
 				return;
@@ -617,7 +616,7 @@ export class NativeEditContext extends AbstractEditContext {
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
 			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
-			if (modelUsesCRLF) { // <-- need to adapt to multi hierarchical structure
+			if (modelUsesCRLF) {
 				const pretextStart = screenReaderContentState.preStartOffsetRange?.start ?? 1;
 				const posttextEnd = screenReaderContentState.postEndOffsetRange?.endExclusive ?? 1;
 				const screenReaderContentText = model.getValueInRange(new Range(pretextStart, 1, posttextEnd, model.getLineMaxColumn(posttextEnd)), EndOfLinePreference.TextDefined);
@@ -630,7 +629,6 @@ export class NativeEditContext extends AbstractEditContext {
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
-			console.log('newSelection : ', newSelection);
 			viewController.setSelection(newSelection);
 		});
 	}

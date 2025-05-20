@@ -35,7 +35,6 @@ export class ScreenReaderSupport extends Disposable {
 	private _contentLeft: number = 1;
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
-	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
@@ -85,13 +84,11 @@ export class ScreenReaderSupport extends Disposable {
 	private _updateConfigurationSettings(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const wrappingColumn = layoutInfo.wrappingColumn;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
 	}
 
 	private _updateDomAttributes(): void {
@@ -161,17 +158,14 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
-		console.log('_doRender');
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		console.log('width : ', width);
 		this._domNode.setTop(300);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(500);
 		this._domNode.setLineHeight(height);
-		console.log('this._domNode : ', this._domNode.domNode);
 		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
@@ -224,7 +218,6 @@ export class ScreenReaderSupport extends Disposable {
 
 	private _renderLine(viewLineNumber: number): RenderedScreenReaderLine {
 		const viewModel = this._context.viewModel;
-		const modelLineNumber = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1)).lineNumber;
 		const positionLineData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -236,9 +229,8 @@ export class ScreenReaderSupport extends Disposable {
 		const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 		const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
 		let renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>;
-		const renderWhitespacesInline = viewModel.model.getFontDecorations(modelLineNumber).length > 0;
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (renderWhitespacesInline || experimentalWhitespaceRendering === 'off') {
+		if (experimentalWhitespaceRendering === 'off') {
 			renderWhitespace = options.get(EditorOption.renderWhitespace);
 		} else {
 			renderWhitespace = 'none';

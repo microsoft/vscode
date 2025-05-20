@@ -14,7 +14,7 @@ import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, Vis
 import { VisibleLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { DomReadingContext } from './domReadingContext.js';
-import { RenderViewLineType, ViewLine } from './viewLine.js';
+import { ViewLine } from './viewLine.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';

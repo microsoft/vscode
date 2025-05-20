@@ -5,7 +5,7 @@
 
 import * as arrays from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { filterValidationDecorations, WrappingIndent } from '../config/editorOptions.js';
+import { WrappingIndent } from '../config/editorOptions.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
@@ -17,7 +17,7 @@ import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
+import { ICoordinatesConverter, ViewLineData } from '../viewModel.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -161,42 +161,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._validModelVersionId = this.model.getVersionId();
 
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
-	}
-
-	public getInlineDecorationsOnModelLine(modelLineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
-		return this.getInlineDecorationsInModelRange(modelRange, onlyMinimapDecorations, onlyMarginDecorations);
-	}
-
-	public getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		const modelDecorations = this.model.getDecorationsInRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
-		const inlineDecorations: InlineDecoration[] = [];
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			const modelDecoration = modelDecorations[i];
-			const decorationOptions = modelDecoration.options;
-			const modelRange = modelDecoration.range;
-			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(modelRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
-				inlineDecorations.push(inlineDecoration);
-			}
-			if (decorationOptions.beforeContentClassName) {
-				const inlineDecoration = new InlineDecoration(
-					modelRange,
-					decorationOptions.beforeContentClassName,
-					InlineDecorationType.Before
-				);
-				inlineDecorations.push(inlineDecoration);
-			}
-			if (decorationOptions.afterContentClassName) {
-				const inlineDecoration = new InlineDecoration(
-					modelRange,
-					decorationOptions.afterContentClassName,
-					InlineDecorationType.After
-				);
-				inlineDecorations.push(inlineDecoration);
-			}
-		}
-		return inlineDecorations;
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -1157,14 +1121,6 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return new IdentityCoordinatesConverter(this);
-	}
-
-	public getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[] {
-		return [];
-	}
-
-	public getInlineDecorationsInModelRange(modelRange: Range): InlineDecoration[] {
-		return [];
 	}
 
 	public getHiddenAreas(): Range[] {

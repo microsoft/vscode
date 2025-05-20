@@ -55,7 +55,7 @@ export class ViewLine implements IVisibleLine {
 	private _isMaybeInvalid: boolean;
 	private _renderedViewLine: IRenderedViewLine | null;
 
-	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, private readonly _viewContext: ViewContext, options: ViewLineOptions) {
+	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, options: ViewLineOptions) {
 		this._options = options;
 		this._isMaybeInvalid = true;
 		this._renderedViewLine = null;

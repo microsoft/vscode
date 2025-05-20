@@ -929,7 +929,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder, renderOu
 		}
 	}
 
-
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
 		const part = parts[partIndex];
