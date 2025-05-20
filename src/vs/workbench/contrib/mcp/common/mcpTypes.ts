@@ -27,6 +27,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -254,6 +255,23 @@ export interface IMcpServer extends IDisposable {
 	readonly toolsState: IObservable<McpServerToolsState>;
 	readonly tools: IObservable<readonly IMcpTool[]>;
 	readonly prompts: IObservable<readonly IMcpPrompt[]>;
+
+	/**
+	 * Lists all resources on the server.
+	 */
+	resources(token?: CancellationToken): AsyncIterable<IMcpResource[]>;
+}
+
+/**
+ * A representation of an MCP resource. The `uri` is namespaced to VS Code and
+ * can be used in filesystem APIs.
+ */
+export interface IMcpResource {
+	readonly uri: URI;
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly sizeInBytes?: number;
 }
 
 export const enum McpServerToolsState {
@@ -537,3 +555,41 @@ export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpSe
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', false);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
 export const mcpServerIcon = registerIcon('mcp-server', Codicon.mcp, localize('mcpServer', 'Icon used for the MCP server.'));
+
+export namespace McpResourceURI {
+	export const scheme = 'mcp-resource';
+
+	export function fromServer(def: McpDefinitionReference, resourceURI: URI | string): URI {
+		if (typeof resourceURI === 'string') {
+			resourceURI = URI.parse(resourceURI);
+		}
+		return resourceURI.with({
+			scheme,
+			authority: encodeBase64(VSBuffer.fromString(def.id), false, true),
+			path: ['', resourceURI.scheme, resourceURI.authority].join('/') + resourceURI.path,
+		});
+	}
+
+	export function toServer(uri: URI | string): { definitionId: string; resourceURI: URI } {
+		if (typeof uri === 'string') {
+			uri = URI.parse(uri);
+		}
+		if (uri.scheme !== scheme) {
+			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
+		}
+		const parts = uri.path.split('/');
+		if (parts.length < 3) {
+			throw new Error(`Invalid MCP resource URI: ${uri.toString()}`);
+		}
+		const [, serverScheme, authority, ...path] = parts;
+		return {
+			definitionId: decodeBase64(uri.authority).toString(),
+			resourceURI: uri.with({
+				scheme: serverScheme,
+				authority,
+				path: '/' + path.join('/'),
+			}),
+		};
+	}
+
+}
