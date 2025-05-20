@@ -43,9 +43,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._registerTerminalCommandFinishedListener();
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
 
-		// Install a filter for the virtual document's URI
-		// This will prevent markers for this URI from being reported to consumers
-		// like the Problems panel, effectively hiding them.
+		// Suppress diagnostics for REPL virtual document, similar to agentic mode.
 		this._markerFilterDisposable = this._markerService.installResourceFilter(
 			this._virtualTerminalDocumentUri,
 			'Diagnostics for Terminal LSP REPL is stopped.'
@@ -151,13 +149,10 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 		// Extract language from file extension
 		const extension = resource.path.split('.').pop();
-
-		// Determine language ID based on extension
 		let languageId: string | undefined | null = undefined;
 		if (extension) {
 			languageId = this._languageService.getLanguageIdByLanguageName(extension);
 
-			// Fallback to common extensions
 			if (!languageId) {
 				switch (extension) {
 					case 'py': languageId = 'python'; break;
@@ -182,6 +177,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 /**
  * Creates a terminal language virtual URI.
  */
+// TODO: Make sure path is correct for Windows when we start supporting LSP completions in Windows. (Both Python, Non-Python)
 export function createTerminalLanguageVirtualUri(terminalId: number, languageExtension: string): URI {
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,
