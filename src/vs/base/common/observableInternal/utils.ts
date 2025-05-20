@@ -326,7 +326,7 @@ export function signalFromObservable<T>(owner: DebugOwner | undefined, observabl
 export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	disposableStore.add(autorun(reader => {
 		/** @description debounce */
@@ -353,7 +353,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 	let hasValue = false;
 	let lastValue: T | undefined;
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	return observableFromEvent<T, void>(cb => {
 		const d = autorun(reader => {
@@ -391,7 +391,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, disposableStore: DisposableStore): IObservable<boolean> {
 	const observable = observableValue('triggeredRecently', false);
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	disposableStore.add(event(() => {
 		observable.set(true, undefined);

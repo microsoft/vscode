@@ -28,7 +28,7 @@ export class ObjectStream<T extends object> extends ObservableDisposable impleme
 	 * Interval reference that is used to periodically send
 	 * objects to the stream in the background.
 	 */
-	private timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+	private timeoutHandle: Timeout | undefined;
 
 	constructor(
 		private readonly data: Generator<T, undefined>,
@@ -94,7 +94,7 @@ export class ObjectStream<T extends object> extends ObservableDisposable impleme
 		}
 
 		clearTimeout(this.timeoutHandle);
-		delete this.timeoutHandle;
+		this.timeoutHandle = undefined;
 
 		return this;
 	}

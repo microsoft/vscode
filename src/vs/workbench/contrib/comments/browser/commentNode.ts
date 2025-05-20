@@ -62,7 +62,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _avatar: HTMLElement;
 	private readonly _md: MutableDisposable<IMarkdownRenderResult> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
-	private _clearTimeout: any;
+	private _clearTimeout: Timeout | null;
 
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
