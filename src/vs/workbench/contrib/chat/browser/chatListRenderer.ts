@@ -20,6 +20,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { template } from '../../../../base/common/labels.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -430,13 +431,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderConfirmationAction(element, templateData);
 		}
 
-		if (isRequestVM(element)) {
-			templateData.header?.classList.add('hidden');
-		}
-
-		if (isResponseVM(element) && !this.rendererOptions.noHeader) {
-			templateData.header?.classList.remove('hidden');
-		}
+		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
+		templateData.header?.classList.toggle('hidden', !shouldShowHeader);
 
 		// Do a progressive render if
 		// - This the last response in the list
