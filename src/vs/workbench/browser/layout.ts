@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../platform
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE, MenuSettings } from '../../platform/window/common/window.js';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE, hasNativeMenu, MenuSettings } from '../../platform/window/common/window.js';
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
@@ -2114,7 +2114,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = hasNativeTitlebar(this.configurationService) ? 'toggle' : 'compact';
+			newVisibilityValue = hasNativeMenu(this.configurationService) ? 'toggle' : 'compact';
 		} else {
 			newVisibilityValue = 'classic';
 		}
