@@ -173,7 +173,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	['csh', 0.04], // C shell
 	['ksh', 0.04], // Korn shell
 	// Scripting languages
-	['py', 0.20], // Python
+	['py', 0.05], // Python
 	['pl', 0.05], // Perl
 ]);
 

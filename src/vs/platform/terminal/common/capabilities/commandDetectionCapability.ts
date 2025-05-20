@@ -82,7 +82,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
