@@ -81,7 +81,7 @@ export class TestMcpMessageTransport extends Disposable implements IMcpMessageTr
 			if (responder) {
 				const response = responder(message);
 				if (response) {
-					setImmediate(() => this.simulateReceiveMessage(response));
+					setTimeout(() => this.simulateReceiveMessage(response));
 				}
 			}
 		}
