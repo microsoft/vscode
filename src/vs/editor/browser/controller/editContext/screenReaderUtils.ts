@@ -9,7 +9,6 @@ import { Range } from '../../../common/core/range.js';
 import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
-import { Selection } from '../../../common/core/selection.js';
 import * as nls from '../../../../nls.js';
 
 export function ariaLabelForScreenReaderContent(options: IComputedEditorOptions, keybindingService: IKeybindingService) {

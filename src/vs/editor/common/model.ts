@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -222,26 +222,6 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
 	 */
 	lineHeight?: number | null;
-	/**
-	 * Font family
-	 * @internal
-	 */
-	fontFamily?: string | null;
-	/**
-	 * Font size
-	 * @internal
-	 */
-	fontSize?: number | null;
-	/**
-	 * Font weight
-	 * @internal
-	 */
-	fontWeight?: string | null;
-	/**
-	 * Font style
-	 * @internal
-	 */
-	fontStyle?: string | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
@@ -1085,11 +1065,6 @@ export interface ITextModel {
 	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
-	 * @internal
-	 */
-	getFontDecorations(lineNumber: number): IModelDecoration[];
-
-	/**
 	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.
 	 * @param startLineNumber The start line number
 	 * @param endLineNumber The end line number
@@ -1281,14 +1256,6 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
-	/**
-	* An event emitted when the font from decorations changes.
-	* This event is emitted only when adding, removing or changing a decoration
-	* and not when doing edits in the model (i.e. when decoration ranges change)
-	* @internal
-	* @event
-	*/
-	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

@@ -146,25 +146,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection(this._context, {
-			createLine: () => new ViewLine(viewGpuContext, this._context, this._viewLineOptions),
+			createLine: () => new ViewLine(viewGpuContext, this._viewLineOptions),
 		});
-		const viewModel = this._context.viewModel;
-		const model = viewModel.model;
-		this._register(model.onDidChangeFont((e) => {
-			for (const change of e.changes) {
-				const lineNumber = change.lineNumber;
-				const viewRange = viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
-				for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-					const viewLine = this._visibleLines.getVisibleLine(i);
-					const fonts = context.viewModel.model.getFontDecorations(i);
-					if (fonts.length > 0) {
-						viewLine.rerenderLineType(RenderViewLineType.Regular);
-					} else {
-						viewLine.rerenderLineType(RenderViewLineType.Fast);
-					}
-				}
-			}
-		}));
 		this.domNode = this._visibleLines.domNode;
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);

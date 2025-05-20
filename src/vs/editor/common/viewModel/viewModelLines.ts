@@ -18,8 +18,6 @@ import { createModelLineProjection, IModelLineProjection } from './modelLineProj
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { IViewLineTokens } from '../tokens/lineTokens.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -29,8 +27,6 @@ export interface IViewModelLines extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
-	getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
-	getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
@@ -61,17 +57,13 @@ export interface IViewModelLines extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
-export interface IViewModelLinesFromProjectedModelContext {
-	getLineHeightForLineNumber(lineNumber: number): number;
-}
-
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	// private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
 	private fontInfo: FontInfo;
 	private tabSize: number;
@@ -88,17 +80,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
-	private config: IEditorConfiguration;
-	private coordinatesConverter: ICoordinatesConverter;
-	private context: IViewModelLinesFromProjectedModelContext;
 
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		context: IViewModelLinesFromProjectedModelContext,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		config: IEditorConfiguration,
 		fontInfo: FontInfo,
 		tabSize: number,
 		wrappingStrategy: 'simple' | 'advanced',
@@ -108,18 +95,16 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	) {
 		this._editorId = editorId;
 		this.model = model;
-		this.context = context;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		// this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
-		this.config = config;
+		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
-		this.coordinatesConverter = new CoordinatesConverter(this);
+
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
 
@@ -128,7 +113,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
-		return this.coordinatesConverter;
+		return new CoordinatesConverter(this);
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
@@ -145,12 +130,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
-			const lineNumber = i + 1;
-			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
-			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
-			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			const lineHeight = this.context.getLineHeightForLineNumber(lineNumber);
-			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineHeight, lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
+			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
+			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -183,16 +164,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public getInlineDecorationsOnModelLine(modelLineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		// console.log('getInlineDecorationsOnModelLine, modelLineNumber : ', modelLineNumber);
 		const modelRange = new Range(modelLineNumber, 1, modelLineNumber, this.model.getLineMaxColumn(modelLineNumber));
 		return this.getInlineDecorationsInModelRange(modelRange, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
 	public getInlineDecorationsInModelRange(modelRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
-		// console.log('ViewModelLinesFromProjectedModel');
-		// console.log('getInlineDecorationsInModelRange', modelRange);
 		const modelDecorations = this.model.getDecorationsInRange(modelRange, this._editorId, filterValidationDecorations(this.config.options), onlyMinimapDecorations, onlyMarginDecorations);
-		// console.log('modelDecorations : ', modelDecorations);
 		const inlineDecorations: InlineDecoration[] = [];
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
@@ -337,9 +314,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
 		const equalWordBreak = (this.wordBreak === wordBreak);
-		// if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
-		// 	return false;
-		// }
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
+			return false;
+		}
 
 		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
 
@@ -366,9 +343,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineBreaksComputerFactory = (
 			this.wrappingStrategy === 'advanced'
 				? this._domLineBreaksComputerFactory
-				: this._domLineBreaksComputerFactory
+				: this._monospaceLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
 	}
 
 	public onModelFlushed(): void {
@@ -1170,11 +1147,9 @@ const enum IndentGuideRepeatOption {
 
 export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public readonly model: ITextModel;
-	public readonly defaultFontInfo: FontInfo;
 
-	constructor(model: ITextModel, defaultFontInfo: FontInfo) {
+	constructor(model: ITextModel) {
 		this.model = model;
-		this.defaultFontInfo = defaultFontInfo;
 	}
 
 	public dispose(): void {
@@ -1211,7 +1186,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, lineHeight: number, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], linesTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

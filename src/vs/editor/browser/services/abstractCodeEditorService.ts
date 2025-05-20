@@ -461,10 +461,6 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight?: number;
-	public fontFamily?: string;
-	public fontSize?: number;
-	public fontWeight?: string;
-	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -526,10 +522,6 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
 		this.lineHeight = options.lineHeight;
-		this.fontFamily = options.fontFamily;
-		this.fontSize = options.fontSize;
-		this.fontWeight = options.fontWeight;
-		this.fontStyle = options.fontStyle;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -560,10 +552,6 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			lineHeight: this.lineHeight,
-			fontFamily: this.fontFamily,
-			fontStyle: this.fontStyle,
-			fontSize: this.fontSize,
-			fontWeight: this.fontWeight,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
@@ -601,7 +589,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	fontSize: 'font-size:{0}px;',
+	fontSize: 'font-size:{0};',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -625,8 +613,7 @@ class DecorationCSSRules {
 
 	private _theme: IColorTheme;
 	private readonly _className: string;
-	private readonly _unThemedEditorSelector: string;
-	private readonly _lineBreaksSelector: string;
+	private readonly _unThemedSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private readonly _ruleType: ModelDecorationCSSRuleType;
@@ -648,8 +635,7 @@ class DecorationCSSRules {
 		}
 		this._className = className;
 
-		this._unThemedEditorSelector = CSSNameHelper.getSelector('monaco-editor', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
-		this._lineBreaksSelector = CSSNameHelper.getSelector('dom-line-breaks-computer', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._unThemedSelector = CSSNameHelper.getSelector(this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
 
 		this._buildCSS();
 
@@ -733,26 +719,22 @@ class DecorationCSSRules {
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(this._unThemedEditorSelector, unthemedCSS);
-			sheet.insertRule(this._lineBreaksSelector, unthemedCSS);
+			sheet.insertRule(this._unThemedSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedEditorSelector}, .hc-light${this._unThemedEditorSelector}`, lightCSS);
-			sheet.insertRule(this._lineBreaksSelector, lightCSS);
+			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedEditorSelector}, .hc-black${this._unThemedEditorSelector}`, darkCSS);
-			sheet.insertRule(this._lineBreaksSelector, darkCSS);
+			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
 	}
 
 	private _removeCSS(): void {
-		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedEditorSelector);
-		this._providerArgs.styleSheet.removeRulesContainingSelector(this._lineBreaksSelector);
+		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
 	}
 
 	/**
@@ -777,7 +759,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontFamily', 'fontSize', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -851,7 +833,7 @@ class DecorationCSSRules {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	private resolveValue(value: string | number | ThemeColor | undefined): string | undefined {
+	private resolveValue(value: string | ThemeColor): string {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
 			const color = this._theme.getColor(value.id);
@@ -860,7 +842,7 @@ class DecorationCSSRules {
 			}
 			return 'transparent';
 		}
-		return value ? value.toString() : undefined;
+		return value;
 	}
 }
 
@@ -880,8 +862,8 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(className: string, key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
-		let selector = `.${className} .` + this.getClassName(key, ruleType);
+	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
+		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);
 		}

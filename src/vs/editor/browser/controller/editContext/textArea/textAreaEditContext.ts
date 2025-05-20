@@ -846,12 +846,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
-		if (this._lastRenderPosition) {
-			const fontSize = this._context.viewModel.getFontSizeAtPosition(this._lastRenderPosition);
-			if (fontSize) {
-				ta.setFontSize(fontSize);
-			}
-		}
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);

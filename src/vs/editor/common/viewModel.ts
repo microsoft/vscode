@@ -34,7 +34,6 @@ export interface IViewModel extends ICursorSimpleModel {
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
 	getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[];
-	getFontSizeAtPosition(position: IPosition): number;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
@@ -227,7 +226,6 @@ export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
 	convertViewPositionToModelPosition(viewPosition: Position): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
-	// TODO convertViewSelectionToModelSelection
 	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
