@@ -38,6 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 
+
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
 // #region Terminal Contributions
@@ -156,7 +157,19 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
+	// TODO: Eventually support multiple LSP providers for non-Python REPLs.
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		const isWSL =
+			process.platform === 'linux' &&
+			(
+				!!process.env.WSL_DISTRO_NAME ||
+				!!process.env.WSL_INTEROP
+			);
+		// Windows, WSL currently does not support shell integration for Python REPL.
+		if (isWindows || isWSL) {
+			return;
+		}
+
 		if (
 			this._ctx.instance.shellType !== GeneralShellType.Python &&
 			!this._ctx.instance.shellLaunchConfig.executable?.includes('python')
@@ -174,7 +187,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
 
-		// TODO: Eventually support multiple LSP providers for non-Python REPLs.
 		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
