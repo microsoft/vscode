@@ -10,12 +10,10 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { ITerminalCompletion, mapLspKindToTerminalKind, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
-// IMPORTANT: Each LSPCompletionProviderAddon should be responsible for managing ONE specific language server completion provider.
-// Rather than handling all of them.
-// TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
 	readonly isBuiltin = true;
@@ -53,7 +51,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lines = textBeforeCursor.split('\n');
 		const column = lines[lines.length - 1].length + 1;
 
-		// get line from virtualDocument, not from terminal
+		// Get line from virtualDocument, not from terminal
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
@@ -76,9 +74,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			replacementLength = lastLine.length;
 		}
 
-		// call to get replacement index
-		const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, undefined, undefined, undefined);
-
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
@@ -89,14 +84,15 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 			completions.push(...(result?.suggestions || []).map((e: any) => {
 				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
+				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'tempLabel', undefined);
+
 				return {
 					// TODO: Investigate insertTextRules, edits, etc
 					label: e.insertText,
 					provider: `lsp:${this._provider._debugDisplayName}`,
 					detail: e.detail,
-					// TODO: Map kind to terminal kindc
-					kind: convertedKind, // fix this to get the sorting priority.
-					// Use calculated replacement index and length
+					// Question: Using kind, but LSP completion item still behind regular files, etc
+					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
@@ -110,8 +106,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	}
 }
 
-// prefix: commandLine to cursorPosition
-export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: any, label: any, detail?: string): any {
+export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: TerminalCompletionItemKind, label: string | CompletionItemLabel, detail: string | undefined): TerminalCompletionItem {
 	const endsWithDot = prefix.endsWith('.');
 	const endsWithSpace = prefix.endsWith(' ');
 
@@ -129,7 +124,6 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 		return {
 			label,
 			detail: detail ?? detail ?? '',
-
 			replacementIndex: cursorPosition - lastWord.length,
 			replacementLength: lastWord.length,
 			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
@@ -137,9 +131,35 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 	}
 }
 
-// # TODO:
-// # Mapping from Language server completion item -> Terminal completion item (This would help with sorting)
-// # Activate language extension on REPL launch
-// # (Pylance) suppress diagnostic for terminal scheme
-// # Handle Replacement index properly for both `.` (dot) and ` ` (space)
+export interface TerminalCompletionItem {
+	/**
+	 * The label of the completion.
+	 */
+	label: string | CompletionItemLabel;
 
+	/**
+	 * The index of the start of the range to replace.
+	 */
+	replacementIndex: number;
+
+	/**
+	 * The length of the range to replace.
+	 */
+	replacementLength: number;
+
+	/**
+	 * The completion's detail which appears on the right of the list.
+	 */
+	detail?: string;
+
+
+	/**
+	 * A human-readable string that represents a doc-comment.
+	 */
+	documentation?: string | MarkdownString;
+
+	/**
+	 * The completion's kind. Note that this will map to an icon.
+	 */
+	kind?: TerminalCompletionItemKind;
+}
