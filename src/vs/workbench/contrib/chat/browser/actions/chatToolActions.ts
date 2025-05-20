@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -30,6 +31,7 @@ import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
 import { isIToolSet, IToolData, IToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 
@@ -137,8 +139,8 @@ class ConfigureToolsAction extends Action2 {
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
 		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: IToolSet; parent: BucketPick };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-		type AddPick = IQuickPickItem & { pickable: false; run: () => void };
-		type MyPick = BucketPick | ToolSetPick | ToolPick | AddPick;
+		type CallbackPick = IQuickPickItem & { pickable: false; run: () => void };
+		type MyPick = BucketPick | ToolSetPick | ToolPick | CallbackPick;
 		type ActionableButton = IQuickInputButton & { action: () => void };
 
 		function isBucketPick(obj: any): obj is BucketPick {
@@ -150,16 +152,17 @@ class ConfigureToolsAction extends Action2 {
 		function isToolPick(obj: MyPick): obj is ToolPick {
 			return Boolean((obj as ToolPick).tool);
 		}
-		function isAddPick(obj: MyPick): obj is AddPick {
-			return Boolean((obj as AddPick).run);
+		function isCallbackPick(obj: MyPick): obj is CallbackPick {
+			return Boolean((obj as CallbackPick).run);
 		}
 		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
 			return typeof (obj as ActionableButton).action === 'function';
 		}
 
-		const addMcpPick: AddPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
-		const addExpPick: AddPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
-		const addPick: AddPick = {
+		const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
+		const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.tools), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
+		const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
+		const addPick: CallbackPick = {
 			type: 'item', label: localize('addAny', "Add More Tools..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: async () => {
 				const pick = await quickPickService.pick(
 					[addMcpPick, addExpPick],
@@ -198,11 +201,7 @@ class ConfigureToolsAction extends Action2 {
 			picked: false,
 		};
 
-		const toolBuckets = new Map<string, BucketPick>([
-			['other', builtinBucket],
-			['mcp', mcpBucket],
-			['user', userBucket]
-		]);
+		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.entriesMap) {
 
@@ -304,6 +303,12 @@ class ConfigureToolsAction extends Action2 {
 			}
 		}
 
+		for (const bucket of [builtinBucket, mcpBucket, userBucket]) {
+			if (bucket.children.length > 0) {
+				toolBuckets.set(generateUuid(), bucket);
+			}
+		}
+
 		const store = new DisposableStore();
 
 		const picks: (MyPick | IQuickPickSeparator)[] = [];
@@ -335,6 +340,7 @@ class ConfigureToolsAction extends Action2 {
 		} else {
 			picks.push(
 				{ type: 'separator' },
+				configureToolSetsPick,
 				addPick,
 			);
 		}
@@ -394,7 +400,7 @@ class ConfigureToolsAction extends Action2 {
 				return;
 			}
 
-			const addPick = selectedPicks.find(isAddPick);
+			const addPick = selectedPicks.find(isCallbackPick);
 			if (addPick) {
 				addPick.run();
 				picker.hide();
@@ -435,7 +441,7 @@ class ConfigureToolsAction extends Action2 {
 		}));
 
 		store.add(picker.onDidAccept(() => {
-			picker.activeItems.find(isAddPick)?.run();
+			picker.activeItems.find(isCallbackPick)?.run();
 		}));
 
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
