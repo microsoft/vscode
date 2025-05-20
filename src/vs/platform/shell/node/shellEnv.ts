@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { basename } from '../../../base/common/path.js';
+import { basename, dirname, isAbsolute, join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
-import { IProcessEnvironment, isWindows, OS } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { ILogService } from '../../log/common/log.js';
-import { Promises } from '../../../base/common/async.js';
+import { firstParallel, Promises } from '../../../base/common/async.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { clamp } from '../../../base/common/numbers.js';
 import { extname } from 'path';
-import { getWindowPathExtensions } from '../../../base/node/processes.js';
+import { findExecutable, getWindowPathExtensions } from '../../../base/node/processes.js';
 import { equalsIgnoreCase } from '../../../base/common/strings.js';
+import { homedir } from 'os';
+import * as pfs from '../../../base/node/pfs.js';
 
 let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -116,42 +118,53 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	const systemShell = await getSystemShell(OS, env); // note: windows always resolves a powershell instance
 	logService.trace('doResolveShellEnv#shell', systemShell);
 
+	// handle popular shells
+	let name = basename(systemShell);
+	// remove any .exe/.cmd/... from the name for matching logic on Windows
+	if (isWindows) {
+		const nameExt = extname(name);
+		if (getWindowPathExtensions().some(e => equalsIgnoreCase(e, nameExt))) {
+			name = name.substring(0, name.length - nameExt.length);
+		}
+	}
+
+	let command: string, shellArgs: Array<string>;
+	const extraArgs = '';
+	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
+		const profilePaths = await getPowershellProfilePaths(systemShell);
+		const profilePathThatExists = await firstParallel(profilePaths.map(
+			async p => await pfs.Promises.exists(p) ? p : undefined));
+		if (!profilePathThatExists) {
+			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
+			return {};
+		}
+
+		logService.trace('doResolveShellEnv#powershellProfile found in', profilePathThatExists);
+
+		// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
+		// you escape single quotes inside of a single quoted string.
+		command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
+		shellArgs = ['-Login', '-Command'];
+	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
+		command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		shellArgs = ['-i', '-l', '-c'];
+	} else if (name === 'xonsh') { // #200374: native implementation is shorter
+		command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
+		shellArgs = ['-i', '-l', '-c'];
+	} else {
+		command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+
+		if (name === 'tcsh' || name === 'csh') {
+			shellArgs = ['-ic'];
+		} else {
+			shellArgs = ['-i', '-l', '-c'];
+		}
+	}
+
+
 	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
 			return reject(new CancellationError());
-		}
-
-		// handle popular shells
-		let name = basename(systemShell);
-		// remove any .exe/.cmd/... from the name for matching logic on Windows
-		if (isWindows) {
-			const nameExt = extname(name);
-			if (getWindowPathExtensions().some(e => equalsIgnoreCase(e, nameExt))) {
-				name = name.substring(0, name.length - nameExt.length);
-			}
-		}
-
-		let command: string, shellArgs: Array<string>;
-		const extraArgs = '';
-		if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
-			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
-			// you escape single quotes inside of a single quoted string.
-			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
-			shellArgs = ['-Login', '-Command'];
-		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
-			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-			shellArgs = ['-i', '-l', '-c'];
-		} else if (name === 'xonsh') { // #200374: native implementation is shorter
-			command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
-			shellArgs = ['-i', '-l', '-c'];
-		} else {
-			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-
-			if (name === 'tcsh' || name === 'csh') {
-				shellArgs = ['-ic'];
-			} else {
-				shellArgs = ['-i', '-l', '-c'];
-			}
 		}
 
 		logService.trace('doResolveShellEnv#spawn', JSON.stringify(shellArgs), command);
@@ -223,4 +236,57 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 			}
 		});
 	});
+}
+
+/**
+ * Returns powershell profile paths that are used to source its environment.
+ * This is used to determine whether we should resolve a powershell environment,
+ * potentially saving us from spawning a powershell process.
+ *
+ * @see https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.5
+ */
+async function getPowershellProfilePaths(psExecutable: string) {
+	const paths: string[] = [];
+	const userHome = homedir();
+	if (isWindows) {
+
+		// "The $PSHOME variable stores the installation directory for PowerShell" --
+		// but this is not set ambiently on the operating system.
+		let pshome = process.env.PSHOME;
+		if (!pshome) {
+			if (!isAbsolute(psExecutable)) {
+				const found = await findExecutable(psExecutable);
+				if (!found) { return []; }
+				pshome = dirname(found);
+			} else {
+				pshome = dirname(psExecutable);
+			}
+		}
+
+		paths.push(
+			join(pshome, 'Profile.ps1'), // All Users, All Hosts
+			join(pshome, 'Microsoft.PowerShell_profile.ps1'), // All Users, Current Host
+			join(userHome, 'Documents', 'PowerShell', 'Profile.ps1'), // Current User, All Hosts
+			join(userHome, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+		);
+	} else if (isMacintosh) {
+		// note: powershell 7 is the first (and yet only) powershell version on posix,
+		// so no need to look for any extra paths yet.
+
+		paths.push(
+			'/usr/local/microsoft/powershell/7/profile.ps1', // All Users, All Hosts
+			'/usr/local/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', // All Users, Current Host
+			join(userHome, '.config', 'powershell', 'profile.ps1'), // Current User, All Hosts
+			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+		);
+	} else {
+		paths.push(
+			'/opt/microsoft/powershell/7/profile.ps1', // All Users, All Hosts
+			'/opt/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', // All Users, Current Host
+			join(userHome, '.config', 'powershell', 'profile.ps1'), // Current User, All Hosts
+			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+		);
+	}
+
+	return paths;
 }
