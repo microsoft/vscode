@@ -26,6 +26,18 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
+	// Boost LSP provider completions when inside REPL.
+	const lspProviderId = 'python';
+	const aIsLsp = a.completion.provider.includes(lspProviderId);
+	const bIsLsp = b.completion.provider.includes(lspProviderId);
+
+	if (aIsLsp && !bIsLsp) {
+		return -1; // LSP items first
+	}
+	if (bIsLsp && !aIsLsp) {
+		return 1;  // LSP items first
+	}
+
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
@@ -161,7 +173,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	['csh', 0.04], // C shell
 	['ksh', 0.04], // Korn shell
 	// Scripting languages
-	['py', 0.05], // Python
+	['py', 0.20], // Python
 	['pl', 0.05], // Perl
 ]);
 
