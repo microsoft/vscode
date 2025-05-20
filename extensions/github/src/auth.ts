@@ -71,7 +71,7 @@ export async function getOctokitGraphql(): Promise<graphql> {
 			const token = session.accessToken;
 			const { graphql } = await import('@octokit/graphql');
 
-			return graphql({
+			return graphql.defaults({
 				headers: {
 					authorization: `token ${token}`
 				},
