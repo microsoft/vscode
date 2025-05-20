@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -358,7 +358,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
 
 		// Custom menu bar (disabled if auxiliary)
-		if (!this.isAuxiliary && !hasNativeTitlebar(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
+		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -465,7 +465,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Menubar: install a custom menu bar depending on configuration
 		if (
 			!this.isAuxiliary &&
-			!hasNativeTitlebar(this.configurationService, this.titleBarStyle) &&
+			!hasNativeMenu(this.configurationService, this.titleBarStyle) &&
 			(!isMacintosh || isWeb) &&
 			this.currentMenubarVisibility !== 'compact'
 		) {
