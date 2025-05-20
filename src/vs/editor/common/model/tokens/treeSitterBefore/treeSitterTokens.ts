@@ -66,7 +66,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		return LineTokens.createEmpty(content, this._languageIdCodec);
 	}
 
-	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
+	public todo_resetTokenization(fireTokenChangeEvent: boolean = true): void {
 		if (fireTokenChangeEvent) {
 			this._onDidChangeTokens.fire({
 				semanticTokensApplied: false,
@@ -88,7 +88,7 @@ export class TreeSitterTokens extends AbstractTokens {
 	public override handleDidChangeContent(e: IModelContentChangedEvent): void {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
-			this.resetTokenization(false);
+			this.todo_resetTokenization(false);
 		} else {
 			this._tokenStore.handleContentChanged(this._textModel, e);
 		}

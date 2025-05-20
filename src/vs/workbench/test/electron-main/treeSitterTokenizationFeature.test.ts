@@ -44,7 +44,7 @@ import { Color } from '../../../base/common/color.js';
 import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/tokens/treeSitterBefore/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokens/treeSitter/tokenStore.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns

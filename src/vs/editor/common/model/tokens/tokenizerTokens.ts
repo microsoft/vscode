@@ -53,10 +53,10 @@ export class TokenizerTokens extends AbstractTokens {
 			if (e.changedLanguages.indexOf(languageId) === -1) {
 				return;
 			}
-			this.resetTokenization();
+			this.todo_resetTokenization();
 		}));
 
-		this.resetTokenization();
+		this.todo_resetTokenization();
 
 		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
 			if (state) {
@@ -72,7 +72,7 @@ export class TokenizerTokens extends AbstractTokens {
 		}));
 	}
 
-	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
+	public todo_resetTokenization(fireTokenChangeEvent: boolean = true): void {
 		this._tokens.flush();
 		this._debugBackgroundTokens?.flush();
 		if (this._debugBackgroundStates) {
@@ -183,7 +183,7 @@ export class TokenizerTokens extends AbstractTokens {
 	public handleDidChangeContent(e: IModelContentChangedEvent): void {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
-			this.resetTokenization(false);
+			this.todo_resetTokenization(false);
 		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
 			for (const c of e.changes) {
 				const [eolCount, firstLineLength] = countEOL(c.text);

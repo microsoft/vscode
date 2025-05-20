@@ -12,7 +12,7 @@ export const ITreeSitterLibraryService = createDecorator<ITreeSitterLibraryServi
 export interface ITreeSitterLibraryService {
 	readonly _serviceBrand: undefined;
 
-	createParser(): Promise<Parser>;
+	getParserClass(): Promise<typeof Parser>;
 
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean;
 	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined;

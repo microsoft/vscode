@@ -43,8 +43,8 @@ export class TreeSitterLibraryService implements ITreeSitterLibraryService {
 		return this._supportsLanguage.get(languageId).read(reader);
 	}
 
-	createParser(): Promise<Parser> {
-		throw new Error('Method not implemented.');
+	getParserClass(): Promise<typeof Parser> {
+		return this._treeSitterImport;
 	}
 
 	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {

@@ -86,7 +86,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			if (hadTokens) {
 				// We need to reset the tokenization, as the new token provider otherwise won't have a chance to provide tokens until some action happens in the editor.
 				// TODO@hediet: Look into why this is needed.
-				value.resetTokenization();
+				value.todo_resetTokenization();
 			}
 			hadTokens = true;
 		});
@@ -165,7 +165,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public resetTokenization() {
-		this._tokens.get().resetTokenization();
+		this._tokens.get().todo_resetTokenization();
 	}
 
 	public get backgroundTokenizationState() {

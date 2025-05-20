@@ -108,7 +108,7 @@ export abstract class AbstractTokens extends Disposable {
 		super();
 	}
 
-	public abstract resetTokenization(fireTokenChangeEvent?: boolean): void;
+	public abstract todo_resetTokenization(fireTokenChangeEvent?: boolean): void;
 
 	public abstract handleDidChangeAttached(): void;
 

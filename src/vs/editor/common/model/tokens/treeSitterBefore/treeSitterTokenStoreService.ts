@@ -5,7 +5,7 @@
 
 import { Range } from '../../../core/range.js';
 import { ITextModel } from '../../../model.js';
-import { TokenQuality, TokenStore, TokenUpdate } from '../../tokenStore.js';
+import { TokenQuality, TokenStore, TokenUpdate } from '../treeSitter/tokenStore.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
