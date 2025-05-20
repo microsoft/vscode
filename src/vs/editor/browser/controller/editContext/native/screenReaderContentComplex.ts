@@ -176,11 +176,12 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 			renderWhitespace,
 			renderControlCharacters,
 			useFontLigatures,
-			null
+			null,
+			true
 		);
 		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 		const sb = new StringBuilder(10000);
-		const renderOutput = renderViewLine(renderLineInput, sb, true, false);
+		const renderOutput = renderViewLine(renderLineInput, sb);
 		const html = sb.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
@@ -216,8 +217,8 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		const characterCountForEnd = model.getCharacterCountInRange(modelEndRange);
 		const startDomPosition = startRenderedLine.characterMapping.getDomPosition(characterCountForStart);
 		const endDomPosition = endRenderedLine.characterMapping.getDomPosition(characterCountForEnd);
-		const startDomNode = startRenderedLine.domNode;
-		const endDomNode = endRenderedLine.domNode;
+		const startDomNode = startRenderedLine.domNode.firstChild!;
+		const endDomNode = endRenderedLine.domNode.firstChild!;
 		const startChildren = startDomNode.childNodes;
 		const endChildren = endDomNode.childNodes;
 		const startNode = startChildren.item(startDomPosition.partIndex);

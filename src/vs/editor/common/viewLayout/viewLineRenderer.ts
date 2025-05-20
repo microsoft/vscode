@@ -47,6 +47,10 @@ export class RenderLineInput {
 	 * and ordered by position within the line.
 	 */
 	public readonly selectionsOnLine: OffsetRange[] | null;
+	/**
+	 * When rendering an empty line, whether to render a new line instead
+	 */
+	public readonly renderNewLineWhenEmpty: boolean;
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -67,7 +71,8 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: OffsetRange[] | null
+		selectionsOnLine: OffsetRange[] | null,
+		renderNewLineWhenEmpty: boolean = false
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -96,6 +101,7 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
+		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -328,7 +334,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: StringBuilder, renderNewLine: boolean = false, renderOuterSpan: boolean = true): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -368,7 +374,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder, render
 		}
 
 		// completely empty line
-		if (renderNewLine) {
+		if (input.renderNewLineWhenEmpty) {
 			sb.appendString('<span><span>\n</span></span>');
 		} else {
 			sb.appendString('<span><span></span></span>');
@@ -380,7 +386,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder, render
 		);
 	}
 
-	return _renderLine(resolveRenderLineInput(input), sb, renderOuterSpan);
+	return _renderLine(resolveRenderLineInput(input), sb);
 }
 
 export class RenderLineOutput2 {
@@ -893,7 +899,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
-function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder, renderOuterSpan: boolean = true): RenderLineOutput {
+function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
 	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
@@ -921,12 +927,10 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder, renderOu
 
 	let partDisplacement = 0;
 
-	if (renderOuterSpan) {
-		if (containsRTL) {
-			sb.appendString('<span dir="ltr">');
-		} else {
-			sb.appendString('<span>');
-		}
+	if (containsRTL) {
+		sb.appendString('<span dir="ltr">');
+	} else {
+		sb.appendString('<span>');
 	}
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
@@ -1117,9 +1121,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder, renderOu
 		sb.appendString('</span>');
 	}
 
-	if (renderOuterSpan) {
-		sb.appendString('</span>');
-	}
+	sb.appendString('</span>');
 
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }
