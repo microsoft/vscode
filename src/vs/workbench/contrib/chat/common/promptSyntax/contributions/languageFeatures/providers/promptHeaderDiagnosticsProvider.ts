@@ -41,16 +41,20 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 			return this;
 		}
 
-		const markers: IMarkerData[] = [];
-		for (const diagnostic of header.diagnostics) {
-			markers.push(toMarker(diagnostic));
-		}
+		// header parsing process is separate from the prompt parsing one, hence
+		// apply markers only after the header is settled and so has diagnostics
+		header.settled.then(() => {
+			const markers: IMarkerData[] = [];
+			for (const diagnostic of header.diagnostics) {
+				markers.push(toMarker(diagnostic));
+			}
 
-		this.markerService.changeOne(
-			MARKERS_OWNER_ID,
-			this.model.uri,
-			markers,
-		);
+			this.markerService.changeOne(
+				MARKERS_OWNER_ID,
+				this.model.uri,
+				markers,
+			);
+		});
 
 		return this;
 	}

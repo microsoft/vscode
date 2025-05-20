@@ -716,7 +716,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• single token value', async () => {
+					test('• single-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -750,7 +750,41 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• multi-token value', async () => {
+					test('• unquoted string value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"mode: my-mode",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 7, 2, 7 + 7),
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my-mode'.`,
+							),
+						]);
+					});
+
+					test('• multi-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -780,6 +814,41 @@ suite('TextModelPromptParser', () => {
 							new ExpectedDiagnosticError(
 								new Range(2, 7, 2, 7 + 20),
 								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my mode is your mode'.`,
+							),
+						]);
+					});
+
+					test('• after a description metadata', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"description: my clear but concise description",
+					/* 03 */"mode: mode24",
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(3, 7, 3, 7 + 6),
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'mode24'.`,
 							),
 						]);
 					});
