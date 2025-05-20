@@ -16,6 +16,7 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -771,6 +772,11 @@ export interface IEditorOptions {
 	 * Sets whether the new experimental edit context should be used instead of the text area.
 	 */
 	experimentalEditContextEnabled?: boolean;
+
+	/**
+	 * Controls whether we should render complex screen reader content when the EditContext is enabled
+	 */
+	renderComplexScreenReaderContent?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -1944,21 +1950,6 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	constructor() {
 		super(EditorOption.effectiveExperimentalEditContextEnabled);
-	}
-
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
-		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
-	}
-}
-
-//#endregion
-
-//#region renderComplexScreenReaderContent
-
-class RenderComplexScreenReaderContent extends ComputedEditorOption<EditorOption.renderComplexScreenReaderContent, boolean> {
-
-	constructor() {
-		super(EditorOption.renderComplexScreenReaderContent);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
@@ -5623,8 +5614,7 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled,
-	effectiveRenderComplexScreenReaderContent
+	effectiveExperimentalEditContextEnabled
 }
 
 export const EditorOptions = {
@@ -5900,7 +5890,7 @@ export const EditorOptions = {
 	renderComplexScreenReaderContent: register(new EditorBooleanOption(
 		EditorOption.renderComplexScreenReaderContent, 'renderComplexScreenReaderContent', product.quality !== 'stable',
 		{
-			description: nls.localize('renderComplexScreenReaderContent', "Whether to render complex screen reader content."),
+			description: nls.localize('renderComplexScreenReaderContent', "Whether to render complex screen reader content when the `editor.experimentalEditContext` is enabled."),
 			included: (platform.isChrome || platform.isEdge || platform.isNative) && platform.isWindows
 		}
 	)),
@@ -6464,8 +6454,7 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled()),
-	renderComplexScreenReaderContent: register(new RenderComplexScreenReaderContent())
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;
