@@ -10,32 +10,42 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
-import { PromptMetadataError, PromptMetadataWarning, TDiagnostic } from './diagnostics.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
+import { PromptMetadataError, PromptMetadataWarning, type TDiagnostic } from './diagnostics.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { PromptToolsMetadata, PromptModeMetadata, PromptDescriptionMetadata } from './metadata/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
-import { FrontMatterDecoder, TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
+import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
  * Metadata defined in the prompt header.
  */
 export interface IHeaderMetadata {
 	/**
+	 * Description metadata in the prompt header.
+	 */
+	description?: PromptDescriptionMetadata;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IPromptMetadata extends IHeaderMetadata {
+	/**
 	 * Tools metadata in the prompt header.
 	 */
 	tools?: PromptToolsMetadata;
 
 	/**
-	 * Description metadata in the prompt header.
-	 */
-	description?: PromptDescriptionMetadata;
-
-	/**
 	 * Chat mode metadata in the prompt header.
 	 */
 	mode?: PromptModeMetadata;
+}
 
+/**
+ * TODO: @legomushroom
+ */
+export interface IInstructionsMetadata extends IHeaderMetadata {
 	/**
 	 * Chat 'applyTo' metadata in the prompt header.
 	 */
@@ -43,9 +53,9 @@ export interface IHeaderMetadata {
 }
 
 /**
- * Prompt header holds all metadata records for a prompt.
+ * TODO: @legomushroom
  */
-export class PromptHeader extends Disposable {
+abstract class HeaderBase<TMetadata extends IPromptMetadata | IInstructionsMetadata> extends Disposable {
 	/**
 	 * Underlying decoder for a Front Matter header.
 	 */
@@ -54,25 +64,27 @@ export class PromptHeader extends Disposable {
 	/**
 	 * Metadata records.
 	 */
-	private readonly meta: IHeaderMetadata;
+	protected readonly meta: TMetadata;
 	/**
 	 * Metadata records.
 	 */
-	public get metadata(): Readonly<IHeaderMetadata> {
+	public get metadata(): Readonly<TMetadata> {
 		return Object.freeze({
 			...this.meta,
-		});
+			// TODO: @legomushroom - remove the type assertion
+		}) as unknown as TMetadata;
 	}
 
 	/**
 	 * List of all unique metadata record names.
 	 */
-	private readonly recordNames: Set<string>;
+	// TODO: @legomushroom - make private?
+	protected readonly recordNames: Set<string>;
 
 	/**
 	 * List of all issues found while parsing the prompt header.
 	 */
-	private readonly issues: TDiagnostic[];
+	protected readonly issues: TDiagnostic[];
 
 	/**
 	 * List of all diagnostic issues found while parsing
@@ -89,7 +101,10 @@ export class PromptHeader extends Disposable {
 		super();
 
 		this.issues = [];
-		this.meta = {};
+
+		// TODO: @legomushroom - remove the type assertion
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		this.meta = {} as TMetadata;
 		this.recordNames = new Set<string>();
 
 		this.stream = this._register(
@@ -100,6 +115,13 @@ export class PromptHeader extends Disposable {
 		this.stream.onData(this.onData.bind(this));
 		this.stream.onError(this.onError.bind(this));
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected abstract handleToken(
+		token: FrontMatterRecord,
+	): boolean;
 
 	/**
 	 * Process front matter tokens, converting them into
@@ -159,41 +181,8 @@ export class PromptHeader extends Disposable {
 			return;
 		}
 
-		// if the record might be a "tools" metadata
-		// add it to the list of parsed metadata records
-		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const metadata = new PromptToolsMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.tools = metadata;
-			this.recordNames.add(recordName);
-
-			this.validateToolsAndModeCompatibility();
-			return;
-		}
-
-		// if the record might be a "mode" metadata
-		// add it to the list of parsed metadata records
-		if (PromptModeMetadata.isModeRecord(token)) {
-			const metadata = new PromptModeMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.mode = metadata;
-			this.recordNames.add(recordName);
-
-			this.validateToolsAndModeCompatibility();
-			return;
-		}
-
-		// if the record might be a "applyTo" metadata
-		// add it to the list of parsed metadata records
-		if (PromptApplyToMetadata.isApplyToRecord(token)) {
-			const metadata = new PromptApplyToMetadata(token, this.languageId);
-
-			this.issues.push(...metadata.validate());
-			this.meta.applyTo = metadata;
-			this.recordNames.add(recordName);
-
+		// TODO: @legomushroom
+		if (this.handleToken(token)) {
 			return;
 		}
 
@@ -208,6 +197,77 @@ export class PromptHeader extends Disposable {
 				),
 			),
 		);
+	}
+
+	/**
+	 * Process errors from the underlying front matter decoder.
+	 */
+	private onError(error: Error): void {
+		this.issues.push(
+			new PromptMetadataError(
+				this.contentsToken.range,
+				localize(
+					'prompt.header.diagnostics.parsing-error',
+					"Failed to parse prompt header: {0}",
+					error.message,
+				),
+			),
+		);
+	}
+
+	/**
+	 * Promise that resolves when parsing process of
+	 * the prompt header completes.
+	 */
+	public get settled(): Promise<void> {
+		return this.stream.settled;
+	}
+
+	/**
+	 * Starts the parsing process of the prompt header.
+	 */
+	public start(): this {
+		this.stream.start();
+
+		return this;
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export class PromptHeader extends HeaderBase<IPromptMetadata> {
+	// TODO: @legomushroom - return a record name instead?
+	protected override handleToken(token: FrontMatterRecord): boolean {
+		const recordName = token.nameToken.text;
+
+		// if the record might be a "tools" metadata
+		// add it to the list of parsed metadata records
+		if (PromptToolsMetadata.isToolsRecord(token)) {
+			const metadata = new PromptToolsMetadata(token, this.languageId);
+
+			this.issues.push(...metadata.validate());
+			this.meta.tools = metadata;
+			this.recordNames.add(recordName);
+
+			this.validateToolsAndModeCompatibility();
+			return true;
+		}
+
+		// if the record might be a "mode" metadata
+		// add it to the list of parsed metadata records
+		if (PromptModeMetadata.isModeRecord(token)) {
+			const metadata = new PromptModeMetadata(token, this.languageId);
+
+			this.issues.push(...metadata.validate());
+			this.meta.mode = metadata;
+			this.recordNames.add(recordName);
+
+			this.validateToolsAndModeCompatibility();
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -272,37 +332,28 @@ export class PromptHeader extends Disposable {
 			),
 		);
 	}
+}
 
-	/**
-	 * Process errors from the underlying front matter decoder.
-	 */
-	private onError(error: Error): void {
-		this.issues.push(
-			new PromptMetadataError(
-				this.contentsToken.range,
-				localize(
-					'prompt.header.diagnostics.parsing-error',
-					"Failed to parse prompt header: {0}",
-					error.message,
-				),
-			),
-		);
-	}
+/**
+ * TODO: @legomushroom
+ */
+export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
+	// TODO: @legomushroom - return a record name instead?
+	protected override handleToken(token: FrontMatterRecord): boolean {
+		const recordName = token.nameToken.text;
 
-	/**
-	 * Promise that resolves when parsing process of
-	 * the prompt header completes.
-	 */
-	public get settled(): Promise<void> {
-		return this.stream.settled;
-	}
+		// if the record might be a "applyTo" metadata
+		// add it to the list of parsed metadata records
+		if (PromptApplyToMetadata.isApplyToRecord(token)) {
+			const metadata = new PromptApplyToMetadata(token, this.languageId);
 
-	/**
-	 * Starts the parsing process of the prompt header.
-	 */
-	public start(): this {
-		this.stream.start();
+			this.issues.push(...metadata.validate());
+			this.meta.applyTo = metadata;
+			this.recordNames.add(recordName);
 
-		return this;
+			return true;
+		}
+
+		return false;
 	}
 }
