@@ -12,7 +12,7 @@ import { Mimes } from '../common/mime.js';
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
 export class DelayedDragHandler extends Disposable {
-	private timeout: any;
+	private timeout: Timeout | undefined = undefined;
 
 	constructor(container: HTMLElement, callback: () => void) {
 		super();
@@ -24,7 +24,7 @@ export class DelayedDragHandler extends Disposable {
 				this.timeout = setTimeout(() => {
 					callback();
 
-					this.timeout = null;
+					this.timeout = undefined;
 				}, 800);
 			}
 		}));
@@ -39,7 +39,7 @@ export class DelayedDragHandler extends Disposable {
 	private clearDragTimeout(): void {
 		if (this.timeout) {
 			clearTimeout(this.timeout);
-			this.timeout = null;
+			this.timeout = undefined;
 		}
 	}
 

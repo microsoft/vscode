@@ -9,7 +9,7 @@ import { IProcessDataEvent } from './terminal.js';
 
 interface TerminalDataBuffer extends IDisposable {
 	data: string[];
-	timeoutId: any;
+	timeoutId: Timeout;
 }
 
 export class TerminalDataBufferer implements IDisposable {
