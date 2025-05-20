@@ -1830,7 +1830,7 @@ class SCMInputWidget {
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
 		if (this._validationTimer) {
 			clearTimeout(this._validationTimer);
-			this._validationTimer = 0;
+			this._validationTimer = undefined;
 		}
 
 		this.validation = validation;

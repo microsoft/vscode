@@ -232,7 +232,7 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 		timer = setTimeout(() => {
 			mainThreadTelemetry.$publicLog2<FetchFeatureUseEvent, FetchFeatureUseClassification>('fetchFeatureUse', fetchFeatureUse);
 		}, 10000); // collect additional features for 10 seconds
-		(timer as NodeJS.Timeout).unref?.();
+		(timer as unknown as NodeJS.Timeout).unref?.();
 	}
 }
 

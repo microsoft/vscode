@@ -772,7 +772,7 @@ class WordHighlighter {
 	}
 
 	private renderDecorations(): void {
-		this.renderDecorationsTimer = -1;
+		this.renderDecorationsTimer = undefined;
 		// create new loop, iterate over current editors using this.codeEditorService.listCodeEditors(),
 		// if the URI of that codeEditor is in the map, then add the decorations to the decorations array
 		// then set the decorations for the editor

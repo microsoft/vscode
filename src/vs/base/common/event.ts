@@ -256,7 +256,7 @@ export namespace Event {
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
-		let handle: Timeout | number | undefined = undefined;
+		let handle: Timeout | undefined | null = undefined;
 		let numDebouncedCalls = 0;
 		let doFire: (() => void) | undefined;
 
@@ -283,11 +283,13 @@ export namespace Event {
 					};
 
 					if (typeof delay === 'number') {
-						clearTimeout(handle);
+						if (handle) {
+							clearTimeout(handle);
+						}
 						handle = setTimeout(doFire, delay);
 					} else {
 						if (handle === undefined) {
-							handle = 0;
+							handle = null;
 							queueMicrotask(doFire);
 						}
 					}
