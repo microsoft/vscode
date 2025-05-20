@@ -5,10 +5,15 @@
 
 import { AuthenticationSession, authentication, window } from 'vscode';
 import { Agent, globalAgent } from 'https';
-import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
+
+// Using a type import here would be cleaner, but this works with the existing code
+interface GraphqlFunction {
+	<T>(options: { query: string; [key: string]: any }): Promise<T>;
+	defaults(options: any): GraphqlFunction;
+}
 
 export class AuthenticationError extends Error { }
 
@@ -57,32 +62,34 @@ export function getOctokit(): Promise<Octokit> {
 	return _octokit;
 }
 
-let _octokitGraphql: Promise<graphql> | undefined;
+let _octokitGraphql: Promise<GraphqlFunction> | undefined;
 
-export async function getOctokitGraphql(): Promise<graphql> {
+export async function getOctokitGraphql(): Promise<GraphqlFunction> {
 	if (!_octokitGraphql) {
-		try {
-			const session = await authentication.getSession('github', scopes, { silent: true });
+		_octokitGraphql = (async () => {
+			try {
+				const session = await authentication.getSession('github', scopes, { silent: true });
 
-			if (!session) {
-				throw new AuthenticationError('No GitHub authentication session available.');
-			}
-
-			const token = session.accessToken;
-			const { graphql } = await import('@octokit/graphql');
-
-			return graphql({
-				headers: {
-					authorization: `token ${token}`
-				},
-				request: {
-					agent: getAgent()
+				if (!session) {
+					throw new AuthenticationError('No GitHub authentication session available.');
 				}
-			});
-		} catch (err) {
-			_octokitGraphql = undefined;
-			throw err;
-		}
+
+				const token = session.accessToken;
+				const { graphql } = await import('@octokit/graphql');
+
+				return graphql.defaults({
+					headers: {
+						authorization: `token ${token}`
+					},
+					request: {
+						agent: getAgent()
+					}
+				});
+			} catch (err) {
+				_octokitGraphql = undefined;
+				throw err;
+			}
+		})();
 	}
 
 	return _octokitGraphql;
