@@ -637,7 +637,9 @@ export class SearchView extends ViewPane {
 
 		this._register(this.searchWidget.onSearchSubmit(options => {
 			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
-			this.logService.trace(`SearchView: Triggering query change. Should render semantic results: ${shouldRenderAIResults}.`);
+			if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
+				this.logService.info(`SearchView: Automatically rendering AI results`);
+			}
 			this.triggerQueryChange({
 				...options,
 				shouldKeepAIResults: false,
@@ -1840,7 +1842,6 @@ export class SearchView extends ViewPane {
 	}
 
 	public clearAIResults() {
-		this.logService.trace('SearchView: Clearing semantic results');
 		this.model.searchResult.aiTextSearchResult.hidden = true;
 		if (!this._pendingSemanticSearchPromise) {
 			this._cachedResults = undefined;
@@ -1850,7 +1851,7 @@ export class SearchView extends ViewPane {
 	}
 
 	public async requestAIResults() {
-		this.logService.trace(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
+		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
 		if (!this.cachedResults) {
 			this.clearAIResults();
 		}
@@ -1899,8 +1900,10 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-		this.logService.trace(`SearchView: Requesting search. Keep semantic results: ${shouldKeepAIResults}. Update semantic search: ${shouldUpdateAISearch}`);
 		this.model.searchResult.aiTextSearchResult.hidden = !shouldKeepAIResults && !shouldUpdateAISearch;
+		if (!this.model.searchResult.aiTextSearchResult.hidden) {
+			this.logService.info(`SearchView: Semantic search visible. Keep semantic results: ${shouldKeepAIResults}. Update semantic search: ${shouldUpdateAISearch}`);
+		}
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -1926,7 +1929,7 @@ export class SearchView extends ViewPane {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
 			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
-				this.logService.trace(`SearchView: Requesting semantic results on empty search.`);
+				this.logService.info(`SearchView: Requesting semantic results on empty search.`);
 				this.model.searchResult.aiTextSearchResult.hidden = false;
 			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
