@@ -19,7 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../platform
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE } from '../../platform/window/common/window.js';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE, MenuSettings } from '../../platform/window/common/window.js';
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
@@ -128,7 +128,7 @@ export const TITLE_BAR_SETTINGS = [
 	...COMMAND_CENTER_SETTINGS,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
-	'window.menuBarVisibility',
+	MenuSettings.MenuBarVisibility,
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 ];
@@ -2119,7 +2119,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			newVisibilityValue = 'classic';
 		}
 
-		this.configurationService.updateValue('window.menuBarVisibility', newVisibilityValue);
+		this.configurationService.updateValue(MenuSettings.MenuBarVisibility, newVisibilityValue);
 	}
 
 	getPanelPosition(): Position {

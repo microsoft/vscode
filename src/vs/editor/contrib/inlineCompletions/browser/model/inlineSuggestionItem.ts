@@ -71,6 +71,7 @@ abstract class InlineSuggestionItemBase {
 	/** @deprecated */
 	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
 
+	public get requestUuid(): string { return this._data.context.requestUuid; }
 
 	/**
 	 * A reference to the original inline completion this inline completion has been constructed from.
