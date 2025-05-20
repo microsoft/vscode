@@ -22,14 +22,21 @@ import { IScreenReaderContent } from './nativeEditContextUtils.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
+class RenderedComplexScreenReaderLine {
+	constructor(
+		public readonly domNode: HTMLDivElement,
+		public readonly characterMapping: CharacterMapping
+	) { }
+}
+
 export class ComplexScreenReaderContent implements IScreenReaderContent {
 
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
-	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
+	private _renderedLines: Map<number, RenderedComplexScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ComplexScreenReaderContentState | undefined;
-	private _nativeEditContextScreenReaderStrategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
+	private _screenReaderStrategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -80,7 +87,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		}
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
+	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedComplexScreenReaderLine> {
 		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
 		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
 		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
@@ -88,7 +95,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		const startSelectionLineNumber = screenReaderContentState.startSelectionLineNumber;
 		const endSelectionLineNumber = screenReaderContentState.endSelectionLineNumber;
 
-		const renderedLines = new Map<number, RenderedScreenReaderLine>();
+		const renderedLines = new Map<number, RenderedComplexScreenReaderLine>();
 		const nodes: HTMLDivElement[] = [];
 		if (preStartOffsetRange) {
 			for (let lineNumber = preStartOffsetRange.start; lineNumber <= preStartOffsetRange.endExclusive; lineNumber++) {
@@ -131,7 +138,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		return renderedLines;
 	}
 
-	private _renderLine(viewLineNumber: number): RenderedScreenReaderLine {
+	private _renderLine(viewLineNumber: number): RenderedComplexScreenReaderLine {
 		const viewModel = this._context.viewModel;
 		const positionLineData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const options = this._context.configuration.options;
@@ -180,13 +187,12 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		const stringifiedLineHeight = String(lineHeight) + 'px';
 		domNode.style.lineHeight = stringifiedLineHeight;
 		domNode.style.height = stringifiedLineHeight;
-		domNode.role = 'text';
 		domNode.innerHTML = trustedhtml as string;
 		const characterMapping = renderOutput.characterMapping;
-		return new RenderedScreenReaderLine(domNode, characterMapping);
+		return new RenderedComplexScreenReaderLine(domNode, characterMapping);
 	}
 
-	private _setSelectionOfScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedScreenReaderLine>, viewSelection: Selection): void {
+	private _setSelectionOfScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedComplexScreenReaderLine>, viewSelection: Selection): void {
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -250,15 +256,8 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return this._nativeEditContextScreenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
+		return this._screenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
 	}
-}
-
-class RenderedScreenReaderLine {
-	constructor(
-		public readonly domNode: HTMLDivElement,
-		public readonly characterMapping: CharacterMapping
-	) { }
 }
 
 export class ComplexScreenReaderContentState {
