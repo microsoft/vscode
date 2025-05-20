@@ -943,10 +943,10 @@ export function getActiveWindow(): CodeWindow {
 }
 
 export function getFocusedWindow(): CodeWindow | undefined {
-	const window = getActiveWindow();
+	const document = getActiveDocument();
 	// This check is needed to ensure the window has focus
-	if (window.document.hasFocus()) {
-		return window;
+	if (document.defaultView?.window.document.hasFocus()) {
+		return (document.defaultView?.window) as CodeWindow;
 	}
 	return;
 }
