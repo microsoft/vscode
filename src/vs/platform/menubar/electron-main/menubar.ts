@@ -51,6 +51,7 @@ export class Menubar extends Disposable {
 	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
 	private noActiveMainWindow: boolean;
+	private showNativeMenu: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
@@ -87,8 +88,9 @@ export class Menubar extends Disposable {
 
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
+		this.showNativeMenu = hasNativeMenu(configurationService);
 
-		if (isMacintosh || hasNativeMenu(configurationService)) {
+		if (isMacintosh || this.showNativeMenu) {
 			this.restoreCachedMenubarData();
 		}
 
@@ -479,7 +481,7 @@ export class Menubar extends Disposable {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && !hasNativeMenu(this.configurationService)) {
+		if (!isMacintosh && !this.showNativeMenu) {
 			return false;
 		}
 
