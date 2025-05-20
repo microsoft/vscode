@@ -69,13 +69,9 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 
 	public async resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolderData | undefined, value: string): Promise<string> {
 		const expr = ConfigurationResolverExpression.parse(value);
-		const env: Environment = {
-			env: this.prepareEnv(environment),
-			userHome: undefined
-		};
 
 		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(env, replacement, folder?.uri);
+			const resolvedValue = await this.evaluateSingleVariable(replacement, folder?.uri, environment);
 			if (resolvedValue !== undefined) {
 				expr.resolve(replacement, String(resolvedValue));
 			}
@@ -87,13 +83,8 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 	public async resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T> {
 		const expr = ConfigurationResolverExpression.parse(config);
 
-		const environment: Environment = {
-			env: await this._envVariablesPromise,
-			userHome: await this._userHomePromise
-		};
-
 		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri);
+			const resolvedValue = await this.evaluateSingleVariable(replacement, folder?.uri);
 			if (resolvedValue !== undefined) {
 				expr.resolve(replacement, String(resolvedValue));
 			}
@@ -123,7 +114,14 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private async evaluateSingleVariable(environment: Environment, replacement: Replacement, folderUri: uri | undefined, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
+	protected async evaluateSingleVariable(replacement: Replacement, folderUri: uri | undefined, processEnvironment?: IProcessEnvironment, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
+
+
+		const environment: Environment = {
+			env: (processEnvironment !== undefined) ? this.prepareEnv(processEnvironment) : await this._envVariablesPromise,
+			userHome: (processEnvironment !== undefined) ? undefined : await this._userHomePromise
+		};
+
 		const { name: variable, arg: argument } = replacement;
 
 		// common error handling for all variables that require an open editor

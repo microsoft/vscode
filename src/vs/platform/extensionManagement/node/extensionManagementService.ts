@@ -35,6 +35,7 @@ import {
 	computeSize,
 	IAllowedExtensionsService,
 	VerifyExtensionSignatureConfigKey,
+	shouldRequireRepositorySignatureFor,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -334,7 +335,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
-		const shouldRequireSignature = (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned;
+		const shouldRequireSignature = shouldRequireRepositorySignatureFor(extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest());
 
 		if (
 			verificationStatus !== ExtensionSignatureVerificationCode.Success

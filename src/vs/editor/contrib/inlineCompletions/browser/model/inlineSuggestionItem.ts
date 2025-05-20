@@ -9,18 +9,19 @@ import { observableSignal, IObservable } from '../../../../../base/common/observ
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { applyEditsToRanges, StringEdit, StringReplacement } from '../../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
-import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/positionToOffset.js';
+import { getPositionOffsetTransformerFromTextModel, PositionOffsetTransformerBase } from '../../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit, StringText, TextEdit } from '../../../../common/core/textEdit.js';
-import { TextLength } from '../../../../common/core/textLength.js';
+import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { StringText } from '../../../../common/core/text/abstractText.js';
+import { TextLength } from '../../../../common/core/text/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { IDisplayLocation as IInlineCompletionDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
+import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -42,6 +43,7 @@ abstract class InlineSuggestionItemBase {
 	constructor(
 		protected readonly _data: InlineSuggestData,
 		public readonly identity: InlineSuggestionIdentity,
+		public readonly displayLocation: InlineSuggestDisplayLocation | undefined
 	) { }
 
 	/**
@@ -60,7 +62,6 @@ abstract class InlineSuggestionItemBase {
 	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
-	public get displayLocation(): IInlineCompletionDisplayLocation | undefined { return this._data.displayLocation; }
 	public get hash() {
 		return JSON.stringify([
 			this.getSingleTextEdit().text,
@@ -70,6 +71,7 @@ abstract class InlineSuggestionItemBase {
 	/** @deprecated */
 	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
 
+	public get requestUuid(): string { return this._data.context.requestUuid; }
 
 	/**
 	 * A reference to the original inline completion this inline completion has been constructed from.
@@ -78,9 +80,9 @@ abstract class InlineSuggestionItemBase {
 	private get _sourceInlineCompletion(): InlineCompletion { return this._data.sourceInlineCompletion; }
 
 
-	public abstract getSingleTextEdit(): SingleTextEdit;
+	public abstract getSingleTextEdit(): TextReplacement;
 
-	public abstract withEdit(userEdit: OffsetEdit, textModel: ITextModel): InlineSuggestionItem | undefined;
+	public abstract withEdit(userEdit: StringEdit, textModel: ITextModel): InlineSuggestionItem | undefined;
 
 	public abstract withIdentity(identity: InlineSuggestionIdentity): InlineSuggestionItem;
 	public abstract canBeReused(model: ITextModel, position: Position): boolean;
@@ -140,34 +142,73 @@ export class InlineSuggestionIdentity {
 	}
 }
 
+class InlineSuggestDisplayLocation implements IDisplayLocation {
+
+	public static create(displayLocation: IDisplayLocation, textmodel: ITextModel) {
+		const offsetRange = new OffsetRange(
+			textmodel.getOffsetAt(displayLocation.range.getStartPosition()),
+			textmodel.getOffsetAt(displayLocation.range.getEndPosition())
+		);
+
+		return new InlineSuggestDisplayLocation(
+			offsetRange,
+			displayLocation.range,
+			displayLocation.label,
+		);
+	}
+
+	private constructor(
+		private readonly _offsetRange: OffsetRange,
+		public readonly range: Range,
+		public readonly label: string,
+	) { }
+
+	public withEdit(edit: StringEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestDisplayLocation | undefined {
+		const newOffsetRange = applyEditsToRanges([this._offsetRange], edit)[0];
+		if (!newOffsetRange || newOffsetRange.length !== this._offsetRange.length) {
+			return undefined;
+		}
+
+		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
+
+		return new InlineSuggestDisplayLocation(
+			newOffsetRange,
+			newRange,
+			this.label,
+		);
+	}
+}
+
 export class InlineCompletionItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineCompletionItem {
 		const identity = new InlineSuggestionIdentity();
-		const textEdit = new SingleTextEdit(data.range, data.insertText);
-		const edit = getPositionOffsetTransformerFromTextModel(textModel).getSingleOffsetEdit(textEdit);
+		const textEdit = new TextReplacement(data.range, data.insertText);
+		const edit = getPositionOffsetTransformerFromTextModel(textModel).getStringReplacement(textEdit);
+		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
-		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity);
+		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
 	}
 
 	public readonly isInlineEdit = false;
 
 	private constructor(
-		private readonly _edit: SingleOffsetEdit,
-		private readonly _textEdit: SingleTextEdit,
+		private readonly _edit: StringReplacement,
+		private readonly _textEdit: TextReplacement,
 		private readonly _originalRange: Range,
 		public readonly snippetInfo: SnippetInfo | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
 
 		data: InlineSuggestData,
 		identity: InlineSuggestionIdentity,
+		displayLocation: InlineSuggestDisplayLocation | undefined,
 	) {
-		super(data, identity);
+		super(data, identity, displayLocation);
 	}
 
-	override getSingleTextEdit(): SingleTextEdit { return this._textEdit; }
+	override getSingleTextEdit(): TextReplacement { return this._textEdit; }
 
 	override withIdentity(identity: InlineSuggestionIdentity): InlineCompletionItem {
 		return new InlineCompletionItem(
@@ -178,16 +219,27 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			identity,
+			this.displayLocation
 		);
 	}
 
-	override withEdit(textModelEdit: OffsetEdit, textModel: ITextModel): InlineCompletionItem | undefined {
+	override withEdit(textModelEdit: StringEdit, textModel: ITextModel): InlineCompletionItem | undefined {
 		const newEditRange = applyEditsToRanges([this._edit.replaceRange], textModelEdit);
 		if (newEditRange.length === 0) {
 			return undefined;
 		}
-		const newEdit = new SingleOffsetEdit(newEditRange[0], this._textEdit.text);
-		const newTextEdit = getPositionOffsetTransformerFromTextModel(textModel).getSingleTextEdit(newEdit);
+		const newEdit = new StringReplacement(newEditRange[0], this._textEdit.text);
+		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
+		const newTextEdit = positionOffsetTransformer.getSingleTextEdit(newEdit);
+
+		let newDisplayLocation = this.displayLocation;
+		if (newDisplayLocation) {
+			newDisplayLocation = newDisplayLocation.withEdit(textModelEdit, positionOffsetTransformer);
+			if (!newDisplayLocation) {
+				return undefined;
+			}
+		}
+
 		return new InlineCompletionItem(
 			newEdit,
 			newTextEdit,
@@ -196,6 +248,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			this.identity,
+			newDisplayLocation
 		);
 	}
 
@@ -254,18 +307,19 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineEditItem {
-		const offsetEdit = getOffsetEdit(textModel, data.range, data.insertText);
+		const offsetEdit = getStringEdit(textModel, data.range, data.insertText);
 		const text = new TextModelText(textModel);
-		const textEdit = TextEdit.fromOffsetEdit(offsetEdit, text);
-		const singleTextEdit = textEdit.toSingle(text);
+		const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
+		const singleTextEdit = textEdit.toReplacement(text);
 		const identity = new InlineSuggestionIdentity();
 
-		const edits = offsetEdit.edits.map(edit => {
+		const edits = offsetEdit.replacements.map(edit => {
 			const replacedRange = Range.fromPositions(textModel.getPositionAt(edit.replaceRange.start), textModel.getPositionAt(edit.replaceRange.endExclusive));
 			const replacedText = textModel.getValueInRange(replacedRange);
 			return SingleUpdatedNextEdit.create(edit, replacedText);
 		});
-		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, false, textModel.getVersionId());
+		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
+		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, displayLocation, false, textModel.getVersionId());
 	}
 
 	public readonly snippetInfo: SnippetInfo | undefined = undefined;
@@ -273,23 +327,24 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public readonly isInlineEdit = true;
 
 	private constructor(
-		private readonly _edit: OffsetEdit,
-		private readonly _textEdit: SingleTextEdit,
+		private readonly _edit: StringEdit,
+		private readonly _textEdit: TextReplacement,
 
 		data: InlineSuggestData,
 
 		identity: InlineSuggestionIdentity,
 		private readonly _edits: readonly SingleUpdatedNextEdit[],
+		displayLocation: InlineSuggestDisplayLocation | undefined,
 		private readonly _lastChangePartOfInlineEdit = false,
 		private readonly _inlineEditModelVersion: number,
 	) {
-		super(data, identity);
+		super(data, identity, displayLocation);
 	}
 
 	public get updatedEditModelVersion(): number { return this._inlineEditModelVersion; }
-	public get updatedEdit(): OffsetEdit { return this._edit; }
+	public get updatedEdit(): StringEdit { return this._edit; }
 
-	override getSingleTextEdit(): SingleTextEdit {
+	override getSingleTextEdit(): TextReplacement {
 		return this._textEdit;
 	}
 
@@ -300,6 +355,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			this._data,
 			identity,
 			this._edits,
+			this.displayLocation,
 			this._lastChangePartOfInlineEdit,
 			this._inlineEditModelVersion,
 		);
@@ -310,12 +366,12 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		return this._lastChangePartOfInlineEdit && this.updatedEditModelVersion === model.getVersionId();
 	}
 
-	override withEdit(textModelChanges: OffsetEdit, textModel: ITextModel): InlineEditItem | undefined {
+	override withEdit(textModelChanges: StringEdit, textModel: ITextModel): InlineEditItem | undefined {
 		const edit = this._applyTextModelChanges(textModelChanges, this._edits, textModel);
 		return edit;
 	}
 
-	private _applyTextModelChanges(textModelChanges: OffsetEdit, edits: readonly SingleUpdatedNextEdit[], textModel: ITextModel): InlineEditItem | undefined {
+	private _applyTextModelChanges(textModelChanges: StringEdit, edits: readonly SingleUpdatedNextEdit[], textModel: ITextModel): InlineEditItem | undefined {
 		edits = edits.map(innerEdit => innerEdit.applyTextModelChanges(textModelChanges));
 
 		if (edits.some(edit => edit.edit === undefined)) {
@@ -339,23 +395,32 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			return undefined; // the completion has been typed by the user
 		}
 
-		const edit = new OffsetEdit(edits.map(edit => edit.edit!));
+		const newEdit = new StringEdit(edits.map(edit => edit.edit!));
+		const positionOffsetTransformer = getPositionOffsetTransformerFromTextModel(textModel);
+		const newTextEdit = positionOffsetTransformer.getTextEdit(newEdit).toReplacement(new TextModelText(textModel));
 
-		const textEdit = getPositionOffsetTransformerFromTextModel(textModel).getTextEdit(edit).toSingle(new TextModelText(textModel));
+		let newDisplayLocation = this.displayLocation;
+		if (newDisplayLocation) {
+			newDisplayLocation = newDisplayLocation.withEdit(textModelChanges, positionOffsetTransformer);
+			if (!newDisplayLocation) {
+				return undefined;
+			}
+		}
 
 		return new InlineEditItem(
-			edit,
-			textEdit,
+			newEdit,
+			newTextEdit,
 			this._data,
 			this.identity,
 			edits,
+			newDisplayLocation,
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,
 		);
 	}
 }
 
-function getOffsetEdit(textModel: ITextModel, editRange: Range, replaceText: string): OffsetEdit {
+function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
 	const eol = textModel.getEOL();
 	const editOriginalText = textModel.getValueInRange(editRange);
 	const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
@@ -381,13 +446,13 @@ function getOffsetEdit(textModel: ITextModel, editRange: Range, replaceText: str
 
 	const modifiedText = new StringText(editReplaceText);
 
-	const offsetEdit = new OffsetEdit(
+	const offsetEdit = new StringEdit(
 		innerChanges.map(c => {
 			const rangeInModel = addRangeToPos(editRange.getStartPosition(), c.originalRange);
 			const originalRange = getPositionOffsetTransformerFromTextModel(textModel).getOffsetRange(rangeInModel);
 
 			const replaceText = modifiedText.getValueOfRange(c.modifiedRange);
-			const edit = new SingleOffsetEdit(originalRange, replaceText);
+			const edit = new StringReplacement(originalRange, replaceText);
 
 			const originalText = textModel.getValueInRange(rangeInModel);
 			return reshapeEdit(edit, originalText, innerChanges.length, textModel);
@@ -399,7 +464,7 @@ function getOffsetEdit(textModel: ITextModel, editRange: Range, replaceText: str
 
 class SingleUpdatedNextEdit {
 	public static create(
-		edit: SingleOffsetEdit,
+		edit: StringReplacement,
 		replacedText: string,
 	): SingleUpdatedNextEdit {
 		const prefixLength = commonPrefixLength(edit.newText, replacedText);
@@ -412,7 +477,7 @@ class SingleUpdatedNextEdit {
 	public get lastChangeUpdatedEdit() { return this._lastChangeUpdatedEdit; }
 
 	constructor(
-		private _edit: SingleOffsetEdit | undefined,
+		private _edit: StringReplacement | undefined,
 		private _trimmedNewText: string,
 		private _prefixLength: number,
 		private _suffixLength: number,
@@ -420,7 +485,7 @@ class SingleUpdatedNextEdit {
 	) {
 	}
 
-	public applyTextModelChanges(textModelChanges: OffsetEdit) {
+	public applyTextModelChanges(textModelChanges: StringEdit) {
 		const c = this._clone();
 		c._applyTextModelChanges(textModelChanges);
 		return c;
@@ -436,7 +501,7 @@ class SingleUpdatedNextEdit {
 		);
 	}
 
-	private _applyTextModelChanges(textModelChanges: OffsetEdit) {
+	private _applyTextModelChanges(textModelChanges: StringEdit) {
 		this._lastChangeUpdatedEdit = false;
 
 		if (!this._edit) {
@@ -453,7 +518,7 @@ class SingleUpdatedNextEdit {
 		this._lastChangeUpdatedEdit = result.editHasChanged;
 	}
 
-	private _applyChanges(edit: SingleOffsetEdit, textModelChanges: OffsetEdit): { edit: SingleOffsetEdit; editHasChanged: boolean } | undefined {
+	private _applyChanges(edit: StringReplacement, textModelChanges: StringEdit): { edit: StringReplacement; editHasChanged: boolean } | undefined {
 		let editStart = edit.replaceRange.start;
 		let editEnd = edit.replaceRange.endExclusive;
 		let editReplaceText = edit.newText;
@@ -461,8 +526,8 @@ class SingleUpdatedNextEdit {
 
 		const shouldPreserveEditShape = this._prefixLength > 0 || this._suffixLength > 0;
 
-		for (let i = textModelChanges.edits.length - 1; i >= 0; i--) {
-			const change = textModelChanges.edits[i];
+		for (let i = textModelChanges.replacements.length - 1; i >= 0; i--) {
+			const change = textModelChanges.replacements[i];
 
 			// INSERTIONS (only support inserting at start of edit)
 			const isInsertion = change.newText.length > 0 && change.replaceRange.isEmpty;
@@ -518,18 +583,18 @@ class SingleUpdatedNextEdit {
 
 		// the resulting edit is a noop as the original and new text are the same
 		if (this._trimmedNewText.length === 0 && editStart + this._prefixLength === editEnd - this._suffixLength) {
-			return { edit: new SingleOffsetEdit(new OffsetRange(editStart + this._prefixLength, editStart + this._prefixLength), ''), editHasChanged: true };
+			return { edit: new StringReplacement(new OffsetRange(editStart + this._prefixLength, editStart + this._prefixLength), ''), editHasChanged: true };
 		}
 
-		return { edit: new SingleOffsetEdit(new OffsetRange(editStart, editEnd), editReplaceText), editHasChanged };
+		return { edit: new StringReplacement(new OffsetRange(editStart, editEnd), editReplaceText), editHasChanged };
 	}
 }
 
-function reshapeEdit(edit: SingleOffsetEdit, originalText: string, totalInnerEdits: number, textModel: ITextModel): SingleOffsetEdit {
+function reshapeEdit(edit: StringReplacement, originalText: string, totalInnerEdits: number, textModel: ITextModel): StringReplacement {
 	// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
 	const eol = textModel.getEOL();
 	if (edit.newText.endsWith(eol) && originalText.endsWith(eol)) {
-		edit = new SingleOffsetEdit(edit.replaceRange.deltaEnd(-eol.length), edit.newText.slice(0, -eol.length));
+		edit = new StringReplacement(edit.replaceRange.deltaEnd(-eol.length), edit.newText.slice(0, -eol.length));
 	}
 
 	// INSERTION
@@ -547,19 +612,19 @@ function reshapeEdit(edit: SingleOffsetEdit, originalText: string, totalInnerEdi
 
 		// reshape it back to an insertion
 		if (prefixLength + suffixLength === originalText.length) {
-			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), edit.newText.substring(prefixLength, edit.newText.length - suffixLength));
+			return new StringReplacement(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), edit.newText.substring(prefixLength, edit.newText.length - suffixLength));
 		}
 
 		// reshape it back to a deletion
 		if (prefixLength + suffixLength === edit.newText.length) {
-			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), '');
+			return new StringReplacement(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), '');
 		}
 	}
 
 	return edit;
 }
 
-function reshapeMultiLineInsertion(edit: SingleOffsetEdit, textModel: ITextModel): SingleOffsetEdit {
+function reshapeMultiLineInsertion(edit: StringReplacement, textModel: ITextModel): StringReplacement {
 	if (!edit.replaceRange.isEmpty) {
 		throw new BugIndicatingError('Unexpected original range');
 	}
@@ -576,7 +641,7 @@ function reshapeMultiLineInsertion(edit: SingleOffsetEdit, textModel: ITextModel
 	// If the insertion ends with a new line and is inserted at the start of a line which has text,
 	// we move the insertion to the end of the previous line if possible
 	if (startColumn === 1 && startLineNumber > 1 && textModel.getLineLength(startLineNumber) !== 0 && edit.newText.endsWith(eol) && !edit.newText.startsWith(eol)) {
-		return new SingleOffsetEdit(edit.replaceRange.delta(-1), eol + edit.newText.slice(0, -eol.length));
+		return new StringReplacement(edit.replaceRange.delta(-1), eol + edit.newText.slice(0, -eol.length));
 	}
 
 	return edit;

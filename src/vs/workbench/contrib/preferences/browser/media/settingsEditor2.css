@@ -64,10 +64,26 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	height: 32px;
 	display: flex;
+	flex-wrap: wrap;
 	border-bottom: solid 1px;
 	margin-top: 10px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions {
+	flex: 0 0 100%;
+	width: 100%;
+	min-height: 20px;
+	margin-bottom: 9px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+	cursor: pointer;
+	margin-right: 4px;
+	padding: 0px 4px 2px;
+	border-radius: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
@@ -593,9 +609,13 @@
 	padding-bottom: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-value-description {
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description {
 	display: flex;
 	cursor: pointer;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description.disabled {
+	cursor: initial;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {

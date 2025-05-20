@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { randomInt } from '../../../../base/common/numbers.js';
-import { getCleanPromptName, isPromptFile } from '../../common/constants.js';
+import { getCleanPromptName, isPromptOrInstructionsFile } from '../../common/constants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
@@ -53,36 +53,36 @@ suite('Prompt Constants', () => {
 		});
 	});
 
-	suite('• isPromptFile', () => {
+	suite('• isPromptOrInstructionsFile', () => {
 		test('• returns `true` for prompt files', () => {
 			assert(
-				isPromptFile(URI.file('/path/to/my-prompt.prompt.md')),
+				isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md')),
 			);
 
 			assert(
-				isPromptFile(URI.file('../common.prompt.md')),
+				isPromptOrInstructionsFile(URI.file('../common.prompt.md')),
 			);
 
 			assert(
-				isPromptFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
+				isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
 			);
 
 			assert(
-				isPromptFile(URI.file('.github/copilot-instructions.md')),
+				isPromptOrInstructionsFile(URI.file('.github/copilot-instructions.md')),
 			);
 		});
 
 		test('• returns `false` for non-prompt files', () => {
 			assert(
-				!isPromptFile(URI.file('/path/to/my-prompt.prompt.md1')),
+				!isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md1')),
 			);
 
 			assert(
-				!isPromptFile(URI.file('../common.md')),
+				!isPromptOrInstructionsFile(URI.file('../common.md')),
 			);
 
 			assert(
-				!isPromptFile(URI.file(`./some-${randomInt(1000)}.txt`)),
+				!isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.txt`)),
 			);
 		});
 	});

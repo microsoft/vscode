@@ -371,7 +371,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	// handle content request
 	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
-		const uriString = uri.toString();
+		const uriString = uri.toString(true);
 		if (uri.scheme === 'untitled') {
 			throw new ResponseError(3, l10n.t('Unable to load {0}', uriString));
 		}

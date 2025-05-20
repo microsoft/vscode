@@ -47,7 +47,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const { location } = options;
 
 		const task = async (progress: IProgress<IProgressStep>) => {
-			const activeLock = this.userActivityService.markActive({ whenHeldFor: 15_000 });
+			const activeLock = this.userActivityService.markActive({ extendOnly: true, whenHeldFor: 15_000 });
 			try {
 				return await originalTask(progress);
 			} finally {

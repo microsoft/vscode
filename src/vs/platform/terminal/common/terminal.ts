@@ -121,6 +121,7 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	KillGracefully = 'terminal.integrated.killGracefully',
 
 	// Debug settings that are hidden from user
 
@@ -649,6 +650,10 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
+	/**
+	 * Whether the process should be killed gracefully
+	 */
+	killGracefully?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -1009,6 +1014,17 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 * won't have shell integration in the end.
 	 */
 	UnsupportedShell = 'unsupportedShell',
+
+
+	/**
+	 * For zsh, we failed to set the sticky bit on the shell integration script folder.
+	 */
+	FailedToSetStickyBit = 'failedToSetStickyBit',
+
+	/**
+	 * For zsh, we failed to create a temp directory for the shell integration script.
+	 */
+	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
 export enum TerminalExitReason {

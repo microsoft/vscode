@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Text } from '../../textToken.js';
 import { Range } from '../../../core/range.js';
-import { BaseToken, Text } from '../../baseToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { FrontMatterMarker, TMarkerToken } from './frontMatterMarker.js';
@@ -43,22 +44,10 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
+	 * Content token of the Front Matter header.
 	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (!(other instanceof FrontMatterHeader)) {
-			return false;
-		}
-
-		if (this.text.length !== other.text.length) {
-			return false;
-		}
-
-		return (this.text === other.text);
+	public get contentToken(): Text {
+		return this.content;
 	}
 
 	/**
@@ -69,10 +58,14 @@ export class FrontMatterHeader extends MarkdownExtensionsToken {
 		contentTokens: readonly TSimpleDecoderToken[],
 		endMarkerTokens: readonly TMarkerToken[],
 	): FrontMatterHeader {
+		const range = BaseToken.fullRange(
+			[...startMarkerTokens, ...endMarkerTokens],
+		);
+
 		return new FrontMatterHeader(
-			BaseToken.fullRange([...startMarkerTokens, ...endMarkerTokens]),
+			range,
 			FrontMatterMarker.fromTokens(startMarkerTokens),
-			Text.fromTokens(contentTokens),
+			new Text(contentTokens),
 			FrontMatterMarker.fromTokens(endMarkerTokens),
 		);
 	}

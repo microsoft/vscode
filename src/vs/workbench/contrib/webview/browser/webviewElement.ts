@@ -419,6 +419,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.id,
+			parentId: targetWindow.vscodeWindowId.toString(),
 			origin: this.origin,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',

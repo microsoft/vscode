@@ -51,7 +51,8 @@ export const enum ColorTransformType {
 	Opaque,
 	OneOf,
 	LessProminent,
-	IfDefinedThenElse
+	IfDefinedThenElse,
+	Mix,
 }
 
 export type ColorTransform =
@@ -61,7 +62,8 @@ export type ColorTransform =
 	| { op: ColorTransformType.Opaque; value: ColorValue; background: ColorValue }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
-	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
+	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue }
+	| { op: ColorTransformType.Mix; color: ColorValue; with: ColorValue; ratio?: number };
 
 export interface ColorDefaults {
 	light: ColorValue | null;
@@ -255,6 +257,12 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme):
 
 		case ColorTransformType.Transparent:
 			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
+
+		case ColorTransformType.Mix: {
+			const primaryColor = resolveColorValue(transform.color, theme) || Color.transparent;
+			const otherColor = resolveColorValue(transform.with, theme) || Color.transparent;
+			return primaryColor.mix(otherColor, transform.ratio);
+		}
 
 		case ColorTransformType.Opaque: {
 			const backgroundColor = resolveColorValue(transform.background, theme);

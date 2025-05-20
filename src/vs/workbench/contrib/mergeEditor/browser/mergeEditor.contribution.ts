@@ -16,7 +16,7 @@ import {
 	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
 	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
 	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice,
-	AcceptAllCombination
+	AcceptAllCombination, ToggleBetweenInputs
 } from './commands/commands.js';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
 import { MergeEditorInput } from './mergeEditorInput.js';
@@ -88,6 +88,8 @@ registerAction2(ResetToBaseAndAutoMergeCommand);
 registerAction2(AcceptMerge);
 registerAction2(ResetCloseWithConflictsChoice);
 registerAction2(AcceptAllCombination);
+
+registerAction2(ToggleBetweenInputs);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);

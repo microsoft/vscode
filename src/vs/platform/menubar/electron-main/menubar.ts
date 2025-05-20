@@ -288,7 +288,7 @@ export class Menubar extends Disposable {
 			const dockMenu = new Menu();
 			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK }) }));
 
-			app.dock.setMenu(dockMenu);
+			app.dock!.setMenu(dockMenu);
 		}
 
 		// File
@@ -796,7 +796,7 @@ export class Menubar extends Disposable {
 			if (isMacintosh && !this.environmentMainService.isBuilt && !activeWindow.isReady) {
 				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
-					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
+					// we already register a keybinding in workbench.ts for opening developer tools in case something
 					// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
 					return false;
 				}

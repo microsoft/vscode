@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Tab extends SimpleToken {
+export class Tab extends SimpleToken<'\t'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -18,7 +18,7 @@ export class Tab extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '\t' {
 		return Tab.symbol;
 	}
 

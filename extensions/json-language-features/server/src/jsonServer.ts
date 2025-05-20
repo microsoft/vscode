@@ -80,6 +80,8 @@ export interface RuntimeEnvironment {
 	};
 }
 
+const sortCodeActionKind = CodeActionKind.Source.concat('.sort', '.json');
+
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
 	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
@@ -194,7 +196,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				interFileDependencies: false,
 				workspaceDiagnostics: false
 			},
-			codeActionProvider: true
+			codeActionProvider: {
+				codeActionKinds: [sortCodeActionKind]
+			}
 		};
 
 		return { capabilities };
@@ -446,7 +450,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(codeActionParams.textDocument.uri);
 			if (document) {
-				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source.concat('.sort', '.json'));
+				const sortCodeAction = CodeAction.create('Sort JSON', sortCodeActionKind);
 				sortCodeAction.command = {
 					command: 'json.sort',
 					title: l10n.t('Sort JSON')

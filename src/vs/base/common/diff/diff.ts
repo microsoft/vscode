@@ -94,7 +94,7 @@ class MyArray {
 	 * length:
 	 *		A 64-bit integer that represents the number of elements to copy.
 	 */
-	public static Copy(sourceArray: any[], sourceIndex: number, destinationArray: any[], destinationIndex: number, length: number) {
+	public static Copy(sourceArray: unknown[], sourceIndex: number, destinationArray: unknown[], destinationIndex: number, length: number) {
 		for (let i = 0; i < length; i++) {
 			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
 		}

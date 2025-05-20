@@ -25,6 +25,7 @@ import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDeta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 const $ = dom.$;
 
@@ -196,7 +197,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'listitem',
+				getRole: () => isWindows ? 'listitem' : 'option',
 				getWidgetAriaLabel: () => localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {

@@ -15,7 +15,7 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, Shel
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
-import { chmod, realpathSync } from 'fs';
+import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
@@ -242,8 +242,23 @@ export async function getShellIntegrationInjection(
 					const chmodAsync = promisify(chmod);
 					await chmodAsync(zdotdir, 0o1700);
 				} catch (err) {
+					if (err.message.includes('ENOENT')) {
+						try {
+							mkdirSync(zdotdir);
+						} catch (err) {
+							logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+						}
+						try {
+							const chmodAsync = promisify(chmod);
+							await chmodAsync(zdotdir, 0o1700);
+						} catch {
+							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
+						}
+					}
 					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
-					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 				}
 			}
 			envMixin['ZDOTDIR'] = zdotdir;

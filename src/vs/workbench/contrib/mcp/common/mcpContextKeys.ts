@@ -56,7 +56,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 				}
 
 				const toolState = s.toolsState.read(r);
-				return toolState === McpServerToolsState.Unknown || toolState === McpServerToolsState.RefreshingFromUnknown;
+				return toolState === McpServerToolsState.Unknown || toolState === McpServerToolsState.Outdated || toolState === McpServerToolsState.RefreshingFromUnknown;
 			}));
 		}));
 	}

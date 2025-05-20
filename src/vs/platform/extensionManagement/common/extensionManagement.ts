@@ -16,6 +16,7 @@ import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '.
 import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -381,7 +382,7 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	preferResourceApi?: boolean;
+	updateCheck?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {
@@ -595,6 +596,8 @@ export const IExtensionManagementService = createDecorator<IExtensionManagementS
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
+	readonly preferPreReleases: boolean;
+
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
@@ -611,7 +614,7 @@ export interface IExtensionManagementService {
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
-	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
@@ -700,7 +703,6 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
-export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
 export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 
@@ -777,3 +779,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			}
 		}
 	});
+
+export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryManifest: IExtensionGalleryManifest | null): boolean {
+	if (isPrivate) {
+		return galleryManifest?.capabilities.signing?.allPrivateRepositorySigned === true;
+	}
+	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
+}
+

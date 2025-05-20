@@ -127,11 +127,16 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
+export const enum MenuSettings {
+	MenuBarVisibility = 'window.menuBarVisibility'
+}
+
+
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>(MenuSettings.MenuBarVisibility);
 
 	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
@@ -429,4 +434,3 @@ export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 
 export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;
-export const DEFAULT_COMPACT_AUX_WINDOW_SIZE = { width: 640, height: 640 } as const;

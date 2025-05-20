@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IObservableWithChange, IObserver, IReader } from './base.js';
+import { IObservable, IObservableWithChange, IObserver, IReader, IReaderWithStore } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
 import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging/logging.js';
@@ -13,7 +13,7 @@ import { IChangeTracker } from './changeTracker.js';
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorun(fn: (reader: IReader) => void): IDisposable {
+export function autorun(fn: (reader: IReaderWithStore) => void): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(undefined, undefined, fn),
 		fn,
@@ -25,7 +25,7 @@ export function autorun(fn: (reader: IReader) => void): IDisposable {
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) => void): IDisposable {
+export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReaderWithStore) => void): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
 		fn,
@@ -87,6 +87,8 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 
 /**
  * @see autorun (but with a disposable store that is cleared before the next run or on dispose)
+ *
+ * @deprecated Use `autorun(reader => { reader.store.add(...) })` instead!
  */
 export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
@@ -162,7 +164,7 @@ export const enum AutorunState {
 	upToDate = 3,
 }
 
-export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader, IDisposable {
+export class AutorunObserver<TChangeSummary = any> implements IObserver, IReaderWithStore, IDisposable {
 	private _state = AutorunState.stale;
 	private _updateCount = 0;
 	private _disposed = false;
@@ -177,7 +179,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	constructor(
 		public readonly _debugNameData: DebugNameData,
-		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
+		public readonly _runFn: (reader: IReaderWithStore, changeSummary: TChangeSummary) => void,
 		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 	) {
 		this._changeSummary = this._changeTracker?.createChangeSummary(undefined);
@@ -197,6 +199,13 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		}
 		this._dependencies.clear();
 
+		if (this._store !== undefined) {
+			this._store.dispose();
+		}
+		if (this._delayedStore !== undefined) {
+			this._delayedStore.dispose();
+		}
+
 		getLogger()?.handleAutorunDisposed(this);
 		markAsDisposed(this);
 	}
@@ -212,17 +221,28 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			if (!this._disposed) {
 				getLogger()?.handleAutorunStarted(this);
 				const changeSummary = this._changeSummary!;
+				const delayedStore = this._delayedStore;
+				if (delayedStore !== undefined) {
+					this._delayedStore = undefined;
+				}
 				try {
 					this._isRunning = true;
 					if (this._changeTracker) {
 						this._changeTracker.beforeUpdate?.(this, changeSummary);
 						this._changeSummary = this._changeTracker.createChangeSummary(changeSummary); // Warning: external call!
 					}
+					if (this._store !== undefined) {
+						this._store.clear();
+					}
+
 					this._runFn(this, changeSummary); // Warning: external call!
 				} catch (e) {
 					onBugIndicatingError(e);
 				} finally {
 					this._isRunning = false;
+					if (delayedStore !== undefined) {
+						delayedStore.dispose();
+					}
 				}
 			}
 		} finally {
@@ -308,8 +328,12 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	// IReader implementation
 
-	public readObservable<T>(observable: IObservable<T>): T {
+	private _ensureNoRunning(): void {
 		if (!this._isRunning) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+	}
+
+	public readObservable<T>(observable: IObservable<T>): T {
+		this._ensureNoRunning();
 
 		// In case the run action disposes the autorun
 		if (this._disposed) {
@@ -321,6 +345,32 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		this._dependencies.add(observable);
 		this._dependenciesToBeRemoved.delete(observable);
 		return value;
+	}
+
+	private _store: DisposableStore | undefined = undefined;
+	get store(): DisposableStore {
+		this._ensureNoRunning();
+		if (this._disposed) {
+			throw new BugIndicatingError('Cannot access store after dispose');
+		}
+
+		if (this._store === undefined) {
+			this._store = new DisposableStore();
+		}
+		return this._store;
+	}
+
+	private _delayedStore: DisposableStore | undefined = undefined;
+	get delayedStore(): DisposableStore {
+		this._ensureNoRunning();
+		if (this._disposed) {
+			throw new BugIndicatingError('Cannot access store after dispose');
+		}
+
+		if (this._delayedStore === undefined) {
+			this._delayedStore = new DisposableStore();
+		}
+		return this._delayedStore;
 	}
 
 	public debugGetState() {

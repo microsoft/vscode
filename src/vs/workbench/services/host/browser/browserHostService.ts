@@ -97,6 +97,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.registerListeners();
 	}
 
+
 	private registerListeners(): void {
 
 		// Veto shutdown depending on `window.confirmBeforeClose` setting
@@ -648,6 +649,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			}
 		}
+	}
+
+	async getBrowserId(): Promise<string | undefined> {
+		return undefined;
 	}
 
 	//#endregion

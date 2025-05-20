@@ -221,7 +221,7 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 
 			assert(
 				receivedToken.equals(expectedToken),
-				`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}'.`,
+				`\nExpected token '${i}' to be:\n\n${expectedToken.text}\n(${expectedToken.range})\n\ngot:\n\n${receivedToken.text}\n(${receivedToken.range})\n`,
 			);
 		}
 

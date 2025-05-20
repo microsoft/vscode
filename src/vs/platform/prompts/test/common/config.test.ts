@@ -22,7 +22,7 @@ const createMock = <T>(value: T): IConfigurationService => {
 			);
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.LOCATIONS_KEY].includes(key),
+				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -34,12 +34,137 @@ const createMock = <T>(value: T): IConfigurationService => {
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('• enabled', () => {
+		test('• true', () => {
+			const configService = createMock(true);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				true,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• false', () => {
+			const configService = createMock(false);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• null', () => {
+			const configService = createMock(null);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• string', () => {
+			const configService = createMock('');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• true string', () => {
+			const configService = createMock('TRUE');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				true,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• false string', () => {
+			const configService = createMock('FaLsE');
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• number', () => {
+			const configService = createMock(randomInt(100));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• NaN', () => {
+			const configService = createMock(NaN);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• bigint', () => {
+			const configService = createMock(BigInt(randomInt(100)));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• symbol', () => {
+			const configService = createMock(Symbol('test'));
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• object', () => {
+			const configService = createMock({
+				'.github/prompts': false,
+			});
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+
+		test('• array', () => {
+			const configService = createMock(['.github/prompts']);
+
+			assert.strictEqual(
+				PromptsConfig.enabled(configService),
+				false,
+				'Must read correct enablement value.',
+			);
+		});
+	});
+
+
 	suite('• getLocationsValue', () => {
 		test('• undefined', () => {
 			const configService = createMock(undefined);
 
 			assert.strictEqual(
-				PromptsConfig.getLocationsValue(configService),
+				PromptsConfig.getLocationsValue(configService, 'prompt'),
 				undefined,
 				'Must read correct value.',
 			);
@@ -49,7 +174,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
-				PromptsConfig.getLocationsValue(configService),
+				PromptsConfig.getLocationsValue(configService, 'prompt'),
 				undefined,
 				'Must read correct value.',
 			);
@@ -58,7 +183,7 @@ suite('PromptsConfig', () => {
 		suite('• object', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.getLocationsValue(createMock({})),
+					PromptsConfig.getLocationsValue(createMock({}), 'prompt'),
 					{},
 					'Must read correct value.',
 				);
@@ -79,7 +204,7 @@ suite('PromptsConfig', () => {
 						'some/folder.with.dots/another.file': true,
 						'/var/logs/app.01.05.error': true,
 						'./.tempfile': true,
-					})),
+					}), 'prompt'),
 					{
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
@@ -123,7 +248,7 @@ suite('PromptsConfig', () => {
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					})),
+					}), 'prompt'),
 					{
 						'../assets/img/logo.v2.png': true,
 						'/mnt/storage/video.archive/episode.01.mkv': false,
@@ -150,7 +275,7 @@ suite('PromptsConfig', () => {
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					})),
+					}), 'prompt'),
 					{
 						'/mnt/storage/video.archive/episode.01.mkv': false,
 					},
@@ -165,7 +290,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(undefined);
 
 			assert.deepStrictEqual(
-				PromptsConfig.promptSourceFolders(configService),
+				PromptsConfig.promptSourceFolders(configService, 'prompt'),
 				[],
 				'Must read correct value.',
 			);
@@ -175,7 +300,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(null);
 
 			assert.deepStrictEqual(
-				PromptsConfig.promptSourceFolders(configService),
+				PromptsConfig.promptSourceFolders(configService, 'prompt'),
 				[],
 				'Must read correct value.',
 			);
@@ -184,7 +309,7 @@ suite('PromptsConfig', () => {
 		suite('object', () => {
 			test('empty', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.promptSourceFolders(createMock({})),
+					PromptsConfig.promptSourceFolders(createMock({}), 'prompt'),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
@@ -206,7 +331,7 @@ suite('PromptsConfig', () => {
 						'/var/logs/app.01.05.error': true,
 						'.GitHub/prompts': true,
 						'./.tempfile': true,
-					})),
+					}), 'prompt'),
 					[
 						'.github/prompts',
 						'/root/.bashrc',
@@ -254,7 +379,7 @@ suite('PromptsConfig', () => {
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					})),
+					}), 'prompt'),
 					[
 						'.github/prompts',
 						'../assets/img/logo.v2.png',
@@ -282,7 +407,7 @@ suite('PromptsConfig', () => {
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					})),
+					}), 'prompt'),
 					[
 						'.github/prompts',
 					],
@@ -317,7 +442,7 @@ suite('PromptsConfig', () => {
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					})),
+					}), 'prompt'),
 					[
 						'../assets/img/logo.v2.png',
 						'../.local/bin/script.sh',

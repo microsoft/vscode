@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line } from '../linesCodec/tokens/line.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
@@ -19,8 +18,11 @@ import {
 	Colon,
 	Slash,
 	Space,
+	Quote,
+	Comma,
 	FormFeed,
 	DollarSign,
+	DoubleQuote,
 	VerticalTab,
 	type TBracket,
 	LeftBracket,
@@ -42,9 +44,9 @@ import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
 /**
  * Type for all simple tokens.
  */
-export type TSimpleToken = Space | Tab | VerticalTab | At
+export type TSimpleToken = Space | Tab | VerticalTab | At | Quote | DoubleQuote
 	| CarriageReturn | NewLine | FormFeed | TBracket | TAngleBracket | TCurlyBrace
-	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign
+	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign | Comma
 	| TLineBreakToken;
 
 /**
@@ -58,9 +60,9 @@ export type TSimpleDecoderToken = TSimpleToken | Word;
  * an arbitrary "text" sequence and is emitted as a single {@link Word} token.
  */
 export const WELL_KNOWN_TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Object.freeze([
-	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket,
-	LeftCurlyBrace, RightCurlyBrace, LeftAngleBracket, RightAngleBracket,
-	Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash, ExclamationMark, At, Slash, DollarSign,
+	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket, LeftCurlyBrace, RightCurlyBrace,
+	LeftAngleBracket, RightAngleBracket, Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash,
+	ExclamationMark, At, Slash, DollarSign, Quote, DoubleQuote, Comma,
 ]);
 
 /**
@@ -97,11 +99,12 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 		while (i < lineText.length) {
 			// index is 0-based, but column numbers are 1-based
 			const columnNumber = i + 1;
+			const character = lineText[i];
 
 			// check if the current character is a well-known token
 			const tokenConstructor = WELL_KNOWN_TOKENS
 				.find((wellKnownToken) => {
-					return wellKnownToken.symbol === lineText[i];
+					return wellKnownToken.symbol === character;
 				});
 
 			// if it is a well-known token, emit it and continue to the next one

@@ -15,7 +15,7 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
@@ -142,6 +142,7 @@ class InputEditorDecorations extends Disposable {
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
 
 		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
 			const partIdx = parsedRequest.indexOf(part);
@@ -226,6 +227,10 @@ class InputEditorDecorations extends Disposable {
 			textDecorations.push({ range: slashCommandPart.editorRange });
 		}
 
+		if (slashPromptPart) {
+			textDecorations.push({ range: slashPromptPart.editorRange });
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
@@ -307,7 +312,7 @@ class ChatTokenDeleter extends Disposable {
 				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentMode });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestToolPart);
+				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
 				deletableTokens.forEach(token => {
 					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
