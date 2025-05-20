@@ -41,6 +41,7 @@ export class ScreenReaderSupport extends Disposable {
 	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
+	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
 	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
 	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
@@ -165,8 +166,6 @@ export class ScreenReaderSupport extends Disposable {
 		applyFontInfo(this._domNode, this._fontInfo);
 
 		console.log('width : ', width);
-		console.log('this._contentWidth : ', this._contentWidth);
-		console.log('this._contentLeft : ', this._contentLeft);
 		this._domNode.setTop(300);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
@@ -204,14 +203,17 @@ export class ScreenReaderSupport extends Disposable {
 		if (isScreenReaderOptimized) {
 			const primarySelection = this._primarySelection;
 			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);
-			//if (!this._screenReaderContentState) {
-			const renderedLines = this._renderScreenReaderContent(screenReaderContentState);
-			this._screenReaderContentState = screenReaderContentState;
-			this._renderedLines = renderedLines;
-			//}
-			// if (noChangeToScreenReaderContent && this._screenReaderContentState.equals(screenReaderContentState)) {
-			//	return;
-			// }
+			let wasContentChange: boolean = false;
+			if (!this._screenReaderContentState) {
+				const renderedLines = this._renderScreenReaderContent(screenReaderContentState);
+				this._screenReaderContentState = screenReaderContentState;
+				this._renderedLines = renderedLines;
+				wasContentChange = true;
+			}
+			if (!wasContentChange && this._renderedSelection.equalsSelection(primarySelection)) {
+				return;
+			}
+			this._renderedSelection = primarySelection;
 			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines!, this._primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
