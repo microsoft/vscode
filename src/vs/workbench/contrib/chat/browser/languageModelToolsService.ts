@@ -367,7 +367,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
 		const hasFocusedWindow = getFocusedWindow();
 		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || hasFocusedWindow))) {
+		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
 		}
 	}
