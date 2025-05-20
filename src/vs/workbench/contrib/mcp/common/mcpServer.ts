@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
+import { AsyncIterableObject, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,7 +29,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 type ServerBootData = {
@@ -183,6 +183,47 @@ class CachedPrimitive<T, C> {
 }
 
 export class McpServer extends Disposable implements IMcpServer {
+	/**
+	 * Helper function to call the function on the handler once it's online. The
+	 * connection started if it is not already.
+	 */
+	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
+		await server.start(); // idempotent
+
+		let ranOnce = false;
+		let d: IDisposable;
+
+		const callPromise = new Promise<R>((resolve, reject) => {
+
+			d = autorun(reader => {
+				const connection = server.connection.read(reader);
+				if (!connection || ranOnce) {
+					return;
+				}
+
+				const handler = connection.handler.read(reader);
+				if (!handler) {
+					const state = connection.state.read(reader);
+					if (state.state === McpConnectionState.Kind.Error) {
+						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
+						return;
+					} else if (state.state === McpConnectionState.Kind.Stopped) {
+						reject(new McpConnectionFailedError('MCP server has stopped'));
+						return;
+					} else {
+						// keep waiting for handler
+						return;
+					}
+				}
+
+				resolve(fn(handler));
+				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
+			});
+		});
+
+		return raceCancellationError(callPromise, token).finally(() => d.dispose());
+	}
+
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
 
@@ -331,6 +372,20 @@ export class McpServer extends Disposable implements IMcpServer {
 	public showOutput(): void {
 		this._loggerService.setVisibility(this._loggerId, true);
 		this._outputService.showChannel(this._loggerId);
+	}
+
+	public resources(token?: CancellationToken): AsyncIterable<IMcpResource[]> {
+		const cts = new CancellationTokenSource(token);
+		return new AsyncIterableObject<IMcpResource[]>(async emitter => {
+			await McpServer.callOn(this, async (handler) => {
+				for await (const resource of handler.listResourcesIterable({}, cts.token)) {
+					emitter.emitOne(resource.map(r => new McpResource(this, r)));
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+				}
+			});
+		}, () => cts.dispose(true));
 	}
 
 	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
@@ -560,47 +615,6 @@ export class McpServer extends Disposable implements IMcpServer {
 			});
 		});
 	}
-
-	/**
-	 * Helper function to call the function on the handler once it's online. The
-	 * connection started if it is not already.
-	 */
-	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
-		await this.start(); // idempotent
-
-		let ranOnce = false;
-		let d: IDisposable;
-
-		const callPromise = new Promise<R>((resolve, reject) => {
-
-			d = autorun(reader => {
-				const connection = this._connection.read(reader);
-				if (!connection || ranOnce) {
-					return;
-				}
-
-				const handler = connection.handler.read(reader);
-				if (!handler) {
-					const state = connection.state.read(reader);
-					if (state.state === McpConnectionState.Kind.Error) {
-						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
-						return;
-					} else if (state.state === McpConnectionState.Kind.Stopped) {
-						reject(new McpConnectionFailedError('MCP server has stopped'));
-						return;
-					} else {
-						// keep waiting for handler
-						return;
-					}
-				}
-
-				resolve(fn(handler));
-				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
-			});
-		});
-
-		return raceCancellationError(callPromise, token).finally(() => d.dispose());
-	}
 }
 
 class McpPrompt implements IMcpPrompt {
@@ -620,7 +634,7 @@ class McpPrompt implements IMcpPrompt {
 	}
 
 	async resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]> {
-		const result = await this._server.callOn(h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
+		const result = await McpServer.callOn(this._server, h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
 		return result.messages;
 	}
 }
@@ -642,7 +656,7 @@ export class McpTool implements IMcpTool {
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		return this._server.callOn(h => h.callTool({ name, arguments: params }, token), token);
+		return McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
 	}
 
 	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
@@ -654,7 +668,7 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
-		return this._server.callOn(h => {
+		return McpServer.callOn(this._server, h => {
 			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
@@ -709,4 +723,23 @@ function warnInvalidTools(instaService: IInstantiationService, serverName: strin
 			}
 		});
 	});
+}
+
+class McpResource implements IMcpResource {
+	uri: URI;
+	name: string;
+	description: string | undefined;
+	mimeType: string | undefined;
+	sizeInBytes: number | undefined;
+
+	constructor(
+		server: McpServer,
+		original: MCP.Resource,
+	) {
+		this.uri = McpResourceURI.fromServer(server.definition, original.uri);
+		this.name = original.name;
+		this.description = original.description;
+		this.mimeType = original.mimeType;
+		this.sizeInBytes = original.size;
+	}
 }
