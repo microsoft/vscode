@@ -10,6 +10,7 @@ import { assertNever } from '../../../../../../../../base/common/assert.js';
 import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { TDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../../parsers/promptHeader/diagnostics.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -32,7 +33,10 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	protected override onPromptSettled(): this {
+	protected override onPromptSettled(
+		_error: Error | undefined,
+		token: CancellationToken,
+	): this {
 		// clean up all previously added markers
 		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
@@ -44,6 +48,12 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		// header parsing process is separate from the prompt parsing one, hence
 		// apply markers only after the header is settled and so has diagnostics
 		header.settled.then(() => {
+			// by the time the promise finishes, the token might have been cancelled
+			// already due to a new 'onSettle' event, hence don't apply outdated markers
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			const markers: IMarkerData[] = [];
 			for (const diagnostic of header.diagnostics) {
 				markers.push(toMarker(diagnostic));
