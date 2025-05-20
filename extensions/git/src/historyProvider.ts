@@ -242,7 +242,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		// Deduplicate refNames
 		const refNames = Array.from(new Set<string>(options.historyItemRefs));
 
-		let logOptions: LogOptions = { refNames, grep: options.filterText, shortStats: true };
+		let logOptions: LogOptions = { refNames, shortStats: true };
 
 		try {
 			if (options.limit === undefined || typeof options.limit === 'number') {
@@ -257,6 +257,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 			if (typeof options.skip === 'number') {
 				logOptions = { ...logOptions, skip: options.skip };
+			}
+
+			if (typeof options.filterText === 'string' && options.filterText !== '') {
+				logOptions = { ...logOptions, grep: options.filterText };
 			}
 
 			const commits = await this.repository.log({ ...logOptions, silent: true });

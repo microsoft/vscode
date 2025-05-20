@@ -51,7 +51,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly label = localize('chatContext.scmHistoryItems', 'Source Control History Items...');
 	readonly icon = Codicon.gitCommit;
 
-	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(500);
+	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(400);
 
 	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
 		const historyItemTitle = getHistoryItemEditorTitle(historyItem);
@@ -78,7 +78,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 	asPicker(_widget: IChatWidget) {
 		return {
-			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a source control history item (type to search)'),
+			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change to attach (type to search)'),
 			picks: async (query: string) => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
@@ -87,8 +87,6 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 				}
 
 				return this._delayer.trigger(async () => {
-					console.log('trigger: ', query);
-
 					const historyItemRefs = coalesce([
 						historyProvider.historyItemRef.get(),
 						historyProvider.historyItemRemoteRef.get(),
@@ -100,8 +98,6 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 						filterText: query.trim() !== '' ? query.trim() : undefined,
 						limit: 100
 					}) ?? [];
-
-					console.log('historyItems: ', historyItems);
 
 					return historyItems.map(historyItem => {
 						const details = [`${historyItem.displayId ?? historyItem.id}`];

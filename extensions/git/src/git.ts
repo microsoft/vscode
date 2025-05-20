@@ -885,7 +885,6 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
-	console.log('data: ', data);
 	const commits: Commit[] = [];
 
 	let ref;
@@ -925,7 +924,6 @@ export function parseGitCommits(data: string): Commit[] {
 		});
 	} while (true);
 
-	console.log('Parsed commits:', commits.length);
 	return commits;
 }
 
