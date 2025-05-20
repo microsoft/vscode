@@ -37,7 +37,7 @@ export class TerminalDataBufferer implements IDisposable {
 			const timeoutId = setTimeout(() => this.flushBuffer(id), throttleBy);
 			buffer = {
 				data: [data],
-				timeoutId: timeoutId,
+				timeoutId,
 				dispose: () => {
 					clearTimeout(timeoutId);
 					this.flushBuffer(id);

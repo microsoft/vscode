@@ -111,7 +111,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: Timeout | null = null;
+	private _titleInterval: Timeout | undefined;
 	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
@@ -197,7 +197,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
 				clearInterval(this._titleInterval);
-				this._titleInterval = null;
+				this._titleInterval = undefined;
 			}
 		}));
 	}
