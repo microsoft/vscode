@@ -1953,6 +1953,21 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 //#endregion
 
+//#region renderComplexScreenReaderContent
+
+class RenderComplexScreenReaderContent extends ComputedEditorOption<EditorOption.renderComplexScreenReaderContent, boolean> {
+
+	constructor() {
+		super(EditorOption.renderComplexScreenReaderContent);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -5549,6 +5564,7 @@ export const enum EditorOption {
 	readOnly,
 	readOnlyMessage,
 	renameOnType,
+	renderComplexScreenReaderContent,
 	renderControlCharacters,
 	renderFinalNewline,
 	renderLineHighlight,
@@ -5607,7 +5623,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveExperimentalEditContextEnabled,
+	effectiveRenderComplexScreenReaderContent
 }
 
 export const EditorOptions = {
@@ -5878,6 +5895,13 @@ export const EditorOptions = {
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
+		}
+	)),
+	renderComplexScreenReaderContent: register(new EditorBooleanOption(
+		EditorOption.renderComplexScreenReaderContent, 'renderComplexScreenReaderContent', product.quality !== 'stable',
+		{
+			description: nls.localize('renderComplexScreenReaderContent', "Whether to render complex screen reader content."),
+			included: (platform.isChrome || platform.isEdge || platform.isNative) && platform.isWindows
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
@@ -6440,7 +6464,8 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled()),
+	renderComplexScreenReaderContent: register(new RenderComplexScreenReaderContent())
 };
 
 type EditorOptionsType = typeof EditorOptions;
