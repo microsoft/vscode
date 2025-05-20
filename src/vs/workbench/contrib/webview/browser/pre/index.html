@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-nlLyDpnjtftJG2xvXh2vuy77l7xFTjfOz7Jnj1iXNmA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-8TXwJF4lf6BC+0Kve/BD7lzDnK4M7vmJ802hpOYmdlg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -36,6 +36,8 @@
 		const onElectron = searchParams.get('platform') === 'electron';
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
 
 		/**
 		 * Use polling to track focus of main webview and iframes within the webview
@@ -236,7 +238,7 @@
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&id=${ID}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
 			navigator.serviceWorker.register(swPath)
 				.then(async registration => {
 					/**
@@ -265,7 +267,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -1202,6 +1205,17 @@
 					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 
