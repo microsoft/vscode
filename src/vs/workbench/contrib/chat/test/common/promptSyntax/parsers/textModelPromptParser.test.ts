@@ -515,11 +515,11 @@ suite('TextModelPromptParser', () => {
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticError(
 						new Range(2, 15, 2, 15 + 4),
-						'Value of the \'description\' metadata must be \'string\', got \'boolean\'.',
+						'The \'description\' metadata must be a \'string\', got \'boolean\'.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(4, 2, 4, 2 + 15),
-						'Unknown metadata record \'something\' will be ignored.',
+						'Unknown metadata \'something\' will be ignored.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 38, 5, 38 + 12),
@@ -543,15 +543,15 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(3, 2, 3, 2 + 11),
-						'Record \'mode\' is implied to have the \'agent\' value if \'tools\' record is present so the specified value will be ignored.',
+						`Record 'mode' is implied to have the 'agent' value if 'tools' record is present so the specified value will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(6, 3, 6, 3 + 37),
-						'Duplicate metadata record \'tools\' will be ignored.',
+						`Duplicate metadata 'tools' will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(7, 1, 7, 1 + 19),
-						'Duplicate metadata record \'tools\' will be ignored.',
+						`Duplicate metadata 'tools' will be ignored.`,
 					),
 				]);
 			});
@@ -711,7 +711,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 7, 2, 7 + 9),
-								'Value of the \'mode\' metadata must be one of \'ask\' | \'edit\' | \'agent\', got \'my-mode\'.',
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my-mode'.`,
 							),
 						]);
 					});
@@ -745,7 +745,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 7, 2, 7 + 6),
-								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'myMode'.`,
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'myMode'.`,
 							),
 						]);
 					});
@@ -779,7 +779,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 7, 2, 7 + 20),
-								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my mode is your mode'.`,
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my mode is your mode'.`,
 							),
 						]);
 					});
@@ -815,7 +815,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 9, 2, 9 + `${booleanValue}`.length),
-								`Value of the 'mode' metadata must be 'string', got 'boolean'.`,
+								`The 'mode' metadata must be a 'string', got 'boolean'.`,
 							),
 						]);
 					});
@@ -853,7 +853,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 8, 2, 8 + `${quotedString}`.length),
-								'Value of the \'mode\' metadata must be one of \'ask\' | \'edit\' | \'agent\', got \'\'.',
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
 							),
 						]);
 					});
@@ -891,7 +891,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 8, 2, 8),
-								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
 							),
 						]);
 					});
@@ -925,7 +925,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 8, 2, 8),
-								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
 							),
 						]);
 					});
@@ -1121,8 +1121,8 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(3, 10, 3, 10 + value.length),
-								`Value of the 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
+								new Range(3, 10, 3, 10 + value.trim().length),
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
 							),
 						]);
 					});
@@ -1164,7 +1164,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 14, 2, 14 + 29),
-								'Value of the \'description\' metadata must be \'string\', got \'array\'.',
+								`The 'description' metadata must be a 'string', got 'array'.`,
 							),
 						]);
 					});

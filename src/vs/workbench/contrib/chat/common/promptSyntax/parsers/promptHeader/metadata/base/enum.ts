@@ -67,7 +67,7 @@ export abstract class PromptEnumMetadata<
 				this.valueToken.range,
 				localize(
 					'prompt.header.metadata.enum.diagnostics.invalid-value',
-					"Value of the '{0}' metadata must be one of {1}, got '{2}'.",
+					"The '{0}' metadata must be one of {1}, got '{2}'.",
 					this.recordName,
 					this.validValues
 						.map((value) => {
