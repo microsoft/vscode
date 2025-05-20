@@ -5,13 +5,13 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
@@ -27,7 +27,6 @@ import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
@@ -77,8 +76,7 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		private readonly _viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(context);
 
@@ -102,7 +100,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
 			if (newFocusValue) {
-				this._selectionChangeListener.value = this._setSelectionChangeListener(this._viewController);
+				// this._selectionChangeListener.value = this._setSelectionChangeListener(this._viewController);
 				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
 			} else {
 				this._selectionChangeListener.value = undefined;
@@ -565,6 +563,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
+	/*
 	private _setSelectionChangeListener(viewController: ViewController): IDisposable {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
@@ -632,4 +631,5 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.setSelection(newSelection);
 		});
 	}
+	*/
 }

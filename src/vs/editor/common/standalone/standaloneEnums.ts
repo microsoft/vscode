@@ -331,8 +331,7 @@ export enum EditorOption {
 	defaultColorDecorators = 155,
 	colorDecoratorsActivatedOn = 156,
 	inlineCompletionsAccessibilityVerbose = 157,
-	effectiveExperimentalEditContextEnabled = 158,
-	effectiveRenderComplexScreenReaderContent = 159
+	effectiveExperimentalEditContextEnabled = 158
 }
 
 /**

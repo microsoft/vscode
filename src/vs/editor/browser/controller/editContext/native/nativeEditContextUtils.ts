@@ -5,10 +5,8 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { Range } from '../../../../common/core/range.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
 
 export interface ITypeData {
 	text: string;
@@ -84,4 +82,17 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 			target.removeEventListener(type, listener as any);
 		}
 	};
+}
+
+export interface IScreenReaderContent {
+
+	onConfigurationChanged(options: IComputedEditorOptions): void;
+
+	setIgnoreSelectionChangeTime(reason: string): void;
+
+	getIgnoreSelectionChangeTime(): number;
+
+	resetSelectionChangeTime(): void;
+
+	writeScreenReaderContent(primarySelection: Selection): void;
 }

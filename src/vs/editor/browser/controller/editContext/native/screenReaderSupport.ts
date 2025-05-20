@@ -3,28 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
-import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../common/config/fontInfo.js';
-import { Position } from '../../../../common/core/position.js';
-import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { StringBuilder } from '../../../../common/core/stringBuilder.js';
-import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
-import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
-import { ariaLabelForScreenReaderContent, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
-
+import { ariaLabelForScreenReaderContent } from '../screenReaderUtils.js';
+import { IScreenReaderContent } from './nativeEditContextUtils.js';
+import { ComplexScreenReaderContent } from './screenReaderContentComplex.js';
+import { SimpleScreenReaderContent } from './screenReaderContentSimple.js';
 
 export class ScreenReaderSupport {
 
@@ -33,12 +27,10 @@ export class ScreenReaderSupport {
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
 	private _fontInfo!: FontInfo;
-	private _accessibilityPageSize: number = 1;
-	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
+	private _screenReaderContent: IScreenReaderContent;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -48,21 +40,28 @@ export class ScreenReaderSupport {
 	) {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
+		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
+		if (renderComplexScreenReaderContent) {
+			this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+		} else {
+			this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+		}
 	}
 
 	public setIgnoreSelectionChangeTime(reason: string): void {
-		this._ignoreSelectionChangeTime = Date.now();
+		this._screenReaderContent.setIgnoreSelectionChangeTime(reason);
 	}
 
 	public getIgnoreSelectionChangeTime(): number {
-		return this._ignoreSelectionChangeTime;
+		return this._screenReaderContent.getIgnoreSelectionChangeTime();
 	}
 
 	public resetSelectionChangeTime(): void {
-		this._ignoreSelectionChangeTime = 0;
+		this._screenReaderContent.resetSelectionChangeTime();
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
+		this._screenReaderContent.onConfigurationChanged(this._context.configuration.options);
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -77,7 +76,6 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
 	private _updateDomAttributes(): void {
@@ -107,10 +105,6 @@ export class ScreenReaderSupport {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._screenReaderContentState) {
-			return;
-		}
-
 		if (!this._primaryCursorVisibleRange) {
 			// The primary cursor is outside the viewport => place textarea to the top left
 			this._renderAtTopLeft();
@@ -173,10 +167,7 @@ export class ScreenReaderSupport {
 		}
 	}
 
-	public writeScreenReaderContent(): void { }
-
-	public get screenReaderContentState(): NativeEditContextScreenReaderContentState | undefined {
-		return this._screenReaderContentState;
+	public writeScreenReaderContent(): void {
+		this._screenReaderContent.writeScreenReaderContent(this._primarySelection);
 	}
-
 }

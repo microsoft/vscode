@@ -3827,6 +3827,10 @@ declare namespace monaco.editor {
 		 */
 		experimentalEditContextEnabled?: boolean;
 		/**
+		 * Controls whether we should render complex screen reader content when the EditContext is enabled
+		 */
+		renderComplexScreenReaderContent?: boolean;
+		/**
 		 * Controls support for changing how content is pasted into the editor.
 		 */
 		pasteAs?: IPasteAsOptions;
@@ -5065,8 +5069,7 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 155,
 		colorDecoratorsActivatedOn = 156,
 		inlineCompletionsAccessibilityVerbose = 157,
-		effectiveExperimentalEditContextEnabled = 158,
-		effectiveRenderComplexScreenReaderContent = 159
+		effectiveExperimentalEditContextEnabled = 158
 	}
 
 	export const EditorOptions: {

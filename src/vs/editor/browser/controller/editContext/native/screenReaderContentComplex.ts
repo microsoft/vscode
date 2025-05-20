@@ -7,8 +7,7 @@ import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Range } from '../../../../common/core/range.js';
@@ -19,11 +18,14 @@ import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { IPagedScreenReaderStrategy, ISimpleScreenReaderContext } from '../screenReaderUtils.js';
+import { IScreenReaderContent } from './nativeEditContextUtils.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
-export class ComplexScreenReaderContent {
+export class ComplexScreenReaderContent implements IScreenReaderContent {
 
+	private _accessibilityPageSize: number = 1;
+	private _ignoreSelectionChangeTime: number = 0;
 	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: NativeEditContextScreenReaderContentState | undefined;
@@ -32,9 +34,24 @@ export class ComplexScreenReaderContent {
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
 		private readonly _context: ViewContext,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) { }
+
+	public onConfigurationChanged(options: IComputedEditorOptions): void {
+		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+	}
+
+	public setIgnoreSelectionChangeTime(reason: string): void {
+		this._ignoreSelectionChangeTime = Date.now();
+	}
+
+	public getIgnoreSelectionChangeTime(): number {
+		return this._ignoreSelectionChangeTime;
+	}
+
+	public resetSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = 0;
+	}
 
 	public writeScreenReaderContent(primarySelection: Selection): void {
 		const focusedElement = getActiveWindow().document.activeElement;
@@ -55,7 +72,7 @@ export class ComplexScreenReaderContent {
 				return;
 			}
 			this._renderedSelection = primarySelection;
-			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines!, this._primarySelection);
+			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines!, primarySelection);
 		} else {
 			this._screenReaderContentState = undefined;
 			this.setIgnoreSelectionChangeTime('setValue');
