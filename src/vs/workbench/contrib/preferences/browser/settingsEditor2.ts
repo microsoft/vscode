@@ -184,6 +184,7 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTree!: TOCTree;
 
 	private searchDelayer: Delayer<void>;
+	private aiSearchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -256,6 +257,7 @@ export class SettingsEditor2 extends EditorPane {
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(300);
+		this.aiSearchDelayer = new Delayer(2000);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
@@ -1646,6 +1648,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 
 			this.searchDelayer.cancel();
+			this.aiSearchDelayer.cancel();
 			if (this.searchInProgress) {
 				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
@@ -1728,24 +1731,26 @@ export class SettingsEditor2 extends EditorPane {
 			this.onDidFinishSearch(expandResults);
 
 			if (remoteResults?.filterMatches.length) {
-				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
-					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
-					if (!searchInProgress.token.isCancellationRequested) {
-						if (rankedResults === null) {
-							this.logService.trace('No ranked results found');
-						} else {
-							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
-							// Make a suggestion if the setting isn't in the top five results.
-							const firstFewResults = new Set([
-								...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
-								...(remoteResults.filterMatches.map(m => m.setting.key))
-							].slice(0, 5));
-							const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
-							this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
-							this.setSearchSuggestions(suggestedResults);
+				this.aiSearchDelayer.trigger(async () => {
+					if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
+						const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
+						if (!searchInProgress.token.isCancellationRequested) {
+							if (rankedResults === null) {
+								this.logService.trace('No ranked results found');
+							} else {
+								this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+								// Make a suggestion if the setting isn't in the top five results.
+								const firstFewResults = new Set([
+									...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
+									...(remoteResults.filterMatches.map(m => m.setting.key))
+								].slice(0, 5));
+								const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
+								this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
+								this.setSearchSuggestions(suggestedResults);
+							}
 						}
 					}
-				}
+				});
 			}
 		});
 	}
