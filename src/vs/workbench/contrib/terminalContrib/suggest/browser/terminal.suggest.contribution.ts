@@ -9,7 +9,7 @@ import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,6 +37,7 @@ import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { env } from '../../../../../base/common/process.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -159,14 +160,15 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	// TODO: Eventually support multiple LSP providers for non-Python REPLs.
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		const isWSL =
-			process.platform === 'linux' &&
+		const isWsl =
+			isLinux &&
 			(
-				!!process.env.WSL_DISTRO_NAME ||
-				!!process.env.WSL_INTEROP
+				!!env['WSL_DISTRO_NAME'] ||
+				!!env['WSL_INTEROP']
 			);
+
 		// Windows, WSL currently does not support shell integration for Python REPL.
-		if (isWindows || isWSL) {
+		if (isWindows || isWsl) {
 			return;
 		}
 
