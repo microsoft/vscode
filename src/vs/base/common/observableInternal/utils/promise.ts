@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IObservable, observableValue, transaction } from './base.js';
-import { derived } from './derived.js';
+import { IObservable } from '../base.js';
+import { transaction } from '../transaction.js';
+import { derived } from '../observables/derived.js';
+import { observableValue } from '../observables/observableValue.js';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -21,7 +23,7 @@ export class ObservableLazy<T> {
 	 * Returns the cached value.
 	 * Computes the value if the value has not been cached yet.
 	 */
-	public getValue() {
+	public getValue(): T {
 		let v = this._value.get();
 		if (!v) {
 			v = this._computeValue();
