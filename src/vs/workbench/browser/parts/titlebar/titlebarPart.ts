@@ -8,11 +8,11 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
@@ -258,7 +258,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
-	protected customMenubar: CustomMenubarControl | undefined;
+	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
@@ -359,7 +359,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Custom menu bar (disabled if auxiliary)
 		if (!this.isAuxiliary && !hasNativeTitlebar(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
-			if (event.affectsConfiguration('window.menuBarVisibility')) {
+			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
 				} else {
@@ -409,19 +409,18 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return; // If the menubar is already installed, skip
 		}
 
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.customMenubar.value = this.instantiationService.createInstance(CustomMenubarControl);
 
 		this.menubar = append(this.leftContent, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');
 
-		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this._register(this.customMenubar.value.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 
-		this.customMenubar.create(this.menubar);
+		this.customMenubar.value.create(this.menubar);
 	}
 
 	private uninstallMenubar(): void {
-		this.customMenubar?.dispose();
-		this.customMenubar = undefined;
+		this.customMenubar.value = undefined;
 
 		this.menubar?.remove();
 		this.menubar = undefined;
@@ -852,16 +851,16 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 			this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
 
-			if (this.customMenubar) {
+			if (this.customMenubar.value) {
 				const menubarDimension = new Dimension(0, dimension.height);
-				this.customMenubar.layout(menubarDimension);
+				this.customMenubar.value.layout(menubarDimension);
 			}
 		}
 	}
 
 	focus(): void {
-		if (this.customMenubar) {
-			this.customMenubar.toggleFocus();
+		if (this.customMenubar.value) {
+			this.customMenubar.value.toggleFocus();
 		} else {
 			(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 		}

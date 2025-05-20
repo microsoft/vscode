@@ -6,6 +6,7 @@
 import { ObjectStream } from '../utils/objectStream.js';
 import { VALID_SPACE_TOKENS } from './constants.js';
 import { Word } from '../simpleCodec/tokens/index.js';
+import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
@@ -102,6 +103,13 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 				return;
 			}
 
+			assert(
+				this.current instanceof PartialFrontMatterRecord,
+				'Only partial front matter records can be processed on stream end.',
+			);
+
+			this._onData.fire(this.current.asRecordToken());
+		} catch (_error) {
 			this.reEmitCurrentTokens();
 		} finally {
 			delete this.current;

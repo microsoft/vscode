@@ -50,7 +50,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
-import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
@@ -530,6 +530,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push({ kind: 'codeCitations', citations: element.codeCitations });
 		}
 
+		if (element.errorDetails?.message) {
+			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails });
+		}
+
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
 		if (!isFiltered) {
 			const diff = this.diff(templateData.renderedParts ?? [], content, element);
@@ -540,21 +544,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				dispose(templateData.renderedParts);
 			}
 			templateData.renderedParts = [];
-		}
-
-
-		if (element.errorDetails?.message) {
-			if (element.errorDetails.isQuotaExceeded) {
-				const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, element, this.renderer);
-				templateData.elementDisposables.add(renderedError);
-				templateData.value.appendChild(renderedError.domNode);
-				templateData.elementDisposables.add(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
-			} else {
-				const level = element.errorDetails.level ?? (element.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
-				const renderedError = this.instantiationService.createInstance(ChatWarningContentPart, level, new MarkdownString(element.errorDetails.message), this.renderer);
-				templateData.elementDisposables.add(renderedError);
-				templateData.value.appendChild(renderedError.domNode);
-			}
 		}
 
 		this.updateItemHeightOnRender(element, templateData);
@@ -916,7 +905,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'confirmation') {
 				return this.renderConfirmation(context, content, templateData);
 			} else if (content.kind === 'warning') {
-				return this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Warning, content.content, this.renderer);
+				return this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Warning, content.content, content, this.renderer);
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
@@ -931,17 +920,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderWorkingProgress(content, context);
 			} else if (content.kind === 'undoStop') {
 				return this.renderUndoStop(content);
+			} else if (content.kind === 'errorDetails') {
+				return this.renderChatErrorDetails(context, content, templateData);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
 		} catch (err) {
 			this.logService.error('ChatListItemRenderer#renderChatContentPart: error rendering content', toErrorMessage(err, true));
-			const errorPart = this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content")), this.renderer);
+			const errorPart = this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content")), content, this.renderer);
 			return {
 				dispose: () => errorPart.dispose(),
 				domNode: errorPart.domNode,
 				hasSameContent: (other => content.kind === other.kind),
 			};
+		}
+	}
+
+	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
+		if (!isResponseVM(context.element)) {
+			return this.renderNoContent(other => content.kind === other.kind);
+		}
+
+		if (content.errorDetails.isQuotaExceeded) {
+			const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, context.element, content, this.renderer);
+			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+			return renderedError;
+		} else {
+			const level = content.errorDetails.level ?? (content.errorDetails.responseIsFiltered ? ChatErrorLevel.Info : ChatErrorLevel.Error);
+			return this.instantiationService.createInstance(ChatWarningContentPart, level, new MarkdownString(content.errorDetails.message), content, this.renderer);
 		}
 	}
 

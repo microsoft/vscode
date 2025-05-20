@@ -26,9 +26,10 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IOutputService } from '../../../services/output/common/output.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
+import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 type ServerBootData = {
@@ -198,12 +199,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._prompts.value;
 	}
 
+	private readonly _fullDefinitions: IObservable<{
+		server: McpServerDefinition | undefined;
+		collection: McpCollectionDefinition | undefined;
+	}>;
+
 	public readonly toolsState = derived(reader => {
-		const currentNonce = () => this._mcpRegistry.collections.read(reader)
-			.find(c => c.id === this.collection.id)
-			?.serverDefinitions.read(reader)
-			.find(d => d.id === this.definition.id)
-			?.cacheNonce;
+		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
 		const stateWhenServingFromCache = () => {
 			if (!this._tools.fromCache) {
 				return McpServerToolsState.Unknown;
@@ -233,6 +235,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
+	private _lastModeDebugged = false;
 
 	public get trusted() {
 		return this._mcpRegistry.getTrust(this.collection);
@@ -257,8 +260,13 @@ export class McpServer extends Disposable implements IMcpServer {
 	) {
 		super();
 
+		this._fullDefinitions = this._mcpRegistry.getServerDefinition(this.collection, this.definition);
 		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
+
+		const that = this;
+		this._register(this._instantiationService.createInstance(McpDevModeServerAttache, this, { get lastModeDebugged() { return that._lastModeDebugged; } }));
+
 		// If the logger is disposed but not deregistered, then the disposed instance
 		// is reused and no-ops. todo@sandy081 this seems like a bug.
 		this._register(toDisposable(() => _loggerService.deregisterLogger(this._loggerId)));
@@ -316,17 +324,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		);
 	}
 
+	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+		return this._fullDefinitions;
+	}
+
 	public showOutput(): void {
 		this._loggerService.setVisibility(this._loggerId, true);
 		this._outputService.showChannel(this._loggerId);
 	}
 
-	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
+	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
 			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
 				await this._extensionService.activateByEvent(activationEvent);
-				await Promise.all(this._mcpRegistry.delegates
+				await Promise.all(this._mcpRegistry.delegates.get()
 					.map(r => r.waitForInitialProviderPromises()));
 				// This can happen if the server was created from a cached MCP server seen
 				// from an extension, but then it wasn't registered when the extension activated.
@@ -343,11 +355,13 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			if (!connection) {
+				this._lastModeDebugged = !!debug;
 				connection = await this._mcpRegistry.resolveConnection({
 					logger: this._logger,
 					collectionRef: this.collection,
 					definitionRef: this.definition,
 					forceTrust: isFromInteraction,
+					debug,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
@@ -361,6 +375,10 @@ export class McpServer extends Disposable implements IMcpServer {
 				this._connection.set(connection, undefined);
 			}
 
+			if (isFromInteraction && connection.definition.devMode) {
+				this.showOutput();
+			}
+
 			const start = Date.now();
 			const state = await connection.start();
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
@@ -369,14 +387,14 @@ export class McpServer extends Disposable implements IMcpServer {
 			});
 
 			if (state.state === McpConnectionState.Kind.Error && isFromInteraction) {
-				this.showInteractiveError(connection, state);
+				this.showInteractiveError(connection, state, debug);
 			}
 
 			return state;
 		});
 	}
 
-	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error) {
+	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
 		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
 			let docsLink: string | undefined;
 			switch (cnx.launchDefinition.command) {
@@ -392,6 +410,14 @@ export class McpServer extends Disposable implements IMcpServer {
 				label: localize('mcp.command.showOutput', "Show Output"),
 				run: () => this.showOutput(),
 			}];
+
+			if (cnx.definition.devMode?.debug?.type === 'debugpy' && debug) {
+				this._notificationService.prompt(Severity.Error, localize('mcpDebugPyHelp', 'The command "{0}" was not found. You can specify the path to debugpy in the `dev.debug.debugpyPath` option.', cnx.launchDefinition.command, cnx.definition.label), [...options, {
+					label: localize('mcpViewDocs', 'View Docs'),
+					run: () => this._openerService.open(URI.parse('https://aka.ms/vscode-mcp-install/debugpy')),
+				}]);
+				return;
+			}
 
 			if (docsLink) {
 				options.push({

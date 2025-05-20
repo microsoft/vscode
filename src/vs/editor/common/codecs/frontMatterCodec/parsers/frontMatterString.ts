@@ -7,8 +7,8 @@ import { assert } from '../../../../../base/common/assert.js';
 import { SimpleToken } from '../../simpleCodec/tokens/index.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { FrontMatterString, TQuoteToken } from '../tokens/frontMatterString.js';
-import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterString, type TQuoteToken } from '../tokens/frontMatterString.js';
+import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
  * Parser responsible for parsing a string value.

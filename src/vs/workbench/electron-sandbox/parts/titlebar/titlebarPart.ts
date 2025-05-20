@@ -138,8 +138,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			return;
 		}
 
-		if (this.customMenubar) {
-			this._register(this.customMenubar.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+		if (this.customMenubar.value) {
+			this._register(this.customMenubar.value.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 	}
 

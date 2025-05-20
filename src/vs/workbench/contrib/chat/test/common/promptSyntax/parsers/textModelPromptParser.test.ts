@@ -527,11 +527,11 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 52, 5, 52 + 4),
-						'Expected a tool name (string), got \'true\'.',
+						'Unexpected tool name \'true\', expected \'string\'.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 58, 5, 58 + 5),
-						'Expected a tool name (string), got \'false\'.',
+						'Unexpected tool name \'false\', expected \'string\'.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 65, 5, 65 + 2),
@@ -680,6 +680,258 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
+			suite('• mode', () => {
+				suite('• invalid', () => {
+					test('• quoted string value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"mode: \"my-mode\"",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 7, 2, 7 + 9),
+								'Value of the \'mode\' metadata must be one of \'ask\' | \'edit\' | \'agent\', got \'my-mode\'.',
+							),
+						]);
+					});
+
+					test('• single token value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"mode: myMode ",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 7, 2, 7 + 7),
+								'Value of the \'mode\' metadata must be \'string\', got \'myMode \'.',
+							),
+						]);
+					});
+
+					test('• multi-token value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */"mode: my mode is your mode\t \t",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 7, 2, 7 + 23),
+								'Value of the \'mode\' metadata must be \'string\', got \'my mode is your mode\t \t\'.',
+							),
+						]);
+					});
+
+					test('• boolean value', async () => {
+						const booleanValue = randomBoolean();
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */`	mode: \t${booleanValue}\t`,
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 9, 2, 9 + `${booleanValue}`.length),
+								`Value of the 'mode' metadata must be 'string', got 'boolean'.`,
+							),
+						]);
+					});
+
+					test('• empty quoted string value', async () => {
+						const quotedString = (randomBoolean())
+							? `''`
+							: '""';
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */`	mode: ${quotedString}`,
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 8, 2, 8 + `${quotedString}`.length),
+								'Value of the \'mode\' metadata must be one of \'ask\' | \'edit\' | \'agent\', got \'\'.',
+							),
+						]);
+					});
+
+					test('• empty value', async () => {
+						const value = (randomBoolean())
+							? '\t\t  \t\t'
+							: ' \t \v \t ';
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */`	mode: ${value}`,
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 8, 2, 8 + value.length),
+								`Value of the 'mode' metadata must be 'string', got '${value}'.`,
+							),
+						]);
+					});
+
+					test('• void value', async () => {
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/my.prompt.md'),
+							[
+					/* 01 */"---",
+					/* 02 */`	mode: `,
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+							],
+							INSTRUCTIONS_LANGUAGE_ID,
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						assert.strictEqual(
+							metadata.mode,
+							undefined,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 8, 2, 8),
+								`Value of the 'mode' metadata must be 'string', got ''.`,
+							),
+						]);
+					});
+				});
+			});
+
 			suite('• tools and mode compatibility', () => {
 				suite('• tools is set', () => {
 					test('• ask mode', async () => {
@@ -687,7 +939,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
-					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
 					/* 03 */"mode: \"ask\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -727,7 +979,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
-					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
 					/* 03 */"mode: \"edit\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -767,7 +1019,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
-					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
 					/* 03 */"mode: \"agent\"",
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
@@ -802,7 +1054,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
-					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ", /* duplicate `tools` record is ignored */
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
@@ -829,6 +1081,50 @@ suite('TextModelPromptParser', () => {
 						);
 
 						await test.validateHeaderDiagnostics([]);
+					});
+
+					test('• invalid mode', async () => {
+						const value = (randomBoolean())
+							? 'unknown mode  '
+							: 'unknown';
+
+						const test = createTest(
+							URI.file('/absolute/folder/and/a/filename.txt'),
+							[
+					/* 01 */"---",
+					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
+					/* 03 */`mode:  \t\t${value}`,
+					/* 04 */"---",
+					/* 05 */"The cactus on my desk has a thriving Instagram account.",
+							],
+						);
+
+						await test.allSettled();
+
+						const { header, metadata } = test.parser;
+						assertDefined(
+							header,
+							'Prompt header must be defined.',
+						);
+
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(3, 10, 3, 10 + value.length),
+								`Value of the 'mode' metadata must be 'string', got '${value}'.`,
+							),
+						]);
 					});
 				});
 
@@ -907,24 +1203,8 @@ suite('TextModelPromptParser', () => {
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(2, 1, 2, 1 + 11),
-								'Unexpected token \'description\'.',
-							),
-							new ExpectedDiagnosticError(
-								new Range(2, 12, 2, 12 + 2),
-								'Unexpected token \': \'.',
-							),
-							new ExpectedDiagnosticError(
-								new Range(2, 14, 2, 14 + 2),
-								'Unexpected token \'my\'.',
-							),
-							new ExpectedDiagnosticError(
-								new Range(2, 17, 2, 17 + 6),
-								'Unexpected token \'prompt\'.',
-							),
-							new ExpectedDiagnosticError(
-								new Range(2, 24, 2, 24 + 12),
-								'Unexpected token \'description.\'.',
+								new Range(2, 14, 2, 14 + 32),
+								'Value of the \'description\' metadata must be \'string\', got \'my prompt description. \t\t  \t\t   \'.',
 							),
 						]);
 					});

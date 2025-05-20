@@ -151,11 +151,10 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "description" metadata
 		// add it to the list of parsed metadata records
 		if (PromptDescriptionMetadata.isDescriptionRecord(token)) {
-			const descriptionMetadata = new PromptDescriptionMetadata(token, this.languageId);
-			const { diagnostics } = descriptionMetadata;
+			const metadata = new PromptDescriptionMetadata(token, this.languageId);
 
-			this.issues.push(...diagnostics);
-			this.meta.description = descriptionMetadata;
+			this.issues.push(...metadata.validate());
+			this.meta.description = metadata;
 			this.recordNames.add(recordName);
 			return;
 		}
@@ -163,11 +162,10 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records
 		if (PromptToolsMetadata.isToolsRecord(token)) {
-			const toolsMetadata = new PromptToolsMetadata(token, this.languageId);
-			const { diagnostics } = toolsMetadata;
+			const metadata = new PromptToolsMetadata(token, this.languageId);
 
-			this.issues.push(...diagnostics);
-			this.meta.tools = toolsMetadata;
+			this.issues.push(...metadata.validate());
+			this.meta.tools = metadata;
 			this.recordNames.add(recordName);
 
 			this.validateToolsAndModeCompatibility();
@@ -177,11 +175,10 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "mode" metadata
 		// add it to the list of parsed metadata records
 		if (PromptModeMetadata.isModeRecord(token)) {
-			const modeMetadata = new PromptModeMetadata(token, this.languageId);
-			const { diagnostics } = modeMetadata;
+			const metadata = new PromptModeMetadata(token, this.languageId);
 
-			this.issues.push(...diagnostics);
-			this.meta.mode = modeMetadata;
+			this.issues.push(...metadata.validate());
+			this.meta.mode = metadata;
 			this.recordNames.add(recordName);
 
 			this.validateToolsAndModeCompatibility();
@@ -191,11 +188,10 @@ export class PromptHeader extends Disposable {
 		// if the record might be a "applyTo" metadata
 		// add it to the list of parsed metadata records
 		if (PromptApplyToMetadata.isApplyToRecord(token)) {
-			const applyToMetadata = new PromptApplyToMetadata(token, this.languageId);
-			const { diagnostics } = applyToMetadata;
+			const metadata = new PromptApplyToMetadata(token, this.languageId);
 
-			this.issues.push(...diagnostics);
-			this.meta.applyTo = applyToMetadata;
+			this.issues.push(...metadata.validate());
+			this.meta.applyTo = metadata;
 			this.recordNames.add(recordName);
 
 			return;
@@ -221,21 +217,21 @@ export class PromptHeader extends Disposable {
 	private get toolsAndModeCompatible(): boolean {
 		const { tools, mode } = this.meta;
 
-		// if `tools` is not set, then the mode metadata
+		// if 'tools' is not set, then the mode metadata
 		// can have any value so skip the validation
 		if (tools === undefined) {
 			return true;
 		}
 
-		// if `mode` is not set or equal to `agent` mode,
-		// then the tools metadata can have any value so noop
-		if ((mode === undefined) || (mode.chatMode === ChatMode.Agent)) {
+		// if 'mode' is not set or invalid it will be ignored,
+		// therefore treat it as if it was not set
+		if (mode?.chatMode === undefined) {
 			return true;
 		}
 
-		// in the other cases when `tools` are defined and `mode` is not
-		// equal to `agent`, then the `tools` and `mode` are incompatible
-		return false;
+		// when mode is set, valid, and tools are present,
+		// the only valid value for the mode is 'agent'
+		return (mode.chatMode === ChatMode.Agent);
 	}
 
 	/**
