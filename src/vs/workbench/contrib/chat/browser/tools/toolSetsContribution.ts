@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableFromEvent, observableSignalFromEvent, autorun } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -24,28 +24,20 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
 import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { parse } from '../../../../../base/common/jsonc.js';
-import * as json from '../../../../../base/common/json.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { CompletionItem, CompletionItemKind, CompletionItemRanges, CompletionList, Hover } from '../../../../../editor/common/languages.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
-import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
+
+const toolEnumValues: string[] = [];
+const toolEnumDescriptions: string[] = [];
 
 const toolSetSchemaId = 'vscode://schemas/toolsets';
 const toolSetsSchema: IJSONSchema = {
@@ -68,12 +60,16 @@ const toolSetsSchema: IJSONSchema = {
 				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set."),
 				type: 'array',
 				items: {
-					type: 'string'
+					type: 'string',
+					enum: toolEnumValues,
+					enumDescriptions: toolEnumDescriptions,
 				}
 			},
 			icon: {
 				description: localize('schema.icon', "Icon to use for this tool set in the UI. Uses the `\\$(name)`-syntax, like `\\$(zap)`"),
-				type: 'string'
+				type: 'string',
+				enum: Array.from(getAllCodicons(), icon => icon.id),
+				markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
 			},
 			description: {
 				description: localize('schema.description', "A short description of this tool set."),
@@ -84,7 +80,7 @@ const toolSetsSchema: IJSONSchema = {
 };
 
 const reg = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
-reg.registerSchema(toolSetSchemaId, toolSetsSchema);
+
 
 abstract class RawToolSetsShape {
 
@@ -134,7 +130,6 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 	static readonly ID = 'chat.userToolSets';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
@@ -148,8 +143,30 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => this._initToolSets());
 
-		this._store.add(instantiationService.createInstance(ToolSetsFileValidation));
-		this._store.add(instantiationService.createInstance(ToolsSetsCompletions));
+		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getTools()));
+		const store = this._store.add(new DisposableStore());
+
+		this._store.add(autorun(r => {
+			const tools = toolsObs.read(r);
+			const toolSets = this._languageModelToolsService.toolSets.read(r);
+
+			toolEnumValues.length = 0;
+			toolEnumDescriptions.length = 0;
+
+			for (const tool of tools) {
+				if (tool.toolReferenceName && tool.canBeReferencedInPrompt) {
+					toolEnumValues.push(tool.toolReferenceName);
+					toolEnumDescriptions.push(localize('tooldesc', "{0} ({1})", tool.userDescription ?? tool.modelDescription, tool.source.label));
+				}
+			}
+			for (const toolSet of toolSets) {
+				toolEnumValues.push(toolSet.toolReferenceName);
+				toolEnumDescriptions.push(localize('toolsetdesc', "{0} ({1})", toolSet.description ?? toolSet.displayName ?? '', toolSet.source.label));
+			}
+			store.clear(); // reset old schema
+			reg.registerSchema(toolSetSchemaId, toolSetsSchema, store);
+		}));
+
 	}
 
 	private _initToolSets(): void {
@@ -234,7 +251,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						name,
 						{
 							// toolReferenceName: value.referenceName,
-							icon: value.icon ? ThemeIcon.fromString(value.icon) : undefined,
+							icon: value.icon ? ThemeIcon.fromId(value.icon) : undefined,
 							description: value.description
 						}
 					);
@@ -246,235 +263,6 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 		}));
 	}
-}
-
-class ToolCompletionItem implements CompletionItem {
-
-	readonly label: string;
-	readonly filterText: string;
-	readonly insertText: string;
-	readonly sortText: string | undefined;
-	readonly detail: string;
-	readonly range: CompletionItemRanges;
-	readonly kind = CompletionItemKind.Tool;
-
-	constructor(tool: IToolData, range: CompletionItemRanges) {
-		this.label = tool.toolReferenceName ?? tool.id;
-		this.range = range;
-		this.filterText = `"${tool.toolReferenceName}"`;
-		this.insertText = `"${tool.toolReferenceName}"`;
-		this.range = range;
-		this.detail = localize('tool_source_completion', "{0}: {1}", tool.source.label, tool.displayName);
-
-		const data = ToolDataSource.classify(tool.source);
-		this.sortText = `${data.ordinal}/${data.label}/${this.label}/${tool.tags?.join() ?? ''}`;
-	}
-}
-
-class ToolSetCompletionItem implements CompletionItem {
-
-	readonly label: string;
-	readonly filterText: string;
-	readonly insertText: string;
-	readonly sortText: string | undefined;
-	readonly detail: string;
-	readonly range: CompletionItemRanges;
-	readonly kind = CompletionItemKind.Tool;
-
-	constructor(toolSet: ToolSet, range: CompletionItemRanges) {
-		this.label = toolSet.toolReferenceName ?? toolSet.id;
-		this.range = range;
-		this.filterText = `"${toolSet.toolReferenceName}"`;
-		this.insertText = `"${toolSet.toolReferenceName}"`;
-		this.range = range;
-		this.detail = localize('tool_source_completion', "{0}: {1}", toolSet.source.label, toolSet.displayName);
-
-		const data = ToolDataSource.classify(toolSet.source);
-		this.sortText = `${data.ordinal}/${data.label}/${this.label}`;
-	}
-}
-
-class ToolsSetsCompletions extends Disposable {
-
-	constructor(
-		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-	) {
-		super();
-
-		const selector: LanguageSelector = {
-			scheme: userDataProfileService.currentProfile.promptsHome.scheme,
-			pattern: `${userDataProfileService.currentProfile.promptsHome.fsPath}/*${RawToolSetsShape.suffix}`,
-			language: 'jsonc',
-		};
-
-		this._register(languageFeaturesService.completionProvider.register(selector, {
-			_debugDisplayName: 'Tool Sets Completions',
-			provideCompletionItems: (model, position) => this._provideCompletions(model, position)
-		}));
-
-		this._register(languageFeaturesService.hoverProvider.register(selector, {
-			provideHover: (model, position) => this._provideHover(model, position),
-		}));
-	}
-
-	private _provideCompletions(model: ITextModel, position: Position): CompletionList | undefined {
-		const offset = model.getOffsetAt(position);
-
-		const jsonLoc = json.getLocation(model.getValue(), offset);
-
-		if (!jsonLoc.matches(['*', 'tools', '*'])) {
-			return undefined;
-		}
-
-		const usedToolNames = new Set<string>();
-		visitTools(model.getValue(), (toolName) => usedToolNames.add(toolName));
-
-		let replaceRange = Range.fromPositions(position);
-		if (jsonLoc.previousNode) {
-			const start = model.getPositionAt(jsonLoc.previousNode.offset);
-			const end = model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length);
-			replaceRange = Range.fromPositions(start, end);
-		}
-
-		const insertRange = Range.fromPositions(replaceRange.getStartPosition(), position);
-		const range: CompletionItemRanges = { replace: replaceRange, insert: insertRange };
-		const suggestions: ToolCompletionItem[] = [];
-
-		for (const tool of this._toolsService.getTools()) {
-			if (tool.canBeReferencedInPrompt && tool.toolReferenceName && !usedToolNames.has(tool.toolReferenceName)) {
-				suggestions.push(new ToolCompletionItem(tool, range));
-			}
-		}
-		for (const toolSet of this._toolsService.toolSets.get()) {
-			if (!usedToolNames.has(toolSet.toolReferenceName)) {
-				suggestions.push(new ToolSetCompletionItem(toolSet, range));
-			}
-		}
-		return { suggestions };
-	}
-
-	private _provideHover(model: ITextModel, position: Position): Hover | undefined {
-
-		const offset = model.getOffsetAt(position);
-
-		const jsonLoc = json.getLocation(model.getValue(), offset);
-		if (!jsonLoc.matches(['*', 'tools', '*']) || !jsonLoc.previousNode?.value) {
-			return undefined;
-		}
-
-		const range = Range.fromPositions(
-			model.getPositionAt(jsonLoc.previousNode.offset),
-			model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length)
-		);
-		const name = String(jsonLoc.previousNode.value);
-
-		const tool = this._toolsService.getToolByName(name);
-		if (tool) {
-			return {
-				range,
-				contents: [new MarkdownString(localize('tool.hover', "Tool: {0} ({1})", tool.displayName, tool.source.label))]
-			};
-		}
-
-		const toolSet = this._toolsService.getToolSetByName(name);
-		if (toolSet) {
-			return {
-				range,
-				contents: [new MarkdownString(localize('toolSet.hover', "Tool Set: {0} ({1})", toolSet.displayName, toolSet.source.label))]
-			};
-		}
-
-		return undefined;
-	}
-}
-
-class ToolSetsFileValidation extends Disposable {
-
-	constructor(
-		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IMarkerService private readonly _markerService: IMarkerService,
-		@IModelService modelService: IModelService,
-	) {
-		super();
-
-		const map = this._store.add(new DisposableMap<ITextModel>());
-		const handleNewModel = (model: ITextModel) => {
-			if (RawToolSetsShape.isToolSetFileName(model.uri)) {
-				map.set(model, this._setupValidation(model));
-			}
-		};
-
-		this._store.add(modelService.onModelRemoved(model => map.deleteAndDispose(model)));
-		this._store.add(modelService.onModelAdded(handleNewModel));
-		modelService.getModels().forEach(handleNewModel);
-	}
-
-	private _setupValidation(model: ITextModel): IDisposable {
-
-		const markerOwner = 'chatToolSetValidation';
-		const store = new DisposableStore();
-
-		const validate = () => {
-
-			const newMarker: IMarkerData[] = [];
-
-			if (model.isAttachedToEditor()) {
-
-				const text = model.getValue();
-				const toolsService = this._toolsService;
-				visitTools(text, (toolName, offset, length) => {
-					if (!toolsService.getToolByName(toolName) && !toolsService.getToolSetByName(toolName)) {
-						const start = model.getPositionAt(offset);
-						const end = model.getPositionAt(offset + length);
-						newMarker.push({
-							severity: MarkerSeverity.Warning,
-							startLineNumber: start.lineNumber,
-							startColumn: start.column,
-							endLineNumber: end.lineNumber,
-							endColumn: end.column,
-							message: localize('toolNotFound', "Tool or tool set '{0}' not found.", toolName),
-						});
-					}
-				});
-			}
-
-			this._markerService.changeOne(markerOwner, model.uri, newMarker);
-		};
-
-		const validateSoon = store.add(new RunOnceScheduler(() => validate(), 1000));
-
-		store.add(model.onDidChangeContent(() => validateSoon.schedule())); // debounced on type, instant validation otherwise
-
-		store.add(model.onDidChangeAttached(() => validateSoon.schedule(0)));
-		store.add(this._toolsService.onDidChangeTools(() => validateSoon.schedule(0)));
-		store.add(Event.fromObservable(this._toolsService.toolSets)(() => validateSoon.schedule(0)));
-		validate();
-		return store;
-	}
-}
-
-
-function visitTools(text: string, onTool: (toolName: string, offset: number, length: number) => void): void {
-	let _inTools = false;
-	let _inToolsArray = false;
-	json.visit(text, {
-		onObjectProperty(property: string) {
-			_inTools = property === 'tools';
-		},
-		onArrayBegin() {
-			_inToolsArray = _inTools;
-		},
-		onArrayEnd() {
-			_inToolsArray = false;
-		},
-		onLiteralValue(value: string, offset: number, length: number) {
-			if (_inToolsArray) {
-				onTool(value, offset, length);
-			}
-		}
-	});
 }
 
 // ---- actions
