@@ -346,7 +346,6 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 interface HistoryItemTemplate {
 	readonly element: HTMLElement;
-	readonly margin: HTMLElement;
 	readonly label: IconLabel;
 	readonly graphContainer: HTMLElement;
 	readonly actionBar: WorkbenchToolBar;
@@ -383,7 +382,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = append(container, $('.history-item'));
-		const margin = append(element, $('.margin'));
 		const graphContainer = append(element, $('.graph-container'));
 		const iconLabel = new IconLabel(element, {
 			supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true
@@ -394,7 +392,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const actionsContainer = append(element, $('.actions'));
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
-		return { element, margin, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables: combinedDisposable(iconLabel, actionBar) };
+		return { element, graphContainer, label: iconLabel, labelContainer, actionBar, elementDisposables: new DisposableStore(), disposables: combinedDisposable(iconLabel, actionBar) };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -407,11 +405,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
-		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
-
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
+		templateData.graphContainer.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
@@ -557,7 +554,6 @@ interface HistoryItemChangeTemplate {
 	readonly indentElement: HTMLElement;
 	readonly twistieElement: HTMLElement;
 	readonly element: HTMLElement;
-	readonly margin: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
 	readonly actionBar: WorkbenchToolBar;
@@ -585,7 +581,6 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const twistieElement = container.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement;
 
 		const element = append(container, $('.history-item-change'));
-		const margin = append(element, $('.margin'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
 
 		const labelContainer = append(element, $('.label-container'));
@@ -598,7 +593,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 		disposables.add(actionBar);
 
-		return { indentElement, twistieElement, element, margin, graphPlaceholder, resourceLabel, actionBar, disposables };
+		return { indentElement, twistieElement, element, graphPlaceholder, resourceLabel, actionBar, disposables };
 	}
 
 	renderElement(elementOrNode: ITreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
@@ -606,18 +601,17 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const historyItemChangeUri = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.historyItemChange.uri : elementOrNode.element.uri;
 		const graphColumns = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.graphColumns : elementOrNode.element.context.historyItemViewModel.outputSwimlanes;
 
-		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
-
 		templateData.indentElement.style.position = 'absolute';
 		templateData.twistieElement.style.position = 'absolute';
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (graphColumns.length + 1)}px`;
+		templateData.graphPlaceholder.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns));
 
 		const hidePath = this.viewMode() === ViewMode.Tree;
 		const fileKind = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? FileKind.FILE : FileKind.FOLDER;
-		templateData.resourceLabel.element.style.marginLeft = `${(elementOrNode.depth - 1) * 8}px`;
+		templateData.resourceLabel.element.style.marginLeft = `${(elementOrNode.depth - 1) * 8 + 4}px`;
 		templateData.resourceLabel.setFile(historyItemChangeUri, { fileDecorations: { colors: false, badges: true }, fileKind, hidePath });
 
 		const actions = this._menuService.getMenuActions(
@@ -639,10 +633,9 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		templateData.indentElement.style.position = 'absolute';
 		templateData.twistieElement.style.position = 'absolute';
 
-		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
-
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (graphColumns.length + 1)}px`;
+		templateData.graphPlaceholder.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns));
 
 		templateData.resourceLabel.element.style.marginLeft = `${(node.depth - 1) * 8 + 4}px`;

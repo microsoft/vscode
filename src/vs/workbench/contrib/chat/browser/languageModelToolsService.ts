@@ -270,7 +270,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				if (prepared?.confirmationMessages) {
-					this.playAccessibilitySignal([toolInvocation]);
+					if (!toolInvocation.isConfirmed) {
+						this.playAccessibilitySignal([toolInvocation]);
+					}
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
 						throw new CancellationError();
@@ -366,8 +368,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
 		const hasFocusedWindow = getFocusedWindow();
+		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
+		if (autoApproved) {
+			return;
+		}
 		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || hasFocusedWindow))) {
+		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
 		}
 	}

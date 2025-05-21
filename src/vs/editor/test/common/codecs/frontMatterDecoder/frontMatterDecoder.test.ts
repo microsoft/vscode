@@ -14,7 +14,8 @@ import { type TSimpleDecoderToken } from '../../../../common/codecs/simpleCodec/
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LeftBracket, RightBracket } from '../../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { FrontMatterDecoder } from '../../../../common/codecs/frontMatterCodec/frontMatterDecoder.js';
-import { ExclamationMark, Quote, Tab, Word, Space, Colon, Dash } from '../../../../common/codecs/simpleCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../../common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
+import { ExclamationMark, Quote, Tab, Word, Space, Colon, VerticalTab, Comma, Dash } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterBoolean, FrontMatterString, FrontMatterArray, FrontMatterRecord, FrontMatterRecordDelimiter, FrontMatterRecordName } from '../../../../common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -33,9 +34,7 @@ suite('FrontMatterDecoder', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('• produces expected tokens', async () => {
-		const test = disposables.add(
-			new TestFrontMatterDecoder(),
-		);
+		const test = disposables.add(new TestFrontMatterDecoder());
 
 		await test.run(
 			[
@@ -114,6 +113,297 @@ suite('FrontMatterDecoder', () => {
 				]),
 				new Space(new Range(3, 27, 3, 28)),
 			]);
+	});
+
+	suite('• record', () => {
+		suite('• values', () => {
+			test('• unquoted string', async () => {
+				const test = disposables.add(new TestFrontMatterDecoder());
+
+				await test.run(
+					[
+						'just: write some yaml ',
+						'anotherField \t\t :  fal\v \t',
+					],
+					[
+						// first record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(1, 1, 1, 1 + 4), 'just'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(1, 5, 1, 6)),
+								new Space(new Range(1, 6, 1, 7)),
+							]),
+							new FrontMatterSequence([
+								new Word(new Range(1, 7, 1, 7 + 5), 'write'),
+								new Space(new Range(1, 12, 1, 13)),
+								new Word(new Range(1, 13, 1, 13 + 4), 'some'),
+								new Space(new Range(1, 17, 1, 18)),
+								new Word(new Range(1, 18, 1, 18 + 4), 'yaml'),
+							]),
+						]),
+						new Space(new Range(1, 22, 1, 23)),
+						new NewLine(new Range(1, 23, 1, 24)),
+						// second record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(2, 1, 2, 1 + 12), 'anotherField'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(2, 17, 2, 18)),
+								new Space(new Range(2, 18, 2, 19)),
+							]),
+							new FrontMatterSequence([
+								new Word(new Range(2, 20, 2, 20 + 3), 'fal'),
+							]),
+						]),
+						new VerticalTab(new Range(2, 23, 2, 24)),
+						new Space(new Range(2, 24, 2, 25)),
+						new Tab(new Range(2, 25, 2, 26)),
+					]);
+			});
+
+			test('• quoted string', async () => {
+				const test = disposables.add(new TestFrontMatterDecoder());
+
+				await test.run(
+					[
+						`just\t:\t'\vdo\tsome\ntesting, please\v' `,
+						'anotherField \t\t :\v\v"fal\nse"',
+					],
+					[
+						// first record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(1, 1, 1, 1 + 4), 'just'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(1, 6, 1, 7)),
+								new Tab(new Range(1, 7, 1, 8)),
+							]),
+							new FrontMatterString([
+								new Quote(new Range(1, 8, 1, 9)),
+								new VerticalTab(new Range(1, 9, 1, 10)),
+								new Word(new Range(1, 10, 1, 10 + 2), 'do'),
+								new Tab(new Range(1, 12, 1, 13)),
+								new Word(new Range(1, 13, 1, 13 + 4), 'some'),
+								new NewLine(new Range(1, 17, 1, 18)),
+								new Word(new Range(2, 1, 2, 1 + 7), 'testing'),
+								new Comma(new Range(2, 8, 2, 9)),
+								new Space(new Range(2, 9, 2, 10)),
+								new Word(new Range(2, 10, 2, 10 + 6), 'please'),
+								new VerticalTab(new Range(2, 16, 2, 17)),
+								new Quote(new Range(2, 17, 2, 18)),
+							]),
+						]),
+						new Space(new Range(2, 18, 2, 19)),
+						new NewLine(new Range(2, 19, 2, 20)),
+						// second record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(3, 1, 3, 1 + 12), 'anotherField'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(3, 17, 3, 18)),
+								new VerticalTab(new Range(3, 18, 3, 19)),
+							]),
+							new FrontMatterString([
+								new DoubleQuote(new Range(3, 20, 3, 21)),
+								new Word(new Range(3, 21, 3, 21 + 3), 'fal'),
+								new NewLine(new Range(3, 24, 3, 25)),
+								new Word(new Range(4, 1, 4, 1 + 2), 'se'),
+								new DoubleQuote(new Range(4, 3, 4, 4)),
+							]),
+						]),
+					]);
+			});
+
+			test('• boolean', async () => {
+				const test = disposables.add(new TestFrontMatterDecoder());
+
+				await test.run(
+					[
+						'anotherField \t\t :  FALSE ',
+						'my-field: true\t ',
+					],
+					[
+						// first record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(1, 1, 1, 1 + 12), 'anotherField'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(1, 17, 1, 18)),
+								new Space(new Range(1, 18, 1, 19)),
+							]),
+							new FrontMatterBoolean(
+								new Word(
+									new Range(1, 20, 1, 20 + 5),
+									'FALSE',
+								),
+							),
+						]),
+						new Space(new Range(1, 25, 1, 26)),
+						new NewLine(new Range(1, 26, 1, 27)),
+						// second record
+						new FrontMatterRecord([
+							new FrontMatterRecordName([
+								new Word(new Range(2, 1, 2, 1 + 2), 'my'),
+								new Dash(new Range(2, 3, 2, 4)),
+								new Word(new Range(2, 4, 2, 4 + 5), 'field'),
+							]),
+							new FrontMatterRecordDelimiter([
+								new Colon(new Range(2, 9, 2, 10)),
+								new Space(new Range(2, 10, 2, 11)),
+							]),
+							new FrontMatterBoolean(
+								new Word(
+									new Range(2, 11, 2, 11 + 4),
+									'true',
+								),
+							),
+						]),
+						new Tab(new Range(2, 15, 2, 16)),
+						new Space(new Range(2, 16, 2, 17)),
+					]);
+			});
+
+			suite('• array', () => {
+				test('• empty', async () => {
+					const test = disposables.add(new TestFrontMatterDecoder());
+
+					await test.run(
+						[
+							`tools\v:\t []`,
+							'anotherField \t\t :\v\v"fal\nse"',
+						],
+						[
+							// first record
+							new FrontMatterRecord([
+								new FrontMatterRecordName([
+									new Word(new Range(1, 1, 1, 1 + 5), 'tools'),
+								]),
+								new FrontMatterRecordDelimiter([
+									new Colon(new Range(1, 7, 1, 8)),
+									new Tab(new Range(1, 8, 1, 9)),
+								]),
+								new FrontMatterArray([
+									new LeftBracket(new Range(1, 10, 1, 11)),
+									new RightBracket(new Range(1, 11, 1, 12)),
+								]),
+							]),
+							new NewLine(new Range(1, 12, 1, 13)),
+							// second record
+							new FrontMatterRecord([
+								new FrontMatterRecordName([
+									new Word(new Range(2, 1, 2, 1 + 12), 'anotherField'),
+								]),
+								new FrontMatterRecordDelimiter([
+									new Colon(new Range(2, 17, 2, 18)),
+									new VerticalTab(new Range(2, 18, 2, 19)),
+								]),
+								new FrontMatterString([
+									new DoubleQuote(new Range(2, 20, 2, 21)),
+									new Word(new Range(2, 21, 2, 21 + 3), 'fal'),
+									new NewLine(new Range(2, 24, 2, 25)),
+									new Word(new Range(3, 1, 3, 1 + 2), 'se'),
+									new DoubleQuote(new Range(3, 3, 3, 4)),
+								]),
+							]),
+						]);
+				});
+
+				test('• mixed values', async () => {
+					const test = disposables.add(new TestFrontMatterDecoder());
+
+					await test.run(
+						[
+							`tools\v:\t [true , 'toolName', some-tool]`,
+						],
+						[
+							// first record
+							new FrontMatterRecord([
+								new FrontMatterRecordName([
+									new Word(new Range(1, 1, 1, 1 + 5), 'tools'),
+								]),
+								new FrontMatterRecordDelimiter([
+									new Colon(new Range(1, 7, 1, 8)),
+									new Tab(new Range(1, 8, 1, 9)),
+								]),
+								new FrontMatterArray([
+									new LeftBracket(new Range(1, 10, 1, 11)),
+									// first array value
+									new FrontMatterBoolean(
+										new Word(
+											new Range(1, 11, 1, 11 + 4),
+											'true',
+										),
+									),
+									// second array value
+									new FrontMatterString([
+										new Quote(new Range(1, 18, 1, 19)),
+										new Word(new Range(1, 19, 1, 19 + 8), 'toolName'),
+										new Quote(new Range(1, 27, 1, 28)),
+									]),
+									// third array value
+									new FrontMatterSequence([
+										new Word(new Range(1, 30, 1, 30 + 4), 'some'),
+										new Dash(new Range(1, 34, 1, 35)),
+										new Word(new Range(1, 35, 1, 35 + 4), 'tool'),
+									]),
+									new RightBracket(new Range(1, 39, 1, 40)),
+								]),
+							]),
+						]);
+				});
+
+
+				test('• redundant commas', async () => {
+					const test = disposables.add(new TestFrontMatterDecoder());
+
+					await test.run(
+						[
+							`tools\v:\t [true ,, 'toolName', , , some-tool  ,]`,
+						],
+						[
+							// first record
+							new FrontMatterRecord([
+								new FrontMatterRecordName([
+									new Word(new Range(1, 1, 1, 1 + 5), 'tools'),
+								]),
+								new FrontMatterRecordDelimiter([
+									new Colon(new Range(1, 7, 1, 8)),
+									new Tab(new Range(1, 8, 1, 9)),
+								]),
+								new FrontMatterArray([
+									new LeftBracket(new Range(1, 10, 1, 11)),
+									// first array value
+									new FrontMatterBoolean(
+										new Word(
+											new Range(1, 11, 1, 11 + 4),
+											'true',
+										),
+									),
+									// second array value
+									new FrontMatterString([
+										new Quote(new Range(1, 19, 1, 20)),
+										new Word(new Range(1, 20, 1, 20 + 8), 'toolName'),
+										new Quote(new Range(1, 28, 1, 29)),
+									]),
+									// third array value
+									new FrontMatterSequence([
+										new Word(new Range(1, 35, 1, 35 + 4), 'some'),
+										new Dash(new Range(1, 39, 1, 40)),
+										new Word(new Range(1, 40, 1, 40 + 4), 'tool'),
+									]),
+									new RightBracket(new Range(1, 47, 1, 48)),
+								]),
+							]),
+						]);
+				});
+			});
+		});
 	});
 
 	test('• empty', async () => {

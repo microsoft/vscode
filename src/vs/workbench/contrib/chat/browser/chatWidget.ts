@@ -1271,14 +1271,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.input.validateCurrentMode();
 
-			let userSelectedTools: string[] | undefined;
-			let userSelectedTools2: Record<string, boolean> | undefined;
+			let userSelectedTools: Record<string, boolean> | undefined;
 			if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = Array.from(this.inputPart.selectedToolsModel.asEnablementMap().entries()).map(([tool]) => tool.id);
-
-				userSelectedTools2 = {};
+				userSelectedTools = {};
 				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
-					userSelectedTools2[tool.id] = enablement;
+					userSelectedTools[tool.id] = enablement;
 				}
 			}
 
@@ -1291,7 +1288,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				userSelectedTools,
-				userSelectedTools2,
 			});
 
 			if (result) {

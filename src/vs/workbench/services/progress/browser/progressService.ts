@@ -120,7 +120,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const promise = callback(task[1]);
 
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			this.windowProgressStack.unshift(task);
 			this.updateWindowProgress();
@@ -370,7 +370,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let notificationHandle: INotificationHandle | undefined;
-		let notificationTimeout: any | undefined;
+		let notificationTimeout: Timeout | undefined;
 		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
@@ -386,7 +386,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (typeof notificationTimeout !== 'number') {
+					if (notificationTimeout !== undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
@@ -466,7 +466,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P): void {
 		let activityProgress: IDisposable;
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();

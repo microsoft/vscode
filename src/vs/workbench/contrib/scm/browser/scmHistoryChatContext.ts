@@ -46,7 +46,7 @@ export class SCMHistoryItemContextContribution extends Disposable implements IWo
 
 class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.scmHistoryItems', 'Source Control History Items...');
+	readonly label = localize('chatContext.scmHistoryItems', 'Source Control...');
 	readonly icon = Codicon.gitCommit;
 
 	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
@@ -76,7 +76,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 	asPicker(_widget: IChatWidget) {
 		return {
-			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a source control history item'),
+			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change'),
 			picks: async (_query: string) => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();

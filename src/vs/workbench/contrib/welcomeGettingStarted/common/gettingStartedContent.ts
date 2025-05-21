@@ -691,10 +691,10 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'copilotSetup.inline',
-					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
+					title: localize('gettingStarted.nes.title', "Next edit suggestions"),
 					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
 					media: {
-						type: 'svg', altText: 'Next Edit Suggestions', path: 'ai-powered-suggestions.svg'
+						type: 'svg', altText: 'Next edit suggestions', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{

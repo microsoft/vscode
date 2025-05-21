@@ -57,6 +57,14 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 		}
 	}
 
+	public override equals(other: BaseToken): other is typeof this {
+		if (super.equals(other) === false) {
+			return false;
+		}
+
+		return this.value === other.value;
+	}
+
 	public override toString(): string {
 		return `front-matter-boolean(${this.shortText()})${this.range}`;
 	}

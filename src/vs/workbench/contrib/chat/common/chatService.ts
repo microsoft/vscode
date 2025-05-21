@@ -480,8 +480,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
-	userSelectedTools2?: Record<string, boolean>;
+	userSelectedTools?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;

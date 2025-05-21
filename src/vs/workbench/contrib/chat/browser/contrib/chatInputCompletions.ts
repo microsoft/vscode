@@ -40,7 +40,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
-import { IMcpPrompt, IMcpPromptMessage, IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -229,7 +229,7 @@ class SlashCommandCompletions extends Disposable {
 							command: {
 								id: StartParameterizedPromptAction.ID,
 								title: prompt.name,
-								arguments: [model, prompt, `${label} `],
+								arguments: [model, server, prompt, `${label} `],
 							},
 							insertText: `${label} `,
 							range,
@@ -539,7 +539,7 @@ class StartParameterizedPromptAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, model: ITextModel, prompt: IMcpPrompt, textToReplace: string) {
+	async run(accessor: ServicesAccessor, model: ITextModel, server: IMcpServer, prompt: IMcpPrompt, textToReplace: string) {
 		if (!model || !prompt) {
 			return;
 		}
@@ -614,11 +614,14 @@ class StartParameterizedPromptAction extends Action2 {
 			const toAttach: IChatRequestVariableEntry[] = [];
 			const attachBlob = async (mimeType: string | undefined, contents: string, uriStr?: string, isText = false) => {
 				let validURI: URI | undefined;
-				try {
-					const uri = uriStr && URI.parse(uriStr);
-					validURI = uri && await fileService.exists(uri) ? uri : undefined;
-				} catch {
-					// ignored
+				if (uriStr) {
+					for (const uri of [URI.parse(uriStr), McpResourceURI.fromServer(server.definition, uriStr)]) {
+						try {
+							validURI ||= await fileService.exists(uri) ? uri : undefined;
+						} catch {
+							// ignored
+						}
+					}
 				}
 
 				if (isText) {
@@ -632,14 +635,12 @@ class StartParameterizedPromptAction extends Action2 {
 					} else {
 						toAttach.push({
 							id: generateUuid(),
-							kind: 'generic', // TODO: once we support proper MCP resources, use that
+							kind: 'generic',
 							value: contents,
 							name: localize('mcp.prompt.resource', 'Prompt Resource'),
 						});
 					}
-				}
-
-				if (mimeType && getAttachableImageExtension(mimeType)) {
+				} else if (mimeType && getAttachableImageExtension(mimeType)) {
 					chatWidget.attachmentModel.addContext({
 						id: generateUuid(),
 						name: localize('mcp.prompt.image', 'Prompt Image'),
@@ -656,8 +657,7 @@ class StartParameterizedPromptAction extends Action2 {
 						name: basename(validURI),
 					});
 				} else {
-					// todo: generic binary data attachment?
-					// or just reference the MCP resource once we support them
+					// not a valid resource/resource URI
 				}
 			};
 

@@ -182,10 +182,6 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 		templateData.memory.textContent = localize('processMemory', "Memory (MB)");
 	}
 
-	renderTwistie(element: IProcessInformation, twistieElement: HTMLElement): boolean {
-		return false;
-	}
-
 	disposeTemplate(templateData: unknown): void {
 		// Nothing to do
 	}

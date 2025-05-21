@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VALID_SPACE_TOKENS } from '../constants.js';
+import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
@@ -12,13 +12,14 @@ import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 
 /**
  * List of tokens that can go in-between array items
  * and array brackets.
  */
 const VALID_DELIMITER_TOKENS = Object.freeze([
-	...VALID_SPACE_TOKENS,
+	...VALID_INTER_RECORD_SPACING_TOKENS,
 	Comma,
 ]);
 
@@ -123,8 +124,9 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
-		// once we found a valid start value token, create a new value parser
-		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
+		// is an array item value is allowed at this position, create a new
+		// value parser and start the value parsing process using it
+		if (this.arrayItemAllowed === true) {
 			this.currentValueParser = new PartialFrontMatterValue(
 				(currentToken) => {
 					// comma or a closing square bracket must stop the parsing
@@ -156,7 +158,6 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	 * 		   is not a closing bracket ({@link RightBracket}).
 	 */
 	public asArrayToken(): FrontMatterArray {
-		this.isConsumed = true;
 		const endToken = this.currentTokens[this.currentTokens.length - 1];
 
 		assertDefined(
@@ -171,11 +172,20 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 		const valueTokens: FrontMatterValueToken[] = [];
 		for (const currentToken of this.currentTokens) {
-			if (currentToken instanceof FrontMatterValueToken) {
-				valueTokens.push(currentToken);
+			if ((currentToken instanceof FrontMatterValueToken) === false) {
+				continue;
 			}
+
+			// the generic sequence tokens can have trailing spacing tokens,
+			// hence trim them to ensure the array contains only "clean" values
+			if (currentToken instanceof FrontMatterSequence) {
+				currentToken.trimEnd();
+			}
+
+			valueTokens.push(currentToken);
 		}
 
+		this.isConsumed = true;
 		return new FrontMatterArray([
 			this.startToken,
 			...valueTokens,

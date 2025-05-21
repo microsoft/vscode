@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Colon, Word, Dash, Space, Tab, VerticalTab } from '../../simpleCodec/tokens/index.js';
-import { FrontMatterToken, FrontMatterValueToken, TValueTypeName } from '../tokens/frontMatterToken.js';
+import { BaseToken } from '../../baseToken.js';
+import { FrontMatterSequence } from './frontMatterSequence.js';
+import { Colon, Word, Dash, SpacingToken } from '../../simpleCodec/tokens/index.js';
+import { FrontMatterToken, FrontMatterValueToken, type TValueTypeName } from '../tokens/frontMatterToken.js';
 
 /**
  * Type for tokens that can be used inside a record name.
  */
 export type TNameToken = Word | Dash;
-
-/**
- * Type for tokens that can be used as "space" in-between record
- * name, delimiter and value.
- */
-export type TSpaceToken = Space | Tab | VerticalTab;
 
 /**
  * Token representing a `record name` inside a Front Matter record.
@@ -45,7 +41,7 @@ export class FrontMatterRecordName extends FrontMatterToken<readonly TNameToken[
  * ---
  * ```
  */
-export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon, TSpaceToken]> {
+export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon, SpacingToken]> {
 	public override toString(): string {
 		return `front-matter-delimiter(${this.shortText()})${this.range}`;
 	}
@@ -62,7 +58,9 @@ export class FrontMatterRecordDelimiter extends FrontMatterToken<readonly [Colon
  * ---
  * ```
  */
-export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>]> {
+export class FrontMatterRecord extends FrontMatterToken<
+	readonly [FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterValueToken<TValueTypeName>]
+> {
 	/**
 	 * Token that represent `name` of the record.
 	 *
@@ -75,7 +73,7 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 	 * ```
 	 */
 	public get nameToken(): FrontMatterRecordName {
-		return this.tokens[0];
+		return this.children[0];
 	}
 
 	/**
@@ -90,7 +88,28 @@ export class FrontMatterRecord extends FrontMatterToken<readonly [FrontMatterRec
 	 * ```
 	 */
 	public get valueToken(): FrontMatterValueToken<TValueTypeName> {
-		return this.tokens[2];
+		return this.children[2];
+	}
+
+	/**
+	 * Trim spacing tokens at the end of the record.
+	 */
+	public trimValueEnd(): readonly SpacingToken[] {
+		const { valueToken } = this;
+
+		// only the "generic sequence" value tokens can hold
+		// some spacing tokens at the end of them
+		if ((valueToken instanceof FrontMatterSequence) === false) {
+			return [];
+		}
+
+		const trimmedTokens = valueToken.trimEnd();
+		// update the current range to reflect the current trimmed value
+		this.withRange(
+			BaseToken.fullRange(this.children),
+		);
+
+		return trimmedTokens;
 	}
 
 	public override toString(): string {
