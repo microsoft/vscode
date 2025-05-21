@@ -60,6 +60,22 @@ export class RequestQueue {
 		return this.queue.shift();
 	}
 
+	public getQueuedCommands(skipLast: boolean = false): string[] {
+		const result: string[] = [];
+		const end = skipLast ? this.queue.length - 1 : this.queue.length;
+		if (end <= 0) {
+			return result;
+		}
+		for (let i = 0; i < end; i++) {
+			const item = this.queue[i];
+			result.push(item.request.command);
+			if (result.length >= 5) {
+				break;
+			}
+		}
+		return result;
+	}
+
 	public tryDeletePendingRequest(seq: number): boolean {
 		for (let i = 0; i < this.queue.length; i++) {
 			if (this.queue[i].request.seq === seq) {

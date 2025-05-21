@@ -942,6 +942,15 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
+export function getFocusedWindow(): CodeWindow | undefined {
+	const document = getActiveDocument();
+	// This check is needed to ensure the window has focus
+	if (document.defaultView?.window.document.hasFocus()) {
+		return (document.defaultView?.window) as CodeWindow;
+	}
+	return;
+}
+
 interface IMutationObserver {
 	users: number;
 	readonly observer: MutationObserver;
@@ -1544,7 +1553,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
 	} else {
-		const blob = new Blob([dataOrUri]);
+		const blob = new Blob([dataOrUri as Uint8Array<ArrayBuffer>]);
 		url = URL.createObjectURL(blob);
 
 		// Ensure to free the data from DOM eventually

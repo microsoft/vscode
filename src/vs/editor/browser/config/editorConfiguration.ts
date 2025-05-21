@@ -127,7 +127,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: this._validatedOptions.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode(),
 			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,

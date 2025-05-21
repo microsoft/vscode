@@ -15,7 +15,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -219,7 +218,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	constructor(
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@ILogService private readonly logService: ILogService
 	) {
 		this.handleAndRegisterChatExtensions();
 	}
@@ -229,33 +227,33 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			for (const extension of delta.added) {
 				for (const providerDescriptor of extension.value) {
 					if (!providerDescriptor.name?.match(/^[\w-]+$/)) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w-]+$/.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w-]+$/.`);
 						continue;
 					}
 
 					if (providerDescriptor.fullName && strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter(providerDescriptor.fullName)) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with fullName that contains ambiguous characters: ${providerDescriptor.fullName}.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with fullName that contains ambiguous characters: ${providerDescriptor.fullName}.`);
 						continue;
 					}
 
 					// Spaces are allowed but considered "invisible"
 					if (providerDescriptor.fullName && strings.InvisibleCharacters.containsInvisibleCharacter(providerDescriptor.fullName.replace(/ /g, ''))) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with fullName that contains invisible characters: ${providerDescriptor.fullName}.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with fullName that contains invisible characters: ${providerDescriptor.fullName}.`);
 						continue;
 					}
 
 					if ((providerDescriptor.isDefault || providerDescriptor.modes) && !isProposedApiEnabled(extension.description, 'defaultChatParticipant')) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: defaultChatParticipant.`);
 						continue;
 					}
 
 					if (providerDescriptor.locations && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
 
 					if (!providerDescriptor.id || !providerDescriptor.name) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant without both id and name.`);
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register participant without both id and name.`);
 						continue;
 					}
 
@@ -303,7 +301,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							store
 						);
 					} catch (e) {
-						this.logService.error(`Failed to register participant ${providerDescriptor.id}: ${toErrorMessage(e, true)}`);
+						extension.collector.error(`Failed to register participant ${providerDescriptor.id}: ${toErrorMessage(e, true)}`);
 					}
 				}
 			}

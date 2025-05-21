@@ -6,7 +6,6 @@
 import { BaseToken } from '../../baseToken.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
  * A token that represent a word - a set of continuous
@@ -34,16 +33,20 @@ export class Word<TText extends string = string> extends BaseToken<TText> {
 	 */
 	public static newOnLine(
 		text: string,
-		line: Line,
+		line: Line | number,
 		atColumnNumber: number,
 	): Word {
-		const { range } = line;
+		const startLineNumber = (typeof line === 'number')
+			? line
+			: line.range.startLineNumber;
 
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + text.length);
+		const range = new Range(
+			startLineNumber, atColumnNumber,
+			startLineNumber, atColumnNumber + text.length
+		);
 
 		return new Word(
-			Range.fromPositions(startPosition, endPosition),
+			range,
 			text,
 		);
 	}

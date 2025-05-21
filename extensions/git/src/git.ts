@@ -2927,6 +2927,19 @@ export class Repository {
 		return commits[0];
 	}
 
+	async showCommit(ref: string): Promise<string> {
+		try {
+			const result = await this.exec(['show', ref]);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
 	async revList(ref1: string, ref2: string): Promise<string[]> {
 		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
 		if (result.stderr) {

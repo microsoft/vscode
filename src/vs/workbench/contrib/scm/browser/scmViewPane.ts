@@ -1660,7 +1660,7 @@ class SCMInputWidget {
 	private validation: IInputValidation | undefined;
 	private validationContextView: IOpenContextView | undefined;
 	private validationHasFocus: boolean = false;
-	private _validationTimer: any;
+	private _validationTimer: Timeout | undefined;
 
 	// This is due to "Setup height change listener on next tick" above
 	// https://github.com/microsoft/vscode/issues/108067
@@ -1830,7 +1830,7 @@ class SCMInputWidget {
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
 		if (this._validationTimer) {
 			clearTimeout(this._validationTimer);
-			this._validationTimer = 0;
+			this._validationTimer = undefined;
 		}
 
 		this.validation = validation;

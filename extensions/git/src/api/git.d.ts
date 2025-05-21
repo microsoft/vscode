@@ -395,6 +395,7 @@ export interface GitExtension {
 
 export const enum GitErrorCodes {
 	BadConfigFile = 'BadConfigFile',
+	BadRevision = 'BadRevision',
 	AuthenticationFailed = 'AuthenticationFailed',
 	NoUserNameConfigured = 'NoUserNameConfigured',
 	NoUserEmailConfigured = 'NoUserEmailConfigured',

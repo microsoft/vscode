@@ -308,10 +308,6 @@ class StandaloneDialogService implements IDialogService {
 
 export class StandaloneNotificationService implements INotificationService {
 
-	readonly onDidAddNotification: Event<INotification> = Event.None;
-
-	readonly onDidRemoveNotification: Event<INotification> = Event.None;
-
 	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;

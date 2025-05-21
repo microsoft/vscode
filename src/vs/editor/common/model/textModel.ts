@@ -48,6 +48,7 @@ import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from '../tokens/tokenArray.js';
 import { SetWithKey } from '../../../base/common/collections.js';
+import { TextModelEditReason } from '../textModelEditReason.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -2025,6 +2026,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
+	}
+
+	editWithReason<T>(editReason: TextModelEditReason, cb: () => T): T {
+		return TextModelEditReason.editWithReason(editReason, cb);
 	}
 }
 

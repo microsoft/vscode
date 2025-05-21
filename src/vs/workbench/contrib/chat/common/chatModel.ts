@@ -24,6 +24,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -203,10 +204,16 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly kind: 'promptFile';
 }
 
+export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItem';
+	readonly value: URI;
+	readonly historyItem: ISCMHistoryItem;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry;
+	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -242,6 +249,10 @@ export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVar
 		entry !== null &&
 		typeof entry.id === 'string' &&
 		typeof entry.name === 'string';
+}
+
+export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
+	return obj.kind === 'scmHistoryItem';
 }
 
 export interface IChatRequestVariableData {

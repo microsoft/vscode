@@ -284,7 +284,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 				const newLineIndex = message.indexOf('\n');
 				const subject = newLineIndex !== -1
-					? `${truncate(message, newLineIndex)}`
+					? `${truncate(message, newLineIndex, false)}`
 					: message;
 
 				const avatarUrl = commitAvatars?.get(commit.hash);
@@ -342,6 +342,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		this._onDidChangeDecorations.fire(historyItemChangesUri);
 		return historyItemChanges;
+	}
+
+	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
+		try {
+			const commitDetails = await this.repository.showCommit(historyItemId);
+			return commitDetails;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChatContext] Failed to resolve history item '${historyItemId}': ${err}`);
+		}
+
+		return undefined;
 	}
 
 	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {

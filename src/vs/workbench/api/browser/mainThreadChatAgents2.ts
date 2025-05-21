@@ -93,10 +93,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
-	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
+	private readonly _pendingProgress = new Map<string, (parts: IChatProgress[]) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
-	private _responsePartHandlePool = 0;
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
 	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
@@ -233,54 +232,65 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatAgentService.updateAgent(data.id, revive(metadataUpdate));
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
+	async $handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
 
-		const revivedProgress = progress.kind === 'notebookEdit'
-			? ChatNotebookEdit.fromChatEdit(revive(progress))
-			: revive(progress) as IChatProgress;
+		const chatProgressParts: IChatProgress[] = [];
 
-		if (revivedProgress.kind === 'notebookEdit'
-			|| revivedProgress.kind === 'textEdit'
-			|| revivedProgress.kind === 'codeblockUri'
-		) {
-			// make sure to use the canonical uri
-			revivedProgress.uri = this._uriIdentityService.asCanonicalUri(revivedProgress.uri);
-		}
+		chunks.forEach(item => {
+			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
-		if (revivedProgress.kind === 'progressTask') {
-			const handle = ++this._responsePartHandlePool;
-			const responsePartId = `${requestId}_${handle}`;
-			const task = new MainThreadChatTask(revivedProgress.content);
-			this._activeTasks.set(responsePartId, task);
-			this._pendingProgress.get(requestId)?.(task);
-			return handle;
-		} else if (responsePartHandle !== undefined) {
-			const responsePartId = `${requestId}_${responsePartHandle}`;
-			const task = this._activeTasks.get(responsePartId);
-			switch (revivedProgress.kind) {
-				case 'progressTaskResult':
-					if (task && revivedProgress.content) {
-						task.complete(revivedProgress.content.value);
-						this._activeTasks.delete(responsePartId);
-					} else {
-						task?.complete(undefined);
-					}
-					return responsePartHandle;
-				case 'warning':
-				case 'reference':
-					task?.add(revivedProgress);
+			const revivedProgress = progress.kind === 'notebookEdit'
+				? ChatNotebookEdit.fromChatEdit(revive(progress))
+				: revive(progress) as IChatProgress;
+
+			if (revivedProgress.kind === 'notebookEdit'
+				|| revivedProgress.kind === 'textEdit'
+				|| revivedProgress.kind === 'codeblockUri'
+			) {
+				// make sure to use the canonical uri
+				revivedProgress.uri = this._uriIdentityService.asCanonicalUri(revivedProgress.uri);
+			}
+
+			if (responsePartHandle !== undefined) {
+
+				if (revivedProgress.kind === 'progressTask') {
+					const handle = responsePartHandle;
+					const responsePartId = `${requestId}_${handle}`;
+					const task = new MainThreadChatTask(revivedProgress.content);
+					this._activeTasks.set(responsePartId, task);
+					chatProgressParts.push(task);
 					return;
+				} else if (responsePartHandle !== undefined) {
+					const responsePartId = `${requestId}_${responsePartHandle}`;
+					const task = this._activeTasks.get(responsePartId);
+					switch (revivedProgress.kind) {
+						case 'progressTaskResult':
+							if (task && revivedProgress.content) {
+								task.complete(revivedProgress.content.value);
+								this._activeTasks.delete(responsePartId);
+							} else {
+								task?.complete(undefined);
+							}
+							return;
+						case 'warning':
+						case 'reference':
+							task?.add(revivedProgress);
+							return;
+					}
+				}
 			}
-		}
 
-		if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
-			if (!this._unresolvedAnchors.has(requestId)) {
-				this._unresolvedAnchors.set(requestId, new Map());
+			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+				if (!this._unresolvedAnchors.has(requestId)) {
+					this._unresolvedAnchors.set(requestId, new Map());
+				}
+				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
 			}
-			this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
-		}
 
-		this._pendingProgress.get(requestId)?.(revivedProgress);
+			chatProgressParts.push(revivedProgress);
+		});
+
+		this._pendingProgress.get(requestId)?.(chatProgressParts);
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {

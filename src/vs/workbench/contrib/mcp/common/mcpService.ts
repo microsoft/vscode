@@ -52,7 +52,7 @@ export class McpService extends Disposable implements IMcpService {
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
 
-		const updateThrottle = this._store.add(new RunOnceScheduler(() => this._updateCollectedServers(), 500));
+		const updateThrottle = this._store.add(new RunOnceScheduler(() => this.updateCollectedServers(), 500));
 
 		// Throttle changes so that if a collection is changed, or a server is
 		// unregistered/registered, we don't stop servers unnecessarily.
@@ -73,7 +73,7 @@ export class McpService extends Disposable implements IMcpService {
 		const collections = await this._mcpRegistry.discoverCollections();
 		const collectionIds = new Set(collections.map(c => c.id));
 
-		this._updateCollectedServers();
+		this.updateCollectedServers();
 
 		// Discover any newly-collected servers with unknown tools
 		const todo: Promise<unknown>[] = [];
@@ -150,7 +150,7 @@ export class McpService extends Disposable implements IMcpService {
 		}));
 	}
 
-	private _updateCollectedServers() {
+	public updateCollectedServers() {
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
 			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
 				serverDefinition,
