@@ -208,7 +208,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
 		const enum Rate {
 			Min = 5,
-			Max = 500,
+			Max = 2000,
 		}
 
 		const minAfterComplete = 80;
