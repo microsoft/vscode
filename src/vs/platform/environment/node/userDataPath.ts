@@ -4,8 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir } from 'os';
-import { resolve, isAbsolute, join } from 'path'; // using node.js 'path' only for historic reasons, should use our path lib if confident
 import { NativeParsedArgs } from '../common/argv.js';
+
+// This file used to be a pure JS file and was always
+// importing `path` from node.js even though we ship
+// our own version of the library and prefer to use
+// that.
+// However, resolution of user-data-path is critical
+// and while our version of `path` is a copy of node.js
+// one, you never know. As such, preserve the use of
+// the built-in `path` lib for the time being.
+// eslint-disable-next-line local/code-import-patterns
+import { resolve, isAbsolute, join } from 'path';
 
 const cwd = process.env['VSCODE_CWD'] || process.cwd();
 
