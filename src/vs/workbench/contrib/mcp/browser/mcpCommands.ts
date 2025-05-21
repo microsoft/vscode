@@ -37,6 +37,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerCacheState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
@@ -601,5 +602,21 @@ export class McpBrowseCommand extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
+	}
+}
+
+export class McpBrowseResourcesCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowseResources,
+			title: localize2('mcp.browseResources', "Browse Resources..."),
+			category,
+			precondition: McpContextKeys.serverCount.greater(0),
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
 	}
 }
