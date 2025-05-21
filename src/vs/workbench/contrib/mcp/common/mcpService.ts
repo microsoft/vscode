@@ -244,7 +244,7 @@ class McpToolImplementation implements IToolImpl {
 
 		return {
 			confirmationMessages: needsConfirmation ? {
-				title: localize('msg.title', "Run {0}", title),
+				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
 				allowAutoConfirm: true,
 			} : undefined,

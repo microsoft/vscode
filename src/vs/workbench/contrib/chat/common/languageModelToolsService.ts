@@ -166,7 +166,7 @@ export interface IToolResultDataPart {
 }
 
 export interface IToolConfirmationMessages {
-	title: string;
+	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }

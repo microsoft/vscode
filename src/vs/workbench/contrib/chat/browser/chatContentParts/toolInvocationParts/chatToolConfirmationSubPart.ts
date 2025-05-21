@@ -120,7 +120,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				editorOptions: {
 					wordWrap: 'on',
 					tabFocusMode: true,
-					ariaLabel: title
+					ariaLabel: typeof title === 'string' ? title : title.value
 				},
 			};
 
@@ -141,7 +141,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					editorOptions: {
 						wordWrap: 'off',
 						readOnly: false,
-						ariaLabel: toolInvocation.confirmationMessages.title
+						ariaLabel: typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value
 					}
 				};
 

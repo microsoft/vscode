@@ -85,7 +85,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			} else { // all completed
 				for (const invocation of toolInvocation) {
-					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", invocation.confirmationMessages?.title);
+					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", typeof invocation.confirmationMessages?.title === 'string' ? invocation.confirmationMessages?.title : invocation.confirmationMessages?.title.value);
 				}
 			}
 		}
