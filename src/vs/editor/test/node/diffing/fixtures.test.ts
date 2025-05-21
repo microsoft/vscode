@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { join, resolve } from '../../../../base/common/path.js';
 import { setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
