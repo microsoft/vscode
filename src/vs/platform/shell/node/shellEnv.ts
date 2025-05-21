@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { basename, dirname, isAbsolute, join } from '../../../base/common/path.js';
+import { homedir } from 'os';
+import { basename, dirname, extname, isAbsolute, join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -15,14 +16,12 @@ import { getSystemShell } from '../../../base/node/shell.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
 import { ILogService } from '../../log/common/log.js';
-import { firstParallel, Promises } from '../../../base/common/async.js';
+import { first, Promises } from '../../../base/common/async.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { clamp } from '../../../base/common/numbers.js';
-import { extname } from 'path';
 import { findExecutable, getWindowPathExtensions } from '../../../base/node/processes.js';
 import { equalsIgnoreCase } from '../../../base/common/strings.js';
-import { homedir } from 'os';
-import * as pfs from '../../../base/node/pfs.js';
+import { Promises as FSPromises } from '../../../base/node/pfs.js';
 
 let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -118,13 +117,11 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	const systemShell = await getSystemShell(OS, env); // note: windows always resolves a powershell instance
 	logService.trace('doResolveShellEnv#shell', systemShell);
 
-	// handle popular shells
 	let name = basename(systemShell);
-	// remove any .exe/.cmd/... from the name for matching logic on Windows
 	if (isWindows) {
 		const nameExt = extname(name);
 		if (getWindowPathExtensions().some(e => equalsIgnoreCase(e, nameExt))) {
-			name = name.substring(0, name.length - nameExt.length);
+			name = name.substring(0, name.length - nameExt.length); // remove any .exe/.cmd/... from the name for matching logic on Windows
 		}
 	}
 
@@ -132,17 +129,18 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	const extraArgs = '';
 	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
 		const profilePaths = await getPowershellProfilePaths(systemShell);
-		const profilePathThatExists = await firstParallel(profilePaths.map(
-			async p => await pfs.Promises.exists(p) ? p : undefined));
+		const profilePathThatExists = await first(profilePaths.map(profilePath => () => FSPromises.exists(profilePath)));
 		if (!profilePathThatExists) {
 			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
+
 			return {};
 		}
 
 		logService.trace('doResolveShellEnv#powershellProfile found in', profilePathThatExists);
 
-		// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
-		// you escape single quotes inside of a single quoted string.
+		// Older versions of PowerShell removes double quotes sometimes
+		// so we use "double single quotes" which is how you escape single
+		// quotes inside of a single quoted string.
 		command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 		shellArgs = ['-Login', '-Command'];
 	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
@@ -160,7 +158,6 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 			shellArgs = ['-i', '-l', '-c'];
 		}
 	}
-
 
 	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
@@ -256,7 +253,10 @@ async function getPowershellProfilePaths(psExecutable: string) {
 		if (!pshome) {
 			if (!isAbsolute(psExecutable)) {
 				const found = await findExecutable(psExecutable);
-				if (!found) { return []; }
+				if (!found) {
+					return [];
+				}
+
 				pshome = dirname(found);
 			} else {
 				pshome = dirname(psExecutable);
@@ -264,27 +264,28 @@ async function getPowershellProfilePaths(psExecutable: string) {
 		}
 
 		paths.push(
-			join(pshome, 'Profile.ps1'), // All Users, All Hosts
-			join(pshome, 'Microsoft.PowerShell_profile.ps1'), // All Users, Current Host
-			join(userHome, 'Documents', 'PowerShell', 'Profile.ps1'), // Current User, All Hosts
-			join(userHome, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+			join(pshome, 'Profile.ps1'), 													// All Users, All Hosts
+			join(pshome, 'Microsoft.PowerShell_profile.ps1'), 								// All Users, Current Host
+			join(userHome, 'Documents', 'PowerShell', 'Profile.ps1'), 						// Current User, All Hosts
+			join(userHome, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
 		);
 	} else if (isMacintosh) {
+
 		// note: powershell 7 is the first (and yet only) powershell version on posix,
 		// so no need to look for any extra paths yet.
 
 		paths.push(
-			'/usr/local/microsoft/powershell/7/profile.ps1', // All Users, All Hosts
-			'/usr/local/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', // All Users, Current Host
-			join(userHome, '.config', 'powershell', 'profile.ps1'), // Current User, All Hosts
-			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+			'/usr/local/microsoft/powershell/7/profile.ps1', 								// All Users, All Hosts
+			'/usr/local/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', 			// All Users, Current Host
+			join(userHome, '.config', 'powershell', 'profile.ps1'), 						// Current User, All Hosts
+			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
 		);
 	} else {
 		paths.push(
-			'/opt/microsoft/powershell/7/profile.ps1', // All Users, All Hosts
-			'/opt/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', // All Users, Current Host
-			join(userHome, '.config', 'powershell', 'profile.ps1'), // Current User, All Hosts
-			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), // Current User, Current Host
+			'/opt/microsoft/powershell/7/profile.ps1', 										// All Users, All Hosts
+			'/opt/microsoft/powershell/7/Microsoft.PowerShell_profile.ps1', 				// All Users, Current Host
+			join(userHome, '.config', 'powershell', 'profile.ps1'),							// Current User, All Hosts
+			join(userHome, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
 		);
 	}
 
