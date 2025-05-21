@@ -68,7 +68,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				ChatConfirmationWidget,
 				toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
 				undefined,
-				toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Install extensions and press continue."),
+				toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Continue when finished."),
 				buttons,
 				context.container,
 			));
