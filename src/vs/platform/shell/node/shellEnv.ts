@@ -104,7 +104,7 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	logService.trace('doResolveShellEnv#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-	const regex = new RegExp(mark + '({.*})' + mark);
+	const regex = new RegExp(mark + '([\\s\\S]*?)' + mark);
 
 	const env = {
 		...process.env,
@@ -141,8 +141,13 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		// Older versions of PowerShell removes double quotes sometimes
 		// so we use "double single quotes" which is how you escape single
 		// quotes inside of a single quoted string.
-		command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
-		shellArgs = ['-Login', '-Command'];
+		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
+
+		// -Login is not a supported argument on PowerShell 5, which is a version of
+		// powershell that is exclusive to Windows. Providing it would error. Also,
+		// -Login is documented as a no-op on Windows on Powershell 7, so simply omit
+		// it to avoid causing errors or requiring a version check.
+		shellArgs = isWindows ? ['-Command'] : ['-Login', '-Command'];
 	} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
 		command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		shellArgs = ['-i', '-l', '-c'];
@@ -268,6 +273,9 @@ async function getPowershellProfilePaths(psExecutable: string) {
 			join(pshome, 'Microsoft.PowerShell_profile.ps1'), 								// All Users, Current Host
 			join(userHome, 'Documents', 'PowerShell', 'Profile.ps1'), 						// Current User, All Hosts
 			join(userHome, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'), 	// Current User, Current Host
+
+			join(userHome, 'Documents', 'WindowsPowerShell', 'Profile.ps1'), 						// (Powershell 5) Current User, All Hosts
+			join(userHome, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'), 	// (Powershell 5) Current User, Current Host
 		);
 	} else if (isMacintosh) {
 
