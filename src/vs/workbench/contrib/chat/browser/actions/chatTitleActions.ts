@@ -259,16 +259,16 @@ export function registerChatTitleActions() {
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
-			let userSelectedTools2: Record<string, boolean> | undefined;
+			let userSelectedTools: Record<string, boolean> | undefined;
 			if (widget?.input.currentMode === ChatMode.Agent) {
-				userSelectedTools2 = {};
+				userSelectedTools = {};
 				for (const [tool, enablement] of widget.input.selectedToolsModel.asEnablementMap()) {
-					userSelectedTools2[tool.id] = enablement;
+					userSelectedTools[tool.id] = enablement;
 				}
 			}
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
-				userSelectedTools2,
+				userSelectedTools,
 				attempt: (request?.attempt ?? -1) + 1,
 				mode: widget?.input.currentMode,
 			});

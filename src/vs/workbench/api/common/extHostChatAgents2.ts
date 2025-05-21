@@ -455,7 +455,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			location,
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
-			this.getTools2ForRequest(detector.extension, request),
+			this.getToolsForRequest(detector.extension, request),
 			detector.extension,
 			this._logService);
 
@@ -546,7 +546,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getTools2ForRequest(agent.extension, request),
+				this.getToolsForRequest(agent.extension, request),
 				agent.extension,
 				this._logService
 			);
@@ -608,14 +608,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
-		if (!request.userSelectedTools2) {
+	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
+		if (!request.userSelectedTools) {
 			return new Map();
 		}
 		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			if (typeof request.userSelectedTools2[tool.name] === 'boolean') {
-				result.set(tool.name, request.userSelectedTools2[tool.name]);
+			if (typeof request.userSelectedTools[tool.name] === 'boolean') {
+				result.set(tool.name, request.userSelectedTools[tool.name]);
 			}
 		}
 		return result;
