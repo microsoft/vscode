@@ -59,7 +59,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 
 			completions.push(...(result?.suggestions || []).map((e: any) => {
-				// TODO: Support more terminalCompletionItemKind for different LSP providers.
+				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
 				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 

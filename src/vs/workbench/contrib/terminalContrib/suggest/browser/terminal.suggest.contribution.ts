@@ -158,7 +158,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	// TODO: Eventually support multiple LSP providers for non-Python REPLs.
+	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		const isWsl =
 			isLinux &&
