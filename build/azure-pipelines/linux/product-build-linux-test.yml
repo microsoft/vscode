@@ -14,7 +14,22 @@ parameters:
     default: PublishPipelineArtifact@0
 
 steps:
-  - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - template: ../templates/test-phase.yml
+    parameters:
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+      VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+      VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+      VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+      VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
+      PUBLISH_TASK_NAME: ${{ parameters.PUBLISH_TASK_NAME }}
+      OS: linux
+      VSCODE_ARCH: $(VSCODE_ARCH)
+
+# The rest of the file is kept as historical reference for steps that were previously executed sequentially
+# They are now organized in the test-phase.yml template
+# ------------------------------------------------------------
+
+# - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright

@@ -1,0 +1,73 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+  - name: PUBLISH_TASK_NAME
+    type: string
+  - name: OS
+    type: string
+  - name: VSCODE_ARCH
+    type: string
+
+steps:
+  - script: |
+      set -e
+      yarn --cwd build gulp electron-${{ parameters.VSCODE_QUALITY }}
+      yarn --cwd build gulp playwright-electron-${{ parameters.VSCODE_QUALITY }}
+      yarn --cwd build gulp eslint
+      yarn --cwd test/smoke compile
+      yarn --cwd test/integration/browser compile
+    displayName: Download Electron and Playwright
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - script: |
+        set -e
+        ./scripts/test.sh --build --tfs "$AGENT_JOBNAME" --electron
+      displayName: 🧪 Run unit tests (Electron)
+      timeoutInMinutes: 20
+      env:
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - script: |
+        set -e
+        ./scripts/test.sh --build --tfs "$AGENT_JOBNAME" --browser
+      displayName: 🧪 Run unit tests (Browser)
+      timeoutInMinutes: 20
+      env:
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - script: |
+        set -e
+        DISPLAY=:10 ./resources/server/test/test-remote.sh
+        mkdir -p .build/crashes
+      displayName: 🧪 Run remote tests
+      timeoutInMinutes: 20
+      env:
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+
+  - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    inputs:
+      pathToPublish: .build/crashes
+      artifactName: crash-dump-${{ parameters.VSCODE_QUALITY }}-${{ parameters.OS }}
+    displayName: 'Publish Crash Reports'
+    continueOnError: true
+    condition: failed()
+
+  - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    inputs:
+      pathToPublish: .build/logs
+      artifactName: logs-${{ parameters.VSCODE_QUALITY }}-${{ parameters.OS }}
+    displayName: 'Publish Log Files'
+    continueOnError: true
+    condition: failed()
