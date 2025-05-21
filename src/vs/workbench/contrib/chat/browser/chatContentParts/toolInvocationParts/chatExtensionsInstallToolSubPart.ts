@@ -64,12 +64,12 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				}
 			];
 
-			const installMessage = localize('installExtensionsConfirmation', "Install above extensions and press continue");
+			const installMessage = localize('installExtensionsConfirmation', "Install above extensions and press continue.");
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget,
 				toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
 				undefined,
-				toolInvocation.confirmationMessages?.message ? `${toolInvocation.confirmationMessages?.message} ${installMessage}` : installMessage,
+				toolInvocation.confirmationMessages?.message ? `${toolInvocation.confirmationMessages?.message}\n${installMessage}` : installMessage,
 				buttons,
 				context.container,
 			));

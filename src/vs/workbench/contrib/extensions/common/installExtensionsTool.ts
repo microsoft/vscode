@@ -16,7 +16,7 @@ export const InstallExtensionsToolData: IToolData = {
 	toolReferenceName: 'installExtensions',
 	canBeReferencedInPrompt: true,
 	displayName: localize('installExtensionsTool.displayName', 'Install Extensions'),
-	modelDescription: localize('installExtensionsTool.modelDescription', "This is a tool for installing extensions in Visual Studio Code. You should provide the list of extension ids to install and the reason for installation which is shown to the user. The identifier of an extension is '\${ publisher }.\${ name }' for example: 'vscode.csharp'."),
+	modelDescription: localize('installExtensionsTool.modelDescription', "This is a tool for installing extensions in Visual Studio Code. You should provide the list of extension ids to install and the reason for installation which is shown to the user. The identifier of an extension is '\${ publisher }.\${ name }' for example: 'vscode.csharp'. The reason should just explain about the extensions and do not mention about installing."),
 	userDescription: localize('installExtensionsTool.userDescription', ''),
 	source: { type: 'internal' },
 	inputSchema: {
@@ -31,7 +31,7 @@ export const InstallExtensionsToolData: IToolData = {
 			},
 			reason: {
 				type: 'string',
-				description: 'The reason for installing the extensions. This is shown to the user.',
+				description: 'The reason for installing the extensions. This is shown to the user. The reason should just explain about the extensions and do not mention about installing.',
 			}
 		},
 	}
