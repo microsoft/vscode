@@ -49,6 +49,11 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	private _isUpdating = false;
 	private _isComputing = false;
 	private _didReportChange = false;
+	private _isInBeforeUpdate = false;
+	private _isReaderValid = false;
+	private _store: DisposableStore | undefined = undefined;
+	private _delayedStore: DisposableStore | undefined = undefined;
+	private _removedObserverToCallEndUpdateOn: Set<IObserver> | null = null;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -148,31 +153,34 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	private _recompute() {
+		let didChange = false;
+		this._isComputing = true;
+		this._didReportChange = false;
+
 		const emptySet = this._dependenciesToBeRemoved;
 		this._dependenciesToBeRemoved = this._dependencies;
 		this._dependencies = emptySet;
 
-		const hadValue = this._state !== DerivedState.initial;
-		const oldValue = this._value;
-		this._state = DerivedState.upToDate;
-
-		let didChange = false;
-
-		this._isComputing = true;
-		this._didReportChange = false;
-
 		try {
 			const changeSummary = this._changeSummary!;
+
+			this._isReaderValid = true;
+			if (this._changeTracker) {
+				this._isInBeforeUpdate = true;
+				this._changeTracker.beforeUpdate?.(this, changeSummary);
+				this._isInBeforeUpdate = false;
+				this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
+			}
+
+			const hadValue = this._state !== DerivedState.initial;
+			const oldValue = this._value;
+			this._state = DerivedState.upToDate;
+
 			const delayedStore = this._delayedStore;
 			if (delayedStore !== undefined) {
 				this._delayedStore = undefined;
 			}
 			try {
-				this._isReaderValid = true;
-				if (this._changeTracker) {
-					this._changeTracker.beforeUpdate?.(this, changeSummary);
-					this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
-				}
 				if (this._store !== undefined) {
 					this._store.dispose();
 					this._store = undefined;
@@ -252,8 +260,6 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		}
 	}
 
-	private _removedObserverToCallEndUpdateOn: Set<IObserver> | null = null;
-
 	public endUpdate<T>(_observable: IObservable<T>): void {
 		this._updateCount--;
 		if (this._updateCount === 0) {
@@ -284,7 +290,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
-		if (this._dependencies.has(observable) && !this._dependenciesToBeRemoved.has(observable)) {
+		if (this._dependencies.has(observable) && !this._dependenciesToBeRemoved.has(observable) || this._isInBeforeUpdate) {
 			getLogger()?.handleDerivedDependencyChanged(this, observable, change);
 
 			let shouldReact = false;
@@ -311,7 +317,6 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	// IReader Implementation
-	private _isReaderValid = false;
 
 	private _ensureReaderValid(): void {
 		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
@@ -340,7 +345,6 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		}
 	}
 
-	private _store: DisposableStore | undefined = undefined;
 	get store(): DisposableStore {
 		this._ensureReaderValid();
 
@@ -350,7 +354,6 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		return this._store;
 	}
 
-	private _delayedStore: DisposableStore | undefined = undefined;
 	get delayedStore(): DisposableStore {
 		this._ensureReaderValid();
 
