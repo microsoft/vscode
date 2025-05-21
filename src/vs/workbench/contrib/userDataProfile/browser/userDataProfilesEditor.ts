@@ -458,7 +458,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		return { label, icon, dirty, description, actionBar, disposables, elementDisposables };
 	}
 
-	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
+	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData) {
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
@@ -496,7 +496,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 
 	}
 
-	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
+	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -887,7 +887,7 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 		return '';
 	}
 
-	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -901,7 +901,7 @@ abstract class ProfilePropertyRenderer extends AbstractProfileResourceTreeRender
 	abstract templateId: ProfileProperty;
 	abstract renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate;
 
-	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate, height: number | undefined): void {
+	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.element = element;
 	}
@@ -1731,7 +1731,7 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof UserDataProfileElement)) {
@@ -1816,7 +1816,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof NewProfileElement)) {
@@ -1924,7 +1924,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		return { checkbox, resourceLabel, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element } = profileResourceTreeElement;
 
@@ -1977,7 +1977,7 @@ class WorkspaceUriEmptyColumnRenderer implements ITableRenderer<WorkspaceTableEl
 		return {};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: {}, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: {}): void {
 	}
 
 	disposeTemplate(): void {
@@ -2020,7 +2020,7 @@ class WorkspaceUriHostColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		templateData.renderDisposables.add({ dispose: () => { clearNode(templateData.buttonBarContainer); } });
 
@@ -2075,7 +2075,7 @@ class WorkspaceUriPathColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		const stringValue = this.formatPath(item.workspace);
 		templateData.pathLabel.innerText = stringValue;
@@ -2184,7 +2184,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		return { actionBar, disposables };
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData): void {
 		templateData.actionBar.clear();
 		const actions: IAction[] = [];
 		actions.push(this.createOpenAction(item));
