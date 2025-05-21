@@ -174,6 +174,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 
 			if (cts.token.isCancellationRequested) {
 				store.clear();
+				return;
 			}
 
 			for (const entry of stat.children ?? []) {
