@@ -28,7 +28,8 @@ export class TreeSitterLanguages extends Disposable {
 	 */
 	public readonly onDidAddLanguage: Event<{ id: string; language: Parser.Language }> = this._onDidAddLanguage.event;
 
-	constructor(private readonly _treeSitterImporter: ITreeSitterImporter,
+	constructor(
+		private readonly _treeSitterImporter: ITreeSitterImporter,
 		private readonly _fileService: IFileService,
 		private readonly _environmentService: IEnvironmentService,
 		configurationService: IConfigurationService,
@@ -81,7 +82,7 @@ export class TreeSitterLanguages extends Disposable {
 
 	private async _fetchLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		const grammarName = this._registeredLanguages.get(languageId);
-		const languageLocation = this._getLanguageLocation(languageId);
+		const languageLocation = this._getLanguageLocation(languageId); // tree-sitter-{languageId}
 		if (!grammarName || !languageLocation) {
 			return undefined;
 		}

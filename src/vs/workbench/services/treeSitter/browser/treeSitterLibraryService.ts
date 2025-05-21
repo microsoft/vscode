@@ -5,21 +5,30 @@
 
 
 import type { Parser, Language, Query } from '@vscode/tree-sitter-wasm';
-import { IReader } from '../../../../base/common/observable.js';
+import { IReader, ObservablePromise } from '../../../../base/common/observable.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { importAMDNodeModule } from '../../../../amdX.js';
+import { canASAR, importAMDNodeModule } from '../../../../amdX.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { CachedFunction } from '../../../../base/common/cache.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
+import { MODULE_LOCATION_SUBPATH } from '../../../../editor/common/services/treeSitterBefore/treeSitterLanguages.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
 
-export class TreeSitterLibraryService implements ITreeSitterLibraryService {
+export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
+	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
+}
+
+export class TreeSitterLibraryService extends Disposable implements ITreeSitterLibraryService {
 	_serviceBrand: undefined;
 
 	private readonly _treeSitterImport = new Lazy(() => {
@@ -30,41 +39,109 @@ export class TreeSitterLibraryService implements ITreeSitterLibraryService {
 		return observableConfigValue(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`, false, this._configurationService);
 	});
 
+	private readonly _languagesCache = new CachedFunction((languageId: string) => {
+		return ObservablePromise.fromFn(async () => {
+			const languageLocation = getModuleLocation(this._environmentService);
+			const grammarName = `tree-sitter-${languageId}`;
+
+			const wasmPath: AppResourcePath = `${languageLocation}/${grammarName}.wasm`;
+			const [treeSitter, languageFile] = await Promise.all([
+				this._treeSitterImport.value,
+				this._fileService.readFile(FileAccess.asFileUri(wasmPath))
+			]);
+
+			const Language = treeSitter.Language;
+			const language = await Language.load(languageFile.value.buffer);
+			return language;
+		});
+	});
+
+	private readonly _injectionQueries = new CachedFunction({ getCacheKey: JSON.stringify }, (arg: { languageId: string; kind: 'injections' | 'highlights' }) => {
+		const loadQuerySource = async () => {
+			const injectionsQueriesLocation: AppResourcePath = `vs/editor/common/languages/${arg.kind}/${arg.languageId}.scm`;
+			const uri = FileAccess.asFileUri(injectionsQueriesLocation);
+			if (!this._fileService.hasProvider(uri)) {
+				return undefined;
+			}
+			const query = await tryReadFile(this._fileService, uri);
+			if (query === undefined) {
+				return undefined;
+			}
+			return query.value.toString();
+		};
+
+		return ObservablePromise.fromFn(async () => {
+			const [
+				querySource,
+				language,
+				treeSitter
+			] = await Promise.all([
+				loadQuerySource(),
+				this._languagesCache.get(arg.languageId).promise,
+				this._treeSitterImport.value,
+			]);
+
+			if (querySource === undefined) {
+				return undefined;
+			}
+
+			const Query = treeSitter.Query;
+			return new Query(language, querySource);
+		}).resolvedValue;
+	});
+
 	constructor(
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
-
+		super();
 	}
 
 	supportsLanguage(languageId: string, reader: IReader | undefined): boolean {
 		return this._supportsLanguage.get(languageId).read(reader);
 	}
 
-	getParserClass(): Promise<typeof Parser> {
-		return this._treeSitterImport;
+	async getParserClass(): Promise<typeof Parser> {
+		const treeSitter = await this._treeSitterImport.value;
+		return treeSitter.Parser;
 	}
 
 	getLanguage(languageId: string, reader: IReader | undefined): Language | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
-		throw new Error('Method not implemented.');
+		const lang = this._languagesCache.get(languageId).resolvedValue.read(reader);
+		return lang;
 	}
 
 	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
-		throw new Error('Method not implemented.');
+		const query = this._injectionQueries.get({ languageId, kind: 'injections' }).read(reader);
+		return query;
 	}
 
 	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
-		throw new Error('Method not implemented.');
+		const query = this._injectionQueries.get({ languageId, kind: 'highlights' }).read(reader);
+		return query;
+	}
+}
+
+async function tryReadFile(fileService: IFileService, uri: URI): Promise<IFileContent | undefined> {
+	try {
+		const result = await fileService.readFile(uri);
+		return result;
+	} catch (e) {
+		if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND) {
+			return undefined;
+		}
+		throw e;
 	}
 }
