@@ -31,8 +31,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
-		this.triggerCharacters = provider.triggerCharacters;
-		this.triggerCharacters?.push(' ');
+		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
 	}
 
 	activate(terminal: Terminal): void {
