@@ -29,7 +29,7 @@ export class FrontMatterString<TQuote extends TQuoteToken = Quote> extends Front
 	 */
 	public get cleanText(): string {
 		return BaseToken.render(
-			this.tokens.slice(1, this.tokens.length - 1),
+			this.children.slice(1, this.children.length - 1),
 		);
 	}
 

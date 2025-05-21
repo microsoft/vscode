@@ -19,7 +19,7 @@ import { ICellDiffInfo } from './notebookCellChanges.js';
 
 export class OverlayToolbarDecorator extends Disposable {
 
-	private _timeout: any | undefined = undefined;
+	private _timeout: Timeout | undefined = undefined;
 	private readonly overlayDisposables = this._register(new DisposableStore());
 
 	constructor(

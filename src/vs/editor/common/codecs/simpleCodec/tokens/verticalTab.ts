@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleToken } from './simpleToken.js';
+import { SpacingToken } from './simpleToken.js';
 
 /**
  * Token that represent a `vertical tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class VerticalTab extends SimpleToken<'\v'> {
+export class VerticalTab extends SpacingToken<'\v'> {
 	/**
 	 * The underlying symbol of the `VerticalTab` token.
 	 */

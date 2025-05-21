@@ -46,7 +46,7 @@ class SimpleBrowserOverlayWidget {
 
 	private readonly _showStore = new DisposableStore();
 
-	private _timeout: any | undefined = undefined;
+	private _timeout: Timeout | undefined = undefined;
 
 	private _activeBrowserType: BrowserType | undefined = undefined;
 

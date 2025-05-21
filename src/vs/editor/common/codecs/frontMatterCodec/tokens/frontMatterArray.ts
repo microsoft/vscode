@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken, type TValueTypeName } from './frontMatterToken.js';
 
@@ -25,7 +26,7 @@ export class FrontMatterArray extends FrontMatterValueToken<'array', [
 	public get items(): readonly FrontMatterValueToken<TValueTypeName>[] {
 		const result = [];
 
-		for (const token of this.tokens) {
+		for (const token of this.children) {
 			if (token instanceof FrontMatterValueToken) {
 				result.push(token);
 			}
@@ -35,6 +36,8 @@ export class FrontMatterArray extends FrontMatterValueToken<'array', [
 	}
 
 	public override toString(): string {
-		return `front-matter-array(${this.shortText()})${this.range}`;
+		const itemsString = BaseToken.render(this.items, ', ');
+
+		return `front-matter-array(${itemsString})${this.range}`;
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -456,7 +456,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
 			this.getToolsForRequest(detector.extension, request),
-			this.getTools2ForRequest(detector.extension, request),
 			detector.extension,
 			this._logService);
 
@@ -548,7 +547,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				this.getToolsForRequest(agent.extension, request),
-				this.getTools2ForRequest(agent.extension, request),
 				agent.extension,
 				this._logService
 			);
@@ -610,29 +608,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
-		if (!request.userSelectedTools2) {
+	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
+		if (!request.userSelectedTools) {
 			return new Map();
 		}
 		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			if (typeof request.userSelectedTools2[tool.name] === 'boolean') {
-				result.set(tool.name, request.userSelectedTools2[tool.name]);
+			if (typeof request.userSelectedTools[tool.name] === 'boolean') {
+				result.set(tool.name, request.userSelectedTools[tool.name]);
 			}
 		}
 		return result;
-	}
-
-	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): vscode.ChatRequestToolSelection | undefined {
-		if (!isNonEmptyArray(request.userSelectedTools)) {
-			return undefined;
-		}
-		const selector = new Set(request.userSelectedTools);
-		const tools = this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
-		return {
-			tools,
-			isExclusive: request.toolSelectionIsExclusive,
-		};
 	}
 
 	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from '../errors.js';
+import { BugIndicatingError } from './commonFacade/deps.js';
 import { IObservableWithChange, IReader } from './base.js';
 
 export interface IChangeTracker<TChangeSummary> {

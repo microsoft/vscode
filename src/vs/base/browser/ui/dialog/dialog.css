@@ -202,17 +202,6 @@
 	width: fit-content;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
-	border: 0 !important;
-	background-color: unset !important;
-	color: var(--vscode-textLink-foreground) !important;
-}
-
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:active,
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:hover {
-	color: var(--vscode-textLink-activeForeground) !important;
-}
-
 /** Dialog: Dropdown */
 .monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
 	margin: 4px 5px;

@@ -60,6 +60,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	toolSets: IObservable<readonly ToolSet[]> = constObservable([]);
 
+	getToolSetByName(name: string): ToolSet | undefined {
+		return undefined;
+	}
+
 	createToolSet(): ToolSet & IDisposable {
 		throw new Error('Method not implemented.');
 	}

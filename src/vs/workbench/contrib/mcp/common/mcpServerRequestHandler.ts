@@ -8,6 +8,7 @@ import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -207,8 +208,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * @param token Cancellation token
 	 * @returns Promise with all items combined
 	 */
-	private async sendRequestPaginated<T extends MCP.PaginatedRequest & MCP.ClientRequest, R extends MCP.PaginatedResult, I>(method: T['method'], getItems: (result: R) => I[], initialParams?: Omit<T['params'], 'jsonrpc' | 'id'>, token: CancellationToken = CancellationToken.None): Promise<I[]> {
-		let allItems: I[] = [];
+	private async *sendRequestPaginated<T extends MCP.PaginatedRequest & MCP.ClientRequest, R extends MCP.PaginatedResult, I>(method: T['method'], getItems: (result: R) => I[], initialParams?: Omit<T['params'], 'jsonrpc' | 'id'>, token: CancellationToken = CancellationToken.None): AsyncIterable<I[]> {
 		let nextCursor: MCP.Cursor | undefined = undefined;
 
 		do {
@@ -218,11 +218,9 @@ export class McpServerRequestHandler extends Disposable {
 			};
 
 			const result: R = await this.sendRequest<T, R>({ method, params }, token);
-			allItems = allItems.concat(getItems(result));
+			yield getItems(result);
 			nextCursor = result.nextCursor;
 		} while (nextCursor !== undefined && !token.isCancellationRequested);
-
-		return allItems;
 	}
 
 	private sendNotification<N extends MCP.ClientNotification>(notification: N): void {
@@ -252,7 +250,6 @@ export class McpServerRequestHandler extends Disposable {
 				this.handleServerRequest(message as MCP.JSONRPCRequest & MCP.ServerRequest);
 			} else {
 				this.handleServerNotification(message as MCP.JSONRPCNotification & MCP.ServerNotification);
-
 			}
 		}
 	}
@@ -416,6 +413,13 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available resources
 	 */
 	listResources(params?: MCP.ListResourcesRequest['params'], token?: CancellationToken): Promise<MCP.Resource[]> {
+		return Iterable.asyncToArrayFlat(this.listResourcesIterable(params, token));
+	}
+
+	/**
+	 * List available resources (iterable)
+	 */
+	listResourcesIterable(params?: MCP.ListResourcesRequest['params'], token?: CancellationToken): AsyncIterable<MCP.Resource[]> {
 		return this.sendRequestPaginated<MCP.ListResourcesRequest, MCP.ListResourcesResult, MCP.Resource>('resources/list', result => result.resources, params, token);
 	}
 
@@ -430,7 +434,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available resource templates
 	 */
 	listResourceTemplates(params?: MCP.ListResourceTemplatesRequest['params'], token?: CancellationToken): Promise<MCP.ResourceTemplate[]> {
-		return this.sendRequestPaginated<MCP.ListResourceTemplatesRequest, MCP.ListResourceTemplatesResult, MCP.ResourceTemplate>('resources/templates/list', result => result.resourceTemplates, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListResourceTemplatesRequest, MCP.ListResourceTemplatesResult, MCP.ResourceTemplate>('resources/templates/list', result => result.resourceTemplates, params, token));
 	}
 
 	/**
@@ -451,7 +455,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available prompts
 	 */
 	listPrompts(params?: MCP.ListPromptsRequest['params'], token?: CancellationToken): Promise<MCP.Prompt[]> {
-		return this.sendRequestPaginated<MCP.ListPromptsRequest, MCP.ListPromptsResult, MCP.Prompt>('prompts/list', result => result.prompts, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListPromptsRequest, MCP.ListPromptsResult, MCP.Prompt>('prompts/list', result => result.prompts, params, token));
 	}
 
 	/**
@@ -465,7 +469,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available tools
 	 */
 	listTools(params?: MCP.ListToolsRequest['params'], token?: CancellationToken): Promise<MCP.Tool[]> {
-		return this.sendRequestPaginated<MCP.ListToolsRequest, MCP.ListToolsResult, MCP.Tool>('tools/list', result => result.tools, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListToolsRequest, MCP.ListToolsResult, MCP.Tool>('tools/list', result => result.tools, params, token));
 	}
 
 	/**

@@ -81,28 +81,6 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		// Start the handler creation
 		const handlerPromise = McpServerRequestHandler.create(instantiationService, transport, logger, undefined, cts.token);
 
-		// Simulate successful initialization
-		// We need to respond to the initialize request that the handler will make
-		transport.simulateReceiveMessage({
-			jsonrpc: MCP.JSONRPC_VERSION,
-			id: 1, // The handler uses 1 for the first request
-			result: {
-				protocolVersion: MCP.LATEST_PROTOCOL_VERSION,
-				serverInfo: {
-					name: 'Test MCP Server',
-					version: '1.0.0',
-				},
-				capabilities: {
-					resources: {
-						supportedTypes: ['text/plain'],
-					},
-					tools: {
-						supportsCancellation: true,
-					}
-				}
-			}
-		});
-
 		handler = await handlerPromise;
 		store.add(handler);
 	});
