@@ -51,3 +51,9 @@ export abstract class SimpleToken<TSymbol extends string> extends BaseToken<TSym
 		));
 	}
 }
+
+/**
+ * Base class for all tokens that represent some form of
+ * a spacing character, e.g. 'space', 'tab', etc.
+ */
+export abstract class SpacingToken<TSymbol extends string = string> extends SimpleToken<TSymbol> { }

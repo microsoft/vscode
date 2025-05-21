@@ -464,6 +464,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 }
 
 export class ButtonWithDescription implements IButtonWithDescription {
+
 	private _button: Button;
 	private _element: HTMLElement;
 	private _descriptionElement: HTMLElement;
@@ -531,14 +532,17 @@ export class ButtonWithDescription implements IButtonWithDescription {
 	}
 }
 
+export enum ButtonBarAlignment {
+	Horizontal = 0,
+	Vertical
+}
+
 export class ButtonBar {
 
 	private readonly _buttons: IButton[] = [];
 	private readonly _buttonStore = new DisposableStore();
 
-	constructor(private readonly container: HTMLElement) {
-
-	}
+	constructor(private readonly container: HTMLElement, private readonly options?: { alignment?: ButtonBarAlignment }) { }
 
 	dispose(): void {
 		this._buttonStore.dispose();
@@ -581,9 +585,9 @@ export class ButtonBar {
 
 			// Next / Previous Button
 			let buttonIndexToFocus: number | undefined;
-			if (event.equals(KeyCode.LeftArrow)) {
+			if (event.equals(this.options?.alignment === ButtonBarAlignment.Vertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
 				buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.length - 1;
-			} else if (event.equals(KeyCode.RightArrow)) {
+			} else if (event.equals(this.options?.alignment === ButtonBarAlignment.Vertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
 				buttonIndexToFocus = index === this._buttons.length - 1 ? 0 : index + 1;
 			} else {
 				eventHandled = false;

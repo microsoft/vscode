@@ -710,6 +710,7 @@ export class CancelTestRunAction extends Action2 {
 			id: TestCommandId.CancelTestRunAction,
 			title: localize2('testing.cancelRun', 'Cancel Test Run'),
 			icon: icons.testingCancelIcon,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
@@ -722,6 +723,9 @@ export class CancelTestRunAction extends Action2 {
 					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
 				)
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.isRunning,
 			}]
 		});
 	}

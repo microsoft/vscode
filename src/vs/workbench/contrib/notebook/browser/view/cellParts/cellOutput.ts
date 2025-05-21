@@ -440,7 +440,7 @@ class CellOutputElement extends Disposable {
 		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
-	private _outputHeightTimer: any = null;
+	private _outputHeightTimer: Timeout | null = null;
 
 	private _validateFinalOutputHeight(synchronous: boolean) {
 		if (this._outputHeightTimer !== null) {
@@ -621,7 +621,7 @@ export class CellOutputContainer extends CellContentPart {
 		}
 	}
 
-	private _outputHeightTimer: any = null;
+	private _outputHeightTimer: Timeout | null = null;
 
 	private _validateFinalOutputHeight(synchronous: boolean) {
 		if (this._outputHeightTimer !== null) {

@@ -7,7 +7,7 @@ import { compareBy, groupAdjacentBy, numberComparator } from '../../../../base/c
 import { assert, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { LineRange } from '../ranges/lineRange.js';
-import { OffsetEdit, SingleOffsetEdit } from './offsetEdit.js';
+import { StringEdit, StringReplacement } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextReplacement, TextEdit } from './textEdit.js';
@@ -20,8 +20,8 @@ export class LineEdit {
 		return new LineEdit(data.map(e => SingleLineEdit.deserialize(e)));
 	}
 
-	public static fromEdit(edit: OffsetEdit, initialValue: AbstractText): LineEdit {
-		const textEdit = TextEdit.fromOffsetEdit(edit, initialValue);
+	public static fromEdit(edit: StringEdit, initialValue: AbstractText): LineEdit {
+		const textEdit = TextEdit.fromStringEdit(edit, initialValue);
 		return LineEdit.fromTextEdit(textEdit, initialValue);
 	}
 
@@ -64,13 +64,13 @@ export class LineEdit {
 		assert(checkAdjacentItems(edits, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
 	}
 
-	public toEdit(initialValue: AbstractText): OffsetEdit {
-		const edits: SingleOffsetEdit[] = [];
+	public toEdit(initialValue: AbstractText): StringEdit {
+		const edits: StringReplacement[] = [];
 		for (const edit of this.edits) {
 			const singleEdit = edit.toSingleEdit(initialValue);
 			edits.push(singleEdit);
 		}
-		return new OffsetEdit(edits);
+		return new StringEdit(edits);
 	}
 
 	public toString(): string {
@@ -325,10 +325,10 @@ export class SingleLineEdit {
 		}
 	}
 
-	public toSingleEdit(initialValue: AbstractText): SingleOffsetEdit {
+	public toSingleEdit(initialValue: AbstractText): StringReplacement {
 		const textEdit = this.toSingleTextEdit(initialValue);
 		const range = initialValue.getTransformer().getOffsetRange(textEdit.range);
-		return new SingleOffsetEdit(range, textEdit.text);
+		return new StringReplacement(range, textEdit.text);
 	}
 
 	public toString(): string {
