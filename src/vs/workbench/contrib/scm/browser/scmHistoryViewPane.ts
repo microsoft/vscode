@@ -10,7 +10,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
@@ -596,31 +596,25 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		return { indentElement, twistieElement, element, graphPlaceholder, resourceLabel, actionBar, disposables };
 	}
 
-	renderElement(elementOrNode: ITreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>, void>, index: number, templateData: HistoryItemChangeTemplate): void {
+	renderElement(elementOrNode: ITreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>, void>, index: number, templateData: HistoryItemChangeTemplate, details?: ITreeElementRenderDetails | undefined): void {
 		const historyItemViewModel = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.historyItemViewModel : elementOrNode.element.context.historyItemViewModel;
 		const historyItemChangeUri = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.historyItemChange.uri : elementOrNode.element.uri;
 		const graphColumns = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.graphColumns : elementOrNode.element.context.historyItemViewModel.outputSwimlanes;
-		const [graphPlaceholderWidth, graphPlaceholderClientWidth] = this._getGraphPlaceholderWidth(graphColumns);
+		const [graphPlaceholderSvgWidth, graphPlaceholderElementWidth] = this._getGraphPlaceholderWidth(graphColumns);
 
-		// TODO@lszomoru - review this
-		// Should come from elementOrNode
-		const indent = (elementOrNode.depth - 1) * 8;
-
-		this._renderTreeElements(templateData, graphPlaceholderClientWidth, indent);
+		const indent = this._getIndent(elementOrNode.depth, details);
+		this._renderTreeElements(templateData, graphPlaceholderElementWidth, indent);
 
 		templateData.graphPlaceholder.textContent = '';
-		templateData.graphPlaceholder.style.width = `${graphPlaceholderWidth}px`;
+		templateData.graphPlaceholder.style.width = `${graphPlaceholderSvgWidth}px`;
 		templateData.graphPlaceholder.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns));
 
 		const hidePath = this.viewMode() === ViewMode.Tree;
 		const fileKind = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? FileKind.FILE : FileKind.FOLDER;
-		if (fileKind === FileKind.FOLDER) {
-			templateData.resourceLabel.element.style.marginLeft = `${indent + 16}px`;
-		} else {
-			templateData.resourceLabel.element.style.marginLeft = `${indent}px`;
-		}
 
+		const marginLeft = this._getResourceLabelMargin(fileKind, indent);
+		templateData.resourceLabel.element.style.marginLeft = `${marginLeft}px`;
 		templateData.resourceLabel.setFile(historyItemChangeUri, { fileDecorations: { colors: false, badges: true }, fileKind, hidePath });
 
 		const actions = this._menuService.getMenuActions(
@@ -631,27 +625,25 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>>, void>, index: number, templateData: HistoryItemChangeTemplate): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>>, void>, index: number, templateData: HistoryItemChangeTemplate, details?: ITreeElementRenderDetails | undefined): void {
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>>;
 		const historyItemViewModel = compressed.elements[0].context.historyItemViewModel;
 		const graphColumns = compressed.elements[0].context.historyItemViewModel.outputSwimlanes;
-		const [graphPlaceholderWidth, graphPlaceholderClientWidth] = this._getGraphPlaceholderWidth(graphColumns);
+		const [graphPlaceholderSvgWidth, graphPlaceholderElementWidth] = this._getGraphPlaceholderWidth(graphColumns);
 
-		// TODO@lszomoru - review this
-		// Should come from elementOrNode
-		const indent = (node.depth - 1) * 8;
-
-		this._renderTreeElements(templateData, graphPlaceholderClientWidth, indent);
+		const indent = this._getIndent(node.depth, details);
+		this._renderTreeElements(templateData, graphPlaceholderElementWidth, indent);
 
 		templateData.graphPlaceholder.textContent = '';
-		templateData.graphPlaceholder.style.width = `${graphPlaceholderWidth}px`;
+		templateData.graphPlaceholder.style.width = `${graphPlaceholderSvgWidth}px`;
 		templateData.graphPlaceholder.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns));
 
 		const label = compressed.elements.map(e => e.name);
 		const folder = compressed.elements[compressed.elements.length - 1];
 
-		templateData.resourceLabel.element.style.marginLeft = `${indent + 16}px`;
+		const marginLeft = this._getResourceLabelMargin(FileKind.FOLDER, indent);
+		templateData.resourceLabel.element.style.marginLeft = `${marginLeft}px`;
 		templateData.resourceLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind: FileKind.FOLDER,
@@ -659,19 +651,32 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		});
 	}
 
-	private _renderTreeElements(templateData: HistoryItemChangeTemplate, graphPlaceholderClientWidth: number, indent: number): void {
-		templateData.indentElement.style.position = 'absolute';
-		templateData.indentElement.style.left = `${graphPlaceholderClientWidth + 4}px`;
+	private _renderTreeElements(templateData: HistoryItemChangeTemplate, graphPlaceholderElementWidth: number, indent: number): void {
+		templateData.indentElement.style.left = `${graphPlaceholderElementWidth + 4}px`;
 
 		templateData.twistieElement.style.position = 'absolute';
-		templateData.twistieElement.style.paddingLeft = `${graphPlaceholderClientWidth + indent - 4}px`;
+		templateData.twistieElement.style.paddingLeft = `${graphPlaceholderElementWidth + indent - 4}px`;
+	}
+
+	private _getIndent(depth: number, details?: ITreeElementRenderDetails | undefined): number {
+		return details?.indent ? details.indent - 8 /* TreeRenderer.DefaultIndent */ : (depth - 1) * 8;
+	}
+
+	private _getResourceLabelMargin(fileKind: FileKind, indent: number): number {
+		if (fileKind === FileKind.FOLDER) {
+			// Since the twistie element is using absolute positioning, we need
+			// to add extra space to the margin to make space for the twistie.
+			return indent + 18;
+		}
+
+		return indent;
 	}
 
 	private _getGraphPlaceholderWidth(graphColumns: ISCMHistoryItemGraphNode[]): [number, number] {
-		const graphPlaceholderWidth = SWIMLANE_WIDTH * (graphColumns.length + 1);
-		const graphPlaceholderClientWidth = graphPlaceholderWidth + 3 /* left border */;
+		const graphPlaceholderSvgWidth = SWIMLANE_WIDTH * (graphColumns.length + 1);
+		const graphPlaceholderElementWidth = graphPlaceholderSvgWidth + 3 /* left border */;
 
-		return [graphPlaceholderWidth, graphPlaceholderClientWidth];
+		return [graphPlaceholderSvgWidth, graphPlaceholderElementWidth];
 	}
 
 	disposeTemplate(templateData: HistoryItemChangeTemplate): void {
