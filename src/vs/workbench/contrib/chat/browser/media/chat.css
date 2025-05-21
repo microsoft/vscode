@@ -1863,7 +1863,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: flex-end;
 }
 
-.interactive-item-container.interactive-request .value  {
+.interactive-item-container.interactive-request .value .rendered-markdown  {
 	background-color: var(--vscode-editor-foldBackground);
 	border-radius: 8px;
 	padding: 8px 12px;
@@ -1901,7 +1901,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context {
-	margin-top: 15px;
+	margin-top: 10px;
 	max-width: 100%;
 	width: fit-content;
 	justify-content: flex-end;
