@@ -18,10 +18,10 @@ import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { IPagedScreenReaderStrategy, ISimpleModel } from '../screenReaderUtils.js';
-import { IScreenReaderContent } from './nativeEditContextUtils.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { ViewController } from '../../../view/viewController.js';
+import { IScreenReaderContent } from './screenReaderUtils.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
@@ -74,7 +74,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		}
 	}
 
-	public handleFocusChange(newFocusValue: boolean): void {
+	public onFocusChange(newFocusValue: boolean): void {
 		if (newFocusValue) {
 			this._selectionChangeListener.value = this._setSelectionChangeListener();
 		} else {
@@ -86,7 +86,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
-	public onCut(): void {
+	public onWillCut(): void {
 		this._setIgnoreSelectionChangeTime('onCut');
 	}
 

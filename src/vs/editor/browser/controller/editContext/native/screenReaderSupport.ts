@@ -18,9 +18,9 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ariaLabelForScreenReaderContent } from '../screenReaderUtils.js';
-import { IScreenReaderContent } from './nativeEditContextUtils.js';
 import { ComplexScreenReaderContent } from './screenReaderContentComplex.js';
 import { SimpleScreenReaderContent } from './screenReaderContentSimple.js';
+import { IScreenReaderContent } from './screenReaderUtils.js';
 
 export class ScreenReaderSupport extends Disposable {
 
@@ -58,11 +58,11 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public onCut(): void {
-		this._screenReaderContent.onCut();
+		this._screenReaderContent.onWillCut();
 	}
 
 	public handleFocusChange(newFocusValue: boolean): void {
-		this._screenReaderContent.handleFocusChange(newFocusValue);
+		this._screenReaderContent.onFocusChange(newFocusValue);
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {

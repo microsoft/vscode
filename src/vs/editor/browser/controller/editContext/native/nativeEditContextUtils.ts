@@ -5,8 +5,6 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { Selection } from '../../../../common/core/selection.js';
 
 export interface ITypeData {
 	text: string;
@@ -82,17 +80,4 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 			target.removeEventListener(type, listener as any);
 		}
 	};
-}
-
-export interface IScreenReaderContent {
-
-	onCut(): void;
-
-	onWillPaste(): void;
-
-	setScreenReaderContent(primarySelection: Selection): void;
-
-	onConfigurationChanged(options: IComputedEditorOptions): void;
-
-	handleFocusChange(newFocusValue: boolean): void;
 }

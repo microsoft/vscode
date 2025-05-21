@@ -13,11 +13,11 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { ISimpleModel, SimplePagedScreenReaderStrategy, ISimpleScreenReaderContentState } from '../screenReaderUtils.js';
-import { IScreenReaderContent } from './nativeEditContextUtils.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { ViewController } from '../../../view/viewController.js';
+import { IScreenReaderContent } from './screenReaderUtils.js';
 
 export class SimpleScreenReaderContent extends Disposable implements IScreenReaderContent {
 
@@ -67,7 +67,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		}
 	}
 
-	public handleFocusChange(newFocusValue: boolean): void {
+	public onFocusChange(newFocusValue: boolean): void {
 		if (newFocusValue) {
 			this._selectionChangeListener.value = this._setSelectionChangeListener();
 		} else {
@@ -79,7 +79,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
-	public onCut(): void {
+	public onWillCut(): void {
 		this._setIgnoreSelectionChangeTime('onCut');
 	}
 
