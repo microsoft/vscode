@@ -753,7 +753,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.chatUserActionRequired': {
 			...signalFeatureBase,
-			'markdownDescription': localize('accessibility.signals.chatUserActionRequired', "Plays a signal - sound (audio cue) and/or announcement (alert) - when user action is required in the chat. Note that {0} will impact the `auto` behavior of this setting.", '`#chat.focusWindowOnConfirmation#`'),
+			'markdownDescription': localize('accessibility.signals.chatUserActionRequired', "Plays a signal - sound (audio cue) and/or announcement (alert) - when user action is required in the chat."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.chatUserActionRequired.sound', "Plays a sound when user action is required in the chat."),
@@ -771,6 +771,7 @@ const configuration: IConfigurationNode = {
 					...announcementFeatureBase
 				},
 			},
+			tags: ['sound', 'tool', 'confirmation', 'audio', 'chat', 'agent', 'notification', 'alert', 'prompt', 'interaction', 'copilot', 'assistant']
 		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',

@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { pick } from '../../../../base/common/arrays.js';
 import { assert } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -24,7 +23,6 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { isLocation, Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1215,7 +1213,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return input;
 		}
 
-		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(toUri(variable), promptPath.uri))) {
+		if (!attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(IChatRequestVariableEntry.toUri(variable), promptPath.uri))) {
 			// not yet attached, so attach it
 			const variable = toChatVariable({ uri: promptPath.uri, isPromptFile: true }, true);
 			attachedContext.push(variable);
@@ -1529,14 +1527,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// process prompt files starting from the 'root' ones
 		const promptFileVariables = attachedContext
 			.filter(isPromptFileChatVariable)
-			.filter(pick('isRoot'));
-		const promptUris = promptFileVariables.map(toUri);
+			.filter(e => e.isRoot);
+		const promptUris = promptFileVariables.map(IChatRequestVariableEntry.toUri).filter(isDefined);
 
 		if (promptFileVariables.length === 0) {
 			return input;
 		}
 
 		if (!input.trim()) {
+			// NOTE this is a prompt and therefore not localized
 			const promptNames = (promptUris.length === 1)
 				? `'${basename(promptUris[0])}'`
 				: `the prompt files`;
@@ -1574,10 +1573,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// sanity check on the logic of the `getPromptFilesMetadata` method
 		// and the code above in case this block is moved around somewhere else:
 		// if we have some tools present, the mode must have been equal to `agent`
-		assert(
-			this.inputPart.currentMode === ChatMode.Agent,
-			`Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`,
-		);
+		assert(this.inputPart.currentMode === ChatMode.Agent, `Chat mode must be 'agent' when there are 'tools' defined, got ${this.inputPart.currentMode}.`);
+
 
 		// convert tools names to tool IDs
 		const toolIds = tools
@@ -1593,7 +1590,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return tool;
 			})
 			.filter(isDefined)
-			.map(pick('id'));
+			.map(tool => tool.id);
 
 		// if there are some tools defined in the prompt files, select only the specified tools
 		this.inputPart
@@ -1611,9 +1608,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async autoAttachInstructions(
 		attachedContext: IChatRequestVariableEntry[],
 	): Promise<void> {
+
 		const variableUris = attachedContext
-			.filter(hasAddressableValue)
-			.map(toUri);
+			.map(IChatRequestVariableEntry.toUri)
+			.filter(isDefined);
 
 		const automaticInstructions = await this.promptsService
 			.findInstructionFilesFor(variableUris);
@@ -1632,42 +1630,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
-/**
- * Type for any "addressable" object - i.e., an object that has
- * the `value` property that is either a {@link URI} or a {@link Location}.
- */
-export type TAddressable<T extends object> = T & { value: URI | Location };
 
-/**
- * Check if provided object is "addressable" - i.e., has the `value`
- * property that is either a {@link URI} or a {@link Location}.
- */
-const hasAddressableValue = <T extends object>(
-	thing: T,
-): thing is TAddressable<T> => {
-	if ((!thing) || (('value' in thing) === false)) {
-		return false;
-	}
-
-	if (URI.isUri(thing.value) || isLocation(thing.value)) {
-		return true;
-	}
-
-	return false;
-};
-
-/**
- * Returns URI of a provided "addressable" object.
- */
-const toUri = <T extends object>(
-	thing: TAddressable<T>,
-): URI => {
-	const { value } = thing;
-
-	return URI.isUri(value)
-		? value
-		: value.uri;
-};
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 

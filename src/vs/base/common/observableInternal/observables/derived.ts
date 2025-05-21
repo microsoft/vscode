@@ -16,8 +16,8 @@ import { IDerivedReader, Derived, DerivedWithSetter } from './derivedImpl.js';
  *
  * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
-export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
-export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
+export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithChange<T, TChange>;
+export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservableWithChange<T, TChange>;
 export function derived<T, TChange = void>(computeFnOrOwner: ((reader: IDerivedReader<TChange>) => T) | DebugOwner, computeFn?: ((reader: IDerivedReader<TChange>) => T) | undefined): IObservable<T> {
 	if (computeFn !== undefined) {
 		return new Derived(

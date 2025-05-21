@@ -27,7 +27,11 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
 		let input = '';
 		if (v.toolSpecificData) {
-			input = v.toolSpecificData?.kind === 'terminal' ? v.toolSpecificData.command : JSON.stringify(v.toolSpecificData.rawInput);
+			input = v.toolSpecificData?.kind === 'terminal'
+				? v.toolSpecificData.command
+				: v.toolSpecificData?.kind === 'extensions'
+					? JSON.stringify(v.toolSpecificData.extensions)
+					: JSON.stringify(v.toolSpecificData.rawInput);
 		}
 		const title = v.confirmationMessages?.title || '';
 		return (title + (input ? ': ' + input : '')).trim();
