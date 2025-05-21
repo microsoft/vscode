@@ -19,7 +19,6 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
@@ -54,6 +53,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 
 		this.domNode.classList.add('disabled');
+		// this.attachment.enabled = false;
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
 		const range = undefined;
@@ -118,7 +118,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		}
 
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
-		this.attachment.enabled = false;
 		this.attachmentModel.addFile(file);
 	}
 }

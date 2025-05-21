@@ -273,7 +273,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._value;
 	}
 
-	private _enabled = true;
+	private _enabled = false;
 	get enabled() {
 		return this._enabled;
 	}
