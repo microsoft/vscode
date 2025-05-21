@@ -14,7 +14,7 @@ import { constObservable, derived, IObservable, ISettableObservable, observableV
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
@@ -472,7 +472,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this._chatWidget.attachmentModel.clear();
+		this._chatWidget.attachmentModel.clear(true);
 		this._chatWidget.saveState();
 
 		reset(this._elements.statusLabel);

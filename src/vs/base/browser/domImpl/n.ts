@@ -5,7 +5,7 @@
 
 import { BugIndicatingError } from '../../common/errors.js';
 import { DisposableStore, IDisposable } from '../../common/lifecycle.js';
-import { derived, derivedOpts, derivedWithStore, IObservable, IReader, observableValue } from '../../common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, observableValue } from '../../common/observable.js';
 import { isSVGElement } from '../dom.js';
 
 export namespace n {
@@ -127,9 +127,9 @@ export abstract class ObserverNode<T extends Element = Element> {
 			ref(this._element);
 		}
 		if (obsRef) {
-			this._deriveds.push(derivedWithStore((_reader, store) => {
+			this._deriveds.push(derived((_reader) => {
 				obsRef(this as unknown as ObserverNodeWithElement<T>);
-				store.add({
+				_reader.store.add({
 					dispose: () => {
 						obsRef(null);
 					}
@@ -364,8 +364,8 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-function isObservable<T>(obj: any): obj is IObservable<T> {
-	return obj && typeof obj === 'object' && obj['read'] !== undefined && obj['reportChanges'] !== undefined;
+function isObservable<T>(obj: unknown): obj is IObservable<T> {
+	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
 }
 
 type ElementAttributeKeys<T> = Partial<{

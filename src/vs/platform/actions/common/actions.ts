@@ -60,6 +60,7 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
+	static readonly DebugDisassemblyContext = new MenuId('DebugDisassemblyContext');
 	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
 	static readonly DebugCreateConfiguration = new MenuId('DebugCreateConfiguration');
 	static readonly EditorContext = new MenuId('EditorContext');
@@ -70,6 +71,7 @@ export class MenuId {
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
 	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
@@ -125,8 +127,11 @@ export class MenuId {
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
 	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
+	static readonly SCMHistoryItemChatContext = new MenuId('SCMHistoryItemChatContext');
+	static readonly SCMHistoryItemChangeContext = new MenuId('SCMHistoryItemChangeContext');
 	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
+	static readonly SCMQuickDiffDecorations = new MenuId('SCMQuickDiffDecorations');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -612,7 +617,7 @@ interface IBaseAction2Options extends IAction2CommonOptions {
 	f1?: false;
 }
 
-interface ICommandPaletteOptions extends IAction2CommonOptions {
+export interface ICommandPaletteOptions extends IAction2CommonOptions {
 
 	/**
 	 * The title of the command that will be displayed in the command palette after the category.

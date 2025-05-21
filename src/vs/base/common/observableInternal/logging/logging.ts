@@ -54,8 +54,8 @@ export interface IObservableLogger {
 	handleAutorunStarted(autorun: AutorunObserver): void;
 	handleAutorunFinished(autorun: AutorunObserver): void;
 
-	handleDerivedDependencyChanged(derived: Derived<any>, observable: IObservable<any>, change: unknown): void;
-	handleDerivedCleared(observable: Derived<any>): void;
+	handleDerivedDependencyChanged(derived: Derived<any, any, any>, observable: IObservable<any>, change: unknown): void;
+	handleDerivedCleared(observable: Derived<any, any, any>): void;
 
 	handleBeginTransaction(transaction: TransactionImpl): void;
 	handleEndTransaction(transaction: TransactionImpl): void;

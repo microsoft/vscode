@@ -25,7 +25,7 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportStdio, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -205,11 +205,11 @@ suite('Workbench - MCP - Registry', () => {
 		const disposable = registry.registerDelegate(delegate);
 		store.add(disposable);
 
-		assert.strictEqual(registry.delegates.length, 1);
-		assert.strictEqual(registry.delegates[0], delegate);
+		assert.strictEqual(registry.delegates.get().length, 1);
+		assert.strictEqual(registry.delegates.get()[0], delegate);
 
 		disposable.dispose();
-		assert.strictEqual(registry.delegates.length, 0);
+		assert.strictEqual(registry.delegates.get().length, 0);
 	});
 
 	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
@@ -257,6 +257,47 @@ suite('Workbench - MCP - Registry', () => {
 		assert.ok(connection3);
 		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
 		connection3.dispose();
+	});
+
+	test('resolveConnection uses user-provided launch configuration', async () => {
+		// Create a collection with custom launch resolver
+		const customCollection: McpCollectionDefinition = {
+			...testCollection,
+			resolveServerLanch: async (def) => {
+				return {
+					...(def.launch as McpServerTransportStdio),
+					env: { CUSTOM_ENV: 'value' },
+				};
+			}
+		};
+
+		// Create a definition with variable replacement
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			variableReplacement: {
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
+			}
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		testCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(customCollection));
+
+		// Resolve connection should use the custom launch configuration
+		const connection = await registry.resolveConnection({
+			collectionRef: customCollection,
+			definitionRef: definition,
+			logger
+		}) as McpServerConnection;
+
+		assert.ok(connection);
+
+		// Verify the launch configuration passed to _replaceVariablesInLaunch was the custom one
+		assert.deepStrictEqual((connection.launchDefinition as McpServerTransportStdio).env, { CUSTOM_ENV: 'value' });
+
+		connection.dispose();
 	});
 
 	suite('Trust Management', () => {

@@ -326,7 +326,7 @@ export function signalFromObservable<T>(owner: DebugOwner | undefined, observabl
 export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	disposableStore.add(autorun(reader => {
 		/** @description debounce */
@@ -353,7 +353,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 	let hasValue = false;
 	let lastValue: T | undefined;
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	return observableFromEvent<T, void>(cb => {
 		const d = autorun(reader => {
@@ -391,7 +391,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, disposableStore: DisposableStore): IObservable<boolean> {
 	const observable = observableValue('triggeredRecently', false);
 
-	let timeout: any = undefined;
+	let timeout: Timeout | undefined = undefined;
 
 	disposableStore.add(event(() => {
 		observable.set(true, undefined);
@@ -636,10 +636,12 @@ export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IRead
 	return derivedObservableWithCache<T | undefined>(owner, (reader, lastValue) => lastValue ?? fn(reader));
 }
 
-type RemoveUndefined<T> = T extends undefined ? never : T;
 
-export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+export type RemoveUndefined<T> = T extends undefined ? never : T;
+
+export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
 	let _previousValue: T | undefined;
+	let _firstRun = true;
 	return autorunWithStoreHandleChanges({
 		changeTracker: {
 			createChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
@@ -659,14 +661,19 @@ export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TCh
 		const previousValue = _previousValue;
 		if (changeSummary.didChange) {
 			_previousValue = value;
-			cb(value, previousValue, changeSummary.deltas);
+			// didChange can never be true on the first autorun, so we know previousValue is defined
+			cb(value, previousValue!, changeSummary.deltas);
+		}
+		if (_firstRun) {
+			_firstRun = false;
+			_previousValue = value;
 		}
 	});
 }
 
-export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
-	const disposable = runOnChange(observable, (value, previousValue: undefined | T, deltas) => {
+	const disposable = runOnChange(observable, (value, previousValue: T, deltas) => {
 		store.clear();
 		cb(value, previousValue, deltas, store);
 	});
@@ -678,8 +685,8 @@ export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChan
 	};
 }
 
-export function runOnChangeWithCancellationToken<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], token: CancellationToken) => Promise<void>): IDisposable {
-	return runOnChangeWithStore(observable, (value, previousValue: undefined | T, deltas, store) => {
+export function runOnChangeWithCancellationToken<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: T, deltas: RemoveUndefined<TChange>[], token: CancellationToken) => Promise<void>): IDisposable {
+	return runOnChangeWithStore(observable, (value, previousValue, deltas, store) => {
 		cb(value, previousValue, deltas, cancelOnDispose(store));
 	});
 }

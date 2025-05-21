@@ -17,7 +17,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -31,11 +31,11 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 
-function getAgentData(id: string) {
+function getAgentData(id: string): IChatAgentData {
 	return {
 		name: id,
 		id: id,
@@ -44,6 +44,7 @@ function getAgentData(id: string) {
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
+		modes: [ChatMode.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],

@@ -188,6 +188,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				persistence: {
 					hideOnKeyDown: true,
 					sticky: focus
+				},
+				appearance: {
+					maxHeightRatio: 0.9
 				}
 			}
 		)));
@@ -773,7 +776,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	//#region Auxiliary Statusbar Parts
 
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
+	createAuxiliaryStatusbarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryStatusbarPart {
 
 		// Container
 		const statusbarPartContainer = $('footer.part.statusbar', {
@@ -785,7 +788,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		container.appendChild(statusbarPartContainer);
 
 		// Statusbar Part
-		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
+		const statusbarPart = instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
 		const disposable = this.registerPart(statusbarPart);
 
 		statusbarPart.create(statusbarPartContainer);
@@ -914,8 +917,8 @@ export class ScopedStatusbarService extends Disposable implements IStatusbarServ
 		this.onDidChangeEntryVisibility = this.statusbarEntryContainer.onDidChangeEntryVisibility;
 	}
 
-	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
-		return this.statusbarService.createAuxiliaryStatusbarPart(container);
+	createAuxiliaryStatusbarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryStatusbarPart {
+		return this.statusbarService.createAuxiliaryStatusbarPart(container, instantiationService);
 	}
 
 	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService {

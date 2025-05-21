@@ -962,11 +962,11 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		nameInput.onDidChange(value => {
+		disposables.add(nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
 			}
-		});
+		}));
 		const focusTracker = disposables.add(trackFocus(nameInput.inputElement));
 		disposables.add(focusTracker.onDidBlur(() => {
 			if (profileElement && !nameInput.value) {
@@ -1500,7 +1500,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1681,7 +1681,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -2113,15 +2113,22 @@ interface IActionsColumnTemplateData {
 	readonly disposables: DisposableStore;
 }
 
-class ChangeProfileAction extends Action {
+class ChangeProfileAction implements IAction {
+
+	readonly id = 'changeProfile';
+	readonly label = 'Change Profile';
+	readonly class = ThemeIcon.asClassName(editIcon);
+	readonly enabled = true;
+	readonly tooltip = localize('change profile', "Change Profile");
+	readonly checked = false;
 
 	constructor(
 		private readonly item: WorkspaceTableElement,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
-		super('changeProfile', '', ThemeIcon.asClassName(editIcon));
-		this.tooltip = localize('change profile', "Change Profile");
 	}
+
+	run(): void { }
 
 	getSwitchProfileActions(): IAction[] {
 		return this.userDataProfilesService.profiles

@@ -17,6 +17,7 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
@@ -29,6 +30,7 @@ const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 
 export class ChatSessionStore extends Disposable {
 	private readonly storageRoot: URI;
+	private readonly previousEmptyWindowStorageRoot: URI | undefined;
 	// private readonly transferredSessionStorageRoot: URI;
 
 	private readonly storeQueue = new Sequencer();
@@ -44,15 +46,20 @@ export class ChatSessionStore extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
-		const workspaceId = isEmptyWindow ?
-			'no-workspace' :
-			this.workspaceContextService.getWorkspace().id;
-		this.storageRoot = joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+		const workspaceId = this.workspaceContextService.getWorkspace().id;
+		this.storageRoot = isEmptyWindow ?
+			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
+			joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+
+		this.previousEmptyWindowStorageRoot = isEmptyWindow ?
+			joinPath(this.environmentService.workspaceStorageHome, 'no-workspace', 'chatSessions') :
+			undefined;
 
 		// TODO tmpdir
 		// this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
@@ -309,13 +316,20 @@ export class ChatSessionStore extends Disposable {
 
 	public async readSession(sessionId: string): Promise<ISerializableChatData | undefined> {
 		return await this.storeQueue.queue(async () => {
-			let rawData: string;
+			let rawData: string | undefined;
 			const storageLocation = this.getStorageLocation(sessionId);
 			try {
 				rawData = (await this.fileService.readFile(storageLocation)).value.toString();
 			} catch (e) {
 				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId}`, e);
-				return undefined;
+
+				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND && this.previousEmptyWindowStorageRoot) {
+					rawData = await this.readSessionFromPreviousLocation(sessionId);
+				}
+
+				if (!rawData) {
+					return undefined;
+				}
 			}
 
 			try {
@@ -341,6 +355,23 @@ export class ChatSessionStore extends Disposable {
 				return undefined;
 			}
 		});
+	}
+
+	private async readSessionFromPreviousLocation(sessionId: string): Promise<string | undefined> {
+		let rawData: string | undefined;
+
+		if (this.previousEmptyWindowStorageRoot) {
+			const storageLocation2 = joinPath(this.previousEmptyWindowStorageRoot, `${sessionId}.json`);
+			try {
+				rawData = (await this.fileService.readFile(storageLocation2)).value.toString();
+				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
+			} catch (e) {
+				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId} from previous location`, e);
+				return undefined;
+			}
+		}
+
+		return rawData;
 	}
 
 	private getStorageLocation(chatSessionId: string): URI {

@@ -481,7 +481,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
 	}
 
-	private _revealTimeouts: any[] = [];
+	private _revealTimeouts: Timeout[] = [];
 
 	private _reveal(): void {
 		this._revealTimeouts.forEach(e => {

@@ -167,7 +167,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, type: 'module' }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 

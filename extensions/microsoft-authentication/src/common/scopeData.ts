@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Uri } from 'vscode';
+
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
 
@@ -43,14 +45,14 @@ export class ScopeData {
 	 */
 	readonly tenantId: string | undefined;
 
-	constructor(readonly originalScopes: readonly string[] = []) {
+	constructor(readonly originalScopes: readonly string[] = [], issuer?: Uri) {
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
-		this.tenant = this.getTenant(this.allScopes);
+		this.tenant = this.getTenant(this.allScopes, issuer);
 		this.tenantId = this.getTenantId(this.tenant);
 	}
 
@@ -63,7 +65,14 @@ export class ScopeData {
 		}, undefined) ?? DEFAULT_CLIENT_ID;
 	}
 
-	private getTenant(scopes: string[]): string {
+	private getTenant(scopes: string[], issuer?: Uri): string {
+		if (issuer?.path) {
+			// Get tenant portion of URL
+			const tenant = issuer.path.split('/')[1];
+			if (tenant) {
+				return tenant;
+			}
+		}
 		return scopes.reduce<string | undefined>((prev, current) => {
 			if (current.startsWith('VSCODE_TENANT:')) {
 				return current.split('VSCODE_TENANT:')[1];

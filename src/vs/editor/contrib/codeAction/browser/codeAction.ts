@@ -164,7 +164,9 @@ export async function getCodeActions(
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
-		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		const managedCodeActionSet = new ManagedCodeActionSet(allActions, allDocumentation, disposables);
+		disposables.add(managedCodeActionSet);
+		return managedCodeActionSet;
 	} catch (err) {
 		disposables.dispose();
 		throw err;

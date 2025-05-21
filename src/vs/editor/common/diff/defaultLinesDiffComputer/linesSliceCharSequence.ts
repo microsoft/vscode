@@ -5,7 +5,7 @@
 
 import { findLastIdxMonotonous, findLastMonotonous, findFirstMonotonous } from '../../../../base/common/arraysFind.js';
 import { CharCode } from '../../../../base/common/charCode.js';
-import { OffsetRange } from '../../core/offsetRange.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { ISequence } from './algorithms/diffAlgorithm.js';
