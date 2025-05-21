@@ -18,7 +18,7 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.
 import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isMonacoCustomToggle, isMonacoEditor, isStickyScrollContainer, isStickyScrollElement, List, MouseController, TypeNavigationMode } from '../list/listWidget.js';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
-import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
+import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
 import { Action } from '../../../common/actions.js';
 import { distinct, equals, insertInto, range } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
@@ -412,19 +412,19 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		return { container, indent, twistie, indentGuidesDisposable: Disposable.None, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 		this.renderTreeElement(node, templateData);
-		this.renderer.renderElement(node, index, templateData.templateData, height);
+		this.renderer.renderElement(node, index, templateData.templateData, details);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: ITreeElementRenderDetails): void {
 		templateData.indentGuidesDisposable.dispose();
 
-		this.renderer.disposeElement?.(node, index, templateData.templateData, height);
+		this.renderer.disposeElement?.(node, index, templateData.templateData, details);
 
-		if (typeof height === 'number') {
+		if (typeof details?.height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
 		}
@@ -1786,12 +1786,12 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		// Render the element
 		const templateData = renderer.renderTemplate(stickyElement);
-		renderer.renderElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
+		renderer.renderElement(nodeCopy, stickyNode.startIndex, templateData, { height: stickyNode.height });
 
 		// Remove the element from the DOM when state is disposed
 		const disposable = toDisposable(() => {
 			accessibilityDisposable.dispose();
-			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
+			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, { height: stickyNode.height });
 			renderer.disposeTemplate(templateData);
 			stickyElement.remove();
 		});

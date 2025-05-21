@@ -27,7 +27,7 @@ import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js'
 import { ISpliceable } from '../../../common/sequence.js';
 import { isNumber } from '../../../common/types.js';
 import './list.css';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
@@ -1241,19 +1241,19 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	renderElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], height);
+			renderer.renderElement(element, index, templateData[i++], renderDetails);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeElement?.(element, index, templateData[i], height);
+			renderer.disposeElement?.(element, index, templateData[i], renderDetails);
 
 			i += 1;
 		}
@@ -1303,7 +1303,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData, height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.clear();
 	}
 
