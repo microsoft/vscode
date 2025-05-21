@@ -24,7 +24,7 @@ export enum TerminalCompletionItemKind {
 
 // Maps CompletionItemKind from language server based completion to TerminalCompletionItemKind
 export function mapLspKindToTerminalKind(lspKind: CompletionItemKind): TerminalCompletionItemKind {
-	// TODO: Consider adding more types into TerminalCompletionItemKind to cover more of LSP CompletionItemKind
+	// TODO: Add more types for different [LSP providers](https://github.com/microsoft/vscode/issues/249480)
 
 	switch (lspKind) {
 		case CompletionItemKind.File:
