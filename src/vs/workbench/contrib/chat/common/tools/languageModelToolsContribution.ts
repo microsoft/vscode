@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../languageModelToolsService.js';
 import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
@@ -132,8 +133,67 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 	}
 });
 
+export interface IRawToolSetContribution {
+	name: string;
+	referenceName?: string;
+	description: string;
+	icon?: string;
+	tools: string[];
+}
+
+const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolSetContribution[]>({
+	extensionPoint: 'languageModelToolSets',
+	deps: [languageModelToolsExtensionPoint],
+	jsonSchema: {
+		description: localize('vscode.extension.contributes.toolSets', 'Contributes a set of language model tools that can be used together.'),
+		type: 'array',
+		items: {
+			additionalProperties: false,
+			type: 'object',
+			defaultSnippets: [{
+				body: {
+					name: '${1}',
+					description: '${2}',
+					tools: ['${3}']
+				}
+			}],
+			required: ['name', 'description', 'tools'],
+			properties: {
+				name: {
+					description: localize('toolSetName', "A name for this tool set."),
+					type: 'string',
+				},
+				referenceName: {
+					description: localize('toolSetReferenceName', "A name that users can use to reference this tool set. Name must not contain whitespace."),
+					type: 'string',
+					pattern: '^[\\w-]+$'
+				},
+				description: {
+					description: localize('toolSetDescription', "A description of this tool set."),
+					type: 'string'
+				},
+				icon: {
+					markdownDescription: localize('toolSetIcon', "An icon that represents this tool set, like `$(zap)`"),
+					type: 'string'
+				},
+				tools: {
+					description: localize('toolSetTools', "An array of tool or tool set names that are part of this set."),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				}
+			}
+		}
+	}
+});
+
 function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
+}
+
+function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
+	return `toolset:${extensionIdentifier.value}/${toolName}`;
 }
 
 export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContribution {
@@ -142,11 +202,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	private _registrationDisposables = new DisposableMap<string>();
 
 	constructor(
+		@IProductService productService: IProductService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@ILogService logService: ILogService,
-		@IProductService productService: IProductService
 	) {
-		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
+
+		languageModelToolsExtensionPoint.setHandler((_extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const rawTool of extension.value) {
 					if (!rawTool.name || !rawTool.modelDescription || !rawTool.displayName) {
@@ -191,9 +251,14 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
 						ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
 						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
+
+					const source: ToolDataSource = isBuiltinTool
+						? ToolDataSource.Internal
+						: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier };
+
 					const tool: IToolData = {
 						...rawTool,
-						source: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
+						source,
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
@@ -215,8 +280,87 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 				}
 			}
 		});
+
+		languageModelToolSetsExtensionPoint.setHandler((_extensions, delta) => {
+
+			for (const extension of delta.added) {
+
+				if (!isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
+					extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register language model tools because the 'contribLanguageModelToolSets' API proposal is not enabled.`);
+					continue;
+				}
+
+				const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
+					ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
+					isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
+
+				const source: ToolDataSource = isBuiltinTool
+					? ToolDataSource.Internal
+					: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier };
+
+
+				for (const toolSet of extension.value) {
+
+					if (isFalsyOrWhitespace(toolSet.name)) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty name`);
+						continue;
+					}
+
+					if (isFalsyOrEmpty(toolSet.tools)) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array`);
+						continue;
+					}
+
+					const tools: IToolData[] = [];
+					const toolSets: ToolSet[] = [];
+
+					for (const toolName of toolSet.tools) {
+						const toolObj = languageModelToolsService.getToolByName(toolName);
+						if (toolObj) {
+							tools.push(toolObj);
+							continue;
+						}
+						const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
+						if (toolSetObj) {
+							toolSets.push(toolSetObj);
+							continue;
+						}
+						extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool or tool set by name: ${toolName}`);
+					}
+
+					if (toolSets.length === 0 && tools.length === 0) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array (none of the tools were found)`);
+						continue;
+					}
+
+					const store = new DisposableStore();
+
+					const obj = languageModelToolsService.createToolSet(
+						source,
+						toToolSetKey(extension.description.identifier, toolSet.name),
+						toolSet.name,
+						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, toolReferenceName: toolSet.referenceName, description: toolSet.description }
+					);
+
+					store.add(obj);
+					tools.forEach(tool => store.add(obj.addTool(tool)));
+					toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet)));
+
+					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
+				}
+			}
+
+			for (const extension of delta.removed) {
+				for (const toolSet of extension.value) {
+					this._registrationDisposables.deleteAndDispose(toToolSetKey(extension.description.identifier, toolSet.name));
+				}
+			}
+		});
 	}
 }
+
+
+// --- render
 
 class LanguageModelToolDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
 	readonly type = 'table';
@@ -262,4 +406,54 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(LanguageModelToolDataRenderer),
+});
+
+
+class LanguageModelToolSetDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.languageModelToolSets;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contribs = manifest.contributes?.languageModelToolSets ?? [];
+		if (!contribs.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('name', "Name"),
+			localize('reference', "Reference Name"),
+			localize('tools', "Tools"),
+			localize('descriptions', "Description"),
+		];
+
+		const rows: IRowData[][] = contribs.map(t => {
+			return [
+				new MarkdownString(`\`${t.name}\``),
+				t.referenceName ? new MarkdownString(`\`#${t.referenceName}\``) : 'none',
+				t.tools.join(', '),
+				t.description,
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'languageModelToolSets',
+	label: localize('langModelToolSets', "Language Model Tool Sets"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(LanguageModelToolSetDataRenderer),
 });
