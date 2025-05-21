@@ -26,16 +26,16 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
-	// Boost LSP provider completions when inside REPL.
+	// Boost LSP provider completions
 	const lspProviderId = 'python';
 	const aIsLsp = a.completion.provider.includes(lspProviderId);
 	const bIsLsp = b.completion.provider.includes(lspProviderId);
 
 	if (aIsLsp && !bIsLsp) {
-		return -1; // LSP items first
+		return -1;
 	}
 	if (bIsLsp && !aIsLsp) {
-		return 1;  // LSP items first
+		return 1;
 	}
 
 	// Sort by the score
