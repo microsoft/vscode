@@ -64,7 +64,7 @@ import { IPreparedToolInvocation, IToolInvocation, IToolProgressStep, IToolResul
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
-import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
+import { CellExecutionUpdateType, ICellExecuteProgress } from '../../contrib/notebook/common/notebookExecutionService.js';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from '../../contrib/notebook/common/notebookExecutionStateService.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
@@ -1178,13 +1178,16 @@ export interface ICellExecuteOutputItemEditDto {
 	items: NotebookOutputItemDto[];
 }
 
+export interface ICellExecuteProgressDto extends ICellExecuteProgress {
+}
+
 export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
 }
 
 export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
 }
 
-export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto;
+export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto | ICellExecuteProgressDto;
 
 export interface VariablesResult {
 	id: number;
