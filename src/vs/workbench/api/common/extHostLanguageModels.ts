@@ -212,6 +212,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return;
 			}
 
+			this._logService.trace(`LM reported progress`);
+
 			let part: IChatResponsePart | undefined;
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
 				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
@@ -414,6 +416,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+		this._logService.trace(`Return LM chunk to caller`);
 		const data = this._pendingRequest.get(requestId);
 		if (data) {
 			data.res.handleFragment(chunk);
