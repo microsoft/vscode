@@ -16,14 +16,12 @@ import { IMarkerService } from '../../../../../../platform/markers/common/marker
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
 suite('LspTerminalModelContentProvider', () => {
-	// Question: Supposedly gives leak warning, although everything is added to disposables.
-	// const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const store = new DisposableStore();
 	let instantiationService: TestInstantiationService;
 	let capabilityStore: ITerminalCapabilityStore;
 	let textModelService: ITextModelService;
@@ -36,7 +34,7 @@ suite('LspTerminalModelContentProvider', () => {
 
 	setup(async () => {
 		instantiationService = store.add(new TestInstantiationService());
-		capabilityStore = new TerminalCapabilityStore();
+		capabilityStore = store.add(new TerminalCapabilityStore());
 		virtualTerminalDocumentUri = URI.from({ scheme: 'vscodeTerminal', path: '/terminal1.py' });
 
 		// Create stubs for the mock text model methods
@@ -72,13 +70,13 @@ suite('LspTerminalModelContentProvider', () => {
 		instantiationService.stub(ILanguageService, languageService);
 
 		// Create the provider instance
-		lspTerminalModelContentProvider = instantiationService.createInstance(
+		lspTerminalModelContentProvider = store.add(instantiationService.createInstance(
 			LspTerminalModelContentProvider,
 			capabilityStore,
 			1,
 			virtualTerminalDocumentUri,
 			GeneralShellType.Python
-		);
+		));
 	});
 
 	teardown(() => {
