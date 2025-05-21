@@ -1900,9 +1900,9 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-		this.model.searchResult.aiTextSearchResult.hidden = !shouldKeepAIResults && !shouldUpdateAISearch;
-		if (!this.model.searchResult.aiTextSearchResult.hidden) {
+		if (this.model.searchResult.aiTextSearchResult.hidden && shouldUpdateAISearch) {
 			this.logService.info(`SearchView: Semantic search visible. Keep semantic results: ${shouldKeepAIResults}. Update semantic search: ${shouldUpdateAISearch}`);
+			this.model.searchResult.aiTextSearchResult.hidden = false;
 		}
 
 		const slowTimer = setTimeout(() => {
