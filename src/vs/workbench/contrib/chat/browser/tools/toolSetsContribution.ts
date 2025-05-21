@@ -6,7 +6,7 @@
 import { coalesce, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableFromEvent, observableSignalFromEvent, autorun } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
@@ -16,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -31,9 +31,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { parse } from '../../../../../base/common/jsonc.js';
+import * as json from '../../../../../base/common/json.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 
 
 const toolSetSchemaId = 'vscode://schemas/toolsets';
@@ -123,6 +128,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 	static readonly ID = 'chat.userToolSets';
 
 	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService extensionService: IExtensionService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
@@ -135,6 +141,8 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			extensionService.whenInstalledExtensionsRegistered,
 			lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => this._initToolSets());
+
+		this._store.add(instantiationService.createInstance(ToolSetsFileValidation));
 	}
 
 	private _initToolSets(): void {
@@ -194,7 +202,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 
 					const tools = coalesce(value.tools.map(toolName => this._languageModelToolsService.getToolByName(toolName)));
 
-					if (tools.length !== value.tools.length) {
+					if (tools.length === 0) {
 						// NOT all tools found (too strict?)
 						continue;
 					}
@@ -215,6 +223,87 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 		}));
 	}
+}
+
+class ToolSetsFileValidation extends Disposable {
+
+	constructor(
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IMarkerService private readonly _markerService: IMarkerService,
+		@IModelService modelService: IModelService,
+	) {
+		super();
+
+		const map = this._store.add(new DisposableMap<ITextModel>());
+		const handleNewModel = (model: ITextModel) => {
+			if (RawToolSetsShape.isToolSetFileName(model.uri)) {
+				map.set(model, this._setupValidation(model));
+			}
+		};
+
+		this._store.add(modelService.onModelRemoved(model => map.deleteAndDispose(model)));
+		this._store.add(modelService.onModelAdded(handleNewModel));
+		modelService.getModels().forEach(handleNewModel);
+	}
+
+	private _setupValidation(model: ITextModel): IDisposable {
+
+		const markerOwner = 'chatToolSetValidation';
+		const store = new DisposableStore();
+
+		const validate = () => {
+
+			const newMarker: IMarkerData[] = [];
+
+			if (model.isAttachedToEditor()) {
+
+				const text = model.getValue();
+
+				let inTools = false;
+				let inToolsArray = false;
+
+				json.visit(text, {
+					onObjectProperty: (property) => {
+						inTools = property === 'tools';
+					},
+					onArrayBegin: () => {
+						inToolsArray = inTools;
+					},
+					onArrayEnd: () => {
+						inToolsArray = false;
+					},
+					onLiteralValue: (value, offset, length) => {
+						if (!inToolsArray) {
+							return;
+						}
+						if (!this._toolsService.getToolByName(value)) {
+							const start = model.getPositionAt(offset);
+							const end = model.getPositionAt(offset + length);
+							newMarker.push({
+								severity: MarkerSeverity.Warning,
+								startLineNumber: start.lineNumber,
+								startColumn: start.column,
+								endLineNumber: end.lineNumber,
+								endColumn: end.column,
+								message: localize('toolNotFound', "Tool '{0}' not found.", value),
+							});
+						}
+					},
+				});
+			}
+
+			this._markerService.changeOne(markerOwner, model.uri, newMarker);
+		};
+
+		const validateSoon = store.add(new RunOnceScheduler(() => validate(), 1000));
+
+		store.add(model.onDidChangeContent(() => validateSoon.schedule()));
+		store.add(model.onDidChangeAttached(() => validateSoon.schedule(0)));
+		store.add(this._toolsService.onDidChangeTools(() => validateSoon.schedule(0)));
+		validate();
+		return store;
+	}
+
 }
 
 export class ConfigureToolSets extends Action2 {
