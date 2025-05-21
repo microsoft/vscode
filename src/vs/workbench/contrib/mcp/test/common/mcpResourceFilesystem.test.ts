@@ -47,7 +47,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, { registerToolData: () => Disposable.None, registerToolImplementation: () => Disposable.None } as any, new NullLogService()));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, { registerToolData: () => Disposable.None, registerToolImplementation: () => Disposable.None, createToolSet: () => Disposable.None } as any, new NullLogService()));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(
