@@ -103,7 +103,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		this._loadAddons(xterm.raw);
-		this._loadLspCompletionAddon(xterm.raw);
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
 			this._refreshAddons();
 			this._lspModelProvider.value?.shellTypeChanged(this._ctx.instance.shellType);
