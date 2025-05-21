@@ -45,7 +45,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessa
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
@@ -53,7 +53,7 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -561,14 +561,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// update/insert prompt-referenced attachments
 			for (const part of input.parts) {
-				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestDynamicVariablePart) {
+				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestToolSetPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
 					newPromptAttachments.set(entry.id, entry);
 					oldPromptAttachments.delete(entry.id);
 				}
 			}
 
-			this.attachmentModel.updateContent(oldPromptAttachments, newPromptAttachments.values());
+			this.attachmentModel.updateContext(oldPromptAttachments, newPromptAttachments.values());
 		}));
 	}
 
@@ -1025,13 +1025,30 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 		}));
+
+
+		const enabledToolSetsAndTools = this.input.selectedToolsModel.entries.map(value => {
+			const toolSetIds = new Set<string>();
+			const toolIds = new Set<string>();
+			for (const item of value) {
+				if (item instanceof ToolSet) {
+					toolSetIds.add(item.id);
+				} else {
+					toolIds.add(item.id);
+				}
+			}
+			return { toolSetIds, toolIds };
+		});
+
 		this._register(autorun(r => {
-			const enabledTools = new Set(this.input.selectedToolsModel.tools.read(r).map(t => t.id));
+
+			const { toolSetIds, toolIds } = enabledToolSetsAndTools.read(r);
+
 			const disabledTools = this.inputPart.attachmentModel.attachments
-				.filter(a => a.kind === 'tool' && !enabledTools.has(a.id))
+				.filter(a => a.kind === 'tool' && !toolIds.has(a.id) || a.kind === 'toolset' && !toolSetIds.has(a.id))
 				.map(a => a.id);
 
-			this.inputPart.attachmentModel.updateContent(disabledTools, Iterable.empty());
+			this.inputPart.attachmentModel.updateContext(disabledTools, Iterable.empty());
 			this.refreshParsedInput();
 		}));
 	}

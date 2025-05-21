@@ -927,7 +927,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderNoContent(other => content.kind === other.kind);
 		} catch (err) {
 			this.logService.error('ChatListItemRenderer#renderChatContentPart: error rendering content', toErrorMessage(err, true));
-			const errorPart = this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content")), content, this.renderer);
+			const errorPart = this.instantiationService.createInstance(ChatWarningContentPart, ChatErrorLevel.Error, new MarkdownString(localize('renderFailMsg', "Failed to render content") + `: ${toErrorMessage(err, false)}`), content, this.renderer);
 			return {
 				dispose: () => errorPart.dispose(),
 				domNode: errorPart.domNode,

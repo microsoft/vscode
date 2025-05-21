@@ -259,6 +259,7 @@ export function registerChatTitleActions() {
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
+
 			let userSelectedTools: Record<string, boolean> | undefined;
 			if (widget?.input.currentMode === ChatMode.Agent) {
 				userSelectedTools = {};

@@ -32,6 +32,9 @@ export { derivedConstOnceDefined, latestChangedValue } from './experimental/util
 export { observableFromEvent } from './observables/observableFromEvent.js';
 export { observableValue } from './observables/observableValue.js';
 
+export { ObservableSet } from './set.js';
+export { ObservableMap } from './map.js';
+
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
 import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';

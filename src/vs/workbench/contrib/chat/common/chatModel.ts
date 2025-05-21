@@ -72,6 +72,11 @@ export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
 }
 
+export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'toolset';
+	readonly value: undefined;
+}
+
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
@@ -211,7 +216,8 @@ export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEn
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
-	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
+	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
+	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
 
