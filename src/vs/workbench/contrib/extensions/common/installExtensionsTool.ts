@@ -16,7 +16,7 @@ export const InstallExtensionsToolData: IToolData = {
 	toolReferenceName: 'installExtensions',
 	canBeReferencedInPrompt: true,
 	displayName: localize('installExtensionsTool.displayName', 'Install Extensions'),
-	modelDescription: localize('installExtensionsTool.modelDescription', "This is a tool for installing extensions in Visual Studio Code. You should provide the list of extension ids to install and the reason for installation which is shown to the user. The identifier of an extension is '\${ publisher }.\${ name }' for example: 'vscode.csharp'. The reason should just explain about the extensions and do not mention about installing."),
+	modelDescription: localize('installExtensionsTool.modelDescription', "This is a tool for installing extensions in Visual Studio Code. You should provide the list of extension ids to install and the confirmation message which is shown to the user. The identifier of an extension is '\${ publisher }.\${ name }' for example: 'vscode.csharp'."),
 	userDescription: localize('installExtensionsTool.userDescription', ''),
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -29,9 +29,19 @@ export const InstallExtensionsToolData: IToolData = {
 				},
 				description: 'The ids of the extensions to search for. The identifier of an extension is \'\${ publisher }.\${ name }\' for example: \'vscode.csharp\'.',
 			},
-			reason: {
-				type: 'string',
-				description: 'The reason for installing the extensions. This is shown to the user. The reason should just explain about the extensions and do not mention about installing.',
+			confirmation: {
+				type: 'object',
+				description: 'Defines the confirmation dialog shown to the user. This appears after displaying the list of extensions with their install buttons. The title and message should explain the purpose of the suggested extensions and guide the user to press the Continue button that appears below this message. The Continue button serves as a confirmation from the user to proceed after completing installation of their chosen extensions.',
+				properties: {
+					title: {
+						type: 'string',
+						description: 'The title to display to the user.',
+					},
+					message: {
+						type: 'string',
+						description: 'The message to display to the user.',
+					}
+				}
 			}
 		},
 	}
@@ -39,7 +49,10 @@ export const InstallExtensionsToolData: IToolData = {
 
 type InputParams = {
 	ids: string[];
-	reason: string;
+	confirmation: {
+		title: string;
+		message: string;
+	};
 };
 
 export class InstallExtensionsTool implements IToolImpl {
@@ -51,8 +64,8 @@ export class InstallExtensionsTool implements IToolImpl {
 	async prepareToolInvocation(parameters: InputParams, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
 			confirmationMessages: {
-				title: localize('installExtensionsTool.confirmationTitle', 'Install Extensions'),
-				message: parameters.reason ?? localize('installExtensionsTool.confirmationMessage', 'These extensions are recommeded for you by Copilot.'),
+				title: parameters.confirmation?.title ?? localize('installExtensionsTool.confirmationTitle', 'Install Extensions'),
+				message: parameters.confirmation?.message ?? localize('installExtensionsTool.confirmationMessage', 'These extensions are recommeded for you by Copilot.'),
 			},
 			toolSpecificData: {
 				kind: 'extensions',
