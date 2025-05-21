@@ -27,7 +27,6 @@
     "interactive",
     "languageStatusText",
     "nativeWindowHandle",
-    "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",

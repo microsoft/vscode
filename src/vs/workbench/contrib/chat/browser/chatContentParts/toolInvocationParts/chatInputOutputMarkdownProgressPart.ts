@@ -7,7 +7,7 @@ import { assertNever } from '../../../../../../base/common/assert.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../../../../base/common/observable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -121,7 +121,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.progress : undefined;
 		if (progressObservable) {
-			this._register(autorunWithStore((reader, store) => {
+			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
 				if (progress.message) {
 					collapsibleListPart.title = progress.message;

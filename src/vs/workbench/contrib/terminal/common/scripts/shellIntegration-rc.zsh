@@ -180,7 +180,7 @@ __vsc_update_env() {
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add
 				for key in "${envVarsToReport[@]}"; do
-					if [[ -v $key ]]; then
+					if [[ -n "$key" && ${(P)key+_} ]]; then
 						vsc_aa_env["$key"]="${(P)key}"
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${(P)key}")" "$__vsc_nonce"
 					fi
@@ -188,7 +188,7 @@ __vsc_update_env() {
 			else
 				# Diff approach for associative array
 				for var in "${envVarsToReport[@]}"; do
-					if [[ -v $var ]]; then
+					if [[ -n "$var" && ${(P)var+_} ]]; then
 						value="${(P)var}"
 						__update_env_cache_aa "$var" "$value"
 					fi
@@ -200,7 +200,7 @@ __vsc_update_env() {
 			if [[ ${#__vsc_env_keys[@]} -eq 0 ]] && [[ ${#__vsc_env_values[@]} -eq 0 ]]; then
 				# Non-associative arrays are both empty, do not diff, just add
 				for key in "${envVarsToReport[@]}"; do
-					if [[ -v $key ]]; then
+					if [[ -n "$key" && ${(P)key+_} ]]; then
 						value="${(P)key}"
 						__vsc_env_keys+=("$key")
 						__vsc_env_values+=("$value")
@@ -210,7 +210,7 @@ __vsc_update_env() {
 			else
 				# Diff approach for non-associative arrays
 				for var in "${envVarsToReport[@]}"; do
-					if [[ -v $var ]]; then
+					if [[ -n "$var" && ${(P)var+_} ]]; then
 						value="${(P)var}"
 						__update_env_cache "$var" "$value"
 					fi

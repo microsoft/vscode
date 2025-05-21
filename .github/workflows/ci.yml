@@ -308,8 +308,8 @@ jobs:
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
 
-      - name: Run Property Init Order Checks
-        run: npm run property-init-order-check
+      - name: Run Define Class Fields Checks
+        run: npm run define-class-fields-check
 
       - name: Compile /build/
         run: npm run compile

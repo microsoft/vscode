@@ -19,7 +19,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { MonotonousIndexTransformer } from '../indexTransformer.js';
 import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
-import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelOffsetEdit.js';
+import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelStringEdit.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;

@@ -165,9 +165,7 @@ export function assertAllDefined(...args: (unknown | null | undefined)[]): unkno
 }
 
 /**
- * Asserts that the provided `item` is one of the items in the `list`.
- * Helps to narrow down broader `TType` of the `item` to the more
- * specific `TSubtype` type.
+ * Checks if the provided value is one of the vales in the provided list.
  *
  * ## Examples
  *
@@ -181,26 +179,22 @@ export function assertAllDefined(...args: (unknown | null | undefined)[]): unkno
  * const list: TItem[] = [':', '.'];
  *
  * // ok
- * assertOneOf(
- *   item,
- *   list,
- *   'Must succeed',
+ * assert(
+ *   isOneOf(item, list),
+ *   'Must succeed.',
  * );
  *
  * // `item` is of `TItem` type now
  * ```
  */
-export function assertOneOf<TType, TSubtype extends TType>(
-	item: TType,
-	list: readonly TSubtype[],
-	errorPrefix: string,
-): asserts item is TSubtype {
-	// note! it's ok to type cast here because `TSubtype` is a subtype of `TType`
-	assert(
-		list.includes(item as TSubtype),
-		`${errorPrefix}: Expected '${item}' to be one of [${list.join(', ')}].`,
-	);
-}
+export const isOneOf = <TType, TSubtype extends TType>(
+	value: TType,
+	validValues: readonly TSubtype[],
+): value is TSubtype => {
+	// note! it is OK to type cast here, because we rely on the includes
+	//       utility to check if the value is present in the provided list
+	return validValues.includes(<TSubtype>value);
+};
 
 /**
  * Compile-time type check of a variable.

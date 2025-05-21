@@ -24,8 +24,8 @@ import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
-import { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import type { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -782,11 +782,11 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		private readonly promptContentsProvider: IPromptContentsProvider,
 		public readonly token: FileReference | MarkdownLink,
 		options: Partial<IPromptParserOptions>,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.parser = this._register(initService.createInstance(
+		this.parser = this._register(instantiationService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,
 			options,

@@ -55,12 +55,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IModelService private readonly modelService: IModelService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
-		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
+		this.fileLocator = this.instantiationService.createInstance(PromptFilesLocator);
 		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
@@ -77,7 +77,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
 				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
 				 */
-				const parser: TextModelPromptParser = initService.createInstance(
+				const parser: TextModelPromptParser = instantiationService.createInstance(
 					TextModelPromptParser,
 					model,
 					{ seenReferences: [] },
@@ -144,25 +144,34 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^[\w_\-\.]+/)) {
+		if (command.match(/^[\w_\-\.]+$/)) {
 			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
 		}
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
-		if (data.promptPath) {
-			return data.promptPath;
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
+		const promptUri = await this.getPromptPath(data);
+		if (!promptUri) {
+			return undefined;
 		}
+		return await this.getMetadata(promptUri);
+	}
+
+	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
+		if (data.promptPath) {
+			return data.promptPath.uri;
+		}
+
 		const files = await this.listPromptFiles('prompt');
 		const command = data.command;
 		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
 		if (result) {
-			return result;
+			return result.uri;
 		}
 		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
 		if (textModel) {
-			return { uri: textModel.uri, storage: 'local', type: 'prompt' };
+			return textModel.uri;
 		}
 		return undefined;
 	}
@@ -221,6 +230,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [...foundFiles];
 	}
 
+	public async getMetadata(promptFileUri: URI): Promise<IMetadata> {
+		const metaDatas = await this.getAllMetadata([promptFileUri]);
+		return metaDatas[0];
+	}
+
 	@logTime()
 	public async getAllMetadata(
 		promptUris: readonly URI[],
@@ -229,7 +243,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			promptUris.map(async (uri) => {
 				let parser: PromptParser | undefined;
 				try {
-					parser = this.initService.createInstance(
+					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,
 						{ allowNonPromptFiles: true },

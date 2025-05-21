@@ -263,7 +263,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _getHeightOfLines(lineNumbers: number[], lastLineRelativePosition: number): number {
 		let totalHeight = 0;
 		for (let i = 0; i < lineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForLineNumber(lineNumbers[i]);
+			totalHeight += this._editor.getLineHeightForPosition(new Position(lineNumbers[i], 1));
 		}
 		return totalHeight + lastLineRelativePosition;
 	}
@@ -318,7 +318,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const lineHeight = this._editor.getLineHeightForLineNumber(line);
+		const lineHeight = this._editor.getLineHeightForPosition(new Position(line, 1));
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,

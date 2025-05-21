@@ -65,6 +65,7 @@ import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPar
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 export namespace Command {
 
@@ -2920,7 +2921,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], toolSelection: vscode.ChatRequestToolSelection | undefined, tools: Map<string, boolean>, extension: IRelaxedExtensionDescription): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], toolSelection: vscode.ChatRequestToolSelection | undefined, tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
 		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
 		const requestWithAllProps: vscode.ChatRequest = {
@@ -2930,7 +2931,9 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(v => ChatPromptReference.to(v, diagnostics)),
+			references: variableReferences
+				.map(v => ChatPromptReference.to(v, diagnostics, logService))
+				.filter(isDefined),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2994,10 +2997,18 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], logService: ILogService): vscode.ChatPromptReference | undefined {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
 		if (!value) {
-			throw new Error('Invalid value reference');
+			let varStr: string;
+			try {
+				varStr = JSON.stringify(variable);
+			} catch {
+				varStr = `kind=${variable.kind}, id=${variable.id}, name=${variable.name}`;
+			}
+
+			logService.error(`[ChatPromptReference] Ignoring invalid reference in variable: ${varStr}`);
+			return undefined;
 		}
 
 		if (isUriComponents(value)) {

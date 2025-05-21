@@ -8,7 +8,7 @@ import { ArrayQueue } from '../../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { assertIsDefined } from '../../../../../../base/common/types.js';
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
@@ -133,7 +133,7 @@ export class DiffEditorViewZones extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
-		this.viewZones = derivedWithStore<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader, store) => {
+		this.viewZones = derived<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader) => {
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
@@ -310,8 +310,8 @@ export class DiffEditorViewZones extends Disposable {
 						function createViewZoneMarginArrow(): HTMLElement {
 							const arrow = document.createElement('div');
 							arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
-							store.add(addDisposableListener(arrow, 'mousedown', e => e.stopPropagation()));
-							store.add(addDisposableListener(arrow, 'click', e => {
+							reader.store.add(addDisposableListener(arrow, 'mousedown', e => e.stopPropagation()));
+							reader.store.add(addDisposableListener(arrow, 'click', e => {
 								e.stopPropagation();
 								_diffEditorWidget.revert(a.diff!);
 							}));

@@ -325,7 +325,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout: any;
+	private _activationTimeout: Timeout | undefined;
 	private _commonProtocolDisposables: IDisposable[] = [];
 
 	private _seenSequences: Set<string> = new Set();

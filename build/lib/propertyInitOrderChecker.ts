@@ -22,13 +22,6 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
-const ignored = new Set([
-	'vs/editor/browser/view/viewLayer.ts',
-	'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
-	'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-	'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-	'vs/workbench/api/common/extHostLanguageFeatures.ts',
-]);
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -59,12 +52,6 @@ for (const file of program.getSourceFiles()) {
 	if (!file || file.isDeclarationFile) {
 		continue;
 	}
-
-	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
-	if (ignored.has(relativePath)) {
-		continue;
-	}
-
 	visit(file);
 }
 

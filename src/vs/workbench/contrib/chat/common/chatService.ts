@@ -152,6 +152,12 @@ export interface IChatTaskDto {
 	kind: 'progressTask';
 }
 
+export interface IChatTaskSerialized {
+	content: IMarkdownString;
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	kind: 'progressTaskSerialized';
+}
+
 export interface IChatTaskResult {
 	content: IMarkdownString | void;
 	kind: 'progressTaskResult';
@@ -295,7 +301,8 @@ export type IChatProgress =
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart;
+	| IChatPrepareToolInvocationPart
+	| IChatTaskSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';

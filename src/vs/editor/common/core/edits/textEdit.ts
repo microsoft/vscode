@@ -8,15 +8,15 @@ import { assertFn, checkAdjacentItems } from '../../../../base/common/assert.js'
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../base/common/strings.js';
 import { ISingleEditOperation } from '../editOperation.js';
-import { OffsetEdit } from './offsetEdit.js';
+import { StringEdit } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextLength } from '../text/textLength.js';
 import { AbstractText, StringText } from '../text/abstractText.js';
 
 export class TextEdit {
-	public static fromOffsetEdit(edit: OffsetEdit, initialState: AbstractText): TextEdit {
-		const edits = edit.edits.map(e => new TextReplacement(initialState.getTransformer().getRange(e.replaceRange), e.newText));
+	public static fromStringEdit(edit: StringEdit, initialState: AbstractText): TextEdit {
+		const edits = edit.replacements.map(e => new TextReplacement(initialState.getTransformer().getRange(e.replaceRange), e.newText));
 		return new TextEdit(edits);
 	}
 

@@ -19,5 +19,6 @@ export const enum McpCommandIds {
 	RestartServer = 'workbench.mcp.restartServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
-	InstallFromActivation = 'workbench.mcp.installFromActivation'
+	InstallFromActivation = 'workbench.mcp.installFromActivation',
+	Browse = 'workbench.mcp.browseServers'
 }

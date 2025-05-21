@@ -16,12 +16,12 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { OffsetEdit } from '../../../../common/core/edits/offsetEdit.js';
+import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
-import { offsetEditFromContentChanges } from '../../../../common/model/textModelOffsetEdit.js';
+import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
@@ -72,9 +72,9 @@ export class InlineCompletionsSource extends Disposable {
 			},
 			changeTracker: recordChanges({ versionId: this._versionId }),
 			update: (reader, previousValue, changes) => {
-				const edit = OffsetEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : OffsetEdit.empty).filter(isDefined));
+				const edit = StringEdit.compose(changes.changes.map(c => c.change ? offsetEditFromContentChanges(c.change.changes) : StringEdit.empty).filter(isDefined));
 
-				if (edit.isEmpty) {
+				if (edit.isEmpty()) {
 					return previousValue;
 				}
 				try {
@@ -342,7 +342,7 @@ class InlineCompletionsState extends Disposable {
 	/**
 	 * Applies the edit on the state.
 	*/
-	public createStateWithAppliedEdit(edit: OffsetEdit, textModel: ITextModel): InlineCompletionsState {
+	public createStateWithAppliedEdit(edit: StringEdit, textModel: ITextModel): InlineCompletionsState {
 		const newInlineCompletions = this.inlineCompletions.map(i => i.withEdit(edit, textModel)).filter(isDefined);
 		return new InlineCompletionsState(newInlineCompletions, this.request);
 	}

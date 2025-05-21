@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../../../../../../../../../editor/common/model.ts';
+import { IModelDecorationsChangeAccessor } from '../../../../../../../../../../../editor/common/model.js';
 
 /**
  * CSS class names of a `reactive` decoration.
@@ -53,3 +53,4 @@ export type TChangeAccessor = Pick<IModelDecorationsChangeAccessor, 'changeDecor
  * A model decorations accessor that can be used to `remove` a decoration.
  */
 export type TRemoveAccessor = Pick<IModelDecorationsChangeAccessor, 'removeDecoration'>;
+

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
-import { DisposableStore } from '../../common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState } from '../../common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable } from '../../common/observableInternal/base.js';
@@ -1613,6 +1613,83 @@ suite('observables', () => {
 			]));
 		});
 	});
+
+	suite('disposableStores', () => {
+		test('derived with store', () => {
+			const log = new Log();
+			const observable1 = observableValue('myObservableValue1', 0);
+
+			const computed1 = derived((reader) => {
+				const value = observable1.read(reader);
+				log.log(`computed ${value}`);
+				reader.store.add(toDisposable(() => {
+					log.log(`computed1: ${value} disposed`);
+				}));
+				return value;
+			});
+
+			const a = autorun(reader => {
+				log.log(`a: ${computed1.read(reader)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 0",
+				"a: 0"
+			]));
+
+			observable1.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 0 disposed",
+				"computed 1",
+				"a: 1"
+			]));
+
+			a.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 1 disposed"
+			]));
+		});
+
+		test('derived with delayedStore', () => {
+			const log = new Log();
+			const observable1 = observableValue('myObservableValue1', 0);
+
+			const computed1 = derived((reader) => {
+				const value = observable1.read(reader);
+				log.log(`computed ${value}`);
+				reader.delayedStore.add(toDisposable(() => {
+					log.log(`computed1: ${value} disposed`);
+				}));
+				return value;
+			});
+
+			const a = autorun(reader => {
+				log.log(`a: ${computed1.read(reader)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 0",
+				"a: 0"
+			]));
+
+			observable1.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed 1",
+				"computed1: 0 disposed",
+				"a: 1"
+			]));
+
+			a.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"computed1: 1 disposed"
+			]));
+		});
+	});
+
 });
 
 export class LoggingObserver implements IObserver {

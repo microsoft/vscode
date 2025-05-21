@@ -6,7 +6,7 @@ import { $, n } from '../../../../../../../base/browser/dom.js';
 import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedWithStore, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
@@ -209,7 +209,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		) : undefined
 	);
 
-	private readonly _overlayLayout = derivedWithStore(this, (reader, store) => {
+	private readonly _overlayLayout = derived(this, (reader) => {
 		this._ghostText.read(reader);
 		const state = this._state.read(reader);
 		if (!state) {
@@ -217,7 +217,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		}
 
 		// Update the overlay when the position changes
-		this._editorObs.observePosition(observableValue(this, new Position(state.lineNumber, state.column)), store).read(reader);
+		this._editorObs.observePosition(observableValue(this, new Position(state.lineNumber, state.column)), reader.store).read(reader);
 
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);

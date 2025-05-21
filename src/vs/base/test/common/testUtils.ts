@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../common/assert.js';
+import { isOneOf } from '../../common/types.js';
 import { randomInt } from '../../common/numbers.js';
-import { assertOneOf } from '../../common/types.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -22,8 +23,7 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 }
 
 /**
- * Helper function that allows to await for a specified amount of time.
- * @param ms The amount of time to wait in milliseconds.
+ * @deprecated use `async#timeout` instead
  */
 export const wait = (ms: number): Promise<void> => {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -53,13 +53,7 @@ export const randomBoolean = (): boolean => {
 };
 
 /**
- * Mocks an `TObject` with the provided `overrides`.
- *
- * If you need to mock an `Service`, please use {@link mockService}
- * instead which provides better type safety guarantees for the case.
- *
- * @throws Reading non-overridden property or function
- * 		   on `TObject` throws an error.
+ * @deprecated use `mock.ts#mock` instead
  */
 export function mockObject<TObject extends Object>(
 	overrides: Partial<TObject>,
@@ -73,9 +67,8 @@ export function mockObject<TObject extends Object>(
 		{
 			get: (_target, key: string | number | Symbol) => {
 				// sanity check for the provided `key`
-				assertOneOf(
-					key,
-					keys,
+				assert(
+					isOneOf(key, keys),
 					`The '${key}' is not mocked.`,
 				);
 

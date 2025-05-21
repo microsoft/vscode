@@ -101,12 +101,12 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 
 	constructor(
 		public readonly uri: URI,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._reference = this._register(
-			this.initService.createInstance(
+			this.instantiationService.createInstance(
 				PromptParser,
 				this.uri,
 				// in this case we know that the attached file must have been a

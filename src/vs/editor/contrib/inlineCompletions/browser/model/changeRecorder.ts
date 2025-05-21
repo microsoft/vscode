@@ -8,6 +8,7 @@ import { autorunWithStore } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
 import { IDocumentEventDataSetChangeReason, IRecordableEditorLogEntry, StructuredLogger } from '../structuredLogger.js';
 
 export interface ITextModelChangeRecorderMetadata {
@@ -18,31 +19,6 @@ export interface ITextModelChangeRecorderMetadata {
 }
 
 export class TextModelChangeRecorder extends Disposable {
-	private static _nextMetadataId = 0;
-	private static _metaDataMap = new Map<number, ITextModelChangeRecorderMetadata>();
-
-	/**
-	 * Adds metadata to any edit operation made in the callback (sync).
-	*/
-	public static editWithMetadata<T>(metadata: ITextModelChangeRecorderMetadata, cb: () => T): T {
-		const id = this._nextMetadataId++;
-		this._metaDataMap.set(id, metadata);
-		try {
-			const result = cb();
-			return result;
-		} finally {
-			this._metaDataMap.delete(id);
-		}
-	}
-
-	private static _getCurrentMetadata(): ITextModelChangeRecorderMetadata {
-		const result: ITextModelChangeRecorderMetadata = {};
-		for (const metadata of this._metaDataMap.values()) {
-			Object.assign(result, metadata);
-		}
-		return result;
-	}
-
 	private readonly _structuredLogger;
 
 	constructor(
@@ -68,7 +44,7 @@ export class TextModelChangeRecorder extends Disposable {
 			store.add(this._editor.onDidChangeModelContent(e => {
 				const tm = this._editor.getModel();
 				if (!tm) { return; }
-				const metadata = TextModelChangeRecorder._getCurrentMetadata();
+				const metadata = TextModelEditReason._getCurrentMetadata();
 				if (sources.length === 0 && metadata.source) {
 					sources.push(metadata.source);
 				}
