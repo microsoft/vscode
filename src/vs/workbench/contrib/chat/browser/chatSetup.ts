@@ -718,14 +718,14 @@ class ChatSetup {
 
 	private getDialogTitle(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot for free");
+			return localize('signUp', "Sign in to use Copilot");
 		}
 
 		if (isProUser(this.context.state.entitlement)) {
 			return localize('copilotProTitle', "Start using Copilot Pro");
 		}
 
-		return this.context.state.registered ? localize('copilotTitle', "Start using Copilot") : localize('copilotFreeTitle', "Start using Copilot for free");
+		return localize('copilotTitle', "Start using Copilot");
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
