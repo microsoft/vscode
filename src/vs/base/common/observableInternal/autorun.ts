@@ -232,7 +232,8 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 						this._changeSummary = this._changeTracker.createChangeSummary(changeSummary); // Warning: external call!
 					}
 					if (this._store !== undefined) {
-						this._store.clear();
+						this._store.dispose();
+						this._store = undefined;
 					}
 
 					this._runFn(this, changeSummary); // Warning: external call!

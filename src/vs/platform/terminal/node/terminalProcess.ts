@@ -105,15 +105,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
-	private _closeTimeout: any;
+	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: NodeJS.Timeout | null = null;
+	private _titleInterval: Timeout | undefined;
 	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: NodeJS.Timeout | undefined;
+	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -197,7 +197,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
 				clearInterval(this._titleInterval);
-				this._titleInterval = null;
+				this._titleInterval = undefined;
 			}
 		}));
 	}
@@ -678,7 +678,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 class DelayedResizer extends Disposable {
 	rows: number | undefined;
 	cols: number | undefined;
-	private _timeout: NodeJS.Timeout;
+	private _timeout: Timeout;
 
 	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
 	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }

@@ -136,8 +136,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
-	userSelectedTools2?: Record<string, boolean>;
+	userSelectedTools?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 }

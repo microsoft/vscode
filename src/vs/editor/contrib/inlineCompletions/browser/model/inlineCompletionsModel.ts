@@ -36,7 +36,6 @@ import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
-import { ITextModelChangeRecorderMetadata, TextModelChangeRecorder } from './changeRecorder.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -45,6 +44,7 @@ import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './in
 import { InlineCompletionContextWithoutUuid } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
+import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -752,12 +752,13 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): ITextModelChangeRecorderMetadata {
-		return {
+	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditReason {
+		return new TextModelEditReason({
 			extensionId: completion.source.provider.groupId,
 			nes: completion.isInlineEdit,
-			type
-		};
+			type,
+			requestUuid: completion.requestUuid,
+		});
 	}
 
 	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
@@ -788,7 +789,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
-			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+			TextModelEditReason.editWithReason(this._getMetadata(completion), () => {
 				editor.executeEdits(
 					'inlineSuggestion.accept',
 					[
@@ -803,7 +804,7 @@ export class InlineCompletionsModel extends Disposable {
 			const edits = state.edits;
 			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 
-			TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion), () => {
+			TextModelEditReason.editWithReason(this._getMetadata(completion), () => {
 				editor.executeEdits('inlineSuggestion.accept', [
 					...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 					...completion.additionalTextEdits
@@ -920,7 +921,7 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = new TextReplacement(replaceRange, newText);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-				TextModelChangeRecorder.editWithMetadata(this._getMetadata(completion, type), () => {
+				TextModelEditReason.editWithReason(this._getMetadata(completion, type), () => {
 					editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
 				});
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');

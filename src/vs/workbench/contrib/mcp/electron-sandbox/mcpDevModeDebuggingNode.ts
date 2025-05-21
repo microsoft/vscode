@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IDebugService } from '../../debug/common/debug.js';
 import { McpDevModeDebugging } from '../common/mcpDevMode.js';
@@ -11,9 +12,10 @@ import { McpDevModeDebugging } from '../common/mcpDevMode.js';
 export class McpDevModeDebuggingNode extends McpDevModeDebugging {
 	constructor(
 		@IDebugService debugService: IDebugService,
+		@ICommandService commandService: ICommandService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 	) {
-		super(debugService);
+		super(debugService, commandService);
 	}
 
 	protected override async ensureListeningOnPort(port: number): Promise<void> {

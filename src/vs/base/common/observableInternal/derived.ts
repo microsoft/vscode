@@ -336,7 +336,8 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 					this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
 				}
 				if (this._store !== undefined) {
-					this._store.clear();
+					this._store.dispose();
+					this._store = undefined;
 				}
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this._value = this._computeFn(this, changeSummary);

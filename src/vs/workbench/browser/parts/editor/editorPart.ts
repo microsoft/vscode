@@ -1077,8 +1077,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			onDragEnd: e => overlay.classList.remove('visible')
 		}));
 
-		let horizontalOpenerTimeout: any;
-		let verticalOpenerTimeout: any;
+		let horizontalOpenerTimeout: Timeout | undefined;
+		let verticalOpenerTimeout: Timeout | undefined;
 		let lastOpenHorizontalPosition: Position | undefined;
 		let lastOpenVerticalPosition: Position | undefined;
 		const openPartAtPosition = (position: Position) => {

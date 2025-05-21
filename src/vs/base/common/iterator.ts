@@ -171,6 +171,14 @@ export namespace Iterable {
 		for await (const item of iterable) {
 			result.push(item);
 		}
-		return Promise.resolve(result);
+		return result;
+	}
+
+	export async function asyncToArrayFlat<T>(iterable: AsyncIterable<T[]>): Promise<T[]> {
+		let result: T[] = [];
+		for await (const item of iterable) {
+			result = result.concat(item);
+		}
+		return result;
 	}
 }
