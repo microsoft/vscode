@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import { Codicon } from '../../../base/common/codicons.js';
-import { basename, delimiter, normalize } from '../../../base/common/path.js';
+import { basename, delimiter, normalize, dirname, resolve } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { isString } from '../../../base/common/types.js';
@@ -18,7 +18,6 @@ import { ILogService } from '../../log/common/log.js';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
 import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { dirname, resolve } from 'path';
 
 const enum Constants {
 	UnixShellsPath = '/etc/shells'
