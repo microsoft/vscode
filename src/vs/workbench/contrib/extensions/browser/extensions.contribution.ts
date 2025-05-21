@@ -84,6 +84,7 @@ import product from '../../../../platform/product/common/product.js';
 import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
+import { InstallExtensionsTool, InstallExtensionsToolData } from '../common/installExtensionsTool.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -1990,6 +1991,10 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 		const searchExtensionsTool = instantiationService.createInstance(SearchExtensionsTool);
 		this._register(toolsService.registerToolData(SearchExtensionsToolData));
 		this._register(toolsService.registerToolImplementation(SearchExtensionsToolData.id, searchExtensionsTool));
+
+		const installExtensionsTool = instantiationService.createInstance(InstallExtensionsTool);
+		this._register(toolsService.registerToolData(InstallExtensionsToolData));
+		this._register(toolsService.registerToolImplementation(InstallExtensionsToolData.id, installExtensionsTool));
 	}
 }
 
