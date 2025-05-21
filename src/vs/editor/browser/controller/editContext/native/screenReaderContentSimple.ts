@@ -21,10 +21,11 @@ import { IScreenReaderContent } from './screenReaderUtils.js';
 
 export class SimpleScreenReaderContent extends Disposable implements IScreenReaderContent {
 
-	private _accessibilityPageSize: number = 1;
-	private _screenReaderContentState: ISimpleScreenReaderContentState | undefined;
-	private _screenReaderStrategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	private readonly _selectionChangeListener = this._register(new MutableDisposable());
+
+	private _accessibilityPageSize: number = 1;
+	private _contentState: ISimpleScreenReaderContentState | undefined;
+	private _strategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	private _ignoreSelectionChangeTime: number = 0;
 
 	constructor(
@@ -43,8 +44,8 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
-			this._screenReaderContentState = this._getScreenReaderContentState(primarySelection);
-			const textContent = this._getScreenReaderTextContent(this._screenReaderContentState, primarySelection);
+			this._contentState = this._getScreenReaderContentState(primarySelection);
+			const textContent = this._getScreenReaderTextContent(this._contentState, primarySelection);
 			if (this._domNode.domNode.textContent !== textContent) {
 				this._setIgnoreSelectionChangeTime('setValue');
 				this._domNode.domNode.textContent = textContent;
@@ -54,14 +55,14 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			if (!activeDocumentSelection) {
 				return;
 			}
-			const range = this._getScreenReaderRange(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+			const range = this._getScreenReaderRange(this._contentState.selectionStart, this._contentState.selectionEnd);
 			if (range) {
 				this._setIgnoreSelectionChangeTime('setRange');
 				activeDocumentSelection.removeAllRanges();
 				activeDocumentSelection.addRange(range);
 			}
 		} else {
-			this._screenReaderContentState = undefined;
+			this._contentState = undefined;
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
@@ -155,7 +156,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return this._screenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
+		return this._strategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
 	private _getScreenReaderTextContent(screenReaderContentState: ISimpleScreenReaderContentState, primarySelection: Selection): string {
@@ -179,7 +180,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	private _getEditorSelectionFromScreenReaderRange(): Selection | undefined {
-		if (!this._screenReaderContentState) {
+		if (!this._contentState) {
 			return;
 		}
 		const activeDocument = getActiveWindow().document;
@@ -195,13 +196,13 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		const viewModel = this._context.viewModel;
 		const model = viewModel.model;
 		const coordinatesConverter = viewModel.coordinatesConverter;
-		const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(this._screenReaderContentState.startPositionWithinEditor);
+		const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(this._contentState.startPositionWithinEditor);
 		const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
 		let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 		let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
 		const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 		if (modelUsesCRLF) {
-			const screenReaderContentText = this._screenReaderContentState.value;
+			const screenReaderContentText = this._contentState.value;
 			const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
 			const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
 			const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);

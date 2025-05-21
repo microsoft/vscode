@@ -44,7 +44,6 @@ export interface ISimpleScreenReaderContentState {
 }
 
 export class SimplePagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ISimpleScreenReaderContentState> {
-
 	private _getPageOfLine(lineNumber: number, linesPerPage: number): number {
 		return Math.floor((lineNumber - 1) / linesPerPage);
 	}

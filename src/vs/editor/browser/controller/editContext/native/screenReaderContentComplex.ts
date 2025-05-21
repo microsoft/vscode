@@ -34,12 +34,13 @@ class RenderedScreenReaderLine {
 
 export class ComplexScreenReaderContent extends Disposable implements IScreenReaderContent {
 
+	private readonly _selectionChangeListener = this._register(new MutableDisposable());
+
 	private _accessibilityPageSize: number = 1;
+	private _strategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
+	private _contentState: ComplexScreenReaderContentState | undefined;
 	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
-	private _screenReaderContentState: ComplexScreenReaderContentState | undefined;
-	private _screenReaderStrategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
-	private readonly _selectionChangeListener = this._register(new MutableDisposable());
 	private _ignoreSelectionChangeTime: number = 0;
 
 	constructor(
@@ -58,17 +59,15 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
-			// TODO: Should not rerender the content if already the same
-			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);
-			this._screenReaderContentState = screenReaderContentState;
-			this._renderedLines = this._renderScreenReaderContent(screenReaderContentState);
+			this._contentState = this._getScreenReaderContentState(primarySelection);
+			this._renderedLines = this._renderScreenReaderContent(this._contentState);
 			if (this._renderedSelection.equalsSelection(primarySelection)) {
 				return;
 			}
 			this._renderedSelection = primarySelection;
 			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._renderedSelection);
 		} else {
-			this._screenReaderContentState = undefined;
+			this._contentState = undefined;
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
@@ -117,6 +116,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
+			// TODO: is focused?
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!isScreenReaderOptimized || !IME.enabled) {
 				return;
@@ -236,15 +236,14 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 			null,
 			true
 		);
-		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber);
 		const stringBuilder = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, stringBuilder);
 		const html = stringBuilder.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
-		const stringifiedLineHeight = String(lineHeight) + 'px';
-		domNode.style.lineHeight = stringifiedLineHeight;
-		domNode.style.height = stringifiedLineHeight;
+		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber) + 'px';
+		domNode.style.lineHeight = lineHeight;
+		domNode.style.height = lineHeight;
 		domNode.innerHTML = trustedhtml as string;
 		return new RenderedScreenReaderLine(domNode, renderOutput.characterMapping);
 	}
@@ -279,20 +278,13 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		const endChildren = endDomNode.childNodes;
 		const startNode = startChildren.item(startDomPosition.partIndex);
 		const endNode = endChildren.item(endDomPosition.partIndex);
-		if (startNode.firstChild && endNode.firstChild) {
-			if (viewSelection.startColumn === 1) {
-				range.setStart(startNode.firstChild, 0);
-			} else {
-				range.setStart(startNode.firstChild, startDomPosition.charIndex + 1);
-			}
-			if (viewSelection.endColumn === 1) {
-				range.setEnd(endNode.firstChild, 0);
-			} else {
-				range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
-			}
-			this._setIgnoreSelectionChangeTime('setRange');
-			activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+		if (!startNode.firstChild || !endNode.firstChild) {
+			return;
 		}
+		range.setStart(startNode.firstChild, viewSelection.startColumn === 1 ? 0 : startDomPosition.charIndex + 1);
+		range.setEnd(endNode.firstChild, viewSelection.endColumn === 1 ? 0 : endDomPosition.charIndex + 1);
+		this._setIgnoreSelectionChangeTime('setRange');
+		activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
 	}
 
 	private _getScreenReaderContentState(primarySelection: Selection): ComplexScreenReaderContentState {
@@ -313,12 +305,12 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return this._screenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
+		return this._strategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
 	}
 
 
 	private _getEditorSelectionFromScreenReaderRange(): Selection | undefined {
-		if (!this._screenReaderContentState) {
+		if (!this._contentState) {
 			return;
 		}
 		const activeDocument = getActiveWindow().document;

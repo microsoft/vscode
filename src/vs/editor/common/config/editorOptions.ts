@@ -774,7 +774,7 @@ export interface IEditorOptions {
 	experimentalEditContextEnabled?: boolean;
 
 	/**
-	 * Controls whether we should render complex screen reader content when the EditContext is enabled
+	 * Controls whether we should render complex HTML screen reader content when the EditContext is enabled
 	 */
 	renderComplexScreenReaderContent?: boolean;
 

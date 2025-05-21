@@ -97,6 +97,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	startBtn.innerText = 'Start';
 	container.appendChild(startBtn);
 
+
 	const input = document.createElement('textarea');
 	input.setAttribute('rows', '10');
 	input.setAttribute('cols', '40');
@@ -116,6 +117,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		},
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+
 			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},

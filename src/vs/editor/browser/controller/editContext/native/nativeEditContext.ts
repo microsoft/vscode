@@ -109,7 +109,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
-			this._screenReaderSupport.onCut();
+			this._screenReaderSupport.onWillCut();
 			this._ensureClipboardGetsEditorSelection(e);
 			this._viewController.cut();
 		}));

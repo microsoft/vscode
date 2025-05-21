@@ -28,12 +28,13 @@ export class ScreenReaderSupport extends Disposable {
 	private _contentLeft: number = 1;
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
+	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
+	private _renderComplexScreenReaderContent: boolean | undefined;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _screenReaderContent: IScreenReaderContent;
-	private _renderComplexScreenReaderContent: boolean;
+	private _screenReaderContent!: IScreenReaderContent;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -43,12 +44,7 @@ export class ScreenReaderSupport extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
-		this._renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
-		if (this._renderComplexScreenReaderContent) {
-			this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-		} else {
-			this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-		}
+		this._instantiateScreenReaderContent();
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 	}
@@ -57,7 +53,7 @@ export class ScreenReaderSupport extends Disposable {
 		this._screenReaderContent.onWillPaste();
 	}
 
-	public onCut(): void {
+	public onWillCut(): void {
 		this._screenReaderContent.onWillCut();
 	}
 
@@ -66,17 +62,7 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
-		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
-		if (this._renderComplexScreenReaderContent !== renderComplexScreenReaderContent) {
-			if (renderComplexScreenReaderContent) {
-				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-			} else {
-				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
-			}
-			this._renderComplexScreenReaderContent = renderComplexScreenReaderContent;
-		} else {
-			this._screenReaderContent.onConfigurationChanged(this._context.configuration.options);
-		}
+		this._instantiateScreenReaderContent();
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -84,13 +70,28 @@ export class ScreenReaderSupport extends Disposable {
 		}
 	}
 
+	private _instantiateScreenReaderContent(): void {
+		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
+		if (this._renderComplexScreenReaderContent !== renderComplexScreenReaderContent) {
+			this._renderComplexScreenReaderContent = renderComplexScreenReaderContent;
+			if (renderComplexScreenReaderContent) {
+				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+			} else {
+				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+			}
+		}
+	}
+
 	private _updateConfigurationSettings(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
+		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
+		this._screenReaderContent.onConfigurationChanged(options);
 	}
 
 	private _updateDomAttributes(): void {
@@ -147,7 +148,7 @@ export class ScreenReaderSupport extends Disposable {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		this._doRender(top, top, this._contentLeft, this._contentWidth, lineHeight);
+		this._doRender(top, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
