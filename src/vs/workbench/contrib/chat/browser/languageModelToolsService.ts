@@ -270,14 +270,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				trackedCall.invocation = toolInvocation;
-				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
+				const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
+				if (autoConfirmed) {
 					toolInvocation.confirmed.complete(true);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
 
 				if (prepared?.confirmationMessages) {
-					if (!toolInvocation.isConfirmed) {
+					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
 					}
 					const userConfirmed = await toolInvocation.confirmed.p;
