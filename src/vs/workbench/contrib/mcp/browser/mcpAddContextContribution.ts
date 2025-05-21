@@ -52,7 +52,7 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 		this._addContextMenu.value = this._chatContextPickService.registerChatContextItem({
 			type: 'pickerPick',
 			label: localize('mcp.addContext', "MCP Resources..."),
-			icon: Codicon.tools, // todo@hawkticehurst/connor4312: use MCP icon when we get one
+			icon: Codicon.mcp,
 			asPicker: (widget) => ({
 				placeholder: localize('mcp.addContext.placeholder', "Select MCP Resource..."),
 				picks: this._getResourcePicks(),
