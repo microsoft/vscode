@@ -92,10 +92,10 @@ export class TreeSitterTokens extends AbstractTokens {
 			if (!tokModel) {
 				return;
 			}
-			reader.store.add(tokModel.tokSupport_onDidChangeTokens((e) => {
+			reader.store.add(tokModel.onDidChangeTokens((e) => {
 				this._onDidChangeTokens.fire(e.changes);
 			}));
-			reader.store.add(tokModel.tokSupport_onDidChangeBackgroundTokenization(e => {
+			reader.store.add(tokModel.onDidChangeBackgroundTokenization(e => {
 				this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
 				this._onDidChangeBackgroundTokenizationState.fire();
 			}));
@@ -148,7 +148,7 @@ export class TreeSitterTokens extends AbstractTokens {
 			return;
 		}
 		if (!model.hasAccurateTokensForLine(lineNumber)) {
-			model.tokSupport_tokenizeEncoded(lineNumber);
+			model.tokenizeEncoded(lineNumber);
 		}
 	}
 
