@@ -111,6 +111,11 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
+			const activeElement = getActiveWindow().document.activeElement;
+			const isFocused = activeElement === this._domNode.domNode;
+			if (!isFocused) {
+				return;
+			}
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!isScreenReaderOptimized || !IME.enabled) {
 				return;

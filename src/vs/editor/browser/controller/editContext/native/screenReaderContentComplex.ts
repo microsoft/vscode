@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
@@ -22,8 +21,11 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { IME } from '../../../../../base/common/ime.js';
 import { ViewController } from '../../../view/viewController.js';
 import { IScreenReaderContent } from './screenReaderUtils.js';
+import { getColumnOfNodeOffset } from '../../../viewParts/viewLines/viewLine.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
+
+const LINE_NUMBER_ATTRIBUTE_NAME = 'data-line-number';
 
 class RenderedScreenReaderLine {
 	constructor(
@@ -38,7 +40,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 
 	private _accessibilityPageSize: number = 1;
 	private _strategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
-	private _contentState: ComplexScreenReaderContentState | undefined;
+	private _contentLineIntervals: LineInterval[] = [];
 	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 	private _ignoreSelectionChangeTime: number = 0;
@@ -59,15 +61,15 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
-			this._contentState = this._getScreenReaderContentState(primarySelection);
-			this._renderedLines = this._renderScreenReaderContent(this._contentState);
+			this._contentLineIntervals = this._getScreenReaderContentLineIntervals(primarySelection);
+			this._renderedLines = this._renderScreenReaderContent(this._contentLineIntervals);
 			if (this._renderedSelection.equalsSelection(primarySelection)) {
 				return;
 			}
 			this._renderedSelection = primarySelection;
 			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._renderedSelection);
 		} else {
-			this._contentState = undefined;
+			this._contentLineIntervals = [];
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
@@ -116,7 +118,11 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
-			// TODO: is focused?
+			const activeElement = getActiveWindow().document.activeElement;
+			const isFocused = activeElement === this._domNode.domNode;
+			if (!isFocused) {
+				return;
+			}
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!isScreenReaderOptimized || !IME.enabled) {
 				return;
@@ -144,47 +150,11 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		});
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
-		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
-		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
-		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
-		const preEndOffsetRange = screenReaderContentState.preEndOffsetRange;
-		const startSelectionLineNumber = screenReaderContentState.startSelectionLineNumber;
-		const endSelectionLineNumber = screenReaderContentState.endSelectionLineNumber;
-
+	private _renderScreenReaderContent(contentState: LineInterval[]): Map<number, RenderedScreenReaderLine> {
 		const renderedLines = new Map<number, RenderedScreenReaderLine>();
 		const nodes: HTMLDivElement[] = [];
-		if (preStartOffsetRange) {
-			for (let lineNumber = preStartOffsetRange.start; lineNumber <= preStartOffsetRange.endExclusive; lineNumber++) {
-				const renderedLine = this._renderLine(lineNumber);
-				renderedLines.set(lineNumber, renderedLine);
-				nodes.push(renderedLine.domNode);
-			}
-		}
-		const startRenderedLine = this._renderLine(startSelectionLineNumber);
-		renderedLines.set(startSelectionLineNumber, startRenderedLine);
-		nodes.push(startRenderedLine.domNode);
-		if (postStartOffsetRange) {
-			for (let lineNumber = postStartOffsetRange.start; lineNumber <= postStartOffsetRange.endExclusive; lineNumber++) {
-				const renderedLine = this._renderLine(lineNumber);
-				renderedLines.set(lineNumber, renderedLine);
-				nodes.push(renderedLine.domNode);
-			}
-		}
-		if (preEndOffsetRange) {
-			for (let lineNumber = preEndOffsetRange.start; lineNumber <= preEndOffsetRange.endExclusive; lineNumber++) {
-				const renderedLine = this._renderLine(lineNumber);
-				renderedLines.set(lineNumber, renderedLine);
-				nodes.push(renderedLine.domNode);
-			}
-		}
-		if (endSelectionLineNumber !== undefined) {
-			const endRenderedLine = this._renderLine(endSelectionLineNumber);
-			renderedLines.set(endSelectionLineNumber, endRenderedLine);
-			nodes.push(endRenderedLine.domNode);
-		}
-		if (postEndOffsetRange) {
-			for (let lineNumber = postEndOffsetRange.start; lineNumber <= postEndOffsetRange.endExclusive; lineNumber++) {
+		for (const interval of contentState) {
+			for (let lineNumber = interval.startLine; lineNumber <= interval.endLine; lineNumber++) {
 				const renderedLine = this._renderLine(lineNumber);
 				renderedLines.set(lineNumber, renderedLine);
 				nodes.push(renderedLine.domNode);
@@ -245,6 +215,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		domNode.style.lineHeight = lineHeight;
 		domNode.style.height = lineHeight;
 		domNode.innerHTML = trustedhtml as string;
+		domNode.setAttribute(LINE_NUMBER_ATTRIBUTE_NAME, viewLineNumber.toString());
 		return new RenderedScreenReaderLine(domNode, renderOutput.characterMapping);
 	}
 
@@ -287,7 +258,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
 	}
 
-	private _getScreenReaderContentState(primarySelection: Selection): ComplexScreenReaderContentState {
+	private _getScreenReaderContentLineIntervals(primarySelection: Selection): LineInterval[] {
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -310,7 +281,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 
 
 	private _getEditorSelectionFromScreenReaderRange(): Selection | undefined {
-		if (!this._contentState) {
+		if (!this._renderedLines) {
 			return;
 		}
 		const activeDocument = getActiveWindow().document;
@@ -322,71 +293,48 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		if (rangeCount === 0) {
 			return;
 		}
-		// const range = activeDocumentSelection.getRangeAt(0);
-		// const viewModel = this._context.viewModel;
-		// const model = viewModel.model;
-		// const coordinatesConverter = viewModel.coordinatesConverter;
-		// const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(this._screenReaderContentState.startPositionWithinEditor);
-		// const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
-		// let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
-		// let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-		// const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
-		// if (modelUsesCRLF) {
-		// 	const screenReaderContentText = this._screenReaderContentState.value;
-		// 	const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
-		// 	const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
-		// 	const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
-		// 	offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
-		// 	offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
-		// }
-		// const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
-		// const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-		// return Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+		const range = activeDocumentSelection.getRangeAt(0);
+		const startContainer = range.startContainer;
+		const endContainer = range.endContainer;
+		if (!isHTMLElement(startContainer) || !isHTMLElement(endContainer)) {
+			return;
+		}
+		const startLineDomNode = startContainer.parentElement?.parentElement;
+		const endLineDomNode = endContainer.parentElement?.parentElement;
+		if (!startLineDomNode || !endLineDomNode) {
+			return;
+		}
+		const startLineNumberAttribute = startLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE_NAME);
+		const endLineNumberAttribute = endLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE_NAME);
+		if (!startLineNumberAttribute || !endLineNumberAttribute) {
+			return;
+		}
+		const startLineNumber = parseInt(startLineNumberAttribute);
+		const endLineNumber = parseInt(endLineNumberAttribute);
+		const startMapping = this._renderedLines.get(startLineNumber)?.characterMapping;
+		const endMapping = this._renderedLines.get(endLineNumber)?.characterMapping;
+		if (!startMapping || !endMapping) {
+			return;
+		}
+		const startColumn = getColumnOfNodeOffset(startMapping, startContainer, range.startOffset);
+		const endColumn = getColumnOfNodeOffset(endMapping, endContainer, range.endOffset);
+		return new Selection(
+			startLineNumber,
+			startColumn,
+			endLineNumber,
+			endColumn
+		);
 	}
 }
 
-export class ComplexScreenReaderContentState {
-
+class LineInterval {
 	constructor(
-		readonly startSelectionLineNumber: number,
-		readonly endSelectionLineNumber: number | undefined,
-		readonly preStartOffsetRange: OffsetRange | undefined,
-		readonly postEndOffsetRange: OffsetRange | undefined,
-		readonly postStartOffsetRange: OffsetRange | undefined,
-		readonly preEndOffsetRange: OffsetRange | undefined,
+		public readonly startLine: number,
+		public readonly endLine: number
 	) { }
-
-	equals(other: ComplexScreenReaderContentState): boolean {
-		const coalesceOffsetRanges = this.coalesceOffsetRanges();
-		const otherCoalesceOffsetRanges = other.coalesceOffsetRanges();
-		if (coalesceOffsetRanges instanceof OffsetRange && otherCoalesceOffsetRanges instanceof OffsetRange) {
-			return coalesceOffsetRanges.equals(otherCoalesceOffsetRanges);
-		}
-		if (Array.isArray(coalesceOffsetRanges) && Array.isArray(otherCoalesceOffsetRanges)) {
-			return coalesceOffsetRanges[0].equals(otherCoalesceOffsetRanges[0]) && coalesceOffsetRanges[1].equals(otherCoalesceOffsetRanges[1]);
-		}
-		return false;
-	}
-
-	coalesceOffsetRanges(): OffsetRange | [OffsetRange, OffsetRange] {
-		if (this.postStartOffsetRange && this.preEndOffsetRange) {
-			if (this.postStartOffsetRange.start !== this.preEndOffsetRange.endExclusive - 1) {
-				const startLineNumber1 = this.preStartOffsetRange ? this.preStartOffsetRange.start : this.startSelectionLineNumber;
-				const startLineNumber2 = this.postStartOffsetRange ? this.postStartOffsetRange.endExclusive : this.startSelectionLineNumber;
-				const startOffsetRange = new OffsetRange(startLineNumber1, startLineNumber2);
-				const endLineNumber1 = this.preEndOffsetRange ? this.preEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
-				const endLineNumber2 = this.postEndOffsetRange ? this.postEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
-				const endOffsetRange = new OffsetRange(endLineNumber1, endLineNumber2);
-				return [startOffsetRange, endOffsetRange];
-			}
-		}
-		const startLineNumber = this.preStartOffsetRange ? this.preStartOffsetRange.start : this.startSelectionLineNumber;
-		const endLineNumber = this.postEndOffsetRange ? this.postEndOffsetRange.endExclusive : (this.endSelectionLineNumber ?? this.startSelectionLineNumber);
-		return new OffsetRange(startLineNumber, endLineNumber);
-	}
 }
 
-export class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ComplexScreenReaderContentState> {
+export class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<LineInterval[]> {
 
 	constructor() { }
 
@@ -401,7 +349,7 @@ export class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrat
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): ComplexScreenReaderContentState {
+	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): LineInterval[] {
 
 		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
@@ -409,52 +357,13 @@ export class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrat
 		const selectionEndPage = this._getPageOfLine(viewSelection.endLineNumber, linesPerPage);
 		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
 
-		const lineCount = context.getLineCount();
-
-		const startSelectionLineNumber = viewSelection.startLineNumber;
-		const endSelectionLineNumber = viewSelection.endLineNumber;
-
-		let preStartOffsetRange: OffsetRange | undefined = undefined;
-		if (startSelectionLineNumber > 1) {
-			const preStartRange = selectionStartPageRange.intersectRanges(new Range(1, 1, startSelectionLineNumber - 1, context.getLineMaxColumn(startSelectionLineNumber - 1)));
-			if (preStartRange) {
-				preStartOffsetRange = new OffsetRange(preStartRange.startLineNumber, preStartRange.endLineNumber);
-			}
-		}
-
-		let postEndOffsetRange: OffsetRange | undefined = undefined;
-		if (endSelectionLineNumber < lineCount) {
-			const postEndRange = selectionEndPageRange.intersectRanges(new Range(endSelectionLineNumber + 1, 1, lineCount, context.getLineMaxColumn(lineCount)));
-			if (postEndRange) {
-				postEndOffsetRange = new OffsetRange(postEndRange.startLineNumber, postEndRange.endLineNumber);
-			}
-		}
-
-		let postStartOffsetRange: OffsetRange | undefined = undefined;
-		let preEndOffsetRange: OffsetRange | undefined = undefined;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
-			if (startSelectionLineNumber + 1 < endSelectionLineNumber) {
-				postStartOffsetRange = new OffsetRange(startSelectionLineNumber + 1, endSelectionLineNumber - 1);
-			}
+			return [{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber }];
 		} else {
-			const postStartRange = selectionStartPageRange.intersectRanges(new Range(startSelectionLineNumber + 1, 1, Infinity, Infinity));
-			if (postStartRange) {
-				postStartOffsetRange = new OffsetRange(postStartRange.startLineNumber, postStartRange.endLineNumber);
-			}
-			const preEndRange = selectionEndPageRange.intersectRanges(new Range(1, 1, endSelectionLineNumber - 1, context.getLineMaxColumn(endSelectionLineNumber - 1)));
-			if (preEndRange) {
-				preEndOffsetRange = new OffsetRange(preEndRange.startLineNumber, preEndRange.endLineNumber);
-			}
+			return [
+				{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionStartPageRange.endLineNumber },
+				{ startLine: selectionEndPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber }
+			];
 		}
-
-		const resolvedEndSelectionLineNumber = viewSelection.startLineNumber !== viewSelection.endLineNumber ? viewSelection.endLineNumber : undefined;
-		return new ComplexScreenReaderContentState(
-			startSelectionLineNumber,
-			resolvedEndSelectionLineNumber,
-			preStartOffsetRange,
-			postEndOffsetRange,
-			postStartOffsetRange,
-			preEndOffsetRange
-		);
 	}
 }
