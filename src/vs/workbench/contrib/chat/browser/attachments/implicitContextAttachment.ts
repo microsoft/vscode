@@ -53,7 +53,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.clear();
 
 		this.domNode.classList.add('disabled');
-		// this.attachment.enabled = false;
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
 		const range = undefined;
