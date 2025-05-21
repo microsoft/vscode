@@ -9,7 +9,7 @@ import { IHoverAction, IHoverOptions } from '../../../../base/browser/ui/hover/h
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { LabelFuzzyScore, RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -554,6 +554,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 }
 
 interface HistoryItemChangeTemplate {
+	readonly indentElement: HTMLElement;
+	readonly twistieElement: HTMLElement;
 	readonly element: HTMLElement;
 	readonly margin: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
@@ -579,8 +581,8 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
-		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		const indentElement = container.parentElement!.querySelector('.monaco-tl-indent')! as HTMLElement;
+		const twistieElement = container.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement;
 
 		const element = append(container, $('.history-item-change'));
 		const margin = append(element, $('.margin'));
@@ -596,7 +598,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 		disposables.add(actionBar);
 
-		return { element, margin, graphPlaceholder, resourceLabel, actionBar, disposables };
+		return { indentElement, twistieElement, element, margin, graphPlaceholder, resourceLabel, actionBar, disposables };
 	}
 
 	renderElement(elementOrNode: ITreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
@@ -605,6 +607,9 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const graphColumns = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? elementOrNode.element.graphColumns : elementOrNode.element.context.historyItemViewModel.outputSwimlanes;
 
 		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
+
+		templateData.indentElement.style.position = 'absolute';
+		templateData.twistieElement.style.position = 'absolute';
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (graphColumns.length + 1)}px`;
@@ -631,13 +636,16 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const label = compressed.elements.map(e => e.name);
 		const folder = compressed.elements[compressed.elements.length - 1];
 
+		templateData.indentElement.style.position = 'absolute';
+		templateData.twistieElement.style.position = 'absolute';
+
 		templateData.margin.style.borderLeftColor = asCssVariable(getHistoryItemColor(historyItemViewModel));
 
 		templateData.graphPlaceholder.textContent = '';
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (graphColumns.length + 1)}px`;
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(graphColumns));
 
-		templateData.resourceLabel.element.style.marginLeft = `${(node.depth - 1) * 8}px`;
+		templateData.resourceLabel.element.style.marginLeft = `${(node.depth - 1) * 8 + 4}px`;
 		templateData.resourceLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind: FileKind.FOLDER,
@@ -1723,8 +1731,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				compressionEnabled: compressionEnabled.get(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
-				renderIndentGuides: RenderIndentGuides.None
+				multipleSelectionSupport: false
 			}
 		) as WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);
