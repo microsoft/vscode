@@ -13,7 +13,7 @@ import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.j
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -950,7 +950,7 @@ type RepositoryState = {
 };
 
 class SCMHistoryViewModel extends Disposable {
-	readonly viewMode: IObservable<ViewMode>;
+	readonly viewMode: ISettableObservable<ViewMode>;
 
 	/**
 	 * The active | selected repository takes precedence over the first repository when the observable
@@ -979,6 +979,9 @@ class SCMHistoryViewModel extends Disposable {
 
 		this._repositoryFilterState = this._loadHistoryItemsFilterState();
 		this.viewMode = observableValue<ViewMode>(this, this._getViewMode());
+
+		const onDidChangeViewMode = this._storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.viewMode', this._store);
+		this._store.add(onDidChangeViewMode(e => this.viewMode.set(this._getViewMode(), undefined)));
 
 		this._extensionService.onWillStop(this._saveHistoryItemsFilterState, this, this._store);
 		this._storageService.onWillSaveState(this._saveHistoryItemsFilterState, this, this._store);
@@ -1595,6 +1598,11 @@ export class SCMHistoryViewPane extends ViewPane {
 					this._scmCurrentHistoryItemRefHasRemote.set(!!historyProvider.historyItemRemoteRef.read(reader));
 				}));
 
+				// ViewMode changed
+				store.add(runOnChange(this._treeViewModel.viewMode, async () => {
+					await this._updateChildren();
+				}));
+
 				// Update context
 				this._scmProviderCtx.set(repository.provider.contextValue);
 				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
@@ -1931,7 +1939,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
-					await this._progressService.withProgress({ location: this.id },
+					await this._progressService.withProgress({ location: this.id, delay: 100 },
 						async () => {
 							await this._tree.updateChildren(undefined, undefined, undefined, {
 								// diffIdentityProvider: this._treeIdentityProvider
