@@ -7,7 +7,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from '../../browser/lspTerminalModelContentProvider.js';
+import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from '../../browser/lspTerminalModelContentProvider.js';
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { GeneralShellType } from '../../../../../../platform/terminal/common/ter
 import { ITerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from '../../browser/lspTerminalUtil.js';
 
 suite('LspTerminalModelContentProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

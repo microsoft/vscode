@@ -38,7 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
-import { PYLANCE_DEBUG_DISPLAY_NAME } from '../../../../browser/lspTerminalCapability.js';
+import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);

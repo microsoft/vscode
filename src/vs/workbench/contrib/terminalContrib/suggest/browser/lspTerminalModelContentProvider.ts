@@ -10,10 +10,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ILspTerminalModelContentProvider, PYTHON_LANGUAGE_ID } from '../../../../browser/lspTerminalCapability.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
-export const VSCODE_LSP_TERMINAL_PROMPT_TRACKER = 'vscode_lsp_terminal_prompt_tracker= {}\n';
+export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
+	setContent(content: string): void;
+	dispose(): void;
+}
 
 export class LspTerminalModelContentProvider extends Disposable implements ILspTerminalModelContentProvider, ITextModelContentProvider {
 	static readonly scheme = Schemas.vscodeTerminal;
