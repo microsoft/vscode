@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtensionsWorkbenchService } from './extensions.js';
 
 export const InstallExtensionsToolId = 'vscode_installExtensions';
@@ -18,7 +18,7 @@ export const InstallExtensionsToolData: IToolData = {
 	displayName: localize('installExtensionsTool.displayName', 'Install Extensions'),
 	modelDescription: localize('installExtensionsTool.modelDescription', "This is a tool for installing extensions in Visual Studio Code. You should provide the list of extension ids to install and the reason for installation which is shown to the user. The identifier of an extension is '\${ publisher }.\${ name }' for example: 'vscode.csharp'. The reason should just explain about the extensions and do not mention about installing."),
 	userDescription: localize('installExtensionsTool.userDescription', ''),
-	source: { type: 'internal' },
+	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
 		properties: {
