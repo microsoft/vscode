@@ -21,3 +21,9 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
+
+
+docs/
+docs/plan.todo
+/src/docs
+/src/docs/plan.todo
