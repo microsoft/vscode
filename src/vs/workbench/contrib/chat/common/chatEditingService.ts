@@ -70,9 +70,9 @@ export interface WorkingSetDisplayMetadata {
 }
 
 export interface IStreamingEdits {
-	pushText(edits: TextEdit[]): void;
-	pushNotebookCellText(cell: URI, edits: TextEdit[]): void;
-	pushNotebook(edits: ICellEditOperation[]): void;
+	pushText(edits: TextEdit[], isLastEdits: boolean): void;
+	pushNotebookCellText(cell: URI, edits: TextEdit[], isLastEdits: boolean): void;
+	pushNotebook(edits: ICellEditOperation[], isLastEdits: boolean): void;
 	/** Marks edits as done, idempotent */
 	complete(): void;
 }
@@ -188,17 +188,19 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 	 * Accept the change given or the nearest
 	 * @param change An opaque change object
 	 */
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void>;
+	acceptNearestChange(change?: IModifiedFileEntryChangeHunk): Promise<void>;
 
 	/**
 	 * @see `acceptNearestChange`
 	 */
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void>;
+	rejectNearestChange(change?: IModifiedFileEntryChangeHunk): Promise<void>;
 
 	/**
 	 * Toggle between diff-editor and normal editor
+	 * @param change An opaque change object
+	 * @param show Optional boolean to control if the diff should show
 	 */
-	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void>;
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined, show?: boolean): Promise<void>;
 }
 
 export interface IModifiedFileEntry {
@@ -210,7 +212,10 @@ export interface IModifiedFileEntry {
 
 	readonly state: IObservable<ModifiedFileEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
+	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
+
+	readonly waitsForLastEdits: IObservable<boolean>;
 
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;

@@ -149,7 +149,7 @@ suite('LanguageModelToolsService', () => {
 
 		const toolBarrier = new Barrier();
 		const toolImpl: IToolImpl = {
-			invoke: async (invocation, countTokens, cancelToken) => {
+			invoke: async (invocation, countTokens, progress, cancelToken) => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });

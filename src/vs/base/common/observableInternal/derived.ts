@@ -3,11 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseObservable, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
+import { BaseObservable, IObservable, IObservableWithChange, IObserver, IReader, IReaderWithStore, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging/logging.js';
 import { IChangeTracker } from './changeTracker.js';
+
+export interface IDerivedReader<TChange = void> extends IReaderWithStore {
+	/**
+	 * Call this to report a change delta or to force report a change, even if the new value is the same as the old value.
+	*/
+	reportChange(change: TChange): void;
+}
 
 /**
  * Creates an observable that is derived from other observables.
@@ -15,9 +22,9 @@ import { IChangeTracker } from './changeTracker.js';
  *
  * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
-export function derived<T>(computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(owner: DebugOwner, computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | DebugOwner, computeFn?: ((reader: IReader) => T) | undefined): IObservable<T> {
+export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
+export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
+export function derived<T, TChange = void>(computeFnOrOwner: ((reader: IDerivedReader<TChange>) => T) | DebugOwner, computeFn?: ((reader: IDerivedReader<TChange>) => T) | undefined): IObservable<T> {
 	if (computeFn !== undefined) {
 		return new Derived(
 			new DebugNameData(computeFnOrOwner, undefined, computeFn),
@@ -94,7 +101,13 @@ export function derivedHandleChanges<T, TChangeSummary>(
 	);
 }
 
+/**
+ * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
+*/
 export function derivedWithStore<T>(computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
+/**
+ * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
+*/
 export function derivedWithStore<T>(owner: DebugOwner, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
 export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: DisposableStore) => T) | DebugOwner, computeFnOrUndefined?: ((reader: IReader, store: DisposableStore) => T)): IObservable<T> {
 	let computeFn: (reader: IReader, store: DisposableStore) => T;
@@ -188,7 +201,7 @@ export const enum DerivedState {
 	upToDate = 3,
 }
 
-export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> implements IReader, IObserver {
+export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObservable<T, TChange> implements IDerivedReader<TChange>, IObserver {
 	private _state = DerivedState.initial;
 	private _value: T | undefined = undefined;
 	private _updateCount = 0;
@@ -197,6 +210,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private _changeSummary: TChangeSummary | undefined = undefined;
 	private _isUpdating = false;
 	private _isComputing = false;
+	private _didReportChange = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -204,7 +218,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	constructor(
 		public readonly _debugNameData: DebugNameData,
-		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		public readonly _computeFn: (reader: IDerivedReader<TChange>, changeSummary: TChangeSummary) => T,
 		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
 		private readonly _equalityComparator: EqualityComparer<T>,
@@ -225,6 +239,15 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			d.removeObserver(this);
 		}
 		this._dependencies.clear();
+
+		if (this._store !== undefined) {
+			this._store.dispose();
+			this._store = undefined;
+		}
+		if (this._delayedStore !== undefined) {
+			this._delayedStore.dispose();
+			this._delayedStore = undefined;
+		}
 
 		this._handleLastObserverRemoved?.();
 	}
@@ -298,17 +321,27 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		let didChange = false;
 
 		this._isComputing = true;
+		this._didReportChange = false;
 
 		try {
 			const changeSummary = this._changeSummary!;
+			const delayedStore = this._delayedStore;
+			if (delayedStore !== undefined) {
+				this._delayedStore = undefined;
+			}
 			try {
 				this._isReaderValid = true;
 				if (this._changeTracker) {
 					this._changeTracker.beforeUpdate?.(this, changeSummary);
 					this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
 				}
+				if (this._store !== undefined) {
+					this._store.dispose();
+					this._store = undefined;
+				}
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this._value = this._computeFn(this, changeSummary);
+
 			} finally {
 				this._isReaderValid = false;
 				// We don't want our observed observables to think that they are (not even temporarily) not being observed.
@@ -317,9 +350,13 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 					o.removeObserver(this);
 				}
 				this._dependenciesToBeRemoved.clear();
+
+				if (delayedStore !== undefined) {
+					delayedStore.dispose();
+				}
 			}
 
-			didChange = hadValue && !(this._equalityComparator(oldValue!, this._value));
+			didChange = this._didReportChange || (hadValue && !(this._equalityComparator(oldValue!, this._value)));
 
 			getLogger()?.handleObservableUpdated(this, {
 				oldValue,
@@ -334,10 +371,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		this._isComputing = false;
 
-		if (didChange) {
+		if (!this._didReportChange && didChange) {
 			for (const r of this._observers) {
 				r.handleChange(this, undefined);
 			}
+		} else {
+			this._didReportChange = false;
 		}
 	}
 
@@ -436,8 +475,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	// IReader Implementation
 	private _isReaderValid = false;
 
-	public readObservable<T>(observable: IObservable<T>): T {
+	private _ensureNoRunning(): void {
 		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+	}
+
+	public readObservable<T>(observable: IObservable<T>): T {
+		this._ensureNoRunning();
 
 		// Subscribe before getting the value to enable caching
 		observable.addObserver(this);
@@ -447,6 +490,36 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this._dependencies.add(observable);
 		this._dependenciesToBeRemoved.delete(observable);
 		return value;
+	}
+
+	public reportChange(change: TChange): void {
+		this._ensureNoRunning();
+
+		this._didReportChange = true;
+		// TODO add logging
+		for (const r of this._observers) {
+			r.handleChange(this, change);
+		}
+	}
+
+	private _store: DisposableStore | undefined = undefined;
+	get store(): DisposableStore {
+		this._ensureNoRunning();
+
+		if (this._store === undefined) {
+			this._store = new DisposableStore();
+		}
+		return this._store;
+	}
+
+	private _delayedStore: DisposableStore | undefined = undefined;
+	get delayedStore(): DisposableStore {
+		this._ensureNoRunning();
+
+		if (this._delayedStore === undefined) {
+			this._delayedStore = new DisposableStore();
+		}
+		return this._delayedStore;
 	}
 
 	public override addObserver(observer: IObserver): void {
@@ -486,17 +559,25 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this._value = newValue as any;
 	}
 
+	public setValue(newValue: T, tx: ITransaction, change: TChange): void {
+		this._value = newValue;
+		const observers = this._observers;
+		tx.updateObserver(this, this);
+		for (const d of observers) {
+			d.handleChange(this, change);
+		}
+	}
 }
 
 
-export class DerivedWithSetter<T, TChangeSummary = any> extends Derived<T, TChangeSummary> implements ISettableObservable<T> {
+export class DerivedWithSetter<T, TChangeSummary = any, TOutChanges = any> extends Derived<T, TChangeSummary, TOutChanges> implements ISettableObservable<T, TOutChanges> {
 	constructor(
 		debugNameData: DebugNameData,
-		computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		computeFn: (reader: IDerivedReader<TOutChanges>, changeSummary: TChangeSummary) => T,
 		changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		handleLastObserverRemoved: (() => void) | undefined = undefined,
 		equalityComparator: EqualityComparer<T>,
-		public readonly set: (value: T, tx: ITransaction | undefined) => void,
+		public readonly set: (value: T, tx: ITransaction | undefined, change: TOutChanges) => void,
 	) {
 		super(
 			debugNameData,

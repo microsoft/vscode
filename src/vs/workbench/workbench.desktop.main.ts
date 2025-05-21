@@ -54,6 +54,7 @@ import './services/path/electron-sandbox/pathService.js';
 import './services/themes/electron-sandbox/nativeHostColorSchemeService.js';
 import './services/extensionManagement/electron-sandbox/extensionManagementService.js';
 import './services/encryption/electron-sandbox/encryptionService.js';
+import './services/browserElements/electron-sandbox/browserElementsService.js';
 import './services/secrets/electron-sandbox/secretStorageService.js';
 import './services/localization/electron-sandbox/languagePackService.js';
 import './services/telemetry/electron-sandbox/telemetryService.js';
@@ -86,6 +87,7 @@ import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-sandbox/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-sandbox/webContentExtractorService.js';
+import './services/process/electron-sandbox/processService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -120,8 +122,8 @@ import './contrib/extensions/electron-sandbox/extensions.contribution.js';
 // Issues
 import './contrib/issue/electron-sandbox/issue.contribution.js';
 
-// Process
-import './contrib/issue/electron-sandbox/process.contribution.js';
+// Process Explorer
+import './contrib/processExplorer/electron-sandbox/processExplorer.contribution.js';
 
 // Remote
 import './contrib/remote/electron-sandbox/remote.contribution.js';

@@ -7,7 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../languages.js';
 import { IAttachedView } from '../model.js';

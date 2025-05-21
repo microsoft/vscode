@@ -146,7 +146,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let port!: MessagePort;
 		let barrierError: Error | null = null;
 		let barrierHasError = false;
-		let startTimeout: any = null;
+		let startTimeout: Timeout | undefined = undefined;
 
 		const rejectBarrier = (exitCode: number, error: Error) => {
 			barrierError = error;

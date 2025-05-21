@@ -83,7 +83,7 @@ export class ObjectCache<
 		this._register(new DisposableMap());
 
 	constructor(
-		private readonly factory: (key: TKey) => TValue & { disposed: false },
+		private readonly factory: (key: TKey) => TValue & { isDisposed: false },
 	) {
 		super();
 	}
@@ -96,11 +96,11 @@ export class ObjectCache<
 	 * @throws if {@linkcode factory} callback returns a disposed object.
 	 * @param key - ID of the object in the cache
 	 */
-	public get(key: TKey): TValue & { disposed: false } {
+	public get(key: TKey): TValue & { isDisposed: false } {
 		let object = this.cache.get(key);
 
 		// if object is already disposed, remove it from the cache
-		if (object?.disposed) {
+		if (object?.isDisposed) {
 			this.cache.deleteAndLeak(key);
 			object = undefined;
 		}
@@ -126,9 +126,10 @@ export class ObjectCache<
 		);
 
 		// remove it from the cache automatically on dispose
-		object.onDispose(() => {
-			this.cache.deleteAndLeak(key);
-		});
+		object.addDisposables(
+			object.onDispose(() => {
+				this.cache.deleteAndLeak(key);
+			}));
 		this.cache.set(key, object);
 
 		return object;

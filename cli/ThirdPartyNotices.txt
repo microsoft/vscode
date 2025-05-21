@@ -574,7 +574,7 @@ https://github.com/marshallpierce/rust-base64
 
 The MIT License (MIT)
 
-Copyright (c) 2015 Alice Maz
+Copyright (c) 2025 Alice Maz
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -693,6 +693,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -737,6 +738,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -1514,6 +1516,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -1555,7 +1558,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-crossbeam-channel 0.5.13 - MIT OR Apache-2.0
+crossbeam-channel 0.5.15 - MIT OR Apache-2.0
 https://github.com/crossbeam-rs/crossbeam
 
 The MIT License (MIT)
@@ -3198,6 +3201,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -4181,6 +4185,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -4890,8 +4895,7 @@ THE SOFTWARE.
 miniz_oxide 0.7.3 - MIT OR Zlib OR Apache-2.0
 https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
 
-This library (excluding the miniz C code used for tests) is licensed under the MIT license. The library is based on the miniz C library, of which the parts used are dual-licensed under the [MIT license](https://github.com/Frommi/miniz_oxide/blob/master/miniz/miniz.c#L1) and also the [unlicense](https://github.com/Frommi/miniz_oxide/blob/master/miniz/miniz.c#L577).
-The parts of miniz that are not covered by the unlicense is [some Zip64 code](https://github.com/richgel999/miniz/commit/224d207ce8fffb908e156d27478be3afb5d83e6a#diff-edc0e9ccfae3b5324b85b3ec0a53dc74) which is only MIT licensed. This and other Zip functionality in miniz is not part of the miniz_oxidde and miniz_oxide_c_api rust libraries.
+This library (excluding the original miniz C code used for tests) is dual licensed under the MIT license and Apache 2.0 license. The library is based on the [miniz][MIT license](https://github.com/richgel999/miniz) C library by Rich Geldreich which is released under the MIT license.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -5399,7 +5403,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.70 - Apache-2.0
+openssl 0.10.72 - Apache-2.0
 https://github.com/sfackler/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -5478,7 +5482,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.105 - MIT
+openssl-sys 0.9.107 - MIT
 https://github.com/sfackler/rust-openssl
 
 The MIT License (MIT)
@@ -9623,7 +9627,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 ---------------------------------------------------------
 
-tokio 1.37.0 - MIT
+tokio 1.38.2 - MIT
 https://github.com/tokio-rs/tokio
 
 MIT License
@@ -9651,7 +9655,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-macros 2.2.0 - MIT
+tokio-macros 2.3.0 - MIT
 https://github.com/tokio-rs/tokio
 
 MIT License
@@ -11544,33 +11548,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 zbus 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11578,33 +11556,7 @@ DEALINGS IN THE SOFTWARE.
 zbus_macros 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11612,33 +11564,7 @@ DEALINGS IN THE SOFTWARE.
 zbus_names 2.6.1 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11780,6 +11706,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`collectable`]: ./collectable
 [`cpufeatures`]: ./cpufeatures
 [`dbl`]: ./dbl
+[`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
 [`opaque-debug`]: ./opaque-debug
@@ -11933,33 +11860,7 @@ licences; see files named LICENSE.*.txt for details.
 zvariant 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11967,33 +11868,7 @@ DEALINGS IN THE SOFTWARE.
 zvariant_derive 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -12001,31 +11876,5 @@ DEALINGS IN THE SOFTWARE.
 zvariant_utils 1.0.1 - MIT
 https://github.com/dbus2/zbus/
 
-The MIT License (MIT)
-
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+LICENSE-MIT
 ---------------------------------------------------------

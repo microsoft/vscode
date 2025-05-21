@@ -6,6 +6,7 @@
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -153,7 +154,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				}
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
-				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
 				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
@@ -163,7 +164,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
-			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}

@@ -72,7 +72,7 @@ export type KernelQuickPickContext =
 	{ id: string; extension: string } |
 	{ notebookEditorId: string } |
 	{ id: string; extension: string; notebookEditorId: string } |
-	{ ui?: boolean; notebookEditor?: NotebookEditorWidget };
+	{ ui?: boolean; notebookEditor?: NotebookEditorWidget; skipIfAlreadySelected?: boolean };
 
 export interface IKernelPickerStrategy {
 	showQuickPick(editor: IActiveNotebookEditor, wantedKernelId?: string): Promise<boolean>;

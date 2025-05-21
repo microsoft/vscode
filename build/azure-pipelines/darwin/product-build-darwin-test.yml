@@ -23,33 +23,33 @@ steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test.sh --tfs "Unit Tests"
-        displayName: Run unit tests (Electron)
+        displayName: 🧪 Run unit tests (Electron)
         timeoutInMinutes: 15
       - script: npm run test-node
-        displayName: Run unit tests (node.js)
+        displayName: 🧪 Run unit tests (node.js)
         timeoutInMinutes: 15
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Webkit)
+        displayName: 🧪 Run unit tests (Browser, Webkit)
         timeoutInMinutes: 30
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test.sh --build --tfs "Unit Tests"
-        displayName: Run unit tests (Electron)
+        displayName: 🧪 Run unit tests (Electron)
         timeoutInMinutes: 15
       - script: npm run test-node -- --build
-        displayName: Run unit tests (node.js)
+        displayName: 🧪 Run unit tests (node.js)
         timeoutInMinutes: 15
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Webkit)
+        displayName: 🧪 Run unit tests (Browser, Webkit)
         timeoutInMinutes: 30
 
   - script: |
@@ -77,17 +77,17 @@ steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
-        displayName: Run integration tests (Electron)
+        displayName: 🧪 Run integration tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: ./scripts/test-web-integration.sh --browser webkit
-        displayName: Run integration tests (Browser, Webkit)
+        displayName: 🧪 Run integration tests (Browser, Webkit)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: ./scripts/test-remote-integration.sh
-        displayName: Run integration tests (Remote)
+        displayName: 🧪 Run integration tests (Remote)
         timeoutInMinutes: 20
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -103,14 +103,14 @@ steps:
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-        displayName: Run integration tests (Electron)
+        displayName: 🧪 Run integration tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: ./scripts/test-web-integration.sh --browser webkit
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
-        displayName: Run integration tests (Browser, Webkit)
+        displayName: 🧪 Run integration tests (Browser, Webkit)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
@@ -122,7 +122,7 @@ steps:
           ./scripts/test-remote-integration.sh
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-        displayName: Run integration tests (Remote)
+        displayName: 🧪 Run integration tests (Remote)
         timeoutInMinutes: 20
 
   - script: ps -ef
@@ -141,7 +141,7 @@ steps:
   #   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
   #     - script: npm run smoketest-no-compile -- --tracing
   #       timeoutInMinutes: 20
-  #       displayName: Run smoke tests (Electron)
+  #       displayName: 🧪 Run smoke tests (Electron)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
@@ -151,14 +151,14 @@ steps:
           APP_NAME="`ls $APP_ROOT | head -n 1`"
           npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Electron)
+        displayName: 🧪 Run smoke tests (Electron)
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Browser, Chromium)
+        displayName: 🧪 Run smoke tests (Browser, Chromium)
 
     - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: |
@@ -170,7 +170,7 @@ steps:
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Remote)
+        displayName: 🧪 Run smoke tests (Remote)
 
   - script: ps -ef
     displayName: Diagnostics after smoke test run

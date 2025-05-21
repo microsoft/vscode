@@ -289,7 +289,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 		// Install Timers to Purge Notification
-		let purgeTimeoutHandle: any;
+		let purgeTimeoutHandle: Timeout;
 		let listener: IDisposable;
 
 		const hideAfterTimeout = () => {
@@ -560,11 +560,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = typeof availableHeight === 'number'
-			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
-			: 0;
-
-		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
+		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight ?? 0);
 	}
 
 	private layoutLists(width: number): void {
@@ -572,6 +568,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private layoutContainer(heightToGive: number): void {
+
+		// Allow the full height for 1 toast but adjust for multiple toasts
+		// so that a stack of notifications does not exceed all the way up
+
+		let singleToastHeightToGive = heightToGive;
+		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
+
 		let visibleToasts = 0;
 		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
 
@@ -579,12 +582,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
 
-			heightToGive -= toast.container.offsetHeight;
+			singleToastHeightToGive -= toast.container.offsetHeight;
+			multipleToastsHeightToGive -= toast.container.offsetHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
 				makeVisible = false; // never show more than MAX_NOTIFICATIONS
-			} else if (heightToGive >= 0) {
+			} else if ((visibleToasts === 0 && singleToastHeightToGive >= 0) || (visibleToasts > 0 && multipleToastsHeightToGive >= 0)) {
 				makeVisible = true; // hide toast if available height is too little
 			}
 

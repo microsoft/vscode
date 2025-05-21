@@ -41,7 +41,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._treeSitterLanguages = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService, this._environmentService, this._registeredLanguages));
+		this._treeSitterLanguages = this._register(new TreeSitterLanguages(this._treeSitterImporter, fileService, this._environmentService, this._configurationService, this._registeredLanguages));
 		this.onDidAddLanguage = this._treeSitterLanguages.onDidAddLanguage;
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EDITOR_EXPERIMENTAL_PREFER_TREESITTER)) {

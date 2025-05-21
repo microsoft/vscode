@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { randomInt } from '../../../../base/common/numbers.js';
-import { getCleanPromptName, isPromptFile } from '../../common/constants.js';
+import { getCleanPromptName, isPromptOrInstructionsFile } from '../../common/constants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
@@ -35,58 +35,54 @@ suite('Prompt Constants', () => {
 				getCleanPromptName(URI.file('.github/copilot-instructions.md')),
 				'copilot-instructions',
 			);
-		});
 
-		test('• throws if not a prompt file URI provided', () => {
-			assert.throws(() => {
-				getCleanPromptName(URI.file('/path/to/default.prompt.md1'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.file('/etc/prompts/my-prompt')),
+				'my-prompt',
+			);
 
-			assert.throws(() => {
-				getCleanPromptName(URI.file('./some.md'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.file('../some-folder/frequent.txt')),
+				'frequent.txt',
+			);
 
-
-			assert.throws(() => {
-				getCleanPromptName(URI.file('../some-folder/frequent.txt'));
-			});
-
-			assert.throws(() => {
-				getCleanPromptName(URI.file('/etc/prompts/my-prompt'));
-			});
+			assert.strictEqual(
+				getCleanPromptName(URI.parse('untitled:Untitled-1')),
+				'Untitled-1',
+			);
 		});
 	});
 
-	suite('• isPromptFile', () => {
+	suite('• isPromptOrInstructionsFile', () => {
 		test('• returns `true` for prompt files', () => {
 			assert(
-				isPromptFile(URI.file('/path/to/my-prompt.prompt.md')),
+				isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md')),
 			);
 
 			assert(
-				isPromptFile(URI.file('../common.prompt.md')),
+				isPromptOrInstructionsFile(URI.file('../common.prompt.md')),
 			);
 
 			assert(
-				isPromptFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
+				isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
 			);
 
 			assert(
-				isPromptFile(URI.file('.github/copilot-instructions.md')),
+				isPromptOrInstructionsFile(URI.file('.github/copilot-instructions.md')),
 			);
 		});
 
 		test('• returns `false` for non-prompt files', () => {
 			assert(
-				!isPromptFile(URI.file('/path/to/my-prompt.prompt.md1')),
+				!isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md1')),
 			);
 
 			assert(
-				!isPromptFile(URI.file('../common.md')),
+				!isPromptOrInstructionsFile(URI.file('../common.md')),
 			);
 
 			assert(
-				!isPromptFile(URI.file(`./some-${randomInt(1000)}.txt`)),
+				!isPromptOrInstructionsFile(URI.file(`./some-${randomInt(1000)}.txt`)),
 			);
 		});
 	});

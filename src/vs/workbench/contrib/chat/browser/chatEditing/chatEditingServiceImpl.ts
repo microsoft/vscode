@@ -220,6 +220,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// multiple times during the process of response streaming.
 		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
 
+		let editorDidChange = false;
+		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
+			editorDidChange = true;
+		});
+
 		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
 			const uri = CellUri.parse(partUri)?.notebook ?? partUri;
@@ -233,8 +238,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId ||
-					Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
+				const inactive = editorDidChange
+					|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
+					|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};
@@ -250,6 +256,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			editsSeen.length = 0;
 			editedFilesExist.clear();
+			editorListener.dispose();
 		};
 
 		const handleResponseParts = async () => {
@@ -285,18 +292,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach(edit => {
+						newEdits.forEach((edit, idx) => {
+							const done = part.done ? idx === newEdits.length - 1 : false;
 							if (TextEdit.isTextEdit(edit)) {
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit]);
+								entry.streaming.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[]);
+						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 
@@ -397,16 +405,17 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
-	public readonly onDidChange = Event.any(
-		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
-		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
-	);
+	readonly onDidChange: Event<URI[]>;
 
 	constructor(
 		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
+		this.onDidChange = Event.any(
+			observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+			observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+		);
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {

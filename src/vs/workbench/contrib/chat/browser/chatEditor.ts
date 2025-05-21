@@ -70,7 +70,6 @@ export class ChatEditor extends EditorPane {
 					autoScroll: mode => mode !== ChatMode.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
-					supportsAdditionalParticipants: true,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;

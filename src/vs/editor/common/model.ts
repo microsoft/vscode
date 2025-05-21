@@ -19,12 +19,13 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from './tokens/tokenArray.js';
 import { IEditorModel } from './editorCommon.js';
+import { TextModelEditReason } from './textModelEditReason.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -218,6 +219,10 @@ export interface IModelDecorationOptions {
 	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
+	/**
+	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+	 */
+	lineHeight?: number | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
@@ -1109,6 +1114,12 @@ export interface ITextModel {
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
 	 * @internal
 	 */
 	_getTrackedRange(id: string): Range | null;
@@ -1239,6 +1250,14 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
+	 * An event emitted when line heights from decorations changes.
+	 * This event is emitted only when adding, removing or changing a decoration
+	 * and not when doing edits in the model (i.e. when decoration ranges change)
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	/**
 	 * An event emitted when the model options have changed.
 	 * @event
 	 */
@@ -1332,6 +1351,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+
+	/**
+	 * Sets the reason for all text model edits done in the callback.
+	 * @internal
+	*/
+	editWithReason<T>(editReason: TextModelEditReason, cb: () => T): T;
 }
 
 /**

@@ -80,7 +80,7 @@ registerAction2(class extends Action2 {
 			if (!selectedCategory && !selectedStep) {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false, inactive }
+					options: { preserveFocus: toSide ?? false, inactive, forceReload: true }
 				}, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
@@ -90,6 +90,10 @@ registerAction2(class extends Action2 {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					const activeEditor = group.activeEditor as GettingStartedInput;
 					activeEditor.showWelcome = false;
+					if (activeEditor.selectedCategory && activeEditor.selectedStep) {
+						// currently in a walkthrough.
+						return;
+					}
 					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 					return;
 				}
@@ -236,6 +240,11 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 3,
+			},
 		});
 	}
 
@@ -278,11 +287,40 @@ registerAction2(class extends Action2 {
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		await extensionService.whenInstalledExtensionsRegistered();
-		gettingStartedService.onDidAddWalkthrough(async () => {
+		disposables.add(gettingStartedService.onDidAddWalkthrough(async () => {
 			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
-		});
+		}));
 		quickPick.show();
 		quickPick.busy = false;
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showNewWelcome',
+			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
+
+		editorService.openEditor({
+			resource: GettingStartedInput.RESOURCE,
+			options
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'welcome.newWorkspaceChat',
+	handler: (accessor, stepID: string) => {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
 	}
 });
 

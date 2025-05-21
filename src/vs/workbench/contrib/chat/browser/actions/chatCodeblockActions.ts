@@ -538,7 +538,8 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		codeBlockIndex: codeBlockInfo.codeBlockIndex,
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
-		codemapperUri: codeBlockInfo.codemapperUri
+		codemapperUri: codeBlockInfo.codemapperUri,
+		chatSessionId: codeBlockInfo.chatSessionId,
 	};
 }
 
