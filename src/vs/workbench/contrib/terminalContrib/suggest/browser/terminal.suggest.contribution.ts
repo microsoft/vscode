@@ -75,8 +75,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._addon?.dispose();
 			this._pwshAddon?.dispose();
 			this._lspAddon?.dispose();
+			this._lspModelProvider?.value?.dispose();
 			this._lspModelProvider?.dispose();
-			this._lspModelProvider.value?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
