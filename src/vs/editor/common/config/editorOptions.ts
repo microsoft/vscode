@@ -5876,6 +5876,7 @@ export const EditorOptions = {
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
 		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', true,
 		{
+			tags: ['experimental'],
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
 		}
@@ -5899,6 +5900,7 @@ export const EditorOptions = {
 		'svg' as 'svg' | 'font' | 'off',
 		['svg', 'font', 'off'] as const,
 		{
+			tags: ['experimental'],
 			enumDescriptions: [
 				nls.localize('experimentalWhitespaceRendering.svg', "Use a new rendering method with svgs."),
 				nls.localize('experimentalWhitespaceRendering.font', "Use a new rendering method with font characters."),
