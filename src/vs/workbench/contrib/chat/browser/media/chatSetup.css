@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
+	border: 0 !important;
+	background-color: unset !important;
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button.skip-button {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground) !important;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:not(.skip-button):active,
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:not(.skip-button):hover {
+	color: var(--vscode-textLink-activeForeground) !important;
+}
+
 .chat-setup-dialog-footer {
 
 	p.setup-settings {

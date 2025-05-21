@@ -682,7 +682,8 @@ class ChatSetup {
 				detail: ' ', // workaround allowing us to render the message in large
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
-				cancelId: -1, // not offered as button, but X can cancel
+				cancelId: buttons.length - 1,
+				disableCloseButton: true,
 				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
 				buttonOptions: buttons.map(button => button[2])
 			}, this.keybindingService, this.layoutService)
@@ -694,26 +695,32 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(): Array<[string, ChatSetupStrategy, { renderAsLink: boolean } | undefined]> {
+	private getButtons(): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
+		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
+
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			const supportAlternateProvider = this.configurationService.getValue('chat.setup.signInWithAlternateProvider') === true && defaultChat.alternativeProviderId;
 
 			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
-				return coalesce([
+				buttons = coalesce([
 					[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
 					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { renderAsLink: true }]
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { extraClasses: ['link-button'] }]
+				]);
+			} else {
+				buttons = coalesce([
+					[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
+					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { extraClasses: ['link-button'] }]
 				]);
 			}
-
-			return coalesce([
-				[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
-				supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-				[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { renderAsLink: true }]
-			]);
+		} else {
+			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 		}
 
-		return [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
+		buttons.push([localize('skipForNow', "Skip for now"), ChatSetupStrategy.Canceled, { extraClasses: ['link-button', 'skip-button'] }]);
+
+		return buttons;
 	}
 
 	private getDialogTitle(): string {
