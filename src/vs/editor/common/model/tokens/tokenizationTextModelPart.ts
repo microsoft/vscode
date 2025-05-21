@@ -26,7 +26,7 @@ import { SparseTokensStore } from '../../tokens/sparseTokensStore.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { TokenizerTokens } from './tokenizerTokens.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
-import { derived, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -40,9 +40,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	private _tokens;
-	private _useTreeSitter;
-	private _languageIdObs;
+	public readonly tokens: IObservable<AbstractTokens>;
+	private readonly _useTreeSitter: IObservable<boolean>;
+	private readonly _languageIdObs: IObservable<string>;
 
 	constructor(
 		private readonly _textModel: TextModel,
@@ -63,7 +63,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			return this._treeSitterLibraryService.supportsLanguage(languageId, reader);
 		});
 
-		this._tokens = derived(this, reader => {
+		this.tokens = derived(this, reader => {
 			let tokens: AbstractTokens;
 			if (this._useTreeSitter.read(reader)) {
 				tokens = reader.store.add(this._instantiationService.createInstance(TreeSitterTokens, this._languageIdObs, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
@@ -82,7 +82,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		});
 
 		let hadTokens = false;
-		this._tokens.recomputeInitiallyAndOnChange(this._store, value => {
+		this.tokens.recomputeInitiallyAndOnChange(this._store, value => {
 			if (hadTokens) {
 				// We need to reset the tokenization, as the new token provider otherwise won't have a chance to provide tokens until some action happens in the editor.
 				// TODO@hediet: Look into why this is needed.
@@ -129,11 +129,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			}
 		}
 
-		this._tokens.get().handleDidChangeContent(e);
+		this.tokens.get().handleDidChangeContent(e);
 	}
 
 	public handleDidChangeAttached(): void {
-		this._tokens.get().handleDidChangeAttached();
+		this.tokens.get().handleDidChangeAttached();
 	}
 
 	/**
@@ -141,7 +141,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	 */
 	public getLineTokens(lineNumber: number): LineTokens {
 		this.validateLineNumber(lineNumber);
-		const syntacticTokens = this._tokens.get().getLineTokens(lineNumber);
+		const syntacticTokens = this.tokens.get().getLineTokens(lineNumber);
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
@@ -161,43 +161,43 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public get hasTokens(): boolean {
-		return this._tokens.get().hasTokens;
+		return this.tokens.get().hasTokens;
 	}
 
 	public resetTokenization() {
-		this._tokens.get().todo_resetTokenization();
+		this.tokens.get().todo_resetTokenization();
 	}
 
 	public get backgroundTokenizationState() {
-		return this._tokens.get().backgroundTokenizationState;
+		return this.tokens.get().backgroundTokenizationState;
 	}
 
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this._tokens.get().forceTokenization(lineNumber);
+		this.tokens.get().forceTokenization(lineNumber);
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this._tokens.get().hasAccurateTokensForLine(lineNumber);
+		return this.tokens.get().hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this._tokens.get().isCheapToTokenize(lineNumber);
+		return this.tokens.get().isCheapToTokenize(lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this._tokens.get().tokenizeIfCheap(lineNumber);
+		this.tokens.get().tokenizeIfCheap(lineNumber);
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
-		return this._tokens.get().getTokenTypeIfInsertingCharacter(lineNumber, column, character);
+		return this.tokens.get().getTokenTypeIfInsertingCharacter(lineNumber, column, character);
 	}
 
 	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
-		return this._tokens.get().tokenizeLinesAt(lineNumber, lines);
+		return this.tokens.get().tokenizeLinesAt(lineNumber, lines);
 	}
 
 	// #endregion
