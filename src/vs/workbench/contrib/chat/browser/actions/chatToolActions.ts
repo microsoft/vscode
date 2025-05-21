@@ -16,7 +16,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -29,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
-import { isIToolSet, IToolData, IToolSet } from '../../common/languageModelToolsService.js';
+import { isIToolSet, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -252,20 +251,16 @@ class ConfigureToolsAction extends Action2 {
 				// toolBuckets.set(key, bucket);
 				// }
 			} else if (toolSetOrTool.source.type === 'extension') {
-				if (!toolSetOrTool.source.isExternalTool) {
-					bucket = builtinBucket;
-				} else {
-					const key = toolSetOrTool.source.type + ExtensionIdentifier.toKey(toolSetOrTool.source.extensionId);
-					bucket = toolBuckets.get(key) ?? {
-						type: 'item',
-						label: toolSetOrTool.source.label,
-						ordinal: BucketOrdinal.Extension,
-						picked: false,
-						alwaysShow: true,
-						children: []
-					};
-					toolBuckets.set(key, bucket);
-				}
+				const key = ToolDataSource.toKey(toolSetOrTool.source);
+				bucket = toolBuckets.get(key) ?? {
+					type: 'item',
+					label: toolSetOrTool.source.label,
+					ordinal: BucketOrdinal.Extension,
+					picked: false,
+					alwaysShow: true,
+					children: []
+				};
+				toolBuckets.set(key, bucket);
 			} else if (toolSetOrTool.source.type === 'internal') {
 				bucket = builtinBucket;
 			} else if (toolSetOrTool.source.type === 'user') {

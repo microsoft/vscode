@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -39,6 +39,9 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { CompletionItem, CompletionItemKind, CompletionItemRanges } from '../../../../../editor/common/languages.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
 
 const toolSetSchemaId = 'vscode://schemas/toolsets';
@@ -143,6 +146,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 		]).then(() => this._initToolSets());
 
 		this._store.add(instantiationService.createInstance(ToolSetsFileValidation));
+		this._store.add(instantiationService.createInstance(ToolsSetsCompletions));
 	}
 
 	private _initToolSets(): void {
@@ -225,6 +229,83 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 	}
 }
 
+class ToolCompletionItem implements CompletionItem {
+
+	readonly label: string;
+	readonly filterText: string;
+	readonly insertText: string;
+	readonly sortText: string | undefined;
+	readonly detail: string;
+	readonly range: CompletionItemRanges;
+	readonly kind = CompletionItemKind.Tool;
+
+	constructor(tool: IToolData, range: CompletionItemRanges) {
+		this.label = tool.toolReferenceName ?? tool.id;
+		this.range = range;
+		this.filterText = `"${tool.toolReferenceName}"`;
+		this.insertText = `"${tool.toolReferenceName}"`;
+		this.range = range;
+		this.detail = localize('tool_source_completion', "{0}: {1}", tool.source.label, tool.displayName);
+
+		const data = ToolDataSource.classify(tool.source);
+		this.sortText = `${data.ordinal}/${data.label}/${this.label}/${tool.tags?.join() ?? ''}`;
+	}
+}
+
+class ToolsSetsCompletions extends Disposable {
+
+	constructor(
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+	) {
+		super();
+
+		this._register(languageFeaturesService.completionProvider.register(
+			{
+				scheme: userDataProfileService.currentProfile.promptsHome.scheme,
+				pattern: `${userDataProfileService.currentProfile.promptsHome.fsPath}/*${RawToolSetsShape.suffix}`,
+				language: 'jsonc',
+			},
+			{
+				_debugDisplayName: 'Tool Sets Completions',
+
+				provideCompletionItems(model, position, context, token) {
+
+					const offset = model.getOffsetAt(position);
+
+					const jsonLoc = json.getLocation(model.getValue(), offset);
+
+					if (!jsonLoc.matches(['*', 'tools', '*'])) {
+						return undefined;
+					}
+
+					const usedToolNames = new Set<string>();
+					visitTools(model.getValue(), (toolName) => usedToolNames.add(toolName));
+
+					let replaceRange = Range.fromPositions(position);
+					if (jsonLoc.previousNode) {
+						const start = model.getPositionAt(jsonLoc.previousNode.offset);
+						const end = model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length);
+						replaceRange = Range.fromPositions(start, end);
+					}
+
+					const insertRange = Range.fromPositions(replaceRange.getStartPosition(), position);
+					const range: CompletionItemRanges = { replace: replaceRange, insert: insertRange };
+					const suggestions: ToolCompletionItem[] = [];
+
+					for (const tool of toolsService.getTools()) {
+						if (tool.canBeReferencedInPrompt && tool.toolReferenceName && !usedToolNames.has(tool.toolReferenceName)) {
+							suggestions.push(new ToolCompletionItem(tool, range));
+						}
+					}
+					return { suggestions };
+				}
+			}
+		));
+	}
+}
+
 class ToolSetsFileValidation extends Disposable {
 
 	constructor(
@@ -258,37 +339,20 @@ class ToolSetsFileValidation extends Disposable {
 			if (model.isAttachedToEditor()) {
 
 				const text = model.getValue();
-
-				let inTools = false;
-				let inToolsArray = false;
-
-				json.visit(text, {
-					onObjectProperty: (property) => {
-						inTools = property === 'tools';
-					},
-					onArrayBegin: () => {
-						inToolsArray = inTools;
-					},
-					onArrayEnd: () => {
-						inToolsArray = false;
-					},
-					onLiteralValue: (value, offset, length) => {
-						if (!inToolsArray) {
-							return;
-						}
-						if (!this._toolsService.getToolByName(value)) {
-							const start = model.getPositionAt(offset);
-							const end = model.getPositionAt(offset + length);
-							newMarker.push({
-								severity: MarkerSeverity.Warning,
-								startLineNumber: start.lineNumber,
-								startColumn: start.column,
-								endLineNumber: end.lineNumber,
-								endColumn: end.column,
-								message: localize('toolNotFound', "Tool '{0}' not found.", value),
-							});
-						}
-					},
+				const toolsService = this._toolsService;
+				visitTools(text, (toolName, offset, length) => {
+					if (!toolsService.getToolByName(toolName)) {
+						const start = model.getPositionAt(offset);
+						const end = model.getPositionAt(offset + length);
+						newMarker.push({
+							severity: MarkerSeverity.Warning,
+							startLineNumber: start.lineNumber,
+							startColumn: start.column,
+							endLineNumber: end.lineNumber,
+							endColumn: end.column,
+							message: localize('toolNotFound', "Tool '{0}' not found.", toolName),
+						});
+					}
 				});
 			}
 
@@ -303,8 +367,31 @@ class ToolSetsFileValidation extends Disposable {
 		validate();
 		return store;
 	}
-
 }
+
+
+function visitTools(text: string, onTool: (toolName: string, offset: number, length: number) => void): void {
+	let _inTools = false;
+	let _inToolsArray = false;
+	json.visit(text, {
+		onObjectProperty(property: string) {
+			_inTools = property === 'tools';
+		},
+		onArrayBegin() {
+			_inToolsArray = _inTools;
+		},
+		onArrayEnd() {
+			_inToolsArray = false;
+		},
+		onLiteralValue(value: string, offset: number, length: number) {
+			if (_inToolsArray) {
+				onTool(value, offset, length);
+			}
+		}
+	});
+}
+
+// ---- actions
 
 export class ConfigureToolSets extends Action2 {
 

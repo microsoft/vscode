@@ -19,7 +19,7 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatMode, ChatAgentLocation } from '../../common/constants.js';
-import { IToolData } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { MockChatService } from './mockChatService.js';
 import { MockPromptsService } from './mockPromptsService.js';
@@ -294,8 +294,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		variableService.getSelectedTools.returns([
-			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } },
-			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } }
+			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal },
+			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }
 		] satisfies IToolData[]);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -309,8 +309,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		variableService.getSelectedTools.returns([
-			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } },
-			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } }
+			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal },
+			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }
 		] satisfies IToolData[]);
 
 		parser = instantiationService.createInstance(ChatRequestParser);

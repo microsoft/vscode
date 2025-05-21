@@ -251,9 +251,14 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
 						ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
 						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
+
+					const source: ToolDataSource = isBuiltinTool
+						? ToolDataSource.Internal
+						: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier };
+
 					const tool: IToolData = {
 						...rawTool,
-						source: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
+						source,
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
@@ -285,12 +290,14 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					continue;
 				}
 
-				const source: ToolDataSource = {
-					type: 'extension',
-					extensionId: extension.description.identifier,
-					label: extension.description.displayName ?? extension.description.name,
-					isExternalTool: !productService.defaultChatAgent?.chatExtensionId || !ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId)
-				};
+				const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
+					ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
+					isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
+
+				const source: ToolDataSource = isBuiltinTool
+					? ToolDataSource.Internal
+					: { type: 'extension', label: extension.description.displayName ?? extension.description.name, extensionId: extension.description.identifier };
+
 
 				for (const toolSet of extension.value) {
 
