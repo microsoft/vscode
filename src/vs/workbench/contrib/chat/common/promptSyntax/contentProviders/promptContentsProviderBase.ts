@@ -90,9 +90,6 @@ export abstract class PromptContentsProviderBase<
 			...DEFAULT_OPTIONS,
 			...options,
 		};
-
-		// ensure that the `onChangeEmitter` always fires with the correct context
-		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 	}
 
 	/**

@@ -12,6 +12,7 @@ import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
 import * as filesystem from 'fs';
 import * as path from 'path';
+import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
 
@@ -45,10 +46,14 @@ export class PathExecutableCache implements vscode.Disposable {
 		this._cachedPathValue = undefined;
 	}
 
-	async getExecutablesInPath(env: ITerminalEnvironment = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
-		if (isWindows) {
+		if (shellType === TerminalShellType.GitBash) {
+			// TODO: figure out why shellIntegration.env.PATH
+			// regressed from using \ to / (correct)
+			pathValue = process.env.PATH;
+		} else if (isWindows) {
 			const caseSensitivePathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
 			if (caseSensitivePathKey) {
 				pathValue = env[caseSensitivePathKey];

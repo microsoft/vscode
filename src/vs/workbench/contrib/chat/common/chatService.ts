@@ -152,6 +152,12 @@ export interface IChatTaskDto {
 	kind: 'progressTask';
 }
 
+export interface IChatTaskSerialized {
+	content: IMarkdownString;
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	kind: 'progressTaskSerialized';
+}
+
 export interface IChatTaskResult {
 	content: IMarkdownString | void;
 	kind: 'progressTaskResult';
@@ -268,6 +274,11 @@ export interface IChatExtensionsContent {
 	kind: 'extensions';
 }
 
+export interface IChatPrepareToolInvocationPart {
+	readonly kind: 'prepareToolInvocation';
+	readonly toolName: string;
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -289,7 +300,9 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
-	| IChatUndoStop;
+	| IChatUndoStop
+	| IChatPrepareToolInvocationPart
+	| IChatTaskSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -467,8 +480,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
-	userSelectedTools2?: Record<string, boolean>;
+	userSelectedTools?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
@@ -525,7 +537,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 

@@ -44,9 +44,9 @@ export class ModifiedBaseRange {
 		);
 	}
 
-	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
-	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
-	public readonly isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+	public readonly input1CombinedDiff;
+	public readonly input2CombinedDiff;
+	public readonly isEqualChange;
 
 	constructor(
 		public readonly baseRange: MergeEditorLineRange,
@@ -66,6 +66,13 @@ export class ModifiedBaseRange {
 		*/
 		public readonly input2Diffs: readonly DetailedLineRangeMapping[]
 	) {
+		this.input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
+		this.input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
+		this.isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+		this.smartInput1LineRangeEdit = null;
+		this.smartInput2LineRangeEdit = null;
+		this.dumbInput1LineRangeEdit = null;
+		this.dumbInput2LineRangeEdit = null;
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
 			throw new BugIndicatingError('must have at least one diff');
 		}
@@ -135,8 +142,8 @@ export class ModifiedBaseRange {
 		};
 	}
 
-	private smartInput1LineRangeEdit: LineRangeEdit | undefined | null = null;
-	private smartInput2LineRangeEdit: LineRangeEdit | undefined | null = null;
+	private smartInput1LineRangeEdit: LineRangeEdit | undefined | null;
+	private smartInput2LineRangeEdit: LineRangeEdit | undefined | null;
 
 	private smartCombineInputs(firstInput: 1 | 2): LineRangeEdit | undefined {
 		if (firstInput === 1 && this.smartInput1LineRangeEdit !== null) {
@@ -173,8 +180,8 @@ export class ModifiedBaseRange {
 		return result;
 	}
 
-	private dumbInput1LineRangeEdit: LineRangeEdit | undefined | null = null;
-	private dumbInput2LineRangeEdit: LineRangeEdit | undefined | null = null;
+	private dumbInput1LineRangeEdit: LineRangeEdit | undefined | null;
+	private dumbInput2LineRangeEdit: LineRangeEdit | undefined | null;
 
 	private dumbCombineInputs(firstInput: 1 | 2): LineRangeEdit | undefined {
 		if (firstInput === 1 && this.dumbInput1LineRangeEdit !== null) {

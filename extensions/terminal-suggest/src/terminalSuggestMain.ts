@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
 			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
@@ -143,7 +143,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd ?? terminal.shellIntegration.cwd, env: terminal.shellIntegration?.env?.value });
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd ?? terminal.shellIntegration.cwd, env: terminal.shellIntegration?.env?.value, });
 			}
 			return result.items;
 		}

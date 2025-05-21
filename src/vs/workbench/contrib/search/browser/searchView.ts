@@ -14,7 +14,6 @@ import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import * as env from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as network from '../../../../base/common/network.js';
@@ -48,7 +47,7 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { OpenFileFolderAction, OpenFolderAction } from '../../../browser/actions/workspaceActions.js';
+import { OpenFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { ResourceListDnDHandler } from '../../../browser/dnd.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -71,7 +70,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -85,6 +84,7 @@ import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { forcedExpandRecursively } from './searchActionsTopBar.js';
 
 const $ = dom.$;
 
@@ -172,6 +172,9 @@ export class SearchView extends ViewPane {
 	private searchDataSource: SearchViewDataSource | undefined;
 
 	private refreshTreeController: RefreshTreeController;
+
+	private _cachedResults: ISearchComplete | undefined;
+	public _pendingSemanticSearchPromise: Promise<ISearchComplete> | undefined;
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -306,6 +309,10 @@ export class SearchView extends ViewPane {
 		this.changedWhileHidden = this.hasSearchResults();
 	}
 
+	public get cachedResults() {
+		return this._cachedResults;
+	}
+
 	async queueRefreshTree(): Promise<void> {
 		return this.refreshTreeController.queue();
 	}
@@ -348,7 +355,7 @@ export class SearchView extends ViewPane {
 
 	private async refreshHasAISetting(): Promise<void> {
 		const shouldShowAI = this.shouldShowAIResults();
-		if (!this.tree.hasNode(this.searchResult)) {
+		if (!this.tree || !this.tree.hasNode(this.searchResult)) {
 			return;
 		}
 		if (shouldShowAI && !this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
@@ -628,7 +635,17 @@ export class SearchView extends ViewPane {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
+		this._register(this.searchWidget.onSearchSubmit(options => {
+			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+			if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
+				this.logService.info(`SearchView: Automatically rendering AI results`);
+			}
+			this.triggerQueryChange({
+				...options,
+				shouldKeepAIResults: false,
+				shouldUpdateAISearch: shouldRenderAIResults === SemanticSearchBehavior.Auto,
+			});
+		}));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
 			this.triggerQueryChange({ shouldKeepAIResults: true });
@@ -1526,6 +1543,7 @@ export class SearchView extends ViewPane {
 		if (contentPattern.length === 0) {
 			this.clearSearchResults(false);
 			this.clearMessage();
+			this.clearAIResults();
 			return;
 		}
 
@@ -1582,8 +1600,7 @@ export class SearchView extends ViewPane {
 		}
 
 		this.validateQuery(query).then(() => {
-			// ensure that the node is closed when a new search is triggered
-			if (!shouldKeepAIResults && !shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+			if (!shouldKeepAIResults && shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
@@ -1624,8 +1641,7 @@ export class SearchView extends ViewPane {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
-		this.viewModel.cancelSearch(true);
-		this.viewModel.cancelAISearch(true);
+		this.clearAIResults();
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch))
@@ -1663,7 +1679,14 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
+	private async onSearchComplete(
+		progressComplete: () => void,
+		excludePatternText?: string,
+		includePatternText?: string,
+		completed?: ISearchComplete,
+		shouldDoFinalRefresh = true,
+		keywords?: AISearchKeyword[],
+	) {
 
 		this.state = SearchUIState.Idle;
 
@@ -1683,6 +1706,16 @@ export class SearchView extends ViewPane {
 
 		// Special case for when we have an AI provider registered
 		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
+		// Expand AI results if the node is collapsed
+		if (completed && this.tree.hasNode(this.searchResult.aiTextSearchResult) && this.tree.isCollapsed(this.searchResult.aiTextSearchResult)) {
+			this.tree.expand(this.searchResult.aiTextSearchResult);
+			return;
+		}
+
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
+			this.updateKeywordSuggestion(keywords);
+		}
 
 		if (this.shouldShowAIResults() && !allResults) {
 			const messageEl = this.clearMessage();
@@ -1808,47 +1841,53 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public async addAIResults(element: ITextSearchHeading, createIterator: (e: ITextSearchHeading) => Iterable<RenderableMatch>) {
+	public clearAIResults() {
+		this.model.searchResult.aiTextSearchResult.hidden = true;
+		if (!this._pendingSemanticSearchPromise) {
+			this._cachedResults = undefined;
+			this.model.cancelAISearch(true);
+			this.model.clearAiSearchResults();
+		}
+	}
+
+	public async requestAIResults() {
+		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
+		if (!this.cachedResults) {
+			this.clearAIResults();
+		}
+		this.model.searchResult.aiTextSearchResult.hidden = false;
+		await this.queueRefreshTree();
+		await forcedExpandRecursively(this.getControl(), this.model.searchResult.aiTextSearchResult);
+	}
+
+	public async addAIResults() {
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
-		let progressComplete: () => void;
-		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
-			return new Promise<void>(resolve => progressComplete = resolve);
-		});
 
 		this.searchWidget.searchInput?.clearMessage();
-		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-
-		const slowTimer = setTimeout(() => {
-			this.state = SearchUIState.SlowSearch;
-		}, 2000);
-
 		this._visibleMatches = 0;
-
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-		this.viewModel.searchResult.setAIQueryUsingTextQuery();
-		const result = this.viewModel.aiSearch();
-		result.then((complete) => {
-			clearTimeout(slowTimer);
-			if (complete.aiKeywords && complete.aiKeywords.length > 0) {
-				this.updateKeywordSuggestion(complete.aiKeywords);
-			} else {
-				this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
-			}
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
-		}, (e) => {
-			clearTimeout(slowTimer);
-			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
-		});
-		return new Promise<Iterable<RenderableMatch>>(resolve => {
-			const disposable = element.onChange(() => {
-				disposable.dispose(); // Clean up listener after first result
-				resolve(createIterator(element));
+		// Reuse pending aiSearch if available
+		let aiSearchPromise = this._pendingSemanticSearchPromise;
+		if (!aiSearchPromise) {
+			this.viewModel.searchResult.setAIQueryUsingTextQuery();
+			aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(() => {
+				// Clear pending promise when first result comes in
+				if (this._pendingSemanticSearchPromise === aiSearchPromise) {
+					this._pendingSemanticSearchPromise = undefined;
+				}
 			});
+		}
+
+		aiSearchPromise.then((complete) => {
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
+			return this.onSearchComplete(() => { }, excludePatternText, includePatternText, complete, false, complete.aiKeywords);
+		}, (e) => {
+			return this.onSearchError(e, () => { }, excludePatternText, includePatternText, undefined, false);
 		});
 	}
 
@@ -1862,6 +1901,9 @@ export class SearchView extends ViewPane {
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 		this.model.searchResult.aiTextSearchResult.hidden = !shouldKeepAIResults && !shouldUpdateAISearch;
+		if (!this.model.searchResult.aiTextSearchResult.hidden) {
+			this.logService.info(`SearchView: Semantic search visible. Keep semantic results: ${shouldKeepAIResults}. Update semantic search: ${shouldUpdateAISearch}`);
+		}
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -1883,12 +1925,13 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
 
-		if (shouldUpdateAISearch) {
-			this.tree.updateChildren(this.searchResult.aiTextSearchResult);
-		}
-
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
+			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
+				this.logService.info(`SearchView: Requesting semantic results on empty search.`);
+				this.model.searchResult.aiTextSearchResult.hidden = false;
+			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1931,8 +1974,8 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		const fileCount = this.viewModel.searchResult.fileCount();
-		const resultCount = this.viewModel.searchResult.count();
+		const fileCount = this.viewModel.searchResult.fileCount(this.viewModel.searchResult.aiTextSearchResult.hidden);
+		const resultCount = this.viewModel.searchResult.count(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
@@ -1991,7 +2034,26 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private updateKeywordSuggestion(keywords: AISearchKeyword[]) {
+	private async updateKeywordSuggestion(keywords?: AISearchKeyword[]) {
+		if (!keywords || keywords.length === 0) {
+			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+			// Reuse pending aiSearch if available
+			let aiSearchPromise = this._pendingSemanticSearchPromise;
+			if (!aiSearchPromise) {
+				this.viewModel.searchResult.setAIQueryUsingTextQuery();
+				aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(() => {
+					// Clear pending promise when first result comes in
+					if (this._pendingSemanticSearchPromise === aiSearchPromise) {
+						this._pendingSemanticSearchPromise = undefined;
+					}
+				});
+			}
+			this._cachedResults = await aiSearchPromise;
+			keywords = this._cachedResults.aiKeywords;
+			if (!keywords || keywords.length === 0) {
+				return;
+			}
+		}
 		const messageEl = this.clearMessage();
 		messageEl.classList.add('ai-keywords');
 
@@ -2045,7 +2107,7 @@ export class SearchView extends ViewPane {
 		const openFolderButton = this.messageDisposables.add(new SearchLinkButton(
 			nls.localize('openFolder', "Open Folder"),
 			() => {
-				this.commandService.executeCommand(env.isMacintosh && env.isNative ? OpenFileFolderAction.ID : OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
+				this.commandService.executeCommand(OpenFolderAction.ID).catch(err => errors.onUnexpectedError(err));
 			}, this.hoverService));
 		dom.append(textEl, openFolderButton.element);
 	}
@@ -2509,8 +2571,17 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		if (isSearchResult(element)) {
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
-			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
-				return this.searchView.addAIResults(element, (e: ITextSearchHeading) => this.createTextSearchResultIterator(e));
+			if (element.isAIContributed && (!this.searchView.model.hasAIResults || !!this.searchView._pendingSemanticSearchPromise)) {
+				if (this.searchView.cachedResults) {
+					return this.createTextSearchResultIterator(element);
+				}
+				this.searchView.addAIResults();
+				return new Promise<Iterable<RenderableMatch>>(resolve => {
+					const disposable = element.onChange(() => {
+						disposable.dispose(); // Clean up listener after first result
+						resolve(this.createTextSearchResultIterator(element));
+					});
+				});
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (isSearchTreeFolderMatch(element)) {

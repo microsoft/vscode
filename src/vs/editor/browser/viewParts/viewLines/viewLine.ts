@@ -19,7 +19,7 @@ import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

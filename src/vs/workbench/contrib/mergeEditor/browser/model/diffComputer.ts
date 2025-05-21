@@ -23,14 +23,15 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
-		'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
-		.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
+	private readonly mergeAlgorithm;
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		this.mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+			'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+			.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 	}
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {

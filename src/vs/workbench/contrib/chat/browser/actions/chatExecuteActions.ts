@@ -117,7 +117,7 @@ class ToggleChatModeAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
@@ -251,7 +251,7 @@ class OpenModelPickerAction extends Action2 {
 			},
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				order: 3,
 				group: 'navigation',
 				when: ContextKeyExpr.and(

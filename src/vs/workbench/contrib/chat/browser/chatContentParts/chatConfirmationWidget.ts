@@ -13,6 +13,7 @@ import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '.
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -173,7 +174,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this._hostService.focus(targetWindow, { force: true /* Application may not be active */ });
+				this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 			}
 		}
 	}

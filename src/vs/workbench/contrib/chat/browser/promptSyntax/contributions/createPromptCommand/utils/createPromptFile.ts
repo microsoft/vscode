@@ -9,7 +9,6 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
-import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { isPromptOrInstructionsFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 
 /**
@@ -31,9 +30,6 @@ interface ICreatePromptFileOptions {
 	 * Initial contents of the prompt file.
 	 */
 	readonly content: string;
-
-	fileService: IFileService;
-	openerService: IOpenerService;
 }
 
 /**
@@ -44,10 +40,11 @@ interface ICreatePromptFileOptions {
  *  - if the `fileName` does not end with {@link PROMPT_FILE_EXTENSION}
  *  - if a folder or file with the same already name exists in the destination folder
  */
-export const createPromptFile = async (
+export async function createPromptFile(
+	fileService: IFileService,
 	options: ICreatePromptFileOptions,
-): Promise<URI> => {
-	const { fileName, folder, content, fileService, openerService } = options;
+): Promise<URI> {
+	const { fileName, folder, content } = options;
 
 	const promptUri = URI.joinPath(folder, fileName);
 
@@ -66,9 +63,6 @@ export const createPromptFile = async (
 			new FolderExists(promptUri.fsPath),
 		);
 
-		// prompt file already exists so open it
-		await openerService.open(promptUri);
-
 		return promptUri;
 	}
 
@@ -79,4 +73,4 @@ export const createPromptFile = async (
 	await fileService.createFile(promptUri, VSBuffer.fromString(content));
 
 	return promptUri;
-};
+}

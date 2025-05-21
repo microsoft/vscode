@@ -472,7 +472,7 @@ suite('PromptsService', () => {
 
 			// sanity checks
 			assert(
-				!parser.isDisposed,
+				parser.isDisposed === false,
 				'Parser must not be disposed.',
 			);
 			assert(

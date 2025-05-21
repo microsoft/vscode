@@ -19,7 +19,7 @@ import { URI } from '../../../base/common/uri.js';
 import { realpath } from '../../../base/node/extpath.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
-import { findFreePort } from '../../../base/node/ports.js';
+import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -28,7 +28,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -344,9 +344,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { force?: boolean }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.focus({ force: options?.force ?? false });
+		window?.focus({ mode: options?.mode ?? FocusMode.Transfer });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -930,6 +930,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
 		return this.requestService.loadCertificates();
+	}
+
+	isPortFree(windowId: number | undefined, port: number): Promise<boolean> {
+		return isPortFree(port, 1_000);
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
