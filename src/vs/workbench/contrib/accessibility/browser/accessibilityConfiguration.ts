@@ -771,6 +771,7 @@ const configuration: IConfigurationNode = {
 					...announcementFeatureBase
 				},
 			},
+			tags: ['sound', 'tool', 'confirmation', 'audio', 'chat', 'agent', 'notification', 'alert', 'prompt', 'interaction', 'copilot', 'assistant']
 		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',
