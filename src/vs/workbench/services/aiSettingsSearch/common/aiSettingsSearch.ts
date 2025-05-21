@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -28,6 +29,7 @@ export interface AiSettingsSearchProviderOptions {
 
 export interface IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
+	readonly onDidEnable: Event<void>;
 
 	// Called from the Settings editor
 	isEnabled(): boolean;
