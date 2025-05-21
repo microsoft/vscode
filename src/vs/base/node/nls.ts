@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'path'; // using node.js 'path' only for historic reasons, should use our path lib if confident
+import { join } from '../common/path.js';
 import { promises } from 'fs';
 import { mark } from '../common/performance.js';
 import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
