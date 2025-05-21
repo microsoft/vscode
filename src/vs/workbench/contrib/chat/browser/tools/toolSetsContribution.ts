@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
+import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -40,8 +40,11 @@ import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../plat
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { CompletionItem, CompletionItemKind, CompletionItemRanges } from '../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionItemRanges, CompletionList, Hover } from '../../../../../editor/common/languages.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 
 const toolSetSchemaId = 'vscode://schemas/toolsets';
@@ -62,7 +65,7 @@ const toolSetsSchema: IJSONSchema = {
 		additionalProperties: false,
 		properties: {
 			tools: {
-				description: localize('schema.tools', "A list of tools to include in this tool set."),
+				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set."),
 				type: 'array',
 				items: {
 					type: 'string'
@@ -205,11 +208,22 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 
 				for (const [name, value] of data.entries) {
 
-					const tools = value.tools.map(toolName => this._languageModelToolsService.getToolByName(toolName));
+					const tools: IToolData[] = [];
+					const toolSets: ToolSet[] = [];
+					value.tools.forEach(name => {
+						const tool = this._languageModelToolsService.getToolByName(name);
+						if (tool) {
+							tools.push(tool);
+							return;
+						}
+						const toolSet = this._languageModelToolsService.getToolSetByName(name);
+						if (toolSet) {
+							toolSets.push(toolSet);
+							return;
+						}
+					});
 
-					coalesceInPlace(tools);
-
-					if (tools.length === 0) {
+					if (tools.length === 0 && toolSets.length === 0) {
 						// NO tools in this set
 						continue;
 					}
@@ -224,8 +238,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 							description: value.description
 						}
 					);
+
+					tools.forEach(tool => store.add(toolset.addTool(tool)));
+					toolSets.forEach(toolSet => store.add(toolset.addToolSet(toolSet)));
 					store.add(toolset);
-					tools.forEach(tool => toolset.addTool(tool));
 				}
 			}
 		}));
@@ -255,57 +271,122 @@ class ToolCompletionItem implements CompletionItem {
 	}
 }
 
+class ToolSetCompletionItem implements CompletionItem {
+
+	readonly label: string;
+	readonly filterText: string;
+	readonly insertText: string;
+	readonly sortText: string | undefined;
+	readonly detail: string;
+	readonly range: CompletionItemRanges;
+	readonly kind = CompletionItemKind.Tool;
+
+	constructor(toolSet: ToolSet, range: CompletionItemRanges) {
+		this.label = toolSet.toolReferenceName ?? toolSet.id;
+		this.range = range;
+		this.filterText = `"${toolSet.toolReferenceName}"`;
+		this.insertText = `"${toolSet.toolReferenceName}"`;
+		this.range = range;
+		this.detail = localize('tool_source_completion', "{0}: {1}", toolSet.source.label, toolSet.displayName);
+
+		const data = ToolDataSource.classify(toolSet.source);
+		this.sortText = `${data.ordinal}/${data.label}/${this.label}`;
+	}
+}
+
 class ToolsSetsCompletions extends Disposable {
 
 	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
-		this._register(languageFeaturesService.completionProvider.register(
-			{
-				scheme: userDataProfileService.currentProfile.promptsHome.scheme,
-				pattern: `${userDataProfileService.currentProfile.promptsHome.fsPath}/*${RawToolSetsShape.suffix}`,
-				language: 'jsonc',
-			},
-			{
-				_debugDisplayName: 'Tool Sets Completions',
+		const selector: LanguageSelector = {
+			scheme: userDataProfileService.currentProfile.promptsHome.scheme,
+			pattern: `${userDataProfileService.currentProfile.promptsHome.fsPath}/*${RawToolSetsShape.suffix}`,
+			language: 'jsonc',
+		};
 
-				provideCompletionItems(model, position, context, token) {
+		this._register(languageFeaturesService.completionProvider.register(selector, {
+			_debugDisplayName: 'Tool Sets Completions',
+			provideCompletionItems: (model, position) => this._provideCompletions(model, position)
+		}));
 
-					const offset = model.getOffsetAt(position);
+		this._register(languageFeaturesService.hoverProvider.register(selector, {
+			provideHover: (model, position) => this._provideHover(model, position),
+		}));
+	}
 
-					const jsonLoc = json.getLocation(model.getValue(), offset);
+	private _provideCompletions(model: ITextModel, position: Position): CompletionList | undefined {
+		const offset = model.getOffsetAt(position);
 
-					if (!jsonLoc.matches(['*', 'tools', '*'])) {
-						return undefined;
-					}
+		const jsonLoc = json.getLocation(model.getValue(), offset);
 
-					const usedToolNames = new Set<string>();
-					visitTools(model.getValue(), (toolName) => usedToolNames.add(toolName));
+		if (!jsonLoc.matches(['*', 'tools', '*'])) {
+			return undefined;
+		}
 
-					let replaceRange = Range.fromPositions(position);
-					if (jsonLoc.previousNode) {
-						const start = model.getPositionAt(jsonLoc.previousNode.offset);
-						const end = model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length);
-						replaceRange = Range.fromPositions(start, end);
-					}
+		const usedToolNames = new Set<string>();
+		visitTools(model.getValue(), (toolName) => usedToolNames.add(toolName));
 
-					const insertRange = Range.fromPositions(replaceRange.getStartPosition(), position);
-					const range: CompletionItemRanges = { replace: replaceRange, insert: insertRange };
-					const suggestions: ToolCompletionItem[] = [];
+		let replaceRange = Range.fromPositions(position);
+		if (jsonLoc.previousNode) {
+			const start = model.getPositionAt(jsonLoc.previousNode.offset);
+			const end = model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length);
+			replaceRange = Range.fromPositions(start, end);
+		}
 
-					for (const tool of toolsService.getTools()) {
-						if (tool.canBeReferencedInPrompt && tool.toolReferenceName && !usedToolNames.has(tool.toolReferenceName)) {
-							suggestions.push(new ToolCompletionItem(tool, range));
-						}
-					}
-					return { suggestions };
-				}
+		const insertRange = Range.fromPositions(replaceRange.getStartPosition(), position);
+		const range: CompletionItemRanges = { replace: replaceRange, insert: insertRange };
+		const suggestions: ToolCompletionItem[] = [];
+
+		for (const tool of this._toolsService.getTools()) {
+			if (tool.canBeReferencedInPrompt && tool.toolReferenceName && !usedToolNames.has(tool.toolReferenceName)) {
+				suggestions.push(new ToolCompletionItem(tool, range));
 			}
-		));
+		}
+		for (const toolSet of this._toolsService.toolSets.get()) {
+			if (!usedToolNames.has(toolSet.toolReferenceName)) {
+				suggestions.push(new ToolSetCompletionItem(toolSet, range));
+			}
+		}
+		return { suggestions };
+	}
+
+	private _provideHover(model: ITextModel, position: Position): Hover | undefined {
+
+		const offset = model.getOffsetAt(position);
+
+		const jsonLoc = json.getLocation(model.getValue(), offset);
+		if (!jsonLoc.matches(['*', 'tools', '*']) || !jsonLoc.previousNode?.value) {
+			return undefined;
+		}
+
+		const range = Range.fromPositions(
+			model.getPositionAt(jsonLoc.previousNode.offset),
+			model.getPositionAt(jsonLoc.previousNode.offset + jsonLoc.previousNode.length)
+		);
+		const name = String(jsonLoc.previousNode.value);
+
+		const tool = this._toolsService.getToolByName(name);
+		if (tool) {
+			return {
+				range,
+				contents: [new MarkdownString(localize('tool.hover', "Tool: {0} ({1})", tool.displayName, tool.source.label))]
+			};
+		}
+
+		const toolSet = this._toolsService.getToolSetByName(name);
+		if (toolSet) {
+			return {
+				range,
+				contents: [new MarkdownString(localize('toolSet.hover', "Tool Set: {0} ({1})", toolSet.displayName, toolSet.source.label))]
+			};
+		}
+
+		return undefined;
 	}
 }
 
@@ -344,7 +425,7 @@ class ToolSetsFileValidation extends Disposable {
 				const text = model.getValue();
 				const toolsService = this._toolsService;
 				visitTools(text, (toolName, offset, length) => {
-					if (!toolsService.getToolByName(toolName)) {
+					if (!toolsService.getToolByName(toolName) && !toolsService.getToolSetByName(toolName)) {
 						const start = model.getPositionAt(offset);
 						const end = model.getPositionAt(offset + length);
 						newMarker.push({
@@ -353,7 +434,7 @@ class ToolSetsFileValidation extends Disposable {
 							startColumn: start.column,
 							endLineNumber: end.lineNumber,
 							endColumn: end.column,
-							message: localize('toolNotFound', "Tool '{0}' not found.", toolName),
+							message: localize('toolNotFound', "Tool or tool set '{0}' not found.", toolName),
 						});
 					}
 				});
@@ -364,9 +445,11 @@ class ToolSetsFileValidation extends Disposable {
 
 		const validateSoon = store.add(new RunOnceScheduler(() => validate(), 1000));
 
-		store.add(model.onDidChangeContent(() => validateSoon.schedule()));
+		store.add(model.onDidChangeContent(() => validateSoon.schedule())); // debounced on type, instant validation otherwise
+
 		store.add(model.onDidChangeAttached(() => validateSoon.schedule(0)));
 		store.add(this._toolsService.onDidChangeTools(() => validateSoon.schedule(0)));
+		store.add(Event.fromObservable(this._toolsService.toolSets)(() => validateSoon.schedule(0)));
 		validate();
 		return store;
 	}

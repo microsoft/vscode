@@ -134,7 +134,7 @@ class ConfigureToolsAction extends Action2 {
 			}
 		}
 
-		const enum BucketOrdinal { Extension, Mcp, Other }
+		const enum BucketOrdinal { User, Mcp, Extension, BuiltIn }
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
 		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
@@ -178,7 +178,7 @@ class ConfigureToolsAction extends Action2 {
 			type: 'item',
 			children: [],
 			label: localize('defaultBucketLabel', "Built-In"),
-			ordinal: BucketOrdinal.Other,
+			ordinal: BucketOrdinal.BuiltIn,
 			picked: false,
 		};
 
@@ -186,7 +186,7 @@ class ConfigureToolsAction extends Action2 {
 			type: 'item',
 			children: [],
 			label: localize('mcp', "MCP Server"),
-			ordinal: BucketOrdinal.Other,
+			ordinal: BucketOrdinal.Mcp,
 			alwaysShow: true,
 			picked: false,
 		};
@@ -195,7 +195,7 @@ class ConfigureToolsAction extends Action2 {
 			type: 'item',
 			children: [],
 			label: localize('userBucket', "User Defined"),
-			ordinal: BucketOrdinal.Other,
+			ordinal: BucketOrdinal.User,
 			alwaysShow: true,
 			picked: false,
 		};
@@ -214,8 +214,6 @@ class ConfigureToolsAction extends Action2 {
 				if (!mcpServer) {
 					continue;
 				}
-				// const key = toolSetOrTool.source.type + mcpServer.definition.id;
-				// bucket = toolBuckets.get(key);
 				bucket = mcpBucket;
 
 				// if (!bucket) {
@@ -239,17 +237,7 @@ class ConfigureToolsAction extends Action2 {
 				}
 
 				description = localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label);
-				// bucket = {
-				// 	type: 'item',
-				// 	label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
-				// 	status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
-				// 	ordinal: BucketOrdinal.Mcp,
-				// 	picked: false,
-				// 	children: [],
-				// 	buttons,
-				// };
-				// toolBuckets.set(key, bucket);
-				// }
+
 			} else if (toolSetOrTool.source.type === 'extension') {
 				const key = ToolDataSource.toKey(toolSetOrTool.source);
 				bucket = toolBuckets.get(key) ?? {

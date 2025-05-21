@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IObservable, IReader, ObservableSet } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IToolData {
@@ -91,13 +91,13 @@ export namespace ToolDataSource {
 
 	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
 		if (source.type === 'internal') {
-			return { ordinal: 1, label: 'Built-In' };
+			return { ordinal: 3, label: 'Built-In' };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 2, label: 'MCP Servers' };
+			return { ordinal: 1, label: 'MCP Servers' };
 		} else if (source.type === 'user') {
 			return { ordinal: 0, label: 'User Defined' };
 		} else {
-			return { ordinal: 3, label: 'Extensions' };
+			return { ordinal: 2, label: 'Extensions' };
 		}
 	}
 }
@@ -190,6 +190,8 @@ export class ToolSet {
 
 	protected readonly _tools = new ObservableSet<IToolData>();
 
+	protected readonly _toolSets = new ObservableSet<ToolSet>();
+
 	/**
 	 * A homogenous tool set only contains tools from the same source as the tool set itself
 	 */
@@ -200,26 +202,38 @@ export class ToolSet {
 		readonly displayName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly toolReferenceName?: string,
+		readonly toolReferenceName: string,
 		readonly description?: string,
 	) {
 
-		this.isHomogenous = this._tools.observable.map(tools => {
-			return !Iterable.some(tools, tool => !ToolDataSource.equals(tool.source, this.source));
+		this.isHomogenous = derived(r => {
+			return !Iterable.some(this._tools.observable.read(r), tool => !ToolDataSource.equals(tool.source, this.source))
+				&& !Iterable.some(this._toolSets.observable.read(r), toolSet => !ToolDataSource.equals(toolSet.source, this.source));
 		});
 	}
 
 	addTool(data: IToolData): IDisposable {
 		this._tools.add(data);
-		return {
-			dispose: () => {
-				this._tools.delete(data);
-			}
-		};
+		return toDisposable(() => {
+			this._tools.delete(data);
+		});
 	}
 
-	getTools(r?: IReader): ReadonlySet<IToolData> {
-		return this._tools.observable.read(r);
+	addToolSet(toolSet: ToolSet): IDisposable {
+		if (toolSet === this) {
+			return Disposable.None;
+		}
+		this._toolSets.add(toolSet);
+		return toDisposable(() => {
+			this._toolSets.delete(toolSet);
+		});
+	}
+
+	getTools(r?: IReader): Iterable<IToolData> {
+		return Iterable.concat(
+			this._tools.observable.read(r),
+			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
+		);
 	}
 }
 
@@ -242,6 +256,7 @@ export interface ILanguageModelToolsService {
 	cancelToolCallsForRequest(requestId: string): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	getToolSetByName(name: string): ToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
 }
 

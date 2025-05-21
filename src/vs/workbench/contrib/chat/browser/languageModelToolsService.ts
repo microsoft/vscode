@@ -452,6 +452,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
 
+	getToolSetByName(name: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.toolReferenceName === name) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
+
 	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
@@ -464,7 +473,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName, options?.description);
+		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
 
 		this._toolSets.add(result);
 		return result;

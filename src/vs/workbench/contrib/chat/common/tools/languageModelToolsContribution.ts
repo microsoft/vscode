@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -20,7 +20,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../languageModelToolsService.js';
 import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
@@ -177,7 +177,7 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					type: 'string'
 				},
 				tools: {
-					description: localize('toolSetTools', "An array of tool names that are part of this set."),
+					description: localize('toolSetTools', "An array of tool or tool set names that are part of this set."),
 					type: 'array',
 					items: {
 						type: 'string'
@@ -311,6 +311,30 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					const tools: IToolData[] = [];
+					const toolSets: ToolSet[] = [];
+
+					for (const toolName of toolSet.tools) {
+						const toolObj = languageModelToolsService.getToolByName(toolName);
+						if (toolObj) {
+							tools.push(toolObj);
+							continue;
+						}
+						const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
+						if (toolSetObj) {
+							toolSets.push(toolSetObj);
+							continue;
+						}
+						extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool or tool set by name: ${toolName}`);
+					}
+
+					if (toolSets.length === 0 && tools.length === 0) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array (none of the tools were found)`);
+						continue;
+					}
+
+					const store = new DisposableStore();
+
 					const obj = languageModelToolsService.createToolSet(
 						source,
 						toToolSetKey(extension.description.identifier, toolSet.name),
@@ -318,25 +342,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, toolReferenceName: toolSet.referenceName, description: toolSet.description }
 					);
 
-					let actualToolCount = 0;
+					store.add(obj);
+					tools.forEach(tool => store.add(obj.addTool(tool)));
+					toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet)));
 
-					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName);
-						if (!toolObj) {
-							extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool by name: ${toolName}`);
-							continue;
-						}
-						obj.addTool(toolObj);
-						actualToolCount += 1;
-					}
-
-					if (actualToolCount === 0) {
-						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array (none of the tools were found)`);
-						obj.dispose();
-						continue;
-					}
-
-					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), obj);
+					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
 				}
 			}
 
@@ -348,8 +358,6 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 		});
 	}
 }
-
-
 
 
 // --- render
