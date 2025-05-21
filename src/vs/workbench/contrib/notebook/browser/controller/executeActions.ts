@@ -108,8 +108,8 @@ async function runCell(editorGroupsService: IEditorGroupsService, configurationS
 	}
 }
 
-const SMART_VIEWPORT_TOP_REVEAL_PADDING = 20; // subtract this since smaller scrolltop is higher up
-const SMART_VIEWPORT_BOTTOM_REVEAL_PADDING = 40; // add this since smaller scrolltop is higher up
+const SMART_VIEWPORT_TOP_REVEAL_PADDING = 20; // enough to not cut off cell toolbar
+const SMART_VIEWPORT_BOTTOM_REVEAL_PADDING = 60; // enough to show full bottom of output element
 function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor, configurationService: IConfigurationService): void {
 	// always focus the container, blue bar is a good visual aid in tracking what's happening
 	notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
@@ -125,172 +125,73 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	// Ensure we're working with a code cell - we need the CodeCellViewModel type for accessing layout properties like outputTotalHeight
 	if (!(cell instanceof CodeCellViewModel)) {
 		console.log('[handleAutoReveal] NO SCROLL: Not a CodeCellViewModel');
-		return; // Should not happen since we already returned for all markup cells
+		return;
 	}
 
 	// Get all dimensions
 	const cellEditorHeight = cell.layoutInfo.editorHeight;
-	const cellEditorTop = notebookEditor.getAbsoluteTopOfElement(cell);
-	const cellEditorBottom = cellEditorTop + cellEditorHeight;
+	const cellEditorScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
+	const cellEditorScrollBottom = cellEditorScrollTop + cellEditorHeight;
 
-	const cellOutputHeight = cell.layoutInfo.outputTotalHeight; // 0 if no outputs
-	const cellOutputTop = cellEditorBottom;
-	const cellOutputBottom = notebookEditor.getAbsoluteBottomOfElement(cell);
+	const cellOutputHeight = cell.layoutInfo.outputTotalHeight;
+	const cellOutputScrollBottom = notebookEditor.getAbsoluteBottomOfElement(cell);
 
 	const viewportHeight = notebookEditor.getLayoutInfo().height;
-	const viewportScrollTop = notebookEditor.scrollTop;
-	const viewportBottom = viewportScrollTop + viewportHeight;
+	const viewportHeight34 = viewportHeight * 0.34;
+	const viewportHeight66 = viewportHeight * 0.66;
 
-	const totalCellHeight = cellEditorHeight + cellOutputHeight;
+	const totalHeight = cellEditorHeight + cellOutputHeight;
 
-	// Calculate visibility states
-	const cellFullyVisible = cellEditorTop >= viewportScrollTop && cellEditorBottom <= viewportBottom;
-	const cellBottomVisible = cellEditorBottom > viewportScrollTop && cellEditorBottom <= viewportBottom;
-	const cellOutputFullyVisible = cellOutputHeight > 0 && cellOutputTop >= viewportScrollTop && cellOutputBottom <= viewportBottom;
+	const isFullyVisible = cellEditorScrollTop >= notebookEditor.scrollTop && cellOutputScrollBottom <= notebookEditor.scrollBottom;
 
 	// Common scrolling functions
-	const revealWithTopPadding = (position: number) => {
-		notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING);
-	};
-	const revealWithBottomPadding = (position: number) => {
-		notebookEditor.setScrollTop(position + SMART_VIEWPORT_BOTTOM_REVEAL_PADDING);
-	};
-	const revealNoPadding = (position: number) => {
-		notebookEditor.setScrollTop(position);
-	};
+	const revealWithTopPadding = (position: number) => { notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING); };
+	const revealWithNoPadding = (position: number) => { notebookEditor.setScrollTop(position); };
+	const revealWithBottomPadding = (position: number) => { notebookEditor.setScrollTop(position + SMART_VIEWPORT_BOTTOM_REVEAL_PADDING); };
 
-	// Helper functions for common scrolling patterns
-	const revealLargeOutput = (bottomPosition: number) => {
-		const editorVisiblePortion = viewportHeight * 0.34;
-		const scrollTo = bottomPosition - editorVisiblePortion;
-
-		// Don't scroll higher than the editor top
-		if (scrollTo < cellEditorTop) {
-			revealWithTopPadding(cellEditorTop);
-		} else {
-			revealNoPadding(scrollTo);
-		}
-	};
-
-	const revealSmallOutput = (outputBottom: number) => {
-		revealWithBottomPadding(Math.max(0, outputBottom - viewportHeight));
-	};
-
-	// Constants
-	const largeOutputThreshold = viewportHeight * 0.66;
-	const isLargeOutput = cellOutputHeight >= largeOutputThreshold;
-
-	// CASE 0: everything is already visible
-	if (cellFullyVisible && (cellOutputHeight === 0 || cellOutputFullyVisible)) {
+	// CASE 0: Everything is already visible
+	if (isFullyVisible) {
 		console.log('[handleAutoReveal] NO SCROLL: Cell and output fully visible already');
 		return;
 	}
 
 	// CASE 1: Entire cell including output fits within viewport
-	if (totalCellHeight <= viewportHeight) {
-		revealWithTopPadding(cellEditorTop);
-		console.log('[handleAutoReveal] SCROLL: Show entire cell + output(s) -- fits in viewport, totalCellHeight=' + totalCellHeight);
+	if (totalHeight <= viewportHeight) {
+		revealWithTopPadding(cellEditorScrollTop);
+		console.log('[handleAutoReveal] SCROLL: Show entire cell + output(s) -- fits in viewport, totalCellHeight=' + totalHeight);
 		return;
 	}
 
-	// CASE 2: Cell editor fits within viewport but total cell doesn't
-	if (cellEditorHeight <= viewportHeight && totalCellHeight > viewportHeight) {
-		// If editor top is above viewport, scroll to show top of editor
-		if (cellEditorTop < viewportScrollTop) {
-			revealWithTopPadding(cellEditorTop);
-			console.log('[handleAutoReveal] SCROLL: Show cell top, editor top above viewport -- cellEditorTop=' + cellEditorTop);
-			return;
-		}
+	// CASE 2: Total cell + output(s) don't fit in the viewport
+	if (totalHeight > viewportHeight) {
+		if (cellOutputHeight > 0) { // CASE 2.1: there are outputs
+			if (cellOutputHeight >= viewportHeight66) {
+				// Show 34% editor, 66% output
+				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+				console.log('[handleAutoReveal] SCROLL: Large output (gt66%vp) -- Show 34% editor, 66% output, cellEditorBottom=' + cellEditorScrollBottom);
+				return;
 
-		// If editor bottom is below viewport
-		if (cellEditorBottom > viewportBottom) {
-			if (cellOutputHeight > 0) {
-				if (isLargeOutput) {
-					// Show 34% editor, 66% output
-					revealLargeOutput(cellEditorBottom);
-					console.log('[handleAutoReveal] SCROLL: Show 34% editor bottom, 66% for output, cellEditorBottom=' + cellEditorBottom);
-				} else {
-					// For small outputs, position at viewport bottom
-					revealSmallOutput(cellOutputBottom);
-					console.log('[handleAutoReveal] SCROLL: Show small (<66%vp) output at bottom of viewport, cellOutputBottom=' + cellOutputBottom);
-				}
 			} else {
-				// No outputs, show top of editor
-				revealWithTopPadding(cellEditorTop);
-				console.log('[handleAutoReveal] SCROLL: Show cell top (no outputs), cellEditorTop=' + cellEditorTop);
-			}
-			return;
-		}
-
-		// Handle output visibility for outputs that extend below viewport
-		if (cellOutputHeight > 0 && cellOutputBottom > viewportBottom) {
-			if (isLargeOutput) {
-				revealLargeOutput(cellEditorBottom);
-				console.log('[handleAutoReveal] SCROLL: Show 34% editor, 66% large output');
-			} else {
-				revealSmallOutput(cellOutputBottom);
-				console.log('[handleAutoReveal] SCROLL: Show output with bottom exactly at viewport bottom');
-			}
-			return;
-		}
-
-		// If cell isn't fully visible and we haven't returned yet, show the cell top
-		if (!cellFullyVisible) {
-			revealWithTopPadding(cellEditorTop);
-			console.log('[handleAutoReveal] SCROLL: Default to showing cell top');
-		}
-
-		return;
-	}
-
-	// CASE 3: Cell editor is larger than viewport
-	if (cellEditorHeight > viewportHeight) {
-		// If part of the cell bottom is visible
-		if (cellBottomVisible) {
-			// Check if output needs to be shown
-			if (cellOutputHeight > 0 && cellOutputBottom > viewportBottom) {
-				if (isLargeOutput) {
-					revealLargeOutput(cellEditorBottom);
-					console.log('[handleAutoReveal] SCROLL: Show 34% editor, 66% large output with large cell');
-				} else {
-					revealNoPadding(cellOutputBottom - viewportHeight);
-					console.log('[handleAutoReveal] SCROLL: Show output at viewport bottom with large cell');
-				}
+				// Show output at viewport bottom
+				revealWithBottomPadding(cellOutputScrollBottom - viewportHeight);
+				console.log('[handleAutoReveal] SCROLL: Small output (lt66%vp) -- output at bottom of viewport, cellOutputBottom=' + cellOutputScrollBottom);
 				return;
 			}
-
-			// Output already visible or no output
-			console.log('[handleAutoReveal] NO SCROLL: Cell bottom visible, output already visible');
-			return;
-		}
-
-		// Cell bottom not visible - determine best position
-		if (cellOutputHeight > 0) {
-			if (isLargeOutput) {
-				revealLargeOutput(cellEditorBottom);
-				console.log('[handleAutoReveal] SCROLL: Show 1/3 editor, 2/3 large output with large invisible cell');
+		} else { // CASE 2.2: There are no outputs (cell editor itself is larger than viewport)
+			if (cellEditorScrollBottom <= notebookEditor.scrollBottom) {
+				// bottom is visible, don't scroll
+				console.log('[handleAutoReveal] NO SCROLL: No output, large cell, bottom already visible');
+				return;
 			} else {
-				revealSmallOutput(cellOutputBottom);
-				console.log('[handleAutoReveal] SCROLL: Position output bottom exactly at viewport bottom');
+				// cell bottom @ 2/3 of viewport height
+				console.log('[handleAutoReveal] SCROLL: No output, large cell, bottom not visible');
+				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+				return;
 			}
-			return;
 		}
-
-		// No output, show top of cell
-		revealWithTopPadding(cellEditorTop);
-		console.log('[handleAutoReveal] SCROLL: Show top of large cell without output');
-		return;
 	}
 
-	// CASE 4: Try to optimize for the totalCellHeight when not handled by any of the above cases
-	if (totalCellHeight <= viewportHeight * 1.5) {
-		// If total cell is not too much larger than viewport, try to show as much as possible
-		revealNoPadding(Math.max(0, cellEditorTop + totalCellHeight - viewportHeight));
-		console.log('[handleAutoReveal] SCROLL: Show as much of total cell as possible with bottom at viewport');
-		return;
-	}
-
-	// Fallback (should rarely happen): reveal cell range
+	// Fallback (shouldn't happen): original reveal cell range
 	const cellIndex = notebookEditor.getCellIndex(cell);
 	notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 	console.log('[handleAutoReveal] NO SCROLL: fallback to standard reveal, cellIndex=' + cellIndex);
