@@ -31,7 +31,7 @@ export const InstallExtensionsToolData: IToolData = {
 			},
 			confirmation: {
 				type: 'object',
-				description: 'Defines the confirmation dialog shown to the user. This appears after displaying the list of extensions with their install buttons. The title and message should explain the purpose of the suggested extensions and guide the user to press the Continue button that appears below this message. The Continue button serves as a confirmation from the user to proceed after completing installation of their chosen extensions.',
+				description: 'Defines the confirmation dialog shown to the user. This appears after displaying the list of extensions with their install buttons. The title and message should explain the purpose of the suggested extensions and guide the user to press the Install button on each extension they wish to install. The message should clearly instruct the user to click the Continue button after they have finished installing their chosen extensions to proceed. Extensions are not installed automatically - the user must explicitly install them.',
 				properties: {
 					title: {
 						type: 'string',
