@@ -26,11 +26,6 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
-import { IModelTokensChangedEvent } from './textModelEvents.js';
-import { ITextModel } from './model.js';
-import { TokenUpdate } from './model/tokens/treeSitter/tokenStore.js';
-import { ITextModelTreeSitter } from './services/treeSitterBefore/treeSitterParserService.js';
-import type * as Parser from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -99,24 +94,6 @@ export interface QueryCapture {
 	text?: string;
 	node: SyntaxNode;
 	encodedLanguageId: number;
-}
-
-/**
- * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
- * @internal
- */
-export interface ITreeSitterTokenizationSupport {
-	/**
-	 * exposed for testing
-	 */
-	tokSupport_getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
-	tokSupport_tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): void;
-	tokSupport_captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
-	tokSupport_captureAtRangeTree(range: Range, tree: Parser.Tree, textModelTreeSitter: ITextModelTreeSitter): QueryCapture[];
-	tokSupport_onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
-	tokSupport_onDidChangeBackgroundTokenization: Event<{ textModel: model.ITextModel }>;
-	tokSupport_tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
-	tokSupport_guessTokensForLinesContent(lineNumber: number, textModel: model.ITextModel, lines: string[]): Uint32Array[] | undefined;
 }
 
 /**
@@ -2413,11 +2390,6 @@ export interface ITokenizationRegistry<TSupport> {
  * @internal
  */
 export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
-
-/**
- * @internal
- */
-export const TreeSitterTokenizationRegistry: ITokenizationRegistry<ITreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal

@@ -13,7 +13,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { ITextMateTokenizationService } from '../../../services/textMate/browser/textMateTokenizationFeature.js';
 import type { IGrammar, StateStack } from 'vscode-textmate';
-import { TokenizationRegistry, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
+import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { TokenMetadata } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ThemeRule, findMatchingThemeRule } from '../../../services/textMate/common/TMHelper.js';
 import { Color } from '../../../../base/common/color.js';
@@ -21,11 +21,14 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { splitLines } from '../../../../base/common/strings.js';
-import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../editor/common/services/treeSitterBefore/treeSitterParserService.js';
 import { ColorThemeData, findMetadata } from '../../../services/themes/common/colorThemeData.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { Event } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { TreeSitterModel } from '../../../../editor/common/model/tokens/treeSitter/treeSitterModel.js';
+import { TokenizationTextModelPart } from '../../../../editor/common/model/tokens/tokenizationTextModelPart.js';
+import { TreeSitterTokens } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokens.js';
+import { TreeSitterTokenizationModel } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokensModel.js';
 
 interface IToken {
 	c: string; // token
@@ -99,7 +102,6 @@ class Snapper {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ITextMateTokenizationService private readonly textMateService: ITextMateTokenizationService,
-		@ITreeSitterParserService private readonly treeSitterParserService: ITreeSitterParserService,
 		@IModelService private readonly modelService: IModelService,
 	) {
 	}
@@ -290,14 +292,13 @@ class Snapper {
 		}
 	}
 
-	private _treeSitterTokenize(textModelTreeSitter: ITextModelTreeSitter, tree: Parser.Tree, languageId: string): IToken[] {
+	private _treeSitterTokenize(treeSitterModel: TreeSitterModel, tokenizationModel: TreeSitterTokenizationModel, tree: Parser.Tree, languageId: string): IToken[] {
 		const cursor = tree.walk();
 		cursor.gotoFirstChild();
 		let cursorResult: boolean = true;
 		const tokens: IToken[] = [];
-		const tokenizationSupport = TreeSitterTokenizationRegistry.get(languageId);
 
-		const cursors: { cursor: Parser.TreeCursor; languageId: string; startOffset: number; endOffset: number }[] = [{ cursor, languageId, startOffset: 0, endOffset: textModelTreeSitter.textModel.getValueLength() }];
+		const cursors: { cursor: Parser.TreeCursor; languageId: string; startOffset: number; endOffset: number }[] = [{ cursor, languageId, startOffset: 0, endOffset: treeSitterModel.textModel.getValueLength() }];
 		do {
 			const current = cursors[cursors.length - 1];
 			const currentCursor = current.cursor;
@@ -306,17 +307,18 @@ class Snapper {
 
 			if (!isOutsideRange && (currentCursor.currentNode.childCount === 0)) {
 				const range = new Range(currentCursor.currentNode.startPosition.row + 1, currentCursor.currentNode.startPosition.column + 1, currentCursor.currentNode.endPosition.row + 1, currentCursor.currentNode.endPosition.column + 1);
-				const injection = textModelTreeSitter.getInjection(currentCursor.currentNode.startIndex, currentLanguageId);
+				const injection = treeSitterModel.getInjectionTrees(currentCursor.currentNode.startIndex, currentLanguageId);
 				const treeSitterRange = injection?.ranges!.find(r => r.startIndex <= currentCursor.currentNode.startIndex && r.endIndex >= currentCursor.currentNode.endIndex);
-				if (injection?.tree && treeSitterRange && (treeSitterRange.startIndex === currentCursor.currentNode.startIndex)) {
-					const injectionLanguageId = injection.languageId;
-					const injectionTree = injection.tree;
+
+				const injectionTree = injection?.tree.get();
+				const injectionLanguageId = injection?.languageId;
+				if (injectionTree && injectionLanguageId && treeSitterRange && (treeSitterRange.startIndex === currentCursor.currentNode.startIndex)) {
 					const injectionCursor = injectionTree.walk();
 					this._moveInjectionCursorToRange(injectionCursor, treeSitterRange);
 					cursors.push({ cursor: injectionCursor, languageId: injectionLanguageId, startOffset: treeSitterRange.startIndex, endOffset: treeSitterRange.endIndex });
 					while ((currentCursor.endIndex <= treeSitterRange.endIndex) && (currentCursor.gotoNextSibling() || currentCursor.gotoParent())) { }
 				} else {
-					const capture = tokenizationSupport?.tokSupport_captureAtRangeTree(range, tree, textModelTreeSitter);
+					const capture = tokenizationModel.captureAtRangeTree(range);
 					tokens.push({
 						c: currentCursor.currentNode.text.replace(/\r/g, ''),
 						t: capture?.map(cap => cap.name).join(' ') ?? '',
@@ -365,29 +367,26 @@ class Snapper {
 	public async captureTreeSitterSyntaxTokens(resource: URI, content: string): Promise<IToken[]> {
 		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 		if (languageId) {
-			const hasLanguage = TreeSitterTokenizationRegistry.get(languageId);
-			if (!hasLanguage) {
-				return [];
-			}
 			const model = this.modelService.getModel(resource) ?? this.modelService.createModel(content, { languageId, onDidChange: Event.None }, resource);
-			let textModelTreeSitter = this.treeSitterParserService.getParseResult(model);
-			let tree = textModelTreeSitter?.parseResult?.tree;
-			if (!textModelTreeSitter) {
+			// let textModelTreeSitter = this.treeSitterParserService.getParseResult(model);
+			const treeSitterModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).treeModel;
+			const tokenizationModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).tokenModel;
+			const tree = treeSitterModel?.tree.get();
+			if (!treeSitterModel || !tokenizationModel) {
 				return [];
 			}
 			if (!tree) {
-				let e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+				await Event.toPromise(treeSitterModel.onDidUpdate);
 				// Once more for injections
-				if (e.hasInjections) {
-					e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
-				}
-				textModelTreeSitter = e.tree;
-				tree = textModelTreeSitter.parseResult?.tree;
+				// TODO: injections
+				// if (e.hasInjections) {
+				// 	e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+				// }
 			}
 			if (!tree) {
 				return [];
 			}
-			const result = (await this._treeSitterTokenize(textModelTreeSitter, tree, languageId)).filter(t => t.c.length > 0);
+			const result = (await this._treeSitterTokenize(treeSitterModel, tokenizationModel, tree, languageId)).filter(t => t.c.length > 0);
 			const themeTokens = await this._getTreeSitterThemesResult(result, languageId);
 			this._enrichResult(result, themeTokens);
 			return result;

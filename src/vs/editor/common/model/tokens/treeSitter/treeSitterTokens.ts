@@ -102,6 +102,14 @@ export class TreeSitterTokens extends AbstractTokens {
 		}));
 	}
 
+	get treeModel(): TreeSitterModel | undefined {
+		return this._treeModel.get();
+	}
+
+	get tokenModel(): TreeSitterTokenizationModel | undefined {
+		return this._tokenizationModel.get();
+	}
+
 	public getLineTokens(lineNumber: number): LineTokens {
 		const model = this._tokenizationModel.get();
 		if (!model) {

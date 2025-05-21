@@ -190,6 +190,14 @@ export class TreeSitterTokenizationModel extends Disposable {
 		return result;
 	}
 
+	getTokensInRange(range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: QueryCapture[]): TokenUpdate[] | undefined {
+		const tokens = captures ? this._tokenizeCapturesWithMetadata(captures, rangeStartOffset, rangeEndOffset) : this._tokenize(range, rangeStartOffset, rangeEndOffset);
+		if (tokens?.endOffsetsAndMetadata) {
+			return this._rangeTokensAsUpdates(rangeStartOffset, tokens.endOffsetsAndMetadata);
+		}
+		return undefined;
+	}
+
 	private _updateTokensInStore(version: number, updates: { oldRangeLength?: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void {
 		this._accurateVersion = version;
 		for (const update of updates) {
@@ -414,7 +422,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 			const capture = captures[i];
 			const range = rangeChanges[i];
 
-			const updates = this._getTokensInRange(range.range, range.startOffset, range.endOffset, capture);
+			const updates = this.getTokensInRange(range.range, range.startOffset, range.endOffset, capture);
 			if (updates) {
 				tokenUpdate = { newTokens: updates };
 			} else {
@@ -469,15 +477,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 		}
 		return updates;
 	}
-
-	private _getTokensInRange(range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: QueryCapture[]): TokenUpdate[] | undefined {
-		const tokens = captures ? this._tokenizeCapturesWithMetadata(captures, rangeStartOffset, rangeEndOffset) : this._tokenize(range, rangeStartOffset, rangeEndOffset);
-		if (tokens?.endOffsetsAndMetadata) {
-			return this._rangeTokensAsUpdates(rangeStartOffset, tokens.endOffsetsAndMetadata);
-		}
-		return undefined;
-	}
-
 
 	// private _tokSupport_updateTheme(e: IWorkbenchColorTheme | undefined) {
 	// 	this._tokSupport_colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
