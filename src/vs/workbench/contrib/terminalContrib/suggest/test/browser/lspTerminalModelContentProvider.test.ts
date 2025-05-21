@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -21,11 +20,10 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
 suite('LspTerminalModelContentProvider', () => {
+	// Question: Supposedly gives leak warning, although everything is added to disposables.
 	// const store = ensureNoDisposablesAreLeakedInTestSuite();
-	// Supposedly gives leak warning, although everything is added to disposables.
 
 	const store = new DisposableStore();
-	// const store = new DisposableStore();
 	let instantiationService: TestInstantiationService;
 	let capabilityStore: ITerminalCapabilityStore;
 	let textModelService: ITextModelService;
@@ -85,7 +83,6 @@ suite('LspTerminalModelContentProvider', () => {
 
 	teardown(() => {
 		sinon.restore();
-		// Dispose of disposables to avoid leaks
 		lspTerminalModelContentProvider?.dispose();
 	});
 

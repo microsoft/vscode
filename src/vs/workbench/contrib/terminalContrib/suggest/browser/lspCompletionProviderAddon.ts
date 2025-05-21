@@ -36,7 +36,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	}
 
 	activate(terminal: Terminal): void {
-		console.log('activate');
+		// console.log('activate');
 	}
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
@@ -58,28 +58,22 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-			// TODO: Discard duplicates (i.e. language should take precendence over word based completions)
-			// TODO: Discard completion items that we cannot map to terminal items (complex edits?)
 
 			completions.push(...(result?.suggestions || []).map((e: any) => {
+				// TODO: Support more terminalCompletionItemKind for different LSP providers.
 				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
-				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'tempLabel', undefined);
+				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
 
 				return {
-					// TODO: Investigate insertTextRules, edits, etc
 					label: e.insertText,
 					provider: `lsp:${this._provider._debugDisplayName}`,
 					detail: e.detail,
-					// Question: Using kind, but LSP completion item still behind regular files, etc
 					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
 			}));
-
-			console.log(result?.suggestions);
 		}
-		// const whatIsIntheFile = this._textVirtualModel.object.textEditorModel.getValue();A
 
 		return completions;
 	}

@@ -65,7 +65,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	setContent(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// Trailing coming from Python itself shouldn't be included in the REPL.
-		if (content !== 'exit()') {
+		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -117,18 +117,16 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 				return;
 			}
 
-			// Listen to onCommandFinished event from command detection, if available.
+			// Inconsistent repro: Covering case where commandDetection is available but onCommandFinished becomes available later
 			if (this._commandDetection && this._commandDetection.onCommandFinished) {
 				this._onCommandFinishedListener.value = this._register(this._commandDetection.onCommandFinished((e) => {
 					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
-						// If command was successful, update virtual document
 						this.setContent(e.command);
 					}
 
 				}));
 			}
 		};
-
 		attachListener();
 
 		// Listen to onDidAddCapabilityType because command detection is not available until later
@@ -149,7 +147,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			return existing;
 		}
 
-		// Extract language from file extension
 		const extension = resource.path.split('.').pop();
 		let languageId: string | undefined | null = undefined;
 		if (extension) {
@@ -160,9 +157,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 					case 'py': languageId = 'python'; break;
 					// case 'ps1': languageId = 'powershell'; break;
 					// case 'js': languageId = 'javascript'; break;
-					// case 'ts': languageId = 'typescript'; break;
-					// case 'sh': languageId = 'shellscript'; break;
-					// case 'nu', etc.
+					// case 'ts': languageId = 'typescript'; break; etc...
 				}
 			}
 		}
