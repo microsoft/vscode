@@ -52,9 +52,10 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonOptions?: Array<undefined | { sublabel?: string; renderAsLink?: boolean }>;
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; extraClasses?: string[] }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
+	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -270,10 +271,7 @@ export class Dialog extends Disposable {
 
 				let button: IButton;
 				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
-				if (buttonOptions?.renderAsLink) {
-					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
-					button.element.classList.add('link-button');
-				} else if (primary && this.options?.primaryButtonDropdown) {
+				if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
 						...this.options.primaryButtonDropdown,
@@ -292,6 +290,10 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
+				}
+
+				if (buttonOptions?.extraClasses) {
+					button.element.classList.add(...buttonOptions.extraClasses);
 				}
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
@@ -498,8 +500,7 @@ export class Dialog extends Disposable {
 				}
 			}
 
-
-			if (!this.options.disableCloseAction) {
+			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
 				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {

@@ -3,180 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseObservable, IObservable, IObservableWithChange, IObserver, IReader, IReaderWithStore, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
-import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
-import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
-import { getLogger } from './logging/logging.js';
-import { IChangeTracker } from './changeTracker.js';
+import { IObservable, IObservableWithChange, IObserver, IReaderWithStore, ISettableObservable, ITransaction, } from '../base.js';
+import { BaseObservable } from './baseObservable.js';
+import { DebugNameData } from '../debugName.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, assertFn, onBugIndicatingError } from '../commonFacade/deps.js';
+import { getLogger } from '../logging/logging.js';
+import { IChangeTracker } from '../changeTracker.js';
 
 export interface IDerivedReader<TChange = void> extends IReaderWithStore {
 	/**
 	 * Call this to report a change delta or to force report a change, even if the new value is the same as the old value.
 	*/
 	reportChange(change: TChange): void;
-}
-
-/**
- * Creates an observable that is derived from other observables.
- * The value is only recomputed when absolutely needed.
- *
- * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
- */
-export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
-export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
-export function derived<T, TChange = void>(computeFnOrOwner: ((reader: IDerivedReader<TChange>) => T) | DebugOwner, computeFn?: ((reader: IDerivedReader<TChange>) => T) | undefined): IObservable<T> {
-	if (computeFn !== undefined) {
-		return new Derived(
-			new DebugNameData(computeFnOrOwner, undefined, computeFn),
-			computeFn,
-			undefined,
-			undefined,
-			strictEquals
-		);
-	}
-	return new Derived(
-		new DebugNameData(undefined, undefined, computeFnOrOwner as any),
-		computeFnOrOwner as any,
-		undefined,
-		undefined,
-		strictEquals
-	);
-}
-
-export function derivedWithSetter<T>(owner: DebugOwner | undefined, computeFn: (reader: IReader) => T, setter: (value: T, transaction: ITransaction | undefined) => void): ISettableObservable<T> {
-	return new DerivedWithSetter(
-		new DebugNameData(owner, undefined, computeFn),
-		computeFn,
-		undefined,
-		undefined,
-		strictEquals,
-		setter,
-	);
-}
-
-export function derivedOpts<T>(
-	options: IDebugNameData & {
-		equalsFn?: EqualityComparer<T>;
-		onLastObserverRemoved?: (() => void);
-	},
-	computeFn: (reader: IReader) => T
-): IObservable<T> {
-	return new Derived(
-		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn),
-		computeFn,
-		undefined,
-		options.onLastObserverRemoved,
-		options.equalsFn ?? strictEquals
-	);
-}
-
-_setDerivedOpts(derivedOpts);
-
-/**
- * Represents an observable that is derived from other observables.
- * The value is only recomputed when absolutely needed.
- *
- * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
- *
- * Use `createEmptyChangeSummary` to create a "change summary" that can collect the changes.
- * Use `handleChange` to add a reported change to the change summary.
- * The compute function is given the last change summary.
- * The change summary is discarded after the compute function was called.
- *
- * @see derived
- */
-export function derivedHandleChanges<T, TChangeSummary>(
-	options: IDebugNameData & {
-		changeTracker: IChangeTracker<TChangeSummary>;
-		equalityComparer?: EqualityComparer<T>;
-	},
-	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T
-): IObservable<T> {
-	return new Derived(
-		new DebugNameData(options.owner, options.debugName, undefined),
-		computeFn,
-		options.changeTracker,
-		undefined,
-		options.equalityComparer ?? strictEquals
-	);
-}
-
-/**
- * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
-*/
-export function derivedWithStore<T>(computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
-/**
- * @deprecated Use `derived(reader => { reader.store.add(...) })` instead!
-*/
-export function derivedWithStore<T>(owner: DebugOwner, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
-export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: DisposableStore) => T) | DebugOwner, computeFnOrUndefined?: ((reader: IReader, store: DisposableStore) => T)): IObservable<T> {
-	let computeFn: (reader: IReader, store: DisposableStore) => T;
-	let owner: DebugOwner;
-	if (computeFnOrUndefined === undefined) {
-		computeFn = computeFnOrOwner as any;
-		owner = undefined;
-	} else {
-		owner = computeFnOrOwner;
-		computeFn = computeFnOrUndefined as any;
-	}
-
-	// Intentionally re-assigned in case an inactive observable is re-used later
-	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
-	let store = new DisposableStore();
-
-	return new Derived(
-		new DebugNameData(owner, undefined, computeFn),
-		r => {
-			if (store.isDisposed) {
-				store = new DisposableStore();
-			} else {
-				store.clear();
-			}
-			return computeFn(r, store);
-		},
-		undefined,
-		() => store.dispose(),
-		strictEquals,
-	);
-}
-
-export function derivedDisposable<T extends IDisposable | undefined>(computeFn: (reader: IReader) => T): IObservable<T>;
-export function derivedDisposable<T extends IDisposable | undefined>(owner: DebugOwner, computeFn: (reader: IReader) => T): IObservable<T>;
-export function derivedDisposable<T extends IDisposable | undefined>(computeFnOrOwner: ((reader: IReader) => T) | DebugOwner, computeFnOrUndefined?: ((reader: IReader) => T)): IObservable<T> {
-	let computeFn: (reader: IReader) => T;
-	let owner: DebugOwner;
-	if (computeFnOrUndefined === undefined) {
-		computeFn = computeFnOrOwner as any;
-		owner = undefined;
-	} else {
-		owner = computeFnOrOwner;
-		computeFn = computeFnOrUndefined as any;
-	}
-
-	let store: DisposableStore | undefined = undefined;
-	return new Derived(
-		new DebugNameData(owner, undefined, computeFn),
-		r => {
-			if (!store) {
-				store = new DisposableStore();
-			} else {
-				store.clear();
-			}
-			const result = computeFn(r);
-			if (result) {
-				store.add(result);
-			}
-			return result;
-		},
-		undefined,
-		() => {
-			if (store) {
-				store.dispose();
-				store = undefined;
-			}
-		},
-		strictEquals
-	);
 }
 
 export const enum DerivedState {
@@ -475,12 +313,12 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	// IReader Implementation
 	private _isReaderValid = false;
 
-	private _ensureNoRunning(): void {
+	private _ensureReaderValid(): void {
 		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
 	}
 
 	public readObservable<T>(observable: IObservable<T>): T {
-		this._ensureNoRunning();
+		this._ensureReaderValid();
 
 		// Subscribe before getting the value to enable caching
 		observable.addObserver(this);
@@ -493,7 +331,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	}
 
 	public reportChange(change: TChange): void {
-		this._ensureNoRunning();
+		this._ensureReaderValid();
 
 		this._didReportChange = true;
 		// TODO add logging
@@ -504,7 +342,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 
 	private _store: DisposableStore | undefined = undefined;
 	get store(): DisposableStore {
-		this._ensureNoRunning();
+		this._ensureReaderValid();
 
 		if (this._store === undefined) {
 			this._store = new DisposableStore();
@@ -514,7 +352,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 
 	private _delayedStore: DisposableStore | undefined = undefined;
 	get delayedStore(): DisposableStore {
-		this._ensureNoRunning();
+		this._ensureReaderValid();
 
 		if (this._delayedStore === undefined) {
 			this._delayedStore = new DisposableStore();

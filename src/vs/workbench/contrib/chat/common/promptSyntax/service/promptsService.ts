@@ -150,28 +150,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
-		const promptUri = await this.getPromptPath(data);
-		if (!promptUri) {
-			return undefined;
-		}
-		return await this.getMetadata(promptUri);
-	}
-
-	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
 		if (data.promptPath) {
-			return data.promptPath.uri;
+			return data.promptPath;
 		}
-
 		const files = await this.listPromptFiles('prompt');
 		const command = data.command;
 		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
 		if (result) {
-			return result.uri;
+			return result;
 		}
 		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
 		if (textModel) {
-			return textModel.uri;
+			return { uri: textModel.uri, storage: 'local', type: 'prompt' };
 		}
 		return undefined;
 	}
@@ -228,11 +219,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		return [...foundFiles];
-	}
-
-	public async getMetadata(promptFileUri: URI): Promise<IMetadata> {
-		const metaDatas = await this.getAllMetadata([promptFileUri]);
-		return metaDatas[0];
 	}
 
 	@logTime()

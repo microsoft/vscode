@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer, strictEquals } from '../equals.js';
-import { BugIndicatingError } from '../errors.js';
-import { IObservable, IObservableWithChange, ISettableObservable, subtransaction } from './base.js';
-import { IChangeTracker } from './changeTracker.js';
-import { DebugNameData, DebugOwner } from './debugName.js';
-import { DerivedWithSetter, IDerivedReader } from './derived.js';
+import { EqualityComparer, strictEquals, BugIndicatingError } from '../commonFacade/deps.js';
+import { IObservable, IObservableWithChange, ISettableObservable } from '../base.js';
+import { subtransaction } from '../transaction.js';
+import { IChangeTracker } from '../changeTracker.js';
+import { DebugNameData, DebugOwner } from '../debugName.js';
+import { DerivedWithSetter, IDerivedReader } from '../observables/derivedImpl.js';
 
 export interface IReducerOptions<T, TChangeSummary = void, TOutChange = void> {
 	/**
 	 * Is called to create the initial value of the observable when it becomes observed.
 	*/
 	initial: T | (() => T);
+
 	/**
 	 * Is called to dispose the observable value when it is no longer observed.
 	*/
 	disposeFinal?(value: T): void;
 	changeTracker?: IChangeTracker<TChangeSummary>;
 	equalityComparer?: EqualityComparer<T>;
+
 	/**
 	 * Applies the changes to the value.
 	 * Use `reader.reportChange` to report change details or to report a change if the same value is returned.
