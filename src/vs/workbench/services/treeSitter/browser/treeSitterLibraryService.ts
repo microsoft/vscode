@@ -22,6 +22,7 @@ export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.prefer
 export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
 
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
+const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
@@ -29,9 +30,23 @@ export function getModuleLocation(environmentService: IEnvironmentService): AppR
 
 export class TreeSitterLibraryService extends Disposable implements ITreeSitterLibraryService {
 	_serviceBrand: undefined;
+	isTest: boolean = false;
 
-	private readonly _treeSitterImport = new Lazy(() => {
-		return importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
+	private readonly _treeSitterImport = new Lazy(async () => {
+		const TreeSitter = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
+		const environmentService = this._environmentService;
+		const isTest = this.isTest;
+		await TreeSitter.Parser.init({
+			locateFile(_file: string, _folder: string) {
+				const location: AppResourcePath = `${getModuleLocation(environmentService)}/${FILENAME_TREESITTER_WASM}`;
+				if (isTest) {
+					return FileAccess.asFileUri(location).toString(true);
+				} else {
+					return FileAccess.asBrowserUri(location).toString(true);
+				}
+			}
+		});
+		return TreeSitter;
 	});
 
 	private readonly _supportsLanguage = new CachedFunction((languageId: string) => {

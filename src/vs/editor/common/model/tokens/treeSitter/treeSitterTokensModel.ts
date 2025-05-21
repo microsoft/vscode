@@ -120,18 +120,17 @@ export class TreeSitterTokenizationModel extends Disposable {
 		}
 	}
 
-
 	public getLineTokens(lineNumber: number) {
 		const content = this._textModel.getLineContent(lineNumber);
 
-		const rawTokens = this.getTokens(lineNumber);
-		if (rawTokens && rawTokens.length > 0) {
-			return new LineTokens(rawTokens, content, this._languageIdCodec);
+		if (content.length > 0) {
+			const rawTokens = this.getTokens(lineNumber);
+			if (rawTokens && rawTokens.length > 0) {
+				return new LineTokens(rawTokens, content, this._languageIdCodec);
+			}
 		}
 		return LineTokens.createEmpty(content, this._languageIdCodec);
 	}
-
-
 
 	private _createEmptyTokens() {
 		const emptyToken = this._emptyToken();
@@ -148,8 +147,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 	private _emptyTokensForOffsetAndLength(offset: number, length: number, emptyToken: number): TokenUpdate {
 		return { token: emptyToken, length: offset + length, startOffsetInclusive: 0 };
 	}
-
-
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
 		return this.hasTokens(new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));

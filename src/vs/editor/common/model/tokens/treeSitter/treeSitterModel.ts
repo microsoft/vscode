@@ -43,8 +43,8 @@ export class TreeSitterModel extends Disposable {
 		private readonly _parserClass: typeof TreeSitter.Parser,
 		private readonly _injectionQuery: TreeSitter.Query,
 		public readonly textModel: TextModel,
-		private readonly _logService: ILogService,
-		private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -59,19 +59,22 @@ export class TreeSitterModel extends Disposable {
 			this._lastFullyParsedWithEdits?.delete();
 			this._parser.delete();
 		}));
+		this.handleContentChange(undefined, this._ranges);
 	}
 
 	get versionId() {
 		return this._versionId;
 	}
 
-	public handleContentChange(e: IModelContentChangedEvent, ranges?: TreeSitter.Range[]): void {
+	public handleContentChange(e: IModelContentChangedEvent | undefined, ranges?: TreeSitter.Range[]): void {
 		const version = this.textModel.getVersionId();
 		let newRanges: TreeSitter.Range[] = [];
 		if (ranges) {
 			newRanges = this._setRanges(ranges);
 		}
-		this._applyEdits(e.changes);
+		if (e) {
+			this._applyEdits(e.changes);
+		}
 
 		this._onDidChangeContentQueue.queue(async () => {
 			if (this._store.isDisposed) {
