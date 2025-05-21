@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -11,7 +11,6 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ILspTerminalModelContentProvider, PYTHON_LANGUAGE_ID } from '../../../../browser/lspTerminalCapability.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const VSCODE_LSP_TERMINAL_PROMPT_TRACKER = 'vscode_lsp_terminal_prompt_tracker= {}\n';
@@ -21,7 +20,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	private _commandDetection: ICommandDetectionCapability | undefined;
 	private _capabilitiesStore: ITerminalCapabilityStore;
 	private readonly _virtualTerminalDocumentUri: URI;
-	private readonly _markerFilterDisposable: IDisposable;
 	private _shellType: TerminalShellType | undefined;
 	private readonly _onCommandFinishedListener = this._register(new MutableDisposable());
 
@@ -33,7 +31,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IMarkerService private readonly _markerService: IMarkerService,
 
 	) {
 		super();
@@ -42,13 +39,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		this._registerTerminalCommandFinishedListener();
 		this._virtualTerminalDocumentUri = virtualTerminalDocument;
-
-		// Suppress diagnostics for REPL virtual document, similar to agentic mode.
-		this._markerFilterDisposable = this._markerService.installResourceFilter(
-			this._virtualTerminalDocumentUri,
-			'Diagnostics for Terminal LSP REPL is stopped.'
-		);
-		this._register(this._markerFilterDisposable); // Ensure the filter is disposed when this provider is disposed
 		this._shellType = shellType;
 	}
 
