@@ -326,7 +326,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 							extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool by name: ${toolName}`);
 							continue;
 						}
-						obj.tools.add(toolObj);
+						obj.addTool(toolObj);
 						actualToolCount += 1;
 					}
 

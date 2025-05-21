@@ -49,7 +49,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { isIToolSet } from '../../common/languageModelToolsService.js';
+import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -1125,16 +1125,12 @@ class ToolCompletions extends Disposable {
 
 					let detail: string | undefined;
 
-					if (isIToolSet(item)) {
+					if (item instanceof ToolSet) {
 						detail = item.description;
 
 					} else {
 						const source = item.source;
-						detail = source.type === 'mcp'
-							? localize('desc', "MCP Server: {0}", source.label)
-							: source.type === 'extension'
-								? source.label
-								: undefined;
+						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
 					}
 
 					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;

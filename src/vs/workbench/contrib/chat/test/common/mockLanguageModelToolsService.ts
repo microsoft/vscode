@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolSet } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -58,9 +58,9 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		};
 	}
 
-	toolSets: IObservable<readonly IToolSet[]> = constObservable([]);
+	toolSets: IObservable<readonly ToolSet[]> = constObservable([]);
 
-	createToolSet(): IToolSet {
+	createToolSet(): ToolSet & IDisposable {
 		throw new Error('Method not implemented.');
 	}
 }

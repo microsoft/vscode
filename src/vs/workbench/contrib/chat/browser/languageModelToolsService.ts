@@ -36,7 +36,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, IToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -448,34 +448,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private readonly _toolSets = new ObservableSet<IToolSet>();
+	private readonly _toolSets = new ObservableSet<ToolSet>();
 
-	readonly toolSets: IObservable<Iterable<IToolSet>> = this._toolSets.observable;
+	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): IToolSet {
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
 
-		const tools = new ObservableSet<IToolData>();
+		const that = this;
 
-		const isHomogenous = tools.observable.map(tools => {
-			return !Iterable.some(tools, tool => !ToolDataSource.equals(tool.source, source));
-		});
-
-		const result: IToolSet = {
-			source,
-			id,
-			displayName,
-			icon: options?.icon ?? Codicon.tools,
-			description: options?.description,
-			toolReferenceName: options?.toolReferenceName,
-			tools: tools,
-			isHomogenous,
-			dispose: () => {
-				if (this._toolSets.has(result)) {
-					tools.clear();
-					this._toolSets.delete(result);
+		const result = new class extends ToolSet implements IDisposable {
+			dispose(): void {
+				if (that._toolSets.has(result)) {
+					this._tools.clear();
+					that._toolSets.delete(result);
 				}
+
 			}
-		};
+		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName, options?.description);
 
 		this._toolSets.add(result);
 		return result;

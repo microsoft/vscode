@@ -24,7 +24,7 @@ import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInpu
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatModel.js';
-import { isIToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
@@ -82,7 +82,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 				description: label !== entry.displayName ? entry.displayName : undefined,
 				asAttachment: (): IChatRequestToolEntry | IChatRequestToolSetEntry => {
 					return {
-						kind: isIToolSet(entry) ? 'toolset' : 'tool',
+						kind: entry instanceof ToolSet ? 'toolset' : 'tool',
 						id: entry.id,
 						name: entry.displayName,
 						fullName: entry.displayName,

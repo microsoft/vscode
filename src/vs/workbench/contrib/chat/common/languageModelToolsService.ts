@@ -19,7 +19,8 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ObservableSet } from '../../../../base/common/observable.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IToolData {
 	id: string;
@@ -185,30 +186,43 @@ export interface IToolImpl {
 	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
-export interface IToolSet extends IDisposable {
+export class ToolSet {
 
-	readonly id: string;
-	readonly displayName: string;
-	readonly icon: ThemeIcon;
-	readonly toolReferenceName?: string;
-	readonly description?: string;
-	readonly source: ToolDataSource;
-
-	readonly tools: ObservableSet<IToolData>;
+	protected readonly _tools = new ObservableSet<IToolData>();
 
 	/**
 	 * A homogenous tool set only contains tools from the same source as the tool set itself
 	 */
 	readonly isHomogenous: IObservable<boolean>;
+
+	constructor(
+		readonly id: string,
+		readonly displayName: string,
+		readonly icon: ThemeIcon,
+		readonly source: ToolDataSource,
+		readonly toolReferenceName?: string,
+		readonly description?: string,
+	) {
+
+		this.isHomogenous = this._tools.observable.map(tools => {
+			return !Iterable.some(tools, tool => !ToolDataSource.equals(tool.source, this.source));
+		});
+	}
+
+	addTool(data: IToolData): IDisposable {
+		this._tools.add(data);
+		return {
+			dispose: () => {
+				this._tools.delete(data);
+			}
+		};
+	}
+
+	getTools(r?: IReader): ReadonlySet<IToolData> {
+		return this._tools.observable.read(r);
+	}
 }
 
-export function isIToolSet(candidate: unknown): candidate is IToolSet {
-	return typeof candidate === 'object'
-		&& candidate !== null
-		&& typeof (candidate as IToolSet).id === 'string'
-		&& typeof (candidate as IToolSet).displayName === 'string'
-		&& (candidate as IToolSet).tools instanceof ObservableSet;
-}
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
@@ -227,8 +241,8 @@ export interface ILanguageModelToolsService {
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 
-	readonly toolSets: IObservable<Iterable<IToolSet>>;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): IToolSet;
+	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

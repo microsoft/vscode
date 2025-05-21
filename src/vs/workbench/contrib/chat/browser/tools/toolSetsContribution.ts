@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
+import { coalesceInPlace, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -205,10 +205,12 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 
 				for (const [name, value] of data.entries) {
 
-					const tools = coalesce(value.tools.map(toolName => this._languageModelToolsService.getToolByName(toolName)));
+					const tools = value.tools.map(toolName => this._languageModelToolsService.getToolByName(toolName));
+
+					coalesceInPlace(tools);
 
 					if (tools.length === 0) {
-						// NOT all tools found (too strict?)
+						// NO tools in this set
 						continue;
 					}
 
@@ -223,7 +225,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						}
 					);
 					store.add(toolset);
-					tools.forEach(toolset.tools.add, toolset.tools);
+					tools.forEach(tool => toolset.addTool(tool));
 				}
 			}
 		}));
@@ -416,7 +418,7 @@ export class ConfigureToolSets extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 
-		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
 
 		for (const toolSet of toolsService.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {

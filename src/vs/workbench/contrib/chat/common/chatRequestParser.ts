@@ -11,7 +11,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
-import { IToolData, IToolSet } from './languageModelToolsService.js';
+import { IToolData, ToolSet } from './languageModelToolsService.js';
 import { IPromptsService } from './promptSyntax/service/types.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
@@ -39,7 +39,7 @@ export class ChatRequestParser {
 			.filter(t => t.canBeReferencedInPrompt && t.toolReferenceName)
 			.map(t => [t.toolReferenceName!, t]));
 
-		const toolSetsByName = new Map<string, IToolSet>(this.variableService.getSelectedToolSets(sessionId)
+		const toolSetsByName = new Map<string, ToolSet>(this.variableService.getSelectedToolSets(sessionId)
 			.map(t => [t.displayName, t]));
 
 		let lineNumber = 1;
@@ -148,7 +148,7 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, IToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, ToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;

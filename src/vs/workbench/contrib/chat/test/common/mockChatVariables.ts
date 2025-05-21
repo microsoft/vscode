@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { IToolData, IToolSet } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
@@ -17,7 +17,7 @@ export class MockChatVariablesService implements IChatVariablesService {
 		return [];
 	}
 
-	getSelectedToolSets(sessionId: string): readonly IToolSet[] {
+	getSelectedToolSets(sessionId: string): readonly ToolSet[] {
 		return [];
 	}
 }

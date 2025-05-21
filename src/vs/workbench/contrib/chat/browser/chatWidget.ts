@@ -53,7 +53,7 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
-import { ILanguageModelToolsService, isIToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -1031,7 +1031,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const toolSetIds = new Set<string>();
 			const toolIds = new Set<string>();
 			for (const item of value) {
-				if (isIToolSet(item)) {
+				if (item instanceof ToolSet) {
 					toolSetIds.add(item.id);
 				} else {
 					toolIds.add(item.id);

@@ -28,7 +28,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
-import { isIToolSet, IToolData, IToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolSet, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -136,7 +136,7 @@ class ConfigureToolsAction extends Action2 {
 
 		const enum BucketOrdinal { Extension, Mcp, Other }
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
-		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: IToolSet; parent: BucketPick };
+		type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 		type CallbackPick = IQuickPickItem & { pickable: false; run: () => void };
 		type MyPick = BucketPick | ToolSetPick | ToolPick | CallbackPick;
@@ -269,7 +269,7 @@ class ConfigureToolsAction extends Action2 {
 				assertNever(toolSetOrTool.source);
 			}
 
-			if (isIToolSet(toolSetOrTool)) {
+			if (toolSetOrTool instanceof ToolSet) {
 				bucket.children.push({
 					parent: bucket,
 					type: 'item',
@@ -351,7 +351,7 @@ class ConfigureToolsAction extends Action2 {
 				lastSelectedItems = new Set(items);
 				picker.selectedItems = items;
 
-				const disableToolSets: IToolSet[] = [];
+				const disableToolSets: ToolSet[] = [];
 				const disableTools: IToolData[] = [];
 
 
