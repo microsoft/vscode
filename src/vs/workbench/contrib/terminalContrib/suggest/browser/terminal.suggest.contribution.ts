@@ -38,6 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
+import { PYLANCE_DEBUG_DISPLAY_NAME } from '../../../../browser/lspTerminalCapability.js';
 
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -172,10 +173,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		if (
-			this._ctx.instance.shellType !== GeneralShellType.Python &&
-			!this._ctx.instance.shellLaunchConfig.executable?.includes('python')
-		) {
+		if (this._ctx.instance.shellType !== GeneralShellType.Python) {
 			this._lspAddon.clear();
 			return;
 		}
@@ -190,7 +188,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		const provider = virtualProviders.find(p => p._debugDisplayName === `ms-python.python(.["')`);
+		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME);
 
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);

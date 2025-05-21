@@ -9,3 +9,6 @@ export interface ILspTerminalModelContentProvider extends ITextModelContentProvi
 	setContent(content: string): void;
 	dispose(): void;
 }
+
+export const PYLANCE_DEBUG_DISPLAY_NAME = `ms-python.python(.["')`;
+export const PYTHON_LANGUAGE_ID = 'python';

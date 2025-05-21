@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ILspTerminalModelContentProvider } from '../../../../browser/lspTerminalCapability.js';
+import { ILspTerminalModelContentProvider, PYTHON_LANGUAGE_ID } from '../../../../browser/lspTerminalCapability.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -154,7 +154,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 			if (!languageId) {
 				switch (extension) {
-					case 'py': languageId = 'python'; break;
+					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
 					// case 'ps1': languageId = 'powershell'; break;
 					// case 'js': languageId = 'javascript'; break;
 					// case 'ts': languageId = 'typescript'; break; etc...
