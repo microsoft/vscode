@@ -1189,8 +1189,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	renderElement(
 		node: ITreeNode<TreeElement, FuzzyScore>,
 		index: number,
-		template: TimelineElementTemplate,
-		height: number | undefined
+		template: TimelineElementTemplate
 	): void {
 		template.reset();
 
@@ -1242,7 +1241,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		}
 	}
 
-	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate): void {
 		templateData.actionBar.actionRunner.dispose();
 	}
 
