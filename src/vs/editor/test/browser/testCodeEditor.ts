@@ -23,11 +23,9 @@ import { LanguageService } from '../../common/services/languageService.js';
 import { IModelService } from '../../common/services/model.js';
 import { ModelService } from '../../common/services/modelService.js';
 import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterBefore/treeSitterParserService.js';
 import { ViewModel } from '../../common/viewModel/viewModelImpl.js';
 import { TestConfiguration } from './config/testConfiguration.js';
 import { TestCodeEditorService, TestCommandService } from './editorTestServices.js';
-import { TestTreeSitterParserService } from '../common/services/testTreeSitterService.js';
 import { TestLanguageConfigurationService } from '../common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../common/services/testEditorWorkerService.js';
 import { TestTextResourcePropertiesService } from '../common/services/testTextResourcePropertiesService.js';
@@ -220,7 +218,6 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
-	define(ITreeSitterParserService, TestTreeSitterParserService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

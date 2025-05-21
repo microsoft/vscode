@@ -9,20 +9,19 @@ import { IReader, ObservablePromise } from '../../../../base/common/observable.j
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { canASAR, importAMDNodeModule } from '../../../../amdX.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { CachedFunction } from '../../../../base/common/cache.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { MODULE_LOCATION_SUBPATH } from '../../../../editor/common/services/treeSitterBefore/treeSitterLanguages.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
+
+const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
@@ -91,9 +90,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 	});
 
 	constructor(
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {

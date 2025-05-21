@@ -33,11 +33,10 @@ export class TreeSitterModel extends Disposable {
 
 	private _versionId: number = 0;
 	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
-	private _ranges: TreeSitter.Range[] | undefined;
 
 	constructor(
 		public readonly languageId: string,
-		private ranges: TreeSitter.Range[] | undefined,
+		private _ranges: TreeSitter.Range[] | undefined,
 		// readonly treeSitterLanguage: Language,
 		/** Must have the language set! */
 		private readonly _parser: TreeSitter.Parser,
@@ -109,6 +108,15 @@ export class TreeSitterModel extends Disposable {
 		});
 	}
 
+	get ranges(): TreeSitter.Range[] | undefined {
+		return this._ranges;
+	}
+
+	public getInjectionTrees(startIndex: number, languageId: string): TreeSitterModel | undefined {
+		// TODO
+		return undefined;
+	}
+
 	private _applyEdits(changes: IModelContentChange[]) {
 		for (const change of changes) {
 			const originalTextLength = TextLength.ofRange(Range.lift(change.range));
@@ -127,9 +135,8 @@ export class TreeSitterModel extends Disposable {
 		}
 	}
 
-
 	private _findChangedNodes(newTree: TreeSitter.Tree, oldTree: TreeSitter.Tree): TreeSitter.Range[] | undefined {
-		if ((this.ranges && this.ranges.every(range => range.startPosition.row !== newTree.rootNode.startPosition.row)) || newTree.rootNode.startPosition.row !== 0) {
+		if ((this._ranges && this._ranges.every(range => range.startPosition.row !== newTree.rootNode.startPosition.row)) || newTree.rootNode.startPosition.row !== 0) {
 			return [];
 		}
 		const newCursor = newTree.walk();
@@ -259,16 +266,16 @@ export class TreeSitterModel extends Disposable {
 	}
 
 	private _constrainRanges(changes: RangeChange[]): RangeChange[] {
-		if (!this.ranges) {
+		if (!this._ranges) {
 			return changes;
 		}
 
 		const constrainedChanges: RangeChange[] = [];
 		let changesIndex = 0;
 		let rangesIndex = 0;
-		while (changesIndex < changes.length && rangesIndex < this.ranges.length) {
+		while (changesIndex < changes.length && rangesIndex < this._ranges.length) {
 			const change = changes[changesIndex];
-			const range = this.ranges[rangesIndex];
+			const range = this._ranges[rangesIndex];
 			if (change.newRangeEndOffset < range.startIndex) {
 				// Change is before the range, move to the next change
 				changesIndex++;
