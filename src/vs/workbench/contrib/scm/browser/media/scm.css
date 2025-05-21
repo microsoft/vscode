@@ -640,6 +640,7 @@
 }
 
 .scm-view .monaco-list-row .history-item-change > .graph-placeholder {
+	position: absolute;
 	height: 22px;
 	border-left-width: 3px;
 	border-left-style: solid;
