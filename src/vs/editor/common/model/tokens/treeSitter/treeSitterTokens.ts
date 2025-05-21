@@ -183,7 +183,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (!model) {
 			return false;
 		}
-		return model._hasTokens();
+		return model.hasTokens();
 	}
 }
 

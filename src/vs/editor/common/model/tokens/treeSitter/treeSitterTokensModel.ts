@@ -4,27 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ColorThemeData, findMetadata } from '../../../../../workbench/services/themes/common/colorThemeData.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme } from '../../../../../workbench/services/themes/common/workbenchThemeService.js';
 import { LanguageId } from '../../../encodedTokenAttributes.js';
-import { ILanguageIdCodec, QueryCapture, TreeSitterTokenizationRegistry } from '../../../languages.js';
-import { ITextModel } from '../../../model.js';
-import { ITextModelTreeSitter } from '../../../services/treeSitterBefore/treeSitterParserService.js';
+import { ILanguageIdCodec, QueryCapture } from '../../../languages.js';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../../textModelEvents.js';
 import { findLikelyRelevantLines } from '../../textModelTokens.js';
 import { TokenStore, TokenUpdate, TokenQuality } from './tokenStore.js';
 import { TreeSitterModel, RangeChange, RangeWithOffsets } from './treeSitterModel.js';
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, runOnChange } from '../../../../../base/common/observable.js';
 import { LineRange } from '../../../core/ranges/lineRange.js';
 import { LineTokens } from '../../../tokens/lineTokens.js';
 import { Position } from '../../../core/position.js';
 import { Range } from '../../../core/range.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { ITreeSitterThemeService } from '../../../services/treeSitter/treeSitterThemeService.js';
 
 
 
@@ -39,8 +35,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 	public readonly tokSupport_onDidChangeTokens: Event<{ changes: IModelTokensChangedEvent }> = this._tokSupport_onDidChangeTokens.event;
 	private readonly _tokSupport_onDidCompleteBackgroundTokenization: Emitter<void> = this._register(new Emitter());
 	public readonly tokSupport_onDidChangeBackgroundTokenization: Event<void> = this._tokSupport_onDidCompleteBackgroundTokenization.event;
-	private _tokSupport_colorThemeData!: ColorThemeData;
-	private _tokSupport_languageAddedListener: IDisposable | undefined;
+
 	private _tokSupport_encodedLanguage: LanguageId | undefined;
 
 	private _visibleLineRanges: IObservable<readonly LineRange[]>;
@@ -54,13 +49,15 @@ export class TreeSitterTokenizationModel extends Disposable {
 		private readonly _highlightingQueries: TreeSitter.Query,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 
-		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
-
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITreeSitterThemeService private readonly _treeSitterThemeService: ITreeSitterThemeService,
 	) {
 		super();
 
 		this._visibleLineRanges = constObservable([new LineRange(1, 50)]); // TODO
+
+		this._register(runOnChange(this._treeSitterThemeService.onChange, () => {
+			// TODO
+		}));
 
 		this._tokenStore = this._register(new TokenStore(this._textModel));
 		this._accurateVersion = this._textModel.getVersionId();
@@ -77,7 +74,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 
 		this._register(this._treeSitterModel.onDidUpdate((e) => {
 
-			if (this._hasTokens()) {
+			if (this.hasTokens()) {
 				// Mark the range for refresh immediately
 
 				for (const range of e.ranges) {
@@ -86,7 +83,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 			}
 
 			// First time we see a tree we need to build a token store.
-			if (!this._hasTokens()) {
+			if (!this.hasTokens()) {
 				// This will likely not happen as we first handle all models, which are ready before trees.
 				this._firstTreeUpdate(e.versionId);
 			} else {
@@ -144,8 +141,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 	}
 
 	private _emptyToken() {
-		return 0;
-		// TODO return findMetadata(this._colorThemeData, [], this._encodedLanguageId, false);
+		return this._treeSitterThemeService.findMetadata([], this._encodedLanguageId, false, undefined);
 	}
 
 	private _emptyTokensForOffsetAndLength(offset: number, length: number, emptyToken: number): TokenUpdate {
@@ -155,7 +151,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
-		return this._hasTokens(new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));
+		return this.hasTokens(new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));
 	}
 
 	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
@@ -174,7 +170,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 		return this._tokenStore.rangeHasTokens(this._textModel.getOffsetAt(range.getStartPosition()), this._textModel.getOffsetAt(range.getEndPosition()), minimumTokenQuality);
 	}
 
-	private _hasTokens(accurateForRange?: Range): boolean {
+	public hasTokens(accurateForRange?: Range): boolean {
 		if (!accurateForRange || (this._guessVersion === this._accurateVersion)) {
 			return true;
 		}
@@ -340,29 +336,18 @@ export class TreeSitterTokenizationModel extends Disposable {
 	}
 
 	private _tokSupport_setViewPortTokens(versionId: number) {
-		const maxLine = this._textModel.getLineCount();
-		let rangeChanges: RangeChange[];
-		const editor = this._tokSupport_codeEditors.getEditorForModel(this._textModel);
-		if (editor) {
-			const viewPort = editor.getVisibleRangesPlusViewportAboveBelow();
-			const ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(viewPort.length);
-			rangeChanges = new Array(viewPort.length);
+		const rangeChanges = this._visibleLineRanges.get().map<RangeChange | undefined>(lineRange => {
+			const range = lineRange.toInclusiveRange();
+			if (!range) { return undefined; }
+			const newRangeStartOffset = this._textModel.getOffsetAt(range.getStartPosition());
+			const newRangeEndOffset = this._textModel.getOffsetAt(range.getEndPosition());
+			return {
+				newRange: range,
+				newRangeEndOffset,
+				newRangeStartOffset,
+			};
+		}).filter(isDefined);
 
-			for (let i = 0; i < viewPort.length; i++) {
-				const range = viewPort[i];
-				ranges[i] = { fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber < maxLine ? range.endLineNumber : maxLine };
-				const newRangeStartOffset = this._textModel.getOffsetAt(range.getStartPosition());
-				const newRangeEndOffset = this._textModel.getOffsetAt(range.getEndPosition());
-				rangeChanges[i] = {
-					newRange: range,
-					newRangeStartOffset,
-					newRangeEndOffset,
-				};
-			}
-		} else {
-			const valueLength = this._textModel.getValueLength();
-			rangeChanges = [{ newRange: new Range(1, 1, maxLine, this._textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength }];
-		}
 		return this._tokSupport_handleTreeUpdate(rangeChanges, versionId);
 	}
 
@@ -370,11 +355,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 	 * Do not await in this method, it will cause a race
 	 */
 	private _tokSupport_handleTreeUpdate(ranges: RangeChange[], versionId: number) {
-		const tree = this._treeSitterModel.tree.get();
-		if (!tree) {
-			return;
-		}
-
 		const rangeChanges: RangeWithOffsets[] = [];
 		const chunkSize = 1000;
 
@@ -425,7 +405,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 					});
 				}
 			}
-
 		}
 
 		// Get the captures immediately while the text model is correct
@@ -435,7 +414,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 			if (!this._textModel.isDisposed() && (this._treeSitterModel.versionId === this._textModel.getVersionId())) {
 				this._tokSupport_refreshNeedsRefresh(versionId);
 			}
-
 		});
 	}
 
@@ -514,21 +492,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 		return undefined;
 	}
 
-	private _tokSupport_ensureQuery() {
-		if (!this._tokSupport_query) {
-			const language = this._treeSitterService.getOrInitLanguage(this._languageId);
-			if (!language) {
-				if (!this._tokSupport_languageAddedListener) {
-					this._tokSupport_languageAddedListener = this._register(Event.onceIf(this._treeSitterService.onDidAddLanguage, e => e.id === this._languageId)((e) => {
-						this._tokSupport_query = new this.Query(e.language, this._highlightingQueries);
-					}));
-				}
-				return;
-			}
-			this._tokSupport_query = new this.Query(language, this._highlightingQueries);
-		}
-		return this._tokSupport_query;
-	}
 
 	// private _tokSupport_updateTheme(e: IWorkbenchColorTheme | undefined) {
 	// 	this._tokSupport_colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
@@ -582,9 +545,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 	}
 
 	private _tokSupport_captureAtRangeWithInjections(range: Range): QueryCapture[] {
-		if (!textModelTreeSitter?.parseResult) {
-			return [];
-		}
 		const captures: QueryCapture[] = this._tokSupport_captureAtRange(range);
 		for (let i = 0; i < captures.length; i++) {
 			const capture = captures[i];
@@ -799,17 +759,19 @@ export class TreeSitterTokenizationModel extends Disposable {
 		return { endOffsets: endOffsetsAndScopes as { endOffset: number; scopes: string[]; encodedLanguageId: LanguageId }[], captureTime };
 	}
 
-	private _tokSupport_getInjectionCaptures(parentCapture: QueryCapture, range: Range) {
-		const injection = textModelTreeSitter.getInjection(parentCapture.node.startIndex, this._treeSitterModel.languageId);
-		if (!injection?.tree || injection.versionId !== textModelTreeSitter.parseResult?.versionId) {
-			return undefined;
-		}
+	private _tokSupport_getInjectionCaptures(parentCapture: QueryCapture, range: Range): QueryCapture[] {
+		/*
+				const injection = textModelTreeSitter.getInjection(parentCapture.node.startIndex, this._treeSitterModel.languageId);
+				if (!injection?.tree || injection.versionId !== textModelTreeSitter.parseResult?.versionId) {
+					return undefined;
+				}
 
-		const feature = TreeSitterTokenizationRegistry.get(injection.languageId);
-		if (!feature) {
-			return undefined;
-		}
-		return feature.tokSupport_captureAtRangeTree(range, injection.tree, textModelTreeSitter);
+				const feature = TreeSitterTokenizationRegistry.get(injection.languageId);
+				if (!feature) {
+					return undefined;
+				}
+				return feature.tokSupport_captureAtRangeTree(range, injection.tree, textModelTreeSitter);*/
+		return [];
 	}
 
 	private _tokSupport_tokenizeCapturesWithMetadata(captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: EndOffsetToken[]; captureTime: number; metadataTime: number } | undefined {
@@ -821,7 +783,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 		const endOffsetsAndScopes: EndOffsetWithMeta[] = emptyTokens.endOffsets;
 		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
 			const token = endOffsetsAndScopes[i];
-			token.metadata = findMetadata(this._tokSupport_colorThemeData, token.scopes, token.encodedLanguageId, !!token.bracket && (token.bracket.length > 0));
+			token.metadata = this._treeSitterThemeService.findMetadata(token.scopes, token.encodedLanguageId, !!token.bracket && (token.bracket.length > 0), undefined);
 		}
 
 		const metadataTime = stopwatch.elapsed();
@@ -850,24 +812,8 @@ export class TreeSitterTokenizationModel extends Disposable {
 		}
 		return uint32Array;
 	}
-
-	override dispose() {
-		super.dispose();
-		this._highlightingQueries?.delete();
-		this._highlightingQueries = undefined;
-	}
 }
 
-
-
-
-
-
-
-
-
-
-type TreeSitterQueries = string;
 
 interface EndOffsetToken {
 	endOffset: number;
