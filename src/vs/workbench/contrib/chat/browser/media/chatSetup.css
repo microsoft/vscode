@@ -7,6 +7,9 @@
 	border: 0 !important;
 	background-color: unset !important;
 	color: var(--vscode-textLink-foreground) !important;
+	width: fit-content;
+	margin-left: auto;
+	margin-right: auto;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button.skip-button {
@@ -14,9 +17,9 @@
 	color: var(--vscode-descriptionForeground) !important;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:not(.skip-button):active,
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:not(.skip-button):hover {
-	color: var(--vscode-textLink-activeForeground) !important;
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:focus {
+	text-decoration: underline !important;
+	outline: none !important;
 }
 
 .chat-setup-dialog-footer {
