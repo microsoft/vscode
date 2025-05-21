@@ -31,7 +31,7 @@ export interface IChatRequestProblemsVariable {
 export const isIChatRequestProblemsVariable = (obj: unknown): obj is IChatRequestProblemsVariable =>
 	typeof obj === 'object' && obj !== null && 'id' in obj && (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
 
-export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array | IChatRequestProblemsVariable;
+export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | unknown;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference
