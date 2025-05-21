@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -15,12 +16,13 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
+import { ViewController } from '../../../view/viewController.js';
 import { ariaLabelForScreenReaderContent } from '../screenReaderUtils.js';
 import { IScreenReaderContent } from './nativeEditContextUtils.js';
 import { ComplexScreenReaderContent } from './screenReaderContentComplex.js';
 import { SimpleScreenReaderContent } from './screenReaderContentSimple.js';
 
-export class ScreenReaderSupport {
+export class ScreenReaderSupport extends Disposable {
 
 	// Configuration values
 	private _contentLeft: number = 1;
@@ -36,38 +38,40 @@ export class ScreenReaderSupport {
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
 		private readonly _context: ViewContext,
+		private readonly _viewController: ViewController,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		this._updateConfigurationSettings();
-		this._updateDomAttributes();
+		super();
 		this._renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
 		if (this._renderComplexScreenReaderContent) {
-			this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+			this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 		} else {
-			this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+			this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 		}
+		this._updateConfigurationSettings();
+		this._updateDomAttributes();
 	}
 
-	public setIgnoreSelectionChangeTime(reason: string): void {
-		this._screenReaderContent.setIgnoreSelectionChangeTime(reason);
+	public onWillPaste(): void {
+		this._screenReaderContent.onWillPaste();
 	}
 
-	public getIgnoreSelectionChangeTime(): number {
-		return this._screenReaderContent.getIgnoreSelectionChangeTime();
+	public onCut(): void {
+		this._screenReaderContent.onCut();
 	}
 
-	public resetSelectionChangeTime(): void {
-		this._screenReaderContent.resetSelectionChangeTime();
+	public handleFocusChange(newFocusValue: boolean): void {
+		this._screenReaderContent.handleFocusChange(newFocusValue);
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
 		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
 		if (this._renderComplexScreenReaderContent !== renderComplexScreenReaderContent) {
 			if (renderComplexScreenReaderContent) {
-				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			} else {
-				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._accessibilityService);
+				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			}
 			this._renderComplexScreenReaderContent = renderComplexScreenReaderContent;
 		} else {
@@ -179,6 +183,6 @@ export class ScreenReaderSupport {
 	}
 
 	public writeScreenReaderContent(): void {
-		this._screenReaderContent.write(this._primarySelection);
+		this._screenReaderContent.setScreenReaderContent(this._primarySelection);
 	}
 }

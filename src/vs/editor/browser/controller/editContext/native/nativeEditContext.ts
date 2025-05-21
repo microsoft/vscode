@@ -25,7 +25,6 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
-import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
@@ -68,8 +67,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private readonly _focusTracker: FocusTracker;
 
-	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
-
 	constructor(
 		ownerID: string,
 		context: ViewContext,
@@ -97,14 +94,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
-		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			if (newFocusValue) {
-				// this._selectionChangeListener.value = this._setSelectionChangeListener(this._viewController);
-				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
-			} else {
-				this._selectionChangeListener.value = undefined;
-			}
+			this._screenReaderSupport.handleFocusChange(newFocusValue);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -112,13 +103,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
-		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
+		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController);
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
-			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
+			this._screenReaderSupport.onCut();
 			this._ensureClipboardGetsEditorSelection(e);
 			this._viewController.cut();
 		}));
@@ -291,7 +282,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _onWillPaste(): void {
-		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
+		this._screenReaderSupport.onWillPaste();
 	}
 
 	public writeScreenReaderContent(): void {
@@ -562,74 +553,4 @@ export class NativeEditContext extends AbstractEditContext {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
 	}
-
-	/*
-	private _setSelectionChangeListener(viewController: ViewController): IDisposable {
-		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
-		// When using a Braille display or NVDA for example, it is possible for users to reposition the
-		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
-
-		// `selectionchange` events often come multiple times for a single logical change
-		// so throttle multiple `selectionchange` events that burst in a short period of time.
-		let previousSelectionChangeEventTime = 0;
-		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (!this.isFocused() || !isScreenReaderOptimized || !IME.enabled) {
-				return;
-			}
-			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
-			if (!screenReaderContentState) {
-				return;
-			}
-			const now = Date.now();
-			const delta1 = now - previousSelectionChangeEventTime;
-			previousSelectionChangeEventTime = now;
-			if (delta1 < 5) {
-				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
-				// => ignore it
-				return;
-			}
-			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
-			this._screenReaderSupport.resetSelectionChangeTime();
-			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the textarea
-				// => ignore it, since we caused it
-				return;
-			}
-			const activeDocument = getActiveWindow().document;
-			const activeDocumentSelection = activeDocument.getSelection();
-			if (!activeDocumentSelection) {
-				return;
-			}
-			const rangeCount = activeDocumentSelection.rangeCount;
-			if (rangeCount === 0) {
-				return;
-			}
-			const range = activeDocumentSelection.getRangeAt(0);
-			const viewModel = this._context.viewModel;
-			const model = viewModel.model;
-			const coordinatesConverter = viewModel.coordinatesConverter;
-			const viewPosition = new Position(screenReaderContentState.preStartOffsetRange?.start ?? 1, 1);
-			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
-			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
-			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
-			if (modelUsesCRLF) {
-				const pretextStart = screenReaderContentState.preStartOffsetRange?.start ?? 1;
-				const posttextEnd = screenReaderContentState.postEndOffsetRange?.endExclusive ?? 1;
-				const screenReaderContentText = model.getValueInRange(new Range(pretextStart, 1, posttextEnd, model.getLineMaxColumn(posttextEnd)), EndOfLinePreference.TextDefined);
-				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
-				const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
-				const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
-				offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
-				offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
-			}
-			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
-			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
-			viewController.setSelection(newSelection);
-		});
-	}
-	*/
 }

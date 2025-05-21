@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -19,75 +19,132 @@ import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../c
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { IPagedScreenReaderStrategy, ISimpleModel } from '../screenReaderUtils.js';
 import { IScreenReaderContent } from './nativeEditContextUtils.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IME } from '../../../../../base/common/ime.js';
+import { ViewController } from '../../../view/viewController.js';
 
 const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
 
-class RenderedComplexScreenReaderLine {
+class RenderedScreenReaderLine {
 	constructor(
 		public readonly domNode: HTMLDivElement,
 		public readonly characterMapping: CharacterMapping
 	) { }
 }
 
-export class ComplexScreenReaderContent implements IScreenReaderContent {
+export class ComplexScreenReaderContent extends Disposable implements IScreenReaderContent {
 
 	private _accessibilityPageSize: number = 1;
-	private _ignoreSelectionChangeTime: number = 0;
-	private _renderedLines: Map<number, RenderedComplexScreenReaderLine> | undefined;
+	private _renderedLines: Map<number, RenderedScreenReaderLine> | undefined;
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ComplexScreenReaderContentState | undefined;
 	private _screenReaderStrategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
+	private readonly _selectionChangeListener = this._register(new MutableDisposable());
+	private _ignoreSelectionChangeTime: number = 0;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
 		private readonly _context: ViewContext,
+		private readonly _viewController: ViewController,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
-	) { }
-
-	public onConfigurationChanged(options: IComputedEditorOptions): void {
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+	) {
+		super();
 	}
 
-	public setIgnoreSelectionChangeTime(reason: string): void {
-		this._ignoreSelectionChangeTime = Date.now();
-	}
-
-	public getIgnoreSelectionChangeTime(): number {
-		return this._ignoreSelectionChangeTime;
-	}
-
-	public resetSelectionChangeTime(): void {
-		this._ignoreSelectionChangeTime = 0;
-	}
-
-	public write(primarySelection: Selection): void {
+	public setScreenReaderContent(primarySelection: Selection): void {
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
+			// TODO: Should not rerender the content if already the same
 			const screenReaderContentState = this._getScreenReaderContentState(primarySelection);
-			let wasContentChange: boolean = false;
-			if (!this._screenReaderContentState) {
-				const renderedLines = this._renderScreenReaderContent(screenReaderContentState);
-				this._screenReaderContentState = screenReaderContentState;
-				this._renderedLines = renderedLines;
-				wasContentChange = true;
-			}
-			if (!wasContentChange && this._renderedSelection.equalsSelection(primarySelection)) {
+			this._screenReaderContentState = screenReaderContentState;
+			this._renderedLines = this._renderScreenReaderContent(screenReaderContentState);
+			if (this._renderedSelection.equalsSelection(primarySelection)) {
 				return;
 			}
 			this._renderedSelection = primarySelection;
-			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines!, primarySelection);
+			this._setSelectionOfScreenReaderContent(this._context, this._renderedLines, this._renderedSelection);
 		} else {
 			this._screenReaderContentState = undefined;
-			this.setIgnoreSelectionChangeTime('setValue');
+			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
 	}
 
-	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedComplexScreenReaderLine> {
+	public handleFocusChange(newFocusValue: boolean): void {
+		if (newFocusValue) {
+			this._selectionChangeListener.value = this._setSelectionChangeListener();
+		} else {
+			this._selectionChangeListener.value = undefined;
+		}
+	}
+
+	public onConfigurationChanged(options: IComputedEditorOptions): void {
+		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+	}
+
+	public onCut(): void {
+		this._setIgnoreSelectionChangeTime('onCut');
+	}
+
+	public onWillPaste(): void {
+		this._setIgnoreSelectionChangeTime('onWillPaste');
+	}
+
+	// --- private methods
+
+	private _getIgnoreSelectionChangeTime(): number {
+		return this._ignoreSelectionChangeTime;
+	}
+
+	private _setIgnoreSelectionChangeTime(reason: string): void {
+		this._ignoreSelectionChangeTime = Date.now();
+	}
+
+	private _resetSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = 0;
+	}
+
+	private _setSelectionChangeListener(): IDisposable {
+		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// When using a Braille display or NVDA for example, it is possible for users to reposition the
+		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
+
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+		let previousSelectionChangeEventTime = 0;
+		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
+			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (!isScreenReaderOptimized || !IME.enabled) {
+				return;
+			}
+			const now = Date.now();
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+			const delta2 = now - this._getIgnoreSelectionChangeTime();
+			this._resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the hidden div
+				// => ignore it, since we caused it
+				return;
+			}
+			const selection = this._getEditorSelectionFromScreenReaderRange();
+			if (!selection) {
+				return;
+			}
+			this._viewController.setSelection(selection);
+		});
+	}
+
+	private _renderScreenReaderContent(screenReaderContentState: ComplexScreenReaderContentState): Map<number, RenderedScreenReaderLine> {
 		const preStartOffsetRange = screenReaderContentState.preStartOffsetRange;
 		const postStartOffsetRange = screenReaderContentState.postStartOffsetRange;
 		const postEndOffsetRange = screenReaderContentState.postEndOffsetRange;
@@ -95,7 +152,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 		const startSelectionLineNumber = screenReaderContentState.startSelectionLineNumber;
 		const endSelectionLineNumber = screenReaderContentState.endSelectionLineNumber;
 
-		const renderedLines = new Map<number, RenderedComplexScreenReaderLine>();
+		const renderedLines = new Map<number, RenderedScreenReaderLine>();
 		const nodes: HTMLDivElement[] = [];
 		if (preStartOffsetRange) {
 			for (let lineNumber = preStartOffsetRange.start; lineNumber <= preStartOffsetRange.endExclusive; lineNumber++) {
@@ -133,12 +190,12 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 				nodes.push(renderedLine.domNode);
 			}
 		}
-		this.setIgnoreSelectionChangeTime('setValue');
+		this._setIgnoreSelectionChangeTime('setValue');
 		this._domNode.domNode.replaceChildren(...nodes);
 		return renderedLines;
 	}
 
-	private _renderLine(viewLineNumber: number): RenderedComplexScreenReaderLine {
+	private _renderLine(viewLineNumber: number): RenderedScreenReaderLine {
 		const viewModel = this._context.viewModel;
 		const positionLineData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const options = this._context.configuration.options;
@@ -180,20 +237,19 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 			true
 		);
 		const lineHeight = this._context.viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber);
-		const sb = new StringBuilder(10000);
-		const renderOutput = renderViewLine(renderLineInput, sb);
-		const html = sb.build();
+		const stringBuilder = new StringBuilder(10000);
+		const renderOutput = renderViewLine(renderLineInput, stringBuilder);
+		const html = stringBuilder.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
 		const domNode = document.createElement('div');
 		const stringifiedLineHeight = String(lineHeight) + 'px';
 		domNode.style.lineHeight = stringifiedLineHeight;
 		domNode.style.height = stringifiedLineHeight;
 		domNode.innerHTML = trustedhtml as string;
-		const characterMapping = renderOutput.characterMapping;
-		return new RenderedComplexScreenReaderLine(domNode, characterMapping);
+		return new RenderedScreenReaderLine(domNode, renderOutput.characterMapping);
 	}
 
-	private _setSelectionOfScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedComplexScreenReaderLine>, viewSelection: Selection): void {
+	private _setSelectionOfScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedScreenReaderLine>, viewSelection: Selection): void {
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -234,7 +290,7 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 			} else {
 				range.setEnd(endNode.firstChild, endDomPosition.charIndex + 1);
 			}
-			this.setIgnoreSelectionChangeTime('setRange');
+			this._setIgnoreSelectionChangeTime('setRange');
 			activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
 		}
 	}
@@ -258,6 +314,42 @@ export class ComplexScreenReaderContent implements IScreenReaderContent {
 			}
 		};
 		return this._screenReaderStrategy.fromEditorSelection(simpleModel, primarySelection, this._accessibilityPageSize);
+	}
+
+
+	private _getEditorSelectionFromScreenReaderRange(): Selection | undefined {
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		const activeDocument = getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		if (!activeDocumentSelection) {
+			return;
+		}
+		const rangeCount = activeDocumentSelection.rangeCount;
+		if (rangeCount === 0) {
+			return;
+		}
+		// const range = activeDocumentSelection.getRangeAt(0);
+		// const viewModel = this._context.viewModel;
+		// const model = viewModel.model;
+		// const coordinatesConverter = viewModel.coordinatesConverter;
+		// const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(this._screenReaderContentState.startPositionWithinEditor);
+		// const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
+		// let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
+		// let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+		// const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+		// if (modelUsesCRLF) {
+		// 	const screenReaderContentText = this._screenReaderContentState.value;
+		// 	const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
+		// 	const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
+		// 	const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
+		// 	offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
+		// 	offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
+		// }
+		// const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
+		// const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
+		// return Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
 	}
 }
 

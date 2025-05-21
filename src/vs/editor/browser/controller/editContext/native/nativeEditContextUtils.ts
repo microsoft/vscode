@@ -86,13 +86,13 @@ export function editContextAddDisposableListener<K extends keyof EditContextEven
 
 export interface IScreenReaderContent {
 
-	write(primarySelection: Selection): void;
+	onCut(): void;
+
+	onWillPaste(): void;
+
+	setScreenReaderContent(primarySelection: Selection): void;
 
 	onConfigurationChanged(options: IComputedEditorOptions): void;
 
-	setIgnoreSelectionChangeTime(reason: string): void;
-
-	getIgnoreSelectionChangeTime(): number;
-
-	resetSelectionChangeTime(): void;
+	handleFocusChange(newFocusValue: boolean): void;
 }
