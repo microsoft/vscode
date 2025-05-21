@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
 import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
@@ -127,10 +128,104 @@ suite('AuthenticationService', () => {
 			// Assert that the retrieved provider is the same as the registered provider
 			assert.deepEqual(retrievedProvider, provider);
 		});
+
+		test('getOrActivateProviderIdForIssuer - should return undefined when no provider matches the issuer', async () => {
+			const issuer = URI.parse('https://example.com');
+			const result = await authenticationService.getOrActivateProviderIdForIssuer(issuer);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('getOrActivateProviderIdForIssuer - should return provider id if issuerGlobs matches and issuers match', async () => {
+			// Register a declared provider with an issuer glob
+			const provider: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				issuerGlobs: ['https://github.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider);
+
+			// Register an authentication provider with matching issuers
+			const authProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				issuers: [URI.parse('https://github.com/login')]
+			});
+			authenticationService.registerAuthenticationProvider('github', authProvider);
+
+			// Test with a matching URI
+			const issuer = URI.parse('https://github.com/login');
+			const result = await authenticationService.getOrActivateProviderIdForIssuer(issuer);
+
+			// Verify the result
+			assert.strictEqual(result, 'github');
+		});
+
+		test('getOrActivateProviderIdForIssuer - should return undefined if issuerGlobs match but issuers do not match', async () => {
+			// Register a declared provider with an issuer glob
+			const provider: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				issuerGlobs: ['https://github.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider);
+
+			// Register an authentication provider with non-matching issuers
+			const authProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				issuers: [URI.parse('https://github.com/different')]
+			});
+			authenticationService.registerAuthenticationProvider('github', authProvider);
+
+			// Test with a non-matching URI
+			const issuer = URI.parse('https://github.com/login');
+			const result = await authenticationService.getOrActivateProviderIdForIssuer(issuer);
+
+			// Verify the result
+			assert.strictEqual(result, undefined);
+		});
+
+		test('getOrActivateProviderIdForIssuer - should check multiple providers and return the first match', async () => {
+			// Register two declared providers with issuer globs
+			const provider1: AuthenticationProviderInformation = {
+				id: 'github',
+				label: 'GitHub',
+				issuerGlobs: ['https://github.com/*']
+			};
+			const provider2: AuthenticationProviderInformation = {
+				id: 'microsoft',
+				label: 'Microsoft',
+				issuerGlobs: ['https://login.microsoftonline.com/*']
+			};
+			authenticationService.registerDeclaredAuthenticationProvider(provider1);
+			authenticationService.registerDeclaredAuthenticationProvider(provider2);
+
+			// Register authentication providers
+			const githubProvider = createProvider({
+				id: 'github',
+				label: 'GitHub',
+				issuers: [URI.parse('https://github.com/different')]
+			});
+			authenticationService.registerAuthenticationProvider('github', githubProvider);
+
+			const microsoftProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				issuers: [URI.parse('https://login.microsoftonline.com/common')]
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', microsoftProvider);
+
+			// Test with a URI that should match the second provider
+			const issuer = URI.parse('https://login.microsoftonline.com/common');
+			const result = await authenticationService.getOrActivateProviderIdForIssuer(issuer);
+
+			// Verify the result
+			assert.strictEqual(result, 'microsoft');
+		});
 	});
 
 	suite('authenticationSessions', () => {
-		test('getSessions', async () => {
+		test('getSessions - base case', async () => {
 			let isCalled = false;
 			const provider = createProvider({
 				getSessions: async () => {
@@ -143,6 +238,19 @@ suite('AuthenticationService', () => {
 
 			assert.equal(sessions.length, 1);
 			assert.ok(isCalled);
+		});
+
+		test('getSessions - issuer is not registered', async () => {
+			let isCalled = false;
+			const provider = createProvider({
+				getSessions: async () => {
+					isCalled = true;
+					return [createSession()];
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+			assert.rejects(() => authenticationService.getSessions(provider.id, [], undefined, undefined, URI.parse('https://example.com')));
+			assert.ok(!isCalled);
 		});
 
 		test('createSession', async () => {

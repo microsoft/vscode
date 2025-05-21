@@ -641,7 +641,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
-				percentRemaining: (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100,
+				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
@@ -651,7 +651,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
-				percentRemaining: (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100,
+				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
 				unlimited: false
@@ -667,7 +667,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 				const quotaSnapshot: IQuotaSnapshot = {
 					total: rawQuotaSnapshot.entitlement,
-					percentRemaining: rawQuotaSnapshot.percent_remaining,
+					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					overageEnabled: rawQuotaSnapshot.overage_permitted,
 					overageCount: rawQuotaSnapshot.overage_count,
 					unlimited: rawQuotaSnapshot.unlimited

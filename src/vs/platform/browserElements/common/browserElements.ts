@@ -15,6 +15,12 @@ export interface IElementData {
 	readonly bounds: IRectangle;
 }
 
+export enum BrowserType {
+	SimpleBrowser = 'simpleBrowser',
+	LiveServer = 'liveServer',
+}
+
+
 export interface INativeBrowserElementsService {
 
 	readonly _serviceBrand: undefined;
@@ -22,5 +28,7 @@ export interface INativeBrowserElementsService {
 	// Properties
 	readonly windowId: number;
 
-	getElementData(rect: IRectangle, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
+	getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType, cancellationId?: number): Promise<IElementData | undefined>;
+
+	startDebugSession(token: CancellationToken, browserType: BrowserType, cancelAndDetachId?: number): Promise<void>;
 }

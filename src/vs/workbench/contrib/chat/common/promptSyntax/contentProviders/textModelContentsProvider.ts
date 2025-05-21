@@ -38,7 +38,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	constructor(
 		private readonly model: ITextModel,
 		options: Partial<IPromptContentsProviderOptions>,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(options);
 
@@ -71,14 +71,14 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		options: Partial<IPromptContentsProviderOptions> = {},
 	): IPromptContentsProvider {
 		if (promptContentsSource instanceof TextModel) {
-			return this.initService.createInstance(
+			return this.instantiationService.createInstance(
 				TextModelContentsProvider,
 				promptContentsSource,
 				options,
 			);
 		}
 
-		return this.initService.createInstance(
+		return this.instantiationService.createInstance(
 			FilePromptContentProvider,
 			promptContentsSource.uri,
 			options,

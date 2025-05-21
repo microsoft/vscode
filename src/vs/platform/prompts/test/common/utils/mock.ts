@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertOneOf } from '../../../../../base/common/types.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { isOneOf } from '../../../../../base/common/types.js';
 
 /**
  * Mocks an `TObject` with the provided `overrides`.
@@ -33,23 +34,19 @@ export function mockObject<TObject extends object>(
 				_target: TObject,
 				key: string | number | Symbol,
 			): TObject[T] => {
-
-				assertOneOf(
-					key,
-					keys,
+				assert(
+					isOneOf(key, keys),
 					`The '${key}' is not mocked.`,
 				);
 
 				// note! it's ok to type assert here, because of the explicit runtime
 				//       assertion  above
-				// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 				return overrides[key as T] as TObject[T];
 			},
 		});
 
 	// note! it's ok to type assert here, because of the runtime checks in
 	//       the `Proxy` getter
-	// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 	return mocked as TObject;
 }
 

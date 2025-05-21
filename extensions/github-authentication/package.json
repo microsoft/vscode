@@ -17,6 +17,9 @@
     "ui",
     "workspace"
   ],
+  "enabledApiProposals": [
+    "authIssuers"
+  ],
   "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,11 +34,17 @@
     "authentication": [
       {
         "label": "GitHub",
-        "id": "github"
+        "id": "github",
+        "issuerGlobs": [
+          "https://github.com/login/oauth"
+        ]
       },
       {
         "label": "GitHub Enterprise Server",
-        "id": "github-enterprise"
+        "id": "github-enterprise",
+        "issuerGlobs": [
+          "*"
+        ]
       }
     ],
     "configuration": [{

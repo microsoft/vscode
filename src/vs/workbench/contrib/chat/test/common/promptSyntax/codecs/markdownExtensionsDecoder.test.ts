@@ -126,7 +126,7 @@ class TestFrontMatterMarker extends FrontMatterMarker {
 				lineNumber,
 				columnNumber,
 			);
-			tokens.push(...endOfLineTokens.tokens);
+			tokens.push(...endOfLineTokens.children);
 		}
 
 		return TestFrontMatterMarker.fromTokens(tokens);
@@ -184,7 +184,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
-								...TestEndOfLine.create(newLine, 2, 12).tokens,
+								...TestEndOfLine.create(newLine, 2, 12).children,
 								new Space(new Range(3, 1, 3, 2)),
 								new Space(new Range(3, 2, 3, 3)),
 								new Dash(new Range(3, 3, 3, 4)),
@@ -194,7 +194,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(3, 10, 3, 11)),
 								new Word(new Range(3, 11, 3, 11 + 5), 'value'),
 								new VerticalTab(new Range(3, 16, 3, 17)),
-								...TestEndOfLine.create(newLine, 3, 17).tokens,
+								...TestEndOfLine.create(newLine, 3, 17).children,
 							]),
 							endMarker,
 						),
@@ -250,10 +250,10 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
-								...TestEndOfLine.create(newLine, 2, 12).tokens,
+								...TestEndOfLine.create(newLine, 2, 12).children,
 								// dashes inside the header
 								...TestFrontMatterMarker.create(dashesLength, 3, newLine).dashTokens,
-								...TestEndOfLine.create(newLine, 3, dashesLength + 1).tokens,
+								...TestEndOfLine.create(newLine, 3, dashesLength + 1).children,
 								// -
 								new Space(new Range(4, 1, 4, 2)),
 								new Space(new Range(4, 2, 4, 3)),
@@ -264,7 +264,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(4, 10, 4, 11)),
 								new Word(new Range(4, 11, 4, 11 + 5), 'value'),
 								new Tab(new Range(4, 16, 4, 17)),
-								...TestEndOfLine.create(newLine, 4, 17).tokens,
+								...TestEndOfLine.create(newLine, 4, 17).children,
 							]),
 							endMarker,
 						),
@@ -317,7 +317,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(2, 18, 2, 19)),
 								new Word(new Range(2, 19, 2, 19 + 11), 'description'),
 								new DoubleQuote(new Range(2, 30, 2, 31)),
-								...TestEndOfLine.create(newLine, 2, 31).tokens,
+								...TestEndOfLine.create(newLine, 2, 31).children,
 							]),
 							endMarker,
 						),

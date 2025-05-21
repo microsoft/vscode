@@ -524,7 +524,7 @@ export class Barrier {
  */
 export class AutoOpenBarrier extends Barrier {
 
-	private readonly _timeout: any;
+	private readonly _timeout: Timeout;
 
 	constructor(autoOpenTimeMs: number) {
 		super();
@@ -931,13 +931,13 @@ export class ResourceQueue implements IDisposable {
 }
 
 export class TimeoutTimer implements IDisposable {
-	private _token: any;
+	private _token: Timeout | undefined;
 	private _isDisposed = false;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
 	constructor(runner?: () => void, timeout?: number) {
-		this._token = -1;
+		this._token = undefined;
 
 		if (typeof runner === 'function' && typeof timeout === 'number') {
 			this.setIfNotSet(runner, timeout);
@@ -950,9 +950,9 @@ export class TimeoutTimer implements IDisposable {
 	}
 
 	cancel(): void {
-		if (this._token !== -1) {
+		if (this._token !== undefined) {
 			clearTimeout(this._token);
-			this._token = -1;
+			this._token = undefined;
 		}
 	}
 
@@ -963,7 +963,7 @@ export class TimeoutTimer implements IDisposable {
 
 		this.cancel();
 		this._token = setTimeout(() => {
-			this._token = -1;
+			this._token = undefined;
 			runner();
 		}, timeout);
 	}
@@ -973,12 +973,12 @@ export class TimeoutTimer implements IDisposable {
 			throw new BugIndicatingError(`Calling 'setIfNotSet' on a disposed TimeoutTimer`);
 		}
 
-		if (this._token !== -1) {
+		if (this._token !== undefined) {
 			// timer is already set
 			return;
 		}
 		this._token = setTimeout(() => {
-			this._token = -1;
+			this._token = undefined;
 			runner();
 		}, timeout);
 	}
@@ -1020,12 +1020,12 @@ export class RunOnceScheduler implements IDisposable {
 
 	protected runner: ((...args: unknown[]) => void) | null;
 
-	private timeoutToken: any;
+	private timeoutToken: Timeout | undefined;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
 	constructor(runner: (...args: any[]) => void, delay: number) {
-		this.timeoutToken = -1;
+		this.timeoutToken = undefined;
 		this.runner = runner;
 		this.timeout = delay;
 		this.timeoutHandler = this.onTimeout.bind(this);
@@ -1045,7 +1045,7 @@ export class RunOnceScheduler implements IDisposable {
 	cancel(): void {
 		if (this.isScheduled()) {
 			clearTimeout(this.timeoutToken);
-			this.timeoutToken = -1;
+			this.timeoutToken = undefined;
 		}
 	}
 
@@ -1069,7 +1069,7 @@ export class RunOnceScheduler implements IDisposable {
 	 * Returns true if scheduled.
 	 */
 	isScheduled(): boolean {
-		return this.timeoutToken !== -1;
+		return this.timeoutToken !== undefined;
 	}
 
 	flush(): void {
@@ -1080,7 +1080,7 @@ export class RunOnceScheduler implements IDisposable {
 	}
 
 	private onTimeout() {
-		this.timeoutToken = -1;
+		this.timeoutToken = undefined;
 		if (this.runner) {
 			this.doRun();
 		}
@@ -1105,7 +1105,7 @@ export class ProcessTimeRunOnceScheduler {
 	private timeout: number;
 
 	private counter: number;
-	private intervalToken: any;
+	private intervalToken: Timeout | undefined;
 	private intervalHandler: () => void;
 
 	constructor(runner: () => void, delay: number) {
@@ -1115,7 +1115,7 @@ export class ProcessTimeRunOnceScheduler {
 		this.runner = runner;
 		this.timeout = delay;
 		this.counter = 0;
-		this.intervalToken = -1;
+		this.intervalToken = undefined;
 		this.intervalHandler = this.onInterval.bind(this);
 	}
 
@@ -1127,7 +1127,7 @@ export class ProcessTimeRunOnceScheduler {
 	cancel(): void {
 		if (this.isScheduled()) {
 			clearInterval(this.intervalToken);
-			this.intervalToken = -1;
+			this.intervalToken = undefined;
 		}
 	}
 
@@ -1147,7 +1147,7 @@ export class ProcessTimeRunOnceScheduler {
 	 * Returns true if scheduled.
 	 */
 	isScheduled(): boolean {
-		return this.intervalToken !== -1;
+		return this.intervalToken !== undefined;
 	}
 
 	private onInterval() {
@@ -1159,7 +1159,7 @@ export class ProcessTimeRunOnceScheduler {
 
 		// time elapsed
 		clearInterval(this.intervalToken);
-		this.intervalToken = -1;
+		this.intervalToken = undefined;
 		this.runner?.();
 	}
 }

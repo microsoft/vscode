@@ -159,7 +159,7 @@ async function getVSCodeSysroot(arch, isMusl = false) {
     }
     console.log(`Installing ${arch} root image: ${sysroot}`);
     fs_1.default.rmSync(sysroot, { recursive: true, force: true });
-    fs_1.default.mkdirSync(sysroot);
+    fs_1.default.mkdirSync(sysroot, { recursive: true });
     await fetchUrl({
         checksumSha256,
         assetName: expectedName,

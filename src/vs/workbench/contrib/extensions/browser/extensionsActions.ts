@@ -1211,7 +1211,7 @@ export abstract class DropDownExtensionAction extends ExtensionAction {
 export class DropDownExtensionActionViewItem extends ActionViewItem {
 
 	constructor(
-		action: DropDownExtensionAction,
+		action: IAction,
 		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {

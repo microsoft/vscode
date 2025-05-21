@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -64,19 +64,6 @@ export class ChatAttachmentModel extends Disposable {
 		return new Set(this._attachments.keys());
 	}
 
-	clear(clearStickyAttachments: boolean = false): void {
-		const deleted = Array.from(this._attachments.keys());
-		this._attachments.clear();
-
-		if (clearStickyAttachments) {
-			this.promptInstructions.clear();
-		}
-
-		this._onDidChange.fire({ deleted, added: [], updated: [] });
-	}
-
-
-
 	async addFile(uri: URI, range?: IRange) {
 		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
 			const context = await this.asImageVariableEntry(uri);
@@ -84,9 +71,9 @@ export class ChatAttachmentModel extends Disposable {
 				this.addContext(context);
 			}
 			return;
+		} else {
+			this.addContext(this.asFileVariableEntry(uri, range));
 		}
-
-		this.addContext(this.asVariableEntry(uri, range));
 	}
 
 	addFolder(uri: URI) {
@@ -98,27 +85,15 @@ export class ChatAttachmentModel extends Disposable {
 		});
 	}
 
-	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
-		return {
-			kind: 'file',
-			value: range ? { uri, range } : uri,
-			id: uri.toString() + (range?.toString() ?? ''),
-			name: basename(uri),
-		};
-	}
+	clear(clearStickyAttachments: boolean = false): void {
+		const deleted = Array.from(this._attachments.keys());
+		this._attachments.clear();
 
-	// Gets an image variable for a given URI, which may be a file or a web URL
-	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
-		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
-			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
-		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
-			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
-			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
-			}
+		if (clearStickyAttachments) {
+			this.promptInstructions.clear();
 		}
 
-		return undefined;
+		this._onDidChange.fire({ deleted, added: [], updated: [] });
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
@@ -133,6 +108,7 @@ export class ChatAttachmentModel extends Disposable {
 	delete(...variableEntryIds: string[]) {
 		this.updateContent(variableEntryIds, Iterable.empty());
 	}
+
 	updateContent(toDelete: Iterable<string>, upsert: Iterable<IChatRequestVariableEntry>) {
 		const deleted: string[] = [];
 		const added: IChatRequestVariableEntry[] = [];
@@ -167,4 +143,30 @@ export class ChatAttachmentModel extends Disposable {
 			this._onDidChange.fire({ deleted, added, updated });
 		}
 	}
+
+	// ---- create utils
+
+	asFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileEntry {
+		return {
+			kind: 'file',
+			value: range ? { uri, range } : uri,
+			id: uri.toString() + (range?.toString() ?? ''),
+			name: basename(uri),
+		};
+	}
+
+	// Gets an image variable for a given URI, which may be a file or a web URL
+	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
+		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
+			return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri);
+		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
+			if (extractedImages) {
+				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
+			}
+		}
+
+		return undefined;
+	}
+
 }

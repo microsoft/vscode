@@ -63,16 +63,16 @@ suite('PromptFilesLocator', () => {
 		return;
 	}
 
-	let initService: TestInstantiationService;
+	let instantiationService: TestInstantiationService;
 	setup(async () => {
-		initService = disposables.add(new TestInstantiationService());
-		initService.stub(ILogService, new NullLogService());
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 
-		const fileService = disposables.add(initService.createInstance(FileService));
+		const fileService = disposables.add(instantiationService.createInstance(FileService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
-		initService.stub(IFileService, fileService);
+		instantiationService.stub(IFileService, fileService);
 	});
 
 	/**
@@ -84,9 +84,9 @@ suite('PromptFilesLocator', () => {
 		workspaceFolderPaths: string[],
 		filesystem: IMockFolder[],
 	): Promise<PromptFilesLocator> => {
-		await (initService.createInstance(MockFilesystem, filesystem)).mock();
+		await (instantiationService.createInstance(MockFilesystem, filesystem)).mock();
 
-		initService.stub(IConfigurationService, mockConfigService(configValue));
+		instantiationService.stub(IConfigurationService, mockConfigService(configValue));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = createURI(path);
@@ -97,9 +97,9 @@ suite('PromptFilesLocator', () => {
 				index,
 			});
 		});
-		initService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 
-		return initService.createInstance(PromptFilesLocator);
+		return instantiationService.createInstance(PromptFilesLocator);
 	};
 
 	suite('• empty workspace', () => {

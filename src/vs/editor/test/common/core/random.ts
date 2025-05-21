@@ -5,7 +5,7 @@
 
 import { numberComparator } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { OffsetEdit, SingleOffsetEdit } from '../../../common/core/edits/offsetEdit.js';
+import { StringEdit, StringReplacement } from '../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
@@ -85,8 +85,8 @@ export abstract class Random {
 		return new TextEdit(singleTextEdits).normalize();
 	}
 
-	public nextOffsetEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): OffsetEdit {
-		const singleTextEdits: SingleOffsetEdit[] = [];
+	public nextStringEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): StringEdit {
+		const singleTextEdits: StringReplacement[] = [];
 
 		const positions = this.nextConsecutiveOffsets(new OffsetRange(0, target.length), singleTextEditCount * 2);
 
@@ -97,15 +97,15 @@ export abstract class Random {
 
 			const newTextLen = this.nextIntRange(range.isEmpty ? 1 : 0, 10);
 			const newText = this.nextString(newTextLen, this.stringGenerator(newTextAlphabet));
-			singleTextEdits.push(new SingleOffsetEdit(range, newText));
+			singleTextEdits.push(new StringReplacement(range, newText));
 		}
 
-		return new OffsetEdit(singleTextEdits).normalize();
+		return new StringEdit(singleTextEdits).normalize();
 	}
 
-	public nextSingleOffsetEdit(target: string, newTextAlphabet = Random.basicAlphabetMultiline): SingleOffsetEdit {
-		const edit = this.nextOffsetEdit(target, 1, newTextAlphabet);
-		return edit.edits[0];
+	public nextSingleStringEdit(target: string, newTextAlphabet = Random.basicAlphabetMultiline): StringReplacement {
+		const edit = this.nextStringEdit(target, 1, newTextAlphabet);
+		return edit.replacements[0];
 	}
 }
 

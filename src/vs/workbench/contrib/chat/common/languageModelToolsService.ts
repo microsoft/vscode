@@ -38,7 +38,6 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	alwaysDisplayInputOutput?: boolean;
-	supportsToolPicker?: boolean;
 }
 
 export interface IToolProgressStep {

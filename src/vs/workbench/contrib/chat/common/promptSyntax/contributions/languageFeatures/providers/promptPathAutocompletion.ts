@@ -16,8 +16,8 @@
 
 import { IPromptsService } from '../../../service/types.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
+import { isOneOf } from '../../../../../../../../base/common/types.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
-import { assertOneOf } from '../../../../../../../../base/common/types.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../../../base/common/errors.js';
@@ -127,9 +127,8 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		assertOneOf(
-			triggerCharacter,
-			this.triggerCharacters,
+		assert(
+			isOneOf(triggerCharacter, this.triggerCharacters),
 			`Prompt path autocompletion provider`,
 		);
 

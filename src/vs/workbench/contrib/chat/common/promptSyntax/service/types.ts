@@ -149,7 +149,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -163,6 +163,11 @@ export interface IPromptsService extends IDisposable {
 	findInstructionFilesFor(
 		fileUris: readonly URI[],
 	): Promise<readonly URI[]>;
+
+	/**
+	 * Gets the metadata for the given prompt file uri.
+	 */
+	getMetadata(promptFileUri: URI): Promise<IMetadata>;
 
 	/**
 	 * Get all metadata for entire prompt references tree

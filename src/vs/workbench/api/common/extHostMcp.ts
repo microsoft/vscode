@@ -16,6 +16,9 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
+import { getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { URI } from '../../../base/common/uri.js';
+import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -180,6 +183,13 @@ class McpHTTPHandle extends Disposable {
 	private _mode: HttpModeT = { value: HttpMode.Unknown };
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
+	private _authMetadata?: {
+		issuer: string;
+		authorizationEndpoint: string;
+		tokenEndpoint: string;
+		registrationEndpoint: string;
+		scopesSupported: string[];
+	};
 
 	constructor(
 		private readonly _id: number,
@@ -228,12 +238,43 @@ class McpHTTPHandle extends Disposable {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
 
-		const res = await fetch(this._launch.uri.toString(true), {
-			method: 'POST',
-			signal: this._abortCtrl.signal,
-			headers,
-			body: asBytes,
-		});
+		if (this._authMetadata) {
+			try {
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+				}
+			} catch (e) {
+				// TODO log?
+				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
+			}
+		}
+
+		const doFetch = () => fetch(
+			this._launch.uri.toString(true),
+			{
+				method: 'POST',
+				signal: this._abortCtrl.signal,
+				headers,
+				body: asBytes,
+			}
+		);
+
+		let res = await doFetch();
+		if (res.status === 401) {
+			if (!this._authMetadata) {
+				await this._populateAuthMetadata(res);
+				if (this._authMetadata) {
+					try {
+						const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+						headers['Authorization'] = `Bearer ${token}`;
+						res = await doFetch();
+					} catch (e) {
+						// TODO log?
+					}
+				}
+			}
+		}
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
 
@@ -257,7 +298,7 @@ class McpHTTPHandle extends Disposable {
 			// "When a client receives HTTP 404 in response to a request containing an Mcp-Session-Id, it MUST start a new session by sending a new InitializeRequest without a session ID attached"
 			// Though this says only 404, some servers send 400s as well, including their example
 			// https://github.com/modelcontextprotocol/typescript-sdk/issues/389
-			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId;
+			const retryWithSessionId = this._mode.value === HttpMode.Http && !!this._mode.sessionId && (res.status === 400 || res.status === 404);
 
 			this._proxy.$onDidChangeState(this._id, {
 				state: McpConnectionState.Kind.Error,
@@ -276,6 +317,137 @@ class McpHTTPHandle extends Disposable {
 
 		// Not awaited, we don't need to block the sequencer while we read the response
 		this._handleSuccessfulStreamableHttp(res);
+	}
+
+	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
+		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
+		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
+		let resourceMetadataChallenge: string | undefined;
+		if (originalResponse.headers.has('WWW-Authenticate')) {
+			const authHeader = originalResponse.headers.get('WWW-Authenticate')!;
+			const { scheme, params } = parseWWWAuthenticateHeader(authHeader);
+			if (scheme === 'Bearer' && params['resource_metadata']) {
+				resourceMetadataChallenge = params['resource_metadata'];
+			}
+		}
+		// Second, fetch that url's well-known server metadata
+		let serverMetadataUrl: string | undefined;
+		let scopesSupported: string[] | undefined;
+		if (resourceMetadataChallenge) {
+			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
+			// TODO:@TylerLeonhardt support multiple authorization servers
+			// Consider using one that has an auth provider first, over the dynamic flow
+			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
+			scopesSupported = resourceMetadata.scopes_supported;
+		}
+
+		const baseUrl = new URL(originalResponse.url).origin;
+
+		// If we are not given a resource_metadata, see if the well-known server metadata is available
+		// on the base url.
+		let addtionalHeaders: Record<string, string> = {};
+		if (!serverMetadataUrl) {
+			serverMetadataUrl = baseUrl;
+			// Maintain the launch headers when talking to the MCP origin.
+			addtionalHeaders = {
+				...Object.fromEntries(this._launch.headers)
+			};
+		}
+		try {
+			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
+			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
+			this._authMetadata = {
+				// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
+				// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
+				// literally... it contains `{tenant}`... instead of `organizations`. This may change our
+				// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
+				// as the isser.
+				issuer: serverMetadataUrl,
+				authorizationEndpoint: serverMetadataWithDefaults.authorization_endpoint,
+				tokenEndpoint: serverMetadataWithDefaults.token_endpoint,
+				registrationEndpoint: serverMetadataWithDefaults.registration_endpoint,
+				scopesSupported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported ?? [],
+			};
+			return;
+		} catch (e) {
+			this._log(LogLevel.Warning, `Error populating auth metadata: ${String(e)}`);
+		}
+
+		// If there's no well-known server metadata, then use the default values based off of the url.
+		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
+		this._authMetadata = {
+			issuer: defaultMetadata.issuer,
+			authorizationEndpoint: defaultMetadata.authorization_endpoint,
+			tokenEndpoint: defaultMetadata.token_endpoint,
+			registrationEndpoint: defaultMetadata.registration_endpoint,
+			scopesSupported: scopesSupported ?? defaultMetadata.scopes_supported ?? []
+		};
+	}
+
+	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
+		// detect if the resourceMetadata, which is a URL, is in the same origin as the MCP server
+		const resourceMetadataUrl = new URL(resourceMetadata);
+		const mcpServerUrl = new URL(this._launch.uri.toString(true));
+		let additionalHeaders: Record<string, string> = {};
+		if (resourceMetadataUrl.origin === mcpServerUrl.origin) {
+			additionalHeaders = {
+				...Object.fromEntries(this._launch.headers)
+			};
+		}
+		const resourceMetadataResponse = await fetch(resourceMetadata, {
+			method: 'GET',
+			signal: this._abortCtrl.signal,
+			headers: {
+				...additionalHeaders,
+				'Accept': 'application/json',
+				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+			}
+		});
+		if (resourceMetadataResponse.status !== 200) {
+			throw new Error(`Failed to fetch resource metadata: ${resourceMetadataResponse.status} ${await this._getErrText(resourceMetadataResponse)}`);
+		}
+		const body = await resourceMetadataResponse.json();
+		if (isAuthorizationProtectedResourceMetadata(body)) {
+			return body;
+		} else {
+			throw new Error(`Invalid resource metadata: ${JSON.stringify(body)}`);
+		}
+	}
+
+	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
+		const issuer = URI.parse(authorizationServer);
+		let authServerMetadataResponse = await fetch(URI.joinPath(issuer, '.well-known', 'oauth-authorization-server').toString(), {
+			method: 'GET',
+			signal: this._abortCtrl.signal,
+			headers: {
+				...addtionalHeaders,
+				'Accept': 'application/json',
+				'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION,
+			}
+		});
+		if (authServerMetadataResponse.status !== 200) {
+			// Try fetching the other discovery URL
+			authServerMetadataResponse = await fetch(
+				URI.joinPath(issuer, '.well-known', 'openid-configuration').toString(true),
+				{
+					method: 'GET',
+					signal: this._abortCtrl.signal,
+					headers: {
+						...addtionalHeaders,
+						'Accept': 'application/json',
+						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+					}
+				}
+			);
+			if (authServerMetadataResponse.status !== 200) {
+				throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+			}
+		}
+		const body = await authServerMetadataResponse.json();
+		if (isAuthorizationServerMetadata(body)) {
+			return body;
+		}
+		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
 	}
 
 	private async _handleSuccessfulStreamableHttp(res: Response) {

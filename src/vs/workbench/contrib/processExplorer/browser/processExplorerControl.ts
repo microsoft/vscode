@@ -170,6 +170,8 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 	readonly templateId: string = 'header';
 
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+
 		return createRow(container, 'header');
 	}
 
@@ -178,10 +180,6 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 		templateData.cpu.textContent = localize('processCpu', "CPU (%)");
 		templateData.pid.textContent = localize('processPid', "PID");
 		templateData.memory.textContent = localize('processMemory', "Memory (MB)");
-	}
-
-	renderTwistie(element: IProcessInformation, twistieElement: HTMLElement): boolean {
-		return false;
 	}
 
 	disposeTemplate(templateData: unknown): void {

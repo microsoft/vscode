@@ -6,7 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { autorunWithStore } from '../../../../../../base/common/observable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IChatProgressMessage } from '../../../common/chatService.js';
@@ -39,9 +39,9 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		} else {
 			const container = document.createElement('div');
 			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.progress : undefined;
-			this._register(autorunWithStore((reader, store) => {
+			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
-				const part = store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
+				const part = reader.store.add(this.renderProgressContent(progress?.message || this.toolInvocation.invocationMessage));
 				dom.reset(container, part.domNode);
 			}));
 			return container;
