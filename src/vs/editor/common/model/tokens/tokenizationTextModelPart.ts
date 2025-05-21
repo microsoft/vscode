@@ -26,7 +26,7 @@ import { SparseTokensStore } from '../../tokens/sparseTokensStore.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { TokenizerTokens } from './tokenizerTokens.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -42,7 +42,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 	public readonly tokens: IObservable<AbstractTokens>;
 	private readonly _useTreeSitter: IObservable<boolean>;
-	private readonly _languageIdObs: IObservable<string>;
+	private readonly _languageIdObs: ISettableObservable<string>;
 
 	constructor(
 		private readonly _textModel: TextModel,
