@@ -85,10 +85,6 @@ suite('LspTerminalModelContentProvider', () => {
 	});
 
 	suite('setContent', () => {
-		// Test itself fails when using `ensureNoDisposablesAreLeakedInTestSuite` even though assert is true because of 'disposable leak'
-		// Weird part is I am registering in lspTerminalModelContentProvider into disposables.
-		// Perhaps this is because lspTerminalModelContentProvider is added disposed in terminal.suggest.contribution.ts
-
 		test('should not call setValue if content is "exit()"', () => {
 			lspTerminalModelContentProvider.setContent('exit()');
 			assert.strictEqual(setValueSpy.called, false);
