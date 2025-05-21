@@ -83,6 +83,9 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 	const endsWithSpace = prefix.endsWith(' ');
 
 	if (endsWithSpace) {
+		// Case where user is triggering completion with space:
+		// For example, typing `import  ` to request completion for list of modules
+		// This is similar to completions we are used to seeing in upstream shell (such as typing `ls  ` inside bash).
 		const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
 		return {
 			label: label,
@@ -92,6 +95,8 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
 		};
 	} else {
+		// Case where user is triggering completion with dot:
+		// For example, typing `pathlib.` to request completion for list of methods, attributes from the pathlib module.
 		const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
 		return {
 			label,
