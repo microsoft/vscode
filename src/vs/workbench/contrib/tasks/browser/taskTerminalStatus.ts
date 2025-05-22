@@ -13,6 +13,7 @@ import { ITaskService, Task } from '../common/taskService.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { problemsErrorIconForeground, problemsWarningIconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IMarker } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ITerminalStatus } from '../../terminal/common/terminal.js';
@@ -30,10 +31,10 @@ const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
 export const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: spinningLoading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
 export const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
 const SUCCEEDED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeededInactive', "Task succeeded and waiting...") };
-export const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
-const FAILED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errorsInactive', "Task has errors and is waiting...") };
-const WARNING_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.warning, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warnings', "Task has warnings") };
-const WARNING_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.warning, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warningsInactive', "Task has warnings and is waiting...") };
+export const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: { ...Codicon.error, color: { id: problemsErrorIconForeground } }, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
+const FAILED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: { ...Codicon.error, color: { id: problemsErrorIconForeground } }, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errorsInactive', "Task has errors and is waiting...") };
+const WARNING_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: { ...Codicon.warning, color: { id: problemsWarningIconForeground } }, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warnings', "Task has warnings") };
+const WARNING_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: { ...Codicon.warning, color: { id: problemsWarningIconForeground } }, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.warningsInactive', "Task has warnings and is waiting...") };
 const INFO_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infos', "Task has infos") };
 const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.info, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.infosInactive', "Task has infos and is waiting...") };
 
@@ -106,8 +107,14 @@ export class TaskTerminalStatus extends Disposable {
 		} else if (event.exitCode || (terminalData.problemMatcher.maxMarkerSeverity !== undefined && terminalData.problemMatcher.maxMarkerSeverity >= MarkerSeverity.Warning)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
+			if (terminalData.terminal.hasFocus) {
+				terminalData.terminal.changeColor?.(problemsErrorIconForeground, true); // works but stays red even when focused/hover
+			}
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
+			if (terminalData.terminal.hasFocus) {
+				terminalData.terminal.changeColor?.(problemsWarningIconForeground, true); // works but stays red even when focused/hover
+			}
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Info) {
 			terminalData.terminal.statusList.add(INFO_TASK_STATUS);
 		}
@@ -125,8 +132,16 @@ export class TaskTerminalStatus extends Disposable {
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_INACTIVE_TASK_STATUS);
+			terminalData.terminal.changeColor?.(problemsErrorIconForeground, true); // works but stays red even when focused/hover
+			// if (terminalData.terminal.hasFocus) { // this doesnt work
+			// 	terminalData.terminal.changeColor?.(problemsErrorIconForeground, true);
+			// }
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_INACTIVE_TASK_STATUS);
+			terminalData.terminal.changeColor?.(problemsWarningIconForeground, true); // works but stays red even when focused/hover
+			// if (terminalData.terminal.hasFocus) { // this doesnt work
+			// 	terminalData.terminal.changeColor?.(problemsErrorIconForeground, true);
+			// }
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Info) {
 			terminalData.terminal.statusList.add(INFO_INACTIVE_TASK_STATUS);
 		}
