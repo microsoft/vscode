@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isLinux, isMacintosh } from '../../../../base/common/platform.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -199,9 +199,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
-		'chat.focusWindowOnConfirmation': {
+		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
+			included: !isLinux, // Linux does not have a mechanism for this
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed."),
 			default: true,
 		},
 		'chat.tools.autoApprove': {
