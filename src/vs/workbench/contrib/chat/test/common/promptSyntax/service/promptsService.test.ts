@@ -26,7 +26,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../../platform/prompts/common/constants.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
@@ -721,33 +721,33 @@ suite('PromptsService', () => {
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 				]));
 
@@ -900,33 +900,33 @@ suite('PromptsService', () => {
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 				]));
 

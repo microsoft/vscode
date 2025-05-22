@@ -23,7 +23,7 @@ import { IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatCo
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { getCleanPromptName, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { compare } from '../../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../../base/common/resources.js';
@@ -131,17 +131,17 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles('instructions');
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.instructions);
 		const placeholder = localize(
 			'commands.instructions.select-dialog.placeholder',
 			'Select instructions files to attach',
 		);
 
-		const instructions = await pickers.selectInstructionsFiles({ promptFiles, resource, placeholder });
+		const result = await pickers.selectPromptFile({ promptFiles, resource, placeholder, type: PromptsType.instructions });
 
-		if (instructions !== undefined) {
+		if (result !== undefined) {
 			const widget = await attachInstructionsFiles(
-				instructions,
+				[result.promptFile],
 				attachOptions,
 			);
 			widget.focusInput();
@@ -203,7 +203,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> | ((query: string, token: CancellationToken) => Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>) } {
 
-		const picks = this.promptsService.listPromptFiles('instructions').then(value => {
+		const picks = this.promptsService.listPromptFiles(PromptsType.instructions).then(value => {
 
 			const result: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
 
