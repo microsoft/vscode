@@ -2828,12 +2828,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
+		let listViewOffset = 0;
+		if (this._dimension) {
+			listViewOffset = (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0) + (this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0);
+		}
+
 		return {
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
 			fontInfo: this._fontInfo!,
-			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0
+			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0,
+			listViewOffsetTop: listViewOffset
 		};
 	}
 
