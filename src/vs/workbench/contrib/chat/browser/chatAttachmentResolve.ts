@@ -116,17 +116,23 @@ export type ImageTransferData = {
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
-export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer): Promise<IChatRequestVariableEntry | undefined> {
+export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
 	if (!resource) {
 		return undefined;
 	}
 
-	const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
-	if (!match) {
-		return undefined;
-	}
+	if (mimeType) {
+		if (!getAttachableImageExtension(mimeType)) {
+			return undefined;
+		}
+	} else {
+		const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
+		if (!match) {
+			return undefined;
+		}
 
-	const mimeType = getMimeTypeFromPath(match);
+		mimeType = getMimeTypeFromPath(match);
+	}
 	const fileName = basename(resource);
 
 	let dataBuffer: VSBuffer | undefined;

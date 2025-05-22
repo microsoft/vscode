@@ -30,6 +30,7 @@ import { ICodeEditorService } from '../../../../../../editor/browser/services/co
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -208,14 +209,14 @@ class RunSelectedPromptAction extends Action2 {
 		const pickers = instaService.createInstance(PromptFilePickers);
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles('prompt');
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.prompt);
 		const placeholder = localize(
 			'commands.prompt.select-dialog.placeholder',
 			'Select the prompt file to run (hold {0}-key to use in new chat)',
 			UILabelProvider.modifierLabels[OS].ctrlKey
 		);
 
-		const result = await pickers.selectPromptFile({ promptFiles, placeholder });
+		const result = await pickers.selectPromptFile({ promptFiles, placeholder, type: PromptsType.prompt });
 
 		if (result === undefined) {
 			return;
