@@ -127,7 +127,6 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	}
 
 	// Get all dimensions
-	// const cellEditorHeight = cell.layoutInfo.editorHeight;
 	const cellEditorScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
 	const cellEditorScrollBottom = cellEditorScrollTop + cell.layoutInfo.outputContainerOffset;
 
@@ -141,7 +140,8 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	const totalHeight = cell.layoutInfo.totalHeight;
 
 	const isFullyVisible = cellEditorScrollTop >= notebookEditor.scrollTop && cellOutputScrollBottom <= notebookEditor.scrollBottom;
-	const isEditorBottomVisible = (cellEditorScrollBottom - 25) >= notebookEditor.scrollTop; // 25 is padding for the cell status bar
+	const isEditorBottomVisible = ((cellEditorScrollBottom - 25 /* padding for the cell status bar */) >= notebookEditor.scrollTop) &&
+		((cellEditorScrollBottom + 25 /* padding to see a sliver of the beginning of outputs */) <= notebookEditor.scrollBottom);
 
 	// Common scrolling functions
 	const revealWithTopPadding = (position: number) => { notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING); };
