@@ -21,7 +21,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
-import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability } from '../common/mcpTypes.js';
+import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState } from '../common/mcpTypes.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
 
 export class McpResourcePickHelper {
@@ -240,6 +240,8 @@ export class McpResourcePickHelper {
 				})(),
 				server.resourceTemplates(cts.token).then(templates => {
 					writeInto.unshift(...templates);
+				}).catch(() => {
+					// no templat support, not rare
 				}),
 			]);
 		};
@@ -252,7 +254,11 @@ export class McpResourcePickHelper {
 
 			if (cap === undefined) {
 				cap = await new Promise(resolve => {
-					server.start();
+					server.start().then(state => {
+						if (state.state === McpConnectionState.Kind.Error || state.state === McpConnectionState.Kind.Stopped) {
+							resolve(undefined);
+						}
+					});
 					store.add(cts.token.onCancellationRequested(() => resolve(undefined)));
 					store.add(autorun(reader => {
 						const cap2 = server.capabilities.read(reader);
