@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -41,31 +40,34 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 			icon: Codicon.mcp,
 			asPicker: () => ({
 				placeholder: localize('mcp.addContext.placeholder', "Select MCP Resource..."),
-				picks: this._getResourcePicks(),
+				picks: (_query, token) => this._getResourcePicks(token),
 			}),
 		});
 	}
 
-	private _getResourcePicks() {
-		const cts = new CancellationTokenSource();
-		return new AsyncIterableObject<ChatContextPick[]>(publish => {
-			return this._helper.getPicks(servers => {
-				const picks: ChatContextPick[] = [];
-				for (const [server, resources] of servers) {
-					if (resources.length === 0) {
-						continue;
-					}
+	private _getResourcePicks(token: CancellationToken) {
+		const observable = observableValue<{ busy: boolean; picks: ChatContextPick[] }>(this, { busy: true, picks: [] });
 
-					picks.push(McpResourcePickHelper.sep(server));
-					for (const resource of resources) {
-						picks.push({
-							...McpResourcePickHelper.item(resource),
-							asAttachment: () => this._helper.toAttachment(resource),
-						});
-					}
+		this._helper.getPicks(servers => {
+			const picks: ChatContextPick[] = [];
+			for (const [server, resources] of servers) {
+				if (resources.length === 0) {
+					continue;
 				}
-				publish.emitOne(picks);
-			}, cts.token);
-		}, () => cts.dispose(true));
+
+				picks.push(McpResourcePickHelper.sep(server));
+				for (const resource of resources) {
+					picks.push({
+						...McpResourcePickHelper.item(resource),
+						asAttachment: () => this._helper.toAttachment(resource),
+					});
+				}
+			}
+			observable.set({ picks, busy: true }, undefined);
+		}, token).finally(() => {
+			observable.set({ busy: false, picks: observable.get().picks }, undefined);
+		});
+
+		return observable;
 	}
 }

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { cancellableIterable, DeferredPromise, isThenable, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertType, isAsyncIterable, isObject } from '../../../../../base/common/types.js';
+import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -512,35 +513,16 @@ export class AttachContextAction extends Action2 {
 
 			qp.items = items;
 			qp.busy = false;
-		} else if (isAsyncIterable(pickerConfig.picks)) {
-			for await (const items of cancellableIterable(pickerConfig.picks, cts.token)) {
-				qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
-			}
-			qp.busy = false;
 		} else {
+			const query = observableValue<string>('attachContext.query', qp.value);
+			store.add(qp.onDidChangeValue(() => query.set(qp.value, undefined)));
 
-			let typeCts: CancellationTokenSource | undefined;
-
-			const update = async () => {
-				assertType(typeof pickerConfig.picks === 'function');
-
-				if (typeCts) {
-					typeCts.cancel();
-					store.delete(typeCts);
-				}
-				typeCts = store.add(new CancellationTokenSource(cts.token));
-
-				try {
-					qp.busy = true;
-					const items = await raceCancellationError(pickerConfig.picks(qp.value, typeCts.token), typeCts.token);
-					qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
-				} finally {
-					qp.busy = false;
-				}
-			};
-
-			store.add(qp.onDidChangeValue(update));
-			update();
+			const picksObservable = pickerConfig.picks(query, cts.token);
+			store.add(autorun(reader => {
+				const { busy, picks } = picksObservable.read(reader);
+				qp.items = ([] as QuickPickItem[]).concat(picks, extraPicks);
+				qp.busy = busy;
+			}));
 		}
 
 		if (cts.token.isCancellationRequested) {

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { compare } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IChatWidget } from './chat.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { compare } from '../../../../base/common/strings.js';
+import { IChatWidget } from './chat.js';
 
 
 export interface IChatContextPickerPickItem {
@@ -50,11 +51,9 @@ export interface IChatContextPickerItem extends IChatContextItem {
 		/**
 		 * Picks that should either be:
 		 * - A promise that resolves to the picked items
-		 * - An async iterable that emits items as they are discovered. Note that
-		 *   each emission should include _all_ items to be displayed.
-		 * - A function that allows filtering items as they are queried
+		 * - A function that maps input query into items to display.
 		 */
-		readonly picks: Promise<ChatContextPick[]> | AsyncIterable<ChatContextPick[]> | ((query: string, token: CancellationToken) => Promise<ChatContextPick[]>);
+		readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
 	};
 }
 
