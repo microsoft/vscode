@@ -67,6 +67,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -581,7 +582,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IProductService));
 			});
 		}
 
@@ -602,7 +603,8 @@ class ChatSetup {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	skipDialog(): void {
@@ -671,9 +673,22 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'>('chat.setup.signInDialogVariant');
+		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown>('chat.setup.signInDialogVariant');
 
-		const buttons = this.getButtons();
+		const buttons = this.getButtons(dialogVariant);
+
+		let icon: ThemeIcon;
+		switch (dialogVariant) {
+			case 'brand-gh':
+				icon = Codicon.github;
+				break;
+			case 'brand-vsc':
+				icon = this.productService.quality === 'stable' ? Codicon.vscode : this.productService.quality === 'insider' ? Codicon.vscodeInsiders : Codicon.codeOss;
+				break;
+			default:
+				icon = Codicon.copilotLarge;
+				break;
+		}
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
@@ -683,7 +698,7 @@ class ChatSetup {
 				type: 'none',
 				extraClasses: coalesce(['chat-setup-dialog', dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined]),
 				detail: ' ', // workaround allowing us to render the message in large
-				icon: dialogVariant === 'brand-vsc' ? Codicon.vscode : Codicon.copilotLarge,
+				icon,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				disableCloseButton: true,
@@ -698,7 +713,7 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
@@ -717,6 +732,10 @@ class ChatSetup {
 					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { extraClasses: ['link-button'] }]
 				]);
 			}
+
+			if (supportAlternateProvider && variant === 'alt-first') {
+				[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
+			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 		}
@@ -726,12 +745,26 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'): string {
+	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return variant === 'brand-vsc' ? localize('signInVSC', "Sign in to use AI") : localize('signIn', "Sign in to use Copilot");
+			switch (variant) {
+				case 'brand-gh':
+					return localize('signInGH', "Sign in to use {0} Copilot", defaultChat.providerName);
+				case 'brand-vsc':
+					return localize('signInVSC', "Sign in to use AI");
+				default:
+					return localize('signIn', "Sign in to use Copilot");
+			}
 		}
 
-		return variant === 'brand-vsc' ? localize('vscAITitle', "Start using AI") : localize('copilotTitle', "Start using Copilot");
+		switch (variant) {
+			case 'brand-gh':
+				return localize('startUsingGh', "Start using {0} Copilot", defaultChat.providerName);
+			case 'brand-vsc':
+				return localize('startUsingVSC', "Start using AI");
+			default:
+				return localize('startUsing', "Start using Copilot");
+		}
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
@@ -740,7 +773,7 @@ class ChatSetup {
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// SKU Settings
-		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", defaultChat.providerName, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 
 		return element;
