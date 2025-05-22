@@ -347,7 +347,6 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			return;
 		}
 		this._tokenStore.update({ added: [], removed: [token] });
-		// this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 	}
 
 	dispose(): void {
