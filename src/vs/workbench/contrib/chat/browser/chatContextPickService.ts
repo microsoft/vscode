@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable, ObservablePromise } from '../../../../base/common/observable.js';
 import { compare } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
@@ -54,6 +54,26 @@ export interface IChatContextPickerItem extends IChatContextItem {
 		 * - A function that maps input query into items to display.
 		 */
 		readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
+	};
+}
+
+/**
+ * Helper for use in {@IChatContextPickerItem} that wraps a simple query->promise
+ * function into the requisite observable.
+ */
+export function picksWithPromiseFn(fn: (query: string, token: CancellationToken) => Promise<ChatContextPick[]>): (query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }> {
+	return (query, token) => {
+		const promise = derived(reader => {
+			const queryValue = query.read(reader);
+			const cts = new CancellationTokenSource(token);
+			reader.store.add(toDisposable(() => cts.dispose(true)));
+			return new ObservablePromise(fn(queryValue, cts.token));
+		});
+
+		return promise.map((value, reader) => {
+			const result = value.promiseResult.read(reader);
+			return { picks: result?.data || [], busy: result === undefined };
+		});
 	};
 }
 
