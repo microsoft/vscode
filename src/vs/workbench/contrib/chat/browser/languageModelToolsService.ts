@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getFocusedWindow } from '../../../../base/browser/dom.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -375,7 +375,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
-		const hasFocusedWindow = getFocusedWindow();
+		const hasFocusedWindow = getActiveDocument().hasFocus();
 		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
 		if (autoApproved) {
 			return;
