@@ -32,6 +32,7 @@ import { ExtHostLanguageModels, IExtHostLanguageModels } from './extHostLanguage
 import { IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration } from './extHostTerminalShellIntegration.js';
 import { ExtHostTesting, IExtHostTesting } from './extHostTesting.js';
 import { ExtHostMcpService, IExtHostMpcService } from './extHostMcp.js';
+import { ExtHostUrls, IExtHostUrlsService } from './extHostUrls.js';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
@@ -55,6 +56,7 @@ registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, Instant
 registerSingleton(IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration, InstantiationType.Eager);
 registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostWindow, ExtHostWindow, InstantiationType.Eager);
+registerSingleton(IExtHostUrlsService, ExtHostUrls, InstantiationType.Eager);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace, InstantiationType.Eager);
 registerSingleton(IExtHostSecretState, ExtHostSecretState, InstantiationType.Eager);
 registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs, InstantiationType.Eager);
