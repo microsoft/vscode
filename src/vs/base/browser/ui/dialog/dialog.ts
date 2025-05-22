@@ -5,7 +5,7 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
@@ -108,7 +108,11 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, () => this.element.focus())); // guide users back into the dialog if clicked elsewhere
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		if (options.alignment === DialogContentsAlignment.Vertical) {

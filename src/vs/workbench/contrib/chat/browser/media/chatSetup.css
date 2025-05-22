@@ -49,11 +49,6 @@
 		color: var(--vscode-descriptionForeground) !important;
 	}
 
-	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:focus {
-		text-decoration: underline !important;
-		outline: none !important;
-	}
-
 	/* Footer */
 
 	.chat-setup-dialog-footer {
