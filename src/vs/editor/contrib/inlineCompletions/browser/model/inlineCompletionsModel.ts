@@ -34,7 +34,7 @@ import { IFeatureDebounceInformation } from '../../../../common/services/languag
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
@@ -802,7 +802,15 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
-			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
+
+			// The cursor should move to the end of the edit, not the end of the range provided by the extension
+			// Inline Edit diffs (human readable) the suggestion from the extension so it already removes common suffix/prefix
+			// Inline Completions does diff the suggestion so it may contain common suffix
+			let minimalEdits = edits;
+			if (state.kind === 'ghostText') {
+				minimalEdits = removeTextReplacementCommonSuffixPrefix(edits, this.textModel);
+			}
+			const selections = getEndPositionsAfterApplying(minimalEdits).map(p => Selection.fromPositions(p));
 
 			TextModelEditReason.editWithReason(this._getMetadata(completion), () => {
 				editor.executeEdits('inlineSuggestion.accept', [
