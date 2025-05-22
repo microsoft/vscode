@@ -29,8 +29,9 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerCacheState, McpServerTransportType, McpCapability } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerCacheState, McpServerTransportType, McpCapability, IMcpResourceTemplate } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -398,6 +399,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		}, () => cts.dispose(true));
 	}
 
+	public resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]> {
+		return McpServer.callOn(this, async (handler) => {
+			const templates = await handler.listResourceTemplates({}, token);
+			return templates.map(t => new McpResourceTemplate(this, t));
+		}, token);
+	}
+
 	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
@@ -651,6 +659,14 @@ class McpPrompt implements IMcpPrompt {
 		const result = await McpServer.callOn(this._server, h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
 		return result.messages;
 	}
+
+	async complete(argument: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/prompt', name: this._definition.name },
+			argument: { name: argument, value: prefix, }
+		}, token), token);
+		return result.completion.values;
+	}
 }
 
 function encodeCapabilities(cap: MCP.ServerCapabilities): McpCapability {
@@ -785,5 +801,35 @@ class McpResource implements IMcpResource {
 		this.description = original.description;
 		this.mimeType = original.mimeType;
 		this.sizeInBytes = original.size;
+	}
+}
+
+class McpResourceTemplate implements IMcpResourceTemplate {
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly template: UriTemplate;
+
+	constructor(
+		private readonly _server: McpServer,
+		private readonly _definition: MCP.ResourceTemplate,
+	) {
+		this.name = _definition.name;
+		this.description = _definition.description;
+		this.mimeType = _definition.mimeType;
+		this.template = UriTemplate.parse(_definition.uriTemplate);
+	}
+
+	public resolveURI(vars: Record<string, unknown>): URI {
+		const serverUri = this.template.resolve(vars);
+		return McpResourceURI.fromServer(this._server.definition, serverUri);
+	}
+
+	async complete(templatePart: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/resource', uri: this._definition.uriTemplate },
+			argument: { name: templatePart, value: prefix, }
+		}, token), token);
+		return result.completion.values;
 	}
 }
