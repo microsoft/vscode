@@ -103,7 +103,7 @@ export class TaskTerminalStatus extends Disposable {
 			} else {
 				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 			}
-		} else if (event.exitCode || (terminalData.problemMatcher.maxMarkerSeverity !== undefined && terminalData.problemMatcher.maxMarkerSeverity >= MarkerSeverity.Warning)) {
+		} else if (event.exitCode || (terminalData.problemMatcher.maxMarkerSeverity !== undefined && terminalData.problemMatcher.maxMarkerSeverity > MarkerSeverity.Warning)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
