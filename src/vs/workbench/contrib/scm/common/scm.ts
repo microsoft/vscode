@@ -239,6 +239,9 @@ export interface ISCMViewService {
 	 */
 	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
+
+	readonly viewMode: IObservable<ViewMode>;
+	setViewMode(viewMode: ViewMode): void;
 }
 
 export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
