@@ -259,11 +259,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, skip: options.skip };
 			}
 
-			if (typeof options.filterText === 'string' && options.filterText !== '') {
-				logOptions = { ...logOptions, grep: options.filterText };
-			}
-
-			const commits = await this.repository.log({ ...logOptions, silent: true });
+			const commits = typeof options.filterText === 'string' && options.filterText !== ''
+				? await this._searchHistoryItems(options.filterText.trim(), logOptions)
+				: await this.repository.log({ ...logOptions, silent: true });
 
 			// Avatars
 			const avatarQuery = {
@@ -461,6 +459,33 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
 		}
+	}
+
+	private async _searchHistoryItems(filterText: string, options: LogOptions): Promise<Commit[]> {
+		const commits = new Map<string, Commit>();
+
+		// If the filter text contains any spaces, convert it into a
+		// regular expression to search for all words in the commit message
+		// const grep = filterText.indexOf(' ') !== -1
+		// 	? [filterText, ...filterText.split(' ')]
+		// 	: [filterText];
+
+		// Search by author and commit message in parallel
+		const [authorResults, grepResults] = await Promise.all([
+			this.repository.log({ ...options, refNames: undefined, author: filterText, silent: true }),
+			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true })
+		]);
+
+		console.log(`authorResults: ${authorResults.length}`);
+		console.log(`grepResults: ${grepResults.length}`);
+
+		for (const commit of [...authorResults, ...grepResults]) {
+			if (!commits.has(commit.hash)) {
+				commits.set(commit.hash, commit);
+			}
+		}
+
+		return Array.from(commits.values());
 	}
 
 	private toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {

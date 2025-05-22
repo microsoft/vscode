@@ -499,6 +499,7 @@ export class AttachContextAction extends Action2 {
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;
+		console.log('busy');
 		qp.show();
 
 		if (isThenable(pickerConfig.picks)) {
@@ -508,6 +509,7 @@ export class AttachContextAction extends Action2 {
 
 			qp.items = items;
 			qp.busy = false;
+			console.log('not busy');
 		} else {
 
 			let cts: CancellationTokenSource | undefined;
@@ -523,10 +525,12 @@ export class AttachContextAction extends Action2 {
 
 				try {
 					qp.busy = true;
+					console.log('busy (update)');
 					const items = await raceCancellationError(pickerConfig.picks(qp.value, cts.token), cts.token);
 					qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
 				} finally {
 					qp.busy = false;
+					console.log('not busy (update)');
 				}
 			};
 
