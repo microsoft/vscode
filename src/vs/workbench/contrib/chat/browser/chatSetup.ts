@@ -673,7 +673,7 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'>('chat.setup.signInDialogVariant');
+		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown>('chat.setup.signInDialogVariant');
 
 		const buttons = this.getButtons(dialogVariant);
 
@@ -687,6 +687,7 @@ class ChatSetup {
 				break;
 			default:
 				icon = Codicon.copilotLarge;
+				break;
 		}
 
 		const dialog = disposables.add(new Dialog(
@@ -712,7 +713,7 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
@@ -744,7 +745,7 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'): string {
+	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			switch (variant) {
 				case 'brand-gh':
