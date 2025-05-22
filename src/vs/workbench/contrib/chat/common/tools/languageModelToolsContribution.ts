@@ -7,6 +7,7 @@ import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { transaction } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -342,9 +343,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, toolReferenceName: toolSet.referenceName, description: toolSet.description }
 					);
 
-					store.add(obj);
-					tools.forEach(tool => store.add(obj.addTool(tool)));
-					toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet)));
+					transaction(tx => {
+						store.add(obj);
+						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
+						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
+					});
 
 					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable } from '../observable.js';
+import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
 
 export class ObservableMap<K, V> implements Map<K, V> {
 	private readonly _data = new Map<K, V>();
@@ -24,28 +24,28 @@ export class ObservableMap<K, V> implements Map<K, V> {
 		return this._data.get(key);
 	}
 
-	set(key: K, value: V): this {
+	set(key: K, value: V, tx?: ITransaction): this {
 		const hadKey = this._data.has(key);
 		const oldValue = this._data.get(key);
 		if (!hadKey || oldValue !== value) {
 			this._data.set(key, value);
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 		return this;
 	}
 
-	delete(key: K): boolean {
+	delete(key: K, tx?: ITransaction): boolean {
 		const result = this._data.delete(key);
 		if (result) {
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 		return result;
 	}
 
-	clear(): void {
+	clear(tx?: ITransaction): void {
 		if (this._data.size > 0) {
 			this._data.clear();
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 	}
 

@@ -7,7 +7,7 @@ import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableFromEvent, observableSignalFromEvent, autorun } from '../../../../../base/common/observable.js';
+import { observableFromEvent, observableSignalFromEvent, autorun, transaction } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -256,9 +256,11 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						}
 					);
 
-					tools.forEach(tool => store.add(toolset.addTool(tool)));
-					toolSets.forEach(toolSet => store.add(toolset.addToolSet(toolSet)));
-					store.add(toolset);
+					transaction(tx => {
+						store.add(toolset);
+						tools.forEach(tool => store.add(toolset.addTool(tool, tx)));
+						toolSets.forEach(toolSet => store.add(toolset.addToolSet(toolSet, tx)));
+					});
 				}
 			}
 		}));

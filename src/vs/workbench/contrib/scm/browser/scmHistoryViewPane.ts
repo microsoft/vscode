@@ -242,6 +242,40 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	}
 });
 
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.setListViewMode',
+			title: localize('setListViewMode', "View as List"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.List),
+			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 1 },
+			f1: false
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.setViewMode(ViewMode.List);
+	}
+});
+
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.setTreeViewMode',
+			title: localize('setTreeViewMode', "View as Tree"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.Tree),
+			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 2 },
+			f1: false
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.setViewMode(ViewMode.Tree);
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -323,7 +357,6 @@ registerAction2(class extends Action2 {
 		});
 	}
 });
-
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
@@ -935,6 +968,7 @@ class SCMHistoryViewModel extends Disposable {
 	private readonly _repositoryFilterState = new Map<string, HistoryItemRefsFilter>();
 
 	private readonly _scmHistoryItemCountCtx: IContextKey<number>;
+	private readonly _scmHistoryViewModeCtx: IContextKey<ViewMode>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -949,13 +983,12 @@ class SCMHistoryViewModel extends Disposable {
 		this._repositoryFilterState = this._loadHistoryItemsFilterState();
 		this.viewMode = observableValue<ViewMode>(this, this._getViewMode());
 
-		const onDidChangeViewMode = this._storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.viewMode', this._store);
-		this._store.add(onDidChangeViewMode(e => this.viewMode.set(this._getViewMode(), undefined)));
-
 		this._extensionService.onWillStop(this._saveHistoryItemsFilterState, this, this._store);
 		this._storageService.onWillSaveState(this._saveHistoryItemsFilterState, this, this._store);
 
 		this._scmHistoryItemCountCtx = ContextKeys.SCMHistoryItemCount.bindTo(this._contextKeyService);
+		this._scmHistoryViewModeCtx = ContextKeys.SCMHistoryViewMode.bindTo(this._contextKeyService);
+		this._scmHistoryViewModeCtx.set(this.viewMode.get());
 
 		const firstRepository = this._scmService.repositoryCount > 0
 			? constObservable(Iterable.first(this._scmService.repositories))
@@ -1118,16 +1151,25 @@ class SCMHistoryViewModel extends Disposable {
 		this.onDidChangeHistoryItemsFilter.trigger(undefined);
 	}
 
+	setViewMode(viewMode: ViewMode): void {
+		if (viewMode === this.viewMode.get()) {
+			return;
+		}
+
+		this.viewMode.set(viewMode, undefined);
+		this._scmHistoryViewModeCtx.set(viewMode);
+		this._storageService.store('scm.graphView.viewMode', viewMode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
 	private _getViewMode(): ViewMode {
 		let mode = this._configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
-		const storageMode = this._storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewMode;
+		const storageMode = this._storageService.get('scm.graphView.viewMode', StorageScope.WORKSPACE) as ViewMode;
 		if (typeof storageMode === 'string') {
 			mode = storageMode;
 		}
 
 		return mode;
 	}
-
 
 	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | undefined> {
 		const repository = this.repository.get();
@@ -1711,6 +1753,10 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		// Reveal node
 		revealTreeNode();
+	}
+
+	setViewMode(viewMode: ViewMode): void {
+		this._treeViewModel.setViewMode(viewMode);
 	}
 
 	private _createTree(container: HTMLElement): void {
