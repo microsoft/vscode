@@ -60,6 +60,7 @@ const ModulesToLookFor = [
 	'azure',
 	'azure-storage',
 	'chroma',
+	'deepseek-js',
 	'faiss',
 	'firebase',
 	'@google-cloud/common',
