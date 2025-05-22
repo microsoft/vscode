@@ -181,22 +181,6 @@ export interface IPromptsService extends IDisposable {
 		promptUris: readonly URI[],
 	): Promise<readonly IMetadata[]>;
 
-	/**
-	 * Computes "combined" tools and chat mode metadata based on
-	 * all provided files and their respective child references
-	 * at the same time.
-	 *
-	 * For instance, the resulting {@link TCombinedToolsMetadata.mode}
-	 * is computed as the least-privileged chat mode that can satisfy
-	 * all the prompt files and their child references.
-	 *
-	 * On the other hand the resulting {@link TCombinedToolsMetadata.tools}
-	 * metadata is computed as a union of all tools metadata that all
-	 * prompt files and their child references specify.
-	 */
-	getCombinedToolsMetadata(
-		promptUris: readonly URI[],
-	): Promise<TCombinedToolsMetadata | null>;
 }
 
 export interface IChatPromptSlashCommand {
