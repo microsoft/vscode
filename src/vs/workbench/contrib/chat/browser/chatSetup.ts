@@ -732,10 +732,24 @@ class ChatSetup {
 
 	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return variant === 'brand-vsc' ? localize('signInVSC', "Sign in to use AI") : localize('signIn', "Sign in to use Copilot");
+			switch (variant) {
+				case 'brand-gh':
+					return localize('signInGH', "Sign in to use {0} Copilot", defaultChat.providerName);
+				case 'brand-vsc':
+					return localize('signInVSC', "Sign in to use AI");
+				default:
+					return localize('signIn', "Sign in to use Copilot");
+			}
 		}
 
-		return variant === 'brand-vsc' ? localize('vscAITitle', "Start using AI") : localize('copilotTitle', "Start using Copilot");
+		switch (variant) {
+			case 'brand-gh':
+				return localize('startUsingGh', "Start using {0} Copilot", defaultChat.providerName);
+			case 'brand-vsc':
+				return localize('startUsingVSC', "Start using AI");
+			default:
+				return localize('startUsing', "Start using Copilot");
+		}
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
@@ -744,7 +758,7 @@ class ChatSetup {
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// SKU Settings
-		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", defaultChat.providerName, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 
 		return element;
