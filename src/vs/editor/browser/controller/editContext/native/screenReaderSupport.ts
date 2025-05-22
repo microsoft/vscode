@@ -30,11 +30,11 @@ export class ScreenReaderSupport extends Disposable {
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
-	private _renderComplexScreenReaderContent: boolean | undefined;
+	private _renderComplexContent: boolean = false;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _screenReaderContent!: IScreenReaderContent;
+	private _state!: IScreenReaderContent;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -50,15 +50,15 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public onWillPaste(): void {
-		this._screenReaderContent.onWillPaste();
+		this._state.onWillPaste();
 	}
 
 	public onWillCut(): void {
-		this._screenReaderContent.onWillCut();
+		this._state.onWillCut();
 	}
 
 	public handleFocusChange(newFocusValue: boolean): void {
-		this._screenReaderContent.onFocusChange(newFocusValue);
+		this._state.onFocusChange(newFocusValue);
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
@@ -71,13 +71,13 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	private _instantiateScreenReaderContent(): void {
-		const renderComplexScreenReaderContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
-		if (this._renderComplexScreenReaderContent !== renderComplexScreenReaderContent) {
-			this._renderComplexScreenReaderContent = renderComplexScreenReaderContent;
-			if (renderComplexScreenReaderContent) {
-				this._screenReaderContent = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+		const renderComplexContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
+		if (this._renderComplexContent !== renderComplexContent) {
+			this._renderComplexContent = renderComplexContent;
+			if (renderComplexContent) {
+				this._state = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			} else {
-				this._screenReaderContent = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+				this._state = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			}
 		}
 	}
@@ -91,7 +91,7 @@ export class ScreenReaderSupport extends Disposable {
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
-		this._screenReaderContent.onConfigurationChanged(options);
+		this._state.onConfigurationChanged(options);
 	}
 
 	private _updateDomAttributes(): void {
@@ -184,6 +184,6 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public writeScreenReaderContent(): void {
-		this._screenReaderContent.setScreenReaderContent(this._primarySelection);
+		this._state.setScreenReaderContent(this._primarySelection);
 	}
 }

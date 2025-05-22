@@ -19,14 +19,14 @@ export interface IScreenReaderContent {
 	onWillPaste(): void;
 
 	/**
-	 * Handle configuration changes
-	 */
-	onConfigurationChanged(options: IComputedEditorOptions): void;
-
-	/**
 	 * Handle focus changes
 	 */
 	onFocusChange(newFocusValue: boolean): void;
+
+	/**
+	 * Handle configuration changes
+	 */
+	onConfigurationChanged(options: IComputedEditorOptions): void;
 
 	/**
 	 * Set the screen reader content given the selection. It will update the content and set the range within the screen reader content if needed.
