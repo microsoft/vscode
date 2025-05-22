@@ -31,6 +31,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { insertInto } from '../../../../base/common/arrays.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 namespace snippetExt {
 
@@ -75,8 +76,9 @@ namespace snippetExt {
 		}
 
 		const extensionLocation = extension.description.extensionLocation;
-		const snippetLocation = resources.joinPath(extensionLocation, snippet.path);
-		if (!resources.isEqualOrParent(snippetLocation, extensionLocation)) {
+		const isURI = /^(?<scheme>\w[\w\d+.-]*):/.test(snippet.path);
+		const snippetLocation = isURI ? URI.parse(snippet.path) : resources.joinPath(extensionLocation, snippet.path);
+		if (!isURI && !resources.isEqualOrParent(snippetLocation, extensionLocation)) {
 			extension.collector.error(localize(
 				'invalid.path.1',
 				"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
@@ -225,6 +227,7 @@ export class SnippetsService implements ISnippetsService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
@@ -384,7 +387,7 @@ export class SnippetsService implements ISnippetsService {
 							file.defaultScopes = [];
 						}
 					} else {
-						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService, this._extensionResourceLoaderService);
+						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService, this._extensionResourceLoaderService, this._textModelService);
 						this._files.set(file.location, file);
 
 						if (this._environmentService.isExtensionDevelopment) {
@@ -490,9 +493,9 @@ export class SnippetsService implements ISnippetsService {
 		const ext = resources.extname(uri);
 		if (source === SnippetSource.User && ext === '.json') {
 			const langName = resources.basename(uri).replace(/\.json/, '');
-			this._files.set(uri, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService));
+			this._files.set(uri, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService, this._textModelService));
 		} else if (ext === '.code-snippets') {
-			this._files.set(uri, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService));
+			this._files.set(uri, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService, this._textModelService));
 		}
 		return {
 			dispose: () => this._files.delete(uri)
