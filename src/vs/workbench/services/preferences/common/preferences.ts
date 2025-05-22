@@ -111,6 +111,7 @@ export interface ISearchResult {
 	filterMatches: ISettingMatch[];
 	exactMatch: boolean;
 	metadata?: IFilterMetadata;
+	providerName?: string;
 }
 
 export interface ISearchResultGroup {

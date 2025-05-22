@@ -1343,6 +1343,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
 	cursor: pointer;
 	border-style: solid;
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {

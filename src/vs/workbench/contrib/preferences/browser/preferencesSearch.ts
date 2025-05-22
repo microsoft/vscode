@@ -416,7 +416,8 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
-			exactMatch: false
+			exactMatch: false,
+			providerName: 'embeddings'
 		};
 	}
 
@@ -507,7 +508,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getTfIdfItems(token),
-			exactMatch: false
+			exactMatch: false,
+			providerName: 'tfIdf'
 		};
 	}
 
