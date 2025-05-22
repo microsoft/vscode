@@ -361,7 +361,7 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	suite('PagedScreenReaderStrategy', () => {
+	suite('SimplePagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));

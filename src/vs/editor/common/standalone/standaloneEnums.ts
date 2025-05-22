@@ -273,7 +273,7 @@ export enum EditorOption {
 	readOnly = 97,
 	readOnlyMessage = 98,
 	renameOnType = 99,
-	renderComplexScreenReaderContent = 100,
+	renderRichScreenReaderContent = 100,
 	renderControlCharacters = 101,
 	renderFinalNewline = 102,
 	renderLineHighlight = 103,

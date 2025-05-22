@@ -774,9 +774,9 @@ export interface IEditorOptions {
 	experimentalEditContextEnabled?: boolean;
 
 	/**
-	 * Controls whether we should render complex HTML screen reader content when the EditContext is enabled
+	 * Controls whether to render rich HTML screen reader content when the EditContext is enabled
 	 */
-	renderComplexScreenReaderContent?: boolean;
+	renderRichScreenReaderContent?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -5555,7 +5555,7 @@ export const enum EditorOption {
 	readOnly,
 	readOnlyMessage,
 	renameOnType,
-	renderComplexScreenReaderContent,
+	renderRichScreenReaderContent,
 	renderControlCharacters,
 	renderFinalNewline,
 	renderLineHighlight,
@@ -5887,10 +5887,10 @@ export const EditorOptions = {
 			included: platform.isChrome || platform.isEdge || platform.isNative
 		}
 	)),
-	renderComplexScreenReaderContent: register(new EditorBooleanOption(
-		EditorOption.renderComplexScreenReaderContent, 'renderComplexScreenReaderContent', product.quality !== 'stable',
+	renderRichScreenReaderContent: register(new EditorBooleanOption(
+		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', product.quality !== 'stable',
 		{
-			description: nls.localize('renderComplexScreenReaderContent', "Whether to render complex screen reader content when the `editor.experimentalEditContext` is enabled."),
+			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.experimentalEditContext` is enabled."),
 			included: (platform.isChrome || platform.isEdge || platform.isNative) && platform.isWindows
 		}
 	)),

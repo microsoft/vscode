@@ -30,7 +30,7 @@ export class ScreenReaderSupport extends Disposable {
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
-	private _renderComplexContent: boolean = false;
+	private _renderRichContent: boolean = false;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
@@ -71,10 +71,10 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	private _instantiateScreenReaderContent(): void {
-		const renderComplexContent = this._context.configuration.options.get(EditorOption.renderComplexScreenReaderContent);
-		if (this._renderComplexContent !== renderComplexContent) {
-			this._renderComplexContent = renderComplexContent;
-			if (renderComplexContent) {
+		const renderRichContent = this._context.configuration.options.get(EditorOption.renderRichScreenReaderContent);
+		if (this._renderRichContent !== renderRichContent) {
+			this._renderRichContent = renderRichContent;
+			if (renderRichContent) {
 				this._state = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			} else {
 				this._state = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
