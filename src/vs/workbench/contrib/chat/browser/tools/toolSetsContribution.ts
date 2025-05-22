@@ -156,12 +156,12 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			for (const tool of tools) {
 				if (tool.toolReferenceName && tool.canBeReferencedInPrompt) {
 					toolEnumValues.push(tool.toolReferenceName);
-					toolEnumDescriptions.push(localize('tooldesc', "{0} ({1})", tool.userDescription ?? tool.modelDescription, tool.source.label));
+					toolEnumDescriptions.push(localize('tooldesc', "{0} - {1}", tool.source.label, tool.userDescription ?? tool.modelDescription));
 				}
 			}
 			for (const toolSet of toolSets) {
 				toolEnumValues.push(toolSet.toolReferenceName);
-				toolEnumDescriptions.push(localize('toolsetdesc', "{0} ({1})", toolSet.description ?? toolSet.displayName ?? '', toolSet.source.label));
+				toolEnumDescriptions.push(localize('toolsetdesc', "{0} - {1}", toolSet.source.label, toolSet.description ?? toolSet.displayName ?? ''));
 			}
 			store.clear(); // reset old schema
 			reg.registerSchema(toolSetSchemaId, toolSetsSchema, store);
