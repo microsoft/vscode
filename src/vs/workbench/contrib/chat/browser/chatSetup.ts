@@ -671,9 +671,9 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'>('chat.setup.signInDialogVariant');
+		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'>('chat.setup.signInDialogVariant');
 
-		const buttons = this.getButtons();
+		const buttons = this.getButtons(dialogVariant);
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
@@ -698,7 +698,7 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
@@ -717,6 +717,10 @@ class ChatSetup {
 					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { extraClasses: ['link-button'] }]
 				]);
 			}
+
+			if (supportAlternateProvider && variant === 'alt-first') {
+				[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
+			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 		}
@@ -726,7 +730,7 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'): string {
+	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first'): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			return variant === 'brand-vsc' ? localize('signInVSC', "Sign in to use AI") : localize('signIn', "Sign in to use Copilot");
 		}
