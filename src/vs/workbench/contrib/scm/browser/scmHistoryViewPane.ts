@@ -13,7 +13,7 @@ import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.j
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -242,6 +242,40 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	}
 });
 
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.setListViewMode',
+			title: localize('setListViewMode', "View as List"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.List),
+			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 1 },
+			f1: false
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.setViewMode(ViewMode.List);
+	}
+});
+
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.setTreeViewMode',
+			title: localize('setTreeViewMode', "View as Tree"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.Tree),
+			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 2 },
+			f1: false
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.setViewMode(ViewMode.Tree);
+	}
+});
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -323,7 +357,6 @@ registerAction2(class extends Action2 {
 		});
 	}
 });
-
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
@@ -564,6 +597,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	get templateId(): string { return HistoryItemChangeRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private readonly viewMode: () => ViewMode,
 		private readonly resourceLabels: ResourceLabels,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -571,8 +605,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ISCMViewService private readonly _scmViewService: ISCMViewService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
@@ -600,7 +633,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 		this._renderGraphPlaceholder(templateData, historyItemViewModel, graphColumns);
 
-		const hidePath = this._scmViewService.viewMode.get() === ViewMode.Tree;
+		const hidePath = this.viewMode() === ViewMode.Tree;
 		const fileKind = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? FileKind.FILE : FileKind.FOLDER;
 		templateData.resourceLabel.setFile(historyItemChangeUri, { fileDecorations: { colors: false, badges: true }, fileKind, hidePath });
 
@@ -837,7 +870,7 @@ class SCMHistoryTreeCompressionDelegate implements ITreeCompressionDelegate<Tree
 }
 
 class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMHistoryViewModel, TreeElement> {
-	constructor(@ISCMViewService private readonly _scmViewService: ISCMViewService) {
+	constructor(private readonly viewMode: () => ViewMode) {
 		super();
 	}
 
@@ -867,7 +900,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			const historyProvider = inputOrElement.repository.provider.historyProvider.get();
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId) ?? [];
 
-			if (this._scmViewService.viewMode.get() === ViewMode.List) {
+			if (this.viewMode() === ViewMode.List) {
 				// List
 				children.push(...historyItemChanges.map(change => ({
 					repository: inputOrElement.repository,
@@ -876,7 +909,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 					graphColumns: inputOrElement.historyItemViewModel.outputSwimlanes,
 					type: 'historyItemChangeViewModel'
 				} satisfies SCMHistoryItemChangeViewModelTreeElement)));
-			} else if (this._scmViewService.viewMode.get() === ViewMode.Tree) {
+			} else if (this.viewMode() === ViewMode.Tree) {
 				// Tree
 				const rootUri = inputOrElement.repository.provider.rootUri ?? URI.file('/');
 				const historyItemChangesTree = new ResourceTree<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>(inputOrElement, rootUri);
@@ -919,6 +952,8 @@ type RepositoryState = {
 };
 
 class SCMHistoryViewModel extends Disposable {
+	readonly viewMode: ISettableObservable<ViewMode>;
+
 	/**
 	 * The active | selected repository takes precedence over the first repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
@@ -933,6 +968,7 @@ class SCMHistoryViewModel extends Disposable {
 	private readonly _repositoryFilterState = new Map<string, HistoryItemRefsFilter>();
 
 	private readonly _scmHistoryItemCountCtx: IContextKey<number>;
+	private readonly _scmHistoryViewModeCtx: IContextKey<ViewMode>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -945,11 +981,14 @@ class SCMHistoryViewModel extends Disposable {
 		super();
 
 		this._repositoryFilterState = this._loadHistoryItemsFilterState();
+		this.viewMode = observableValue<ViewMode>(this, this._getViewMode());
 
 		this._extensionService.onWillStop(this._saveHistoryItemsFilterState, this, this._store);
 		this._storageService.onWillSaveState(this._saveHistoryItemsFilterState, this, this._store);
 
 		this._scmHistoryItemCountCtx = ContextKeys.SCMHistoryItemCount.bindTo(this._contextKeyService);
+		this._scmHistoryViewModeCtx = ContextKeys.SCMHistoryViewMode.bindTo(this._contextKeyService);
+		this._scmHistoryViewModeCtx.set(this.viewMode.get());
 
 		const firstRepository = this._scmService.repositoryCount > 0
 			? constObservable(Iterable.first(this._scmService.repositories))
@@ -1110,6 +1149,26 @@ class SCMHistoryViewModel extends Disposable {
 		this._saveHistoryItemsFilterState();
 
 		this.onDidChangeHistoryItemsFilter.trigger(undefined);
+	}
+
+	setViewMode(viewMode: ViewMode): void {
+		if (viewMode === this.viewMode.get()) {
+			return;
+		}
+
+		this.viewMode.set(viewMode, undefined);
+		this._scmHistoryViewModeCtx.set(viewMode);
+		this._storageService.store('scm.graphView.viewMode', viewMode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private _getViewMode(): ViewMode {
+		let mode = this._configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
+		const storageMode = this._storageService.get('scm.graphView.viewMode', StorageScope.WORKSPACE) as ViewMode;
+		if (typeof storageMode === 'string') {
+			mode = storageMode;
+		}
+
+		return mode;
 	}
 
 	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | undefined> {
@@ -1407,7 +1466,6 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
-		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -1552,7 +1610,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// ViewMode changed
-				store.add(runOnChange(this._scmViewService.viewMode, async () => {
+				store.add(runOnChange(this._treeViewModel.viewMode, async () => {
 					await this._updateChildren();
 				}));
 
@@ -1576,7 +1634,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 			this._visibilityDisposables.add(autorun(reader => {
 				const fileIconTheme = fileIconThemeObs.read(reader);
-				const viewMode = this._scmViewService.viewMode.read(reader);
+				const viewMode = this._treeViewModel.viewMode.read(reader);
 
 				this._updateIndentStyles(fileIconTheme, viewMode);
 			}));
@@ -1697,6 +1755,10 @@ export class SCMHistoryViewPane extends ViewPane {
 		revealTreeNode();
 	}
 
+	setViewMode(viewMode: ViewMode): void {
+		this._treeViewModel.setViewMode(viewMode);
+	}
+
 	private _createTree(container: HTMLElement): void {
 		this._treeIdentityProvider = new SCMHistoryTreeIdentityProvider();
 
@@ -1706,7 +1768,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(resourceLabels);
 
-		this._treeDataSource = this.instantiationService.createInstance(SCMHistoryTreeDataSource);
+		this._treeDataSource = this.instantiationService.createInstance(SCMHistoryTreeDataSource, () => this._treeViewModel.viewMode.get());
 		this._register(this._treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
@@ -1719,7 +1781,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			new SCMHistoryTreeCompressionDelegate(),
 			[
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
-				this.instantiationService.createInstance(HistoryItemChangeRenderer, resourceLabels),
+				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this._treeViewModel.viewMode.get(), resourceLabels),
 				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, this._repositoryIsLoadingMore, () => this._loadMore()),
 			],
 			this._treeDataSource,

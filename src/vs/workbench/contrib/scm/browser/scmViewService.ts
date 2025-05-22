@@ -5,7 +5,7 @@
 
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ViewMode } from '../common/scm.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { SCMMenus } from './menus.js';
@@ -201,9 +201,6 @@ export class SCMViewService implements ISCMViewService {
 	private readonly _activeEditorObs: IObservable<EditorInput | undefined>;
 	private readonly _activeEditorRepositoryObs: IObservable<ISCMRepository | undefined>;
 
-	private readonly _viewMode: ISettableObservable<ViewMode>;
-	get viewMode(): IObservable<ViewMode> { return this._viewMode; }
-
 	/**
 	 * The focused repository takes precedence over the active editor repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
@@ -275,7 +272,7 @@ export class SCMViewService implements ISCMViewService {
 		} catch {
 			// noop
 		}
-		this._viewMode = observableValue(this, this.getViewMode());
+
 		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
 		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);
 		this._sortKeyContextKey.set(this._repositoriesSortKey);
@@ -437,15 +434,6 @@ export class SCMViewService implements ISCMViewService {
 		this._activeRepositoryPinnedObs.set(repository, undefined);
 	}
 
-	setViewMode(viewMode: ViewMode): void {
-		if (this._viewMode.get() === viewMode) {
-			return;
-		}
-
-		this._viewMode.set(viewMode, undefined);
-		this.storageService.store('scm.viewMode', viewMode, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {
 		// Sort by discovery time
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
@@ -472,16 +460,6 @@ export class SCMViewService implements ISCMViewService {
 	private getMaxSelectionIndex(): number {
 		return this._repositories.length === 0 ? -1 :
 			Math.max(...this._repositories.map(r => r.selectionIndex));
-	}
-
-	private getViewMode(): ViewMode {
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
-		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewMode;
-		if (typeof storageMode === 'string') {
-			mode = storageMode;
-		}
-
-		return mode;
 	}
 
 	private getViewSortOrder(): ISCMRepositorySortKey {
