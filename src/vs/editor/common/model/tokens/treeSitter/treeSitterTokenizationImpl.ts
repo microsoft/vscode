@@ -126,14 +126,8 @@ export class TreeSitterTokenizationImpl extends Disposable {
 
 	public getLineTokens(lineNumber: number) {
 		const content = this._textModel.getLineContent(lineNumber);
-
-		if (content.length > 0) {
-			const rawTokens = this.getTokens(lineNumber);
-			if (rawTokens && rawTokens.length > 0) {
-				return new LineTokens(rawTokens, content, this._languageIdCodec);
-			}
-		}
-		return LineTokens.createEmpty(content, this._languageIdCodec);
+		const rawTokens = this.getTokens(lineNumber);
+		return new LineTokens(rawTokens, content, this._languageIdCodec);
 	}
 
 	private _createEmptyTokens() {
@@ -180,9 +174,10 @@ export class TreeSitterTokenizationImpl extends Disposable {
 		return !this._tokenStore.rangeNeedsRefresh(this._textModel.getOffsetAt(accurateForRange.getStartPosition()), this._textModel.getOffsetAt(accurateForRange.getEndPosition()));
 	}
 
-	public getTokens(line: number): Uint32Array | undefined {
+	public getTokens(line: number): Uint32Array {
 		const lineStartOffset = this._textModel.getOffsetAt({ lineNumber: line, column: 1 });
-		const lineTokens = this._tokenStore.getTokensInRange(lineStartOffset, this._textModel.getOffsetAt({ lineNumber: line, column: this._textModel.getLineLength(line) }) + 1);
+		const lineEndOffset = this._textModel.getOffsetAt({ lineNumber: line, column: this._textModel.getLineLength(line) + 1 });
+		const lineTokens = this._tokenStore.getTokensInRange(lineStartOffset, lineEndOffset);
 		const result = new Uint32Array(lineTokens.length * 2);
 		for (let i = 0; i < lineTokens.length; i++) {
 			result[i * 2] = lineTokens[i].startOffsetInclusive - lineStartOffset + lineTokens[i].length;
