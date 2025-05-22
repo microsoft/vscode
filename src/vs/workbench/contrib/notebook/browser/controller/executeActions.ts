@@ -127,9 +127,9 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	}
 
 	// Get all dimensions
-	const cellEditorHeight = cell.layoutInfo.editorHeight;
+	// const cellEditorHeight = cell.layoutInfo.editorHeight;
 	const cellEditorScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
-	const cellEditorScrollBottom = cellEditorScrollTop + cellEditorHeight;
+	const cellEditorScrollBottom = cellEditorScrollTop + cell.layoutInfo.outputContainerOffset;
 
 	const cellOutputHeight = cell.layoutInfo.outputTotalHeight;
 	const cellOutputScrollBottom = notebookEditor.getAbsoluteBottomOfElement(cell);
@@ -138,9 +138,10 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	const viewportHeight34 = viewportHeight * 0.34;
 	const viewportHeight66 = viewportHeight * 0.66;
 
-	const totalHeight = cellEditorHeight + cellOutputHeight;
+	const totalHeight = cell.layoutInfo.totalHeight;
 
 	const isFullyVisible = cellEditorScrollTop >= notebookEditor.scrollTop && cellOutputScrollBottom <= notebookEditor.scrollBottom;
+	const isEditorBottomVisible = (cellEditorScrollBottom - 25) >= notebookEditor.scrollTop; // 25 is padding for the cell status bar
 
 	// Common scrolling functions
 	const revealWithTopPadding = (position: number) => { notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING); };
@@ -153,8 +154,7 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 	}
 
 	// CASE 1: Total fits within viewport
-	// * this could potentially be more robust to minimize scrolling, but I kinda like it
-	if (totalHeight <= viewportHeight) {
+	if (totalHeight <= viewportHeight && !isEditorBottomVisible) {
 		revealWithTopPadding(cellEditorScrollTop);
 		return;
 	}
