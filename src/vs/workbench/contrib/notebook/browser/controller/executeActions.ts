@@ -161,8 +161,11 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 
 	// CASE 2: Total doesn't fit in the viewport
 	if (totalHeight > viewportHeight) {
-		if (cellOutputHeight > 0) { // CASE 2.1: there are outputs
-			if (cellOutputHeight >= viewportHeight66) {
+		if (cellOutputHeight > 0) { // CASE 2.1: there are outputsc
+			if (isEditorBottomVisible) {
+				// bottom of editor is visible, minimize unnecessary scrolling
+				return;
+			} else if (cellOutputHeight >= viewportHeight66) {
 				// Show 34% editor, 66% output
 				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
 				return;
@@ -172,11 +175,11 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 				return;
 			}
 		} else { // CASE 2.2: There are no outputs (cell editor itself is larger than viewport)
-			if (cellEditorScrollBottom <= notebookEditor.scrollBottom) {
+			if (isEditorBottomVisible) {
 				// bottom is visible, don't scroll
 				return;
 			} else {
-				// cell bottom @ 2/3 of viewport height
+				// cell bottom not visible, scroll to put bottom @ 2/3 of viewport height
 				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
 				return;
 			}
