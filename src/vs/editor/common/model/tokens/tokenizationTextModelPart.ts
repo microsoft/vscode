@@ -66,7 +66,13 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.tokens = derived(this, reader => {
 			let tokens: AbstractTokens;
 			if (this._useTreeSitter.read(reader)) {
-				tokens = reader.store.add(this._instantiationService.createInstance(TreeSitterTokens, this._languageIdObs, this._languageService.languageIdCodec, this._textModel));
+				tokens = reader.store.add(this._instantiationService.createInstance(
+					TreeSitterTokens,
+					this._languageIdObs,
+					this._languageService.languageIdCodec,
+					this._textModel,
+					this._attachedViews.visibleLineRanges
+				));
 			} else {
 				tokens = reader.store.add(new TokenizerTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 			}

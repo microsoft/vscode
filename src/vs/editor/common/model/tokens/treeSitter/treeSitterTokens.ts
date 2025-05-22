@@ -18,6 +18,7 @@ import { TreeSitterModel } from './treeSitterModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TreeSitterTokenizationModel } from './treeSitterTokensModel.js';
 import { ITreeSitterLibraryService } from '../../../services/treeSitter/treeSitterLibraryService.js';
+import { LineRange } from '../../../core/ranges/lineRange.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
@@ -31,6 +32,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		private readonly _languageIdObs: IObservable<string>,
 		languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
+		visibleLineRanges: IObservable<readonly LineRange[]>,
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -84,7 +86,7 @@ export class TreeSitterTokens extends AbstractTokens {
 				return undefined;
 			}
 
-			return this._instantiationService.createInstance(TreeSitterTokenizationModel, treeModel, queries, this._languageIdCodec);
+			return this._instantiationService.createInstance(TreeSitterTokenizationModel, treeModel, queries, this._languageIdCodec, visibleLineRanges);
 		});
 
 		this._register(autorun(reader => {

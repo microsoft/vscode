@@ -14,7 +14,7 @@ import { findLikelyRelevantLines } from '../../textModelTokens.js';
 import { TokenStore, TokenUpdate, TokenQuality } from './tokenStore.js';
 import { TreeSitterModel, RangeChange, RangeWithOffsets } from './treeSitterModel.js';
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
-import { autorun, constObservable, IObservable, runOnChange } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, runOnChange } from '../../../../../base/common/observable.js';
 import { LineRange } from '../../../core/ranges/lineRange.js';
 import { LineTokens } from '../../../tokens/lineTokens.js';
 import { Position } from '../../../core/position.js';
@@ -38,8 +38,6 @@ export class TreeSitterTokenizationModel extends Disposable {
 
 	private _encodedLanguageId: LanguageId;
 
-	private _visibleLineRanges: IObservable<readonly LineRange[]>;
-
 	private get _textModel() {
 		return this._treeSitterModel.textModel;
 	}
@@ -48,15 +46,13 @@ export class TreeSitterTokenizationModel extends Disposable {
 		private readonly _treeSitterModel: TreeSitterModel,
 		private readonly _highlightingQueries: TreeSitter.Query,
 		private readonly _languageIdCodec: ILanguageIdCodec,
+		private readonly _visibleLineRanges: IObservable<readonly LineRange[]>,
 
 		@ITreeSitterThemeService private readonly _treeSitterThemeService: ITreeSitterThemeService,
 	) {
 		super();
 
-
 		this._encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._treeSitterModel.languageId);
-
-		this._visibleLineRanges = constObservable([new LineRange(1, 50)]); // TODO
 
 		this._register(runOnChange(this._treeSitterThemeService.onChange, () => {
 			this._updateTheme();
