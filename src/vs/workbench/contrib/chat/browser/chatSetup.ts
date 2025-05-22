@@ -67,6 +67,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -581,7 +582,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IProductService));
 			});
 		}
 
@@ -602,7 +603,8 @@ class ChatSetup {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IProductService private readonly productService: IProductService
 	) { }
 
 	skipDialog(): void {
@@ -675,6 +677,18 @@ class ChatSetup {
 
 		const buttons = this.getButtons(dialogVariant);
 
+		let icon: ThemeIcon;
+		switch (dialogVariant) {
+			case 'brand-gh':
+				icon = Codicon.github;
+				break;
+			case 'brand-vsc':
+				icon = this.productService.quality === 'stable' ? Codicon.vscode : this.productService.quality === 'insider' ? Codicon.vscodeInsiders : Codicon.codeOss;
+				break;
+			default:
+				icon = Codicon.copilotLarge;
+		}
+
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
 			this.getDialogTitle(dialogVariant),
@@ -683,7 +697,7 @@ class ChatSetup {
 				type: 'none',
 				extraClasses: coalesce(['chat-setup-dialog', dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined]),
 				detail: ' ', // workaround allowing us to render the message in large
-				icon: dialogVariant === 'brand-vsc' ? Codicon.vscode : Codicon.copilotLarge,
+				icon,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				disableCloseButton: true,
