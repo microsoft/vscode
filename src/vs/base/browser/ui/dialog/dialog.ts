@@ -110,7 +110,11 @@ export class Dialog extends Disposable {
 
 		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
-		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, () => this.element.focus())); // guide users back into the dialog if clicked elsewhere
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
 
 		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
