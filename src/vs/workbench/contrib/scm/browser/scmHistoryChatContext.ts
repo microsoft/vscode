@@ -75,43 +75,48 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	}
 
 	asPicker(_widget: IChatWidget) {
+		const placeholder = localize('chatContext.scmHistoryItems.placeholder', 'Select a change to attach');
+
+		const activeRepository = this._scmViewService.activeRepository.get();
+		const historyProvider = activeRepository?.provider.historyProvider.get();
+		if (!activeRepository || !historyProvider) {
+			return { placeholder, picks: Promise.resolve([]) };
+		}
+
+		const historyItemRefs = coalesce([
+			historyProvider.historyItemRef.get(),
+			historyProvider.historyItemRemoteRef.get(),
+			historyProvider.historyItemBaseRef.get(),
+		]).map(ref => ref.id);
+
 		return {
-			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change'),
-			picks: async (_query: string) => {
-				const activeRepository = this._scmViewService.activeRepository.get();
-				const historyProvider = activeRepository?.provider.historyProvider.get();
-				if (!activeRepository || !historyProvider) {
-					return [];
-				}
-
-				const historyItemRefs = coalesce([
-					historyProvider.historyItemRef.get(),
-					historyProvider.historyItemRemoteRef.get(),
-					historyProvider.historyItemBaseRef.get(),
-				]).map(ref => ref.id);
-
-				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
-
-				return historyItems.map(historyItem => {
-					const details = [`${historyItem.displayId ?? historyItem.id}`];
-					if (historyItem.author) {
-						details.push(historyItem.author);
-					}
-					if (historyItem.statistics) {
-						details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
-					}
-					if (historyItem.timestamp) {
-						details.push(fromNow(historyItem.timestamp, true, true));
+			placeholder,
+			picks: historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 })
+				.then(historyItems => {
+					if (!historyItems) {
+						return [];
 					}
 
-					return {
-						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
-						label: historyItem.subject,
-						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
-					} satisfies IChatContextPickerPickItem;
-				});
-			}
+					return historyItems.map(historyItem => {
+						const details = [`${historyItem.displayId ?? historyItem.id}`];
+						if (historyItem.author) {
+							details.push(historyItem.author);
+						}
+						if (historyItem.statistics) {
+							details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
+						}
+						if (historyItem.timestamp) {
+							details.push(fromNow(historyItem.timestamp, true, true));
+						}
+
+						return {
+							iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
+							label: historyItem.subject,
+							detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
+							asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
+						} satisfies IChatContextPickerPickItem;
+					});
+				})
 		};
 	}
 }
