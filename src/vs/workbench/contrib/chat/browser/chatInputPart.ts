@@ -154,8 +154,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
-	// private implicitPart: ImplicitContextAttachmentWidget | undefined;
-	// private includedFiles = new Set<URI>();
 	private recentlyRemovedAttachments = new Set<URI>();
 
 	private readonly _attachmentModel: ChatAttachmentModel;
