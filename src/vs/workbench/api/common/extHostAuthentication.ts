@@ -16,11 +16,12 @@ import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IA
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { stringHash } from '../../../base/common/hash.js';
 import { DisposableStore, IDisposable, isDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { equals as arraysEqual } from '../../../base/common/arrays.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -522,7 +523,10 @@ class TokenStore implements Disposable {
 	) {
 		this._disposable = new DisposableStore();
 		this._tokensObservable = observableValue<IAuthorizationToken[]>('tokens', initialTokens);
-		this._sessionsObservable = derived((reader) => this._tokensObservable.read(reader).map(t => this._getSessionFromToken(t))).recomputeInitiallyAndOnChange(this._disposable);
+		this._sessionsObservable = derivedOpts(
+			{ equalsFn: (a, b) => arraysEqual(a, b, (a, b) => a.accessToken === b.accessToken) },
+			(reader) => this._tokensObservable.read(reader).map(t => this._getSessionFromToken(t))
+		);
 		this._disposable.add(this._registerChangeEventAutorun());
 		this._disposable.add(this._persistence.onDidChange((tokens) => this._tokensObservable.set(tokens, undefined)));
 	}
@@ -540,29 +544,22 @@ class TokenStore implements Disposable {
 	}
 
 	update({ added, removed }: { added: IAuthorizationToken[]; removed: IAuthorizationToken[] }): void {
-		const currentTokens = this._tokensObservable.get() || [];
-		if (removed) {
-			// remove from the array
-			for (const token of removed) {
-				const index = currentTokens.findIndex(t => t.access_token === token.access_token);
-				if (index !== -1) {
-					currentTokens.splice(index, 1);
-				}
+		const currentTokens = [...this._tokensObservable.get()];
+		for (const token of removed) {
+			const index = currentTokens.findIndex(t => t.access_token === token.access_token);
+			if (index !== -1) {
+				currentTokens.splice(index, 1);
 			}
 		}
-		if (added) {
-			// add to the array
-			for (const token of added) {
-				const index = currentTokens.findIndex(t => t.access_token === token.access_token);
-				if (index === -1) {
-					currentTokens.push(token);
-				} else {
-					currentTokens[index] = token;
-				}
+		for (const token of added) {
+			const index = currentTokens.findIndex(t => t.access_token === token.access_token);
+			if (index === -1) {
+				currentTokens.push(token);
+			} else {
+				currentTokens[index] = token;
 			}
 		}
-
-		if (added || removed) {
+		if (added.length || removed.length) {
 			this._tokensObservable.set(currentTokens, undefined);
 			void this._persistence.set(currentTokens);
 		}
