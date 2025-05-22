@@ -59,7 +59,7 @@ export class TreeSitterTokenizationModel extends Disposable {
 		this._visibleLineRanges = constObservable([new LineRange(1, 50)]); // TODO
 
 		this._register(runOnChange(this._treeSitterThemeService.onChange, () => {
-			// TODO: handle theme changes!
+			this._updateTheme();
 		}));
 
 		this._tokenStore = this._register(new TokenStore(this._textModel));
@@ -475,17 +475,11 @@ export class TreeSitterTokenizationModel extends Disposable {
 		return updates;
 	}
 
-	// private _tokSupport_updateTheme(e: IWorkbenchColorTheme | undefined) {
-	// 	this._tokSupport_colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
-	// 	for (const model of this._tokSupport_codeEditors.textModels) {
-	// 		const modelRange = model.getFullModelRange();
-	// 		this._markForRefresh(model, modelRange);
-	// 		const editor = this._tokSupport_codeEditors.getEditorForModel(model);
-	// 		if (editor) {
-	// 			this._tokSupport_parseAndTokenizeViewPort(this._visibleLineRanges.get());
-	// 		}
-	// 	}
-	// }
+	private _updateTheme() {
+		const modelRange = this._textModel.getFullModelRange();
+		this._markForRefresh(modelRange);
+		this._parseAndTokenizeViewPort(this._visibleLineRanges.get());
+	}
 
 	// Was used for inspect editor tokens command
 	captureAtPosition(lineNumber: number, column: number): QueryCapture[] {

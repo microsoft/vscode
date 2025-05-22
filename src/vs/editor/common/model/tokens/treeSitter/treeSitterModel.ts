@@ -101,11 +101,11 @@ export class TreeSitterModel extends Disposable {
 				if (!ranges) {
 					ranges = [{ newRange: this.textModel.getFullModelRange(), newRangeStartOffset: 0, newRangeEndOffset: this.textModel.getValueLength() }];
 				}
-				this._onDidUpdate.fire({ language: this.languageId, ranges, versionId: version, tree: completed });
 
 				transaction(tx => {
 					this._treeObs.set(completed, tx);
 					this._treeLastParsedVersion.set(version, tx);
+					this._onDidUpdate.fire({ language: this.languageId, ranges, versionId: version });
 				});
 			}
 		});
@@ -432,7 +432,6 @@ export interface TreeParseUpdateEvent {
 	ranges: RangeChange[];
 	language: string;
 	versionId: number;
-	tree: TreeSitter.Tree;
 }
 
 export interface RangeWithOffsets {
