@@ -604,12 +604,18 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 		const fileKind = isSCMHistoryItemChangeViewModelTreeElement(elementOrNode.element) ? FileKind.FILE : FileKind.FOLDER;
 		templateData.resourceLabel.setFile(historyItemChangeUri, { fileDecorations: { colors: false, badges: true }, fileKind, hidePath });
 
-		const actions = this._menuService.getMenuActions(
-			MenuId.SCMHistoryItemChangeContext,
-			this._contextKeyService,
-			{ arg: historyItemViewModel.historyItem, shouldForwardArgs: true });
-		templateData.actionBar.context = historyItemChangeUri;
-		templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+		if (fileKind === FileKind.FILE) {
+			const actions = this._menuService.getMenuActions(
+				MenuId.SCMHistoryItemChangeContext,
+				this._contextKeyService,
+				{ arg: historyItemViewModel.historyItem, shouldForwardArgs: true });
+
+			templateData.actionBar.context = historyItemChangeUri;
+			templateData.actionBar.setActions(getActionBarActions(actions, 'inline').primary);
+		} else {
+			templateData.actionBar.context = undefined;
+			templateData.actionBar.setActions([]);
+		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemChangeViewModelTreeElement | IResourceNode<SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemViewModelTreeElement>>, void>, index: number, templateData: HistoryItemChangeTemplate, details?: ITreeElementRenderDetails | undefined): void {
