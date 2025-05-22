@@ -24,6 +24,7 @@ import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -137,17 +138,22 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: { issuer: string; authorizationEndpoint: string; tokenEndpoint: string; registrationEndpoint: string; scopesSupported: string[] }): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 
 		const issuer = URI.parse(metadata.issuer);
-		const scopesSupported = metadata.scopesSupported;
-		const providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
+		// Some better default?
+		const scopesSupported = metadata.scopes_supported || [];
+		let providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
 		if (!providerId) {
-			return undefined;
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata);
+			if (!provider) {
+				return undefined;
+			}
+			providerId = provider.id;
 		}
 		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, undefined, true, issuer);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
