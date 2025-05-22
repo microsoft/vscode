@@ -147,14 +147,15 @@ export class ScreenReaderSupport extends Disposable {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		this._doRender(top, top, this._contentLeft, this._divWidth, lineHeight);
+		this._doRender(top, this._contentLeft, this._divWidth, lineHeight);
+		this._state.updateScrollTop(this._primarySelection);
 	}
 
 	private _renderAtTopLeft(): void {
-		this._doRender(0, 0, 0, this._contentWidth, 1);
+		this._doRender(0, 0, this._contentWidth, 1);
 	}
 
-	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
+	private _doRender(top: number, left: number, width: number, height: number): void {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
@@ -163,7 +164,6 @@ export class ScreenReaderSupport extends Disposable {
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
-		this._domNode.domNode.scrollTop = scrollTop;
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
@@ -182,6 +182,6 @@ export class ScreenReaderSupport extends Disposable {
 	}
 
 	public writeScreenReaderContent(): void {
-		this._state.setScreenReaderContent(this._primarySelection);
+		this._state.updateScreenReaderContent(this._primarySelection);
 	}
 }

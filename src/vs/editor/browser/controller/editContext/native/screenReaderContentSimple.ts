@@ -38,7 +38,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		super();
 	}
 
-	public setScreenReaderContent(primarySelection: Selection): void {
+	public updateScreenReaderContent(primarySelection: Selection): void {
 		const domNode = this._domNode.domNode;
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== domNode) {
@@ -71,6 +71,17 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
+	}
+
+	public updateScrollTop(primarySelection: Selection): void {
+		if (!this._state) {
+			return;
+		}
+		const viewLayout = this._context.viewModel.viewLayout;
+		const stateStartLineNumber = this._state.startPositionWithinEditor.lineNumber;
+		const verticalOffsetOfStateStartLineNumber = viewLayout.getVerticalOffsetForLineNumber(stateStartLineNumber);
+		const verticalOffsetOfPositionLineNumber = viewLayout.getVerticalOffsetForLineNumber(primarySelection.positionLineNumber);
+		this._domNode.domNode.scrollTop = verticalOffsetOfPositionLineNumber - verticalOffsetOfStateStartLineNumber;
 	}
 
 	public onFocusChange(newFocusValue: boolean): void {

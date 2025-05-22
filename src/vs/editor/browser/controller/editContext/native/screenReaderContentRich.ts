@@ -49,7 +49,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		super();
 	}
 
-	public setScreenReaderContent(primarySelection: Selection): void {
+	public updateScreenReaderContent(primarySelection: Selection): void {
 		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
@@ -70,6 +70,18 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
+	}
+
+	public updateScrollTop(primarySelection: Selection): void {
+		const intervals = this._state.intervals;
+		if (!intervals) {
+			return;
+		}
+		const viewLayout = this._context.viewModel.viewLayout;
+		const stateStartLineNumber = intervals[0].startLine;
+		const verticalOffsetOfStateStartLineNumber = viewLayout.getVerticalOffsetForLineNumber(stateStartLineNumber);
+		const verticalOffsetOfPositionLineNumber = viewLayout.getVerticalOffsetForLineNumber(primarySelection.positionLineNumber);
+		this._domNode.domNode.scrollTop = verticalOffsetOfPositionLineNumber - verticalOffsetOfStateStartLineNumber;
 	}
 
 	public onFocusChange(newFocusValue: boolean): void {

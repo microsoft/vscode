@@ -29,7 +29,12 @@ export interface IScreenReaderContent {
 	onConfigurationChanged(options: IComputedEditorOptions): void;
 
 	/**
-	 * Set the screen reader content given the selection. It will update the content and set the range within the screen reader content if needed.
+	 * Update the screen reader content given the selection. It will update the content and set the range within the screen reader content if needed.
 	 */
-	setScreenReaderContent(primarySelection: Selection): void;
+	updateScreenReaderContent(primarySelection: Selection): void;
+
+	/**
+	 * Update the scroll top value of the screen reader content
+	 */
+	updateScrollTop(primarySelection: Selection): void;
 }
