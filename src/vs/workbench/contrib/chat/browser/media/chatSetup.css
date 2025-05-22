@@ -56,3 +56,51 @@
 		color: var(--vscode-descriptionForeground);
 	}
 }
+
+.chat-setup-input-email {
+
+	.dialog-message-container,
+	.dialog-message-input {
+		width: 100% !important;
+	}
+
+	.separator {
+		display: flex;
+		width: 100%;
+		margin-top: 10px;
+		margin-bottom: 10px;
+		height: 20px;
+		align-items: center;
+	}
+
+	.separator-left {
+		width: 100%;
+		margin-right: 5px;
+		border-top: 1px solid var(--vscode-descriptionForeground);
+	}
+
+	.separator-right {
+		width: 100%;
+		margin-left: 5px;
+		border-top: 1px solid var(--vscode-descriptionForeground);
+	}
+
+	.dialog-buttons-row {
+		padding: 5px 10px 10px !important;
+	}
+
+	.monaco-inputbox {
+		width: 100% !important;
+		margin-left: 5px !important;
+		margin-right: 5px !important;
+		height: 30px;
+	}
+
+	.monaco-inputbox .ibwrapper {
+		height: 30px;
+	}
+
+	.monaco-inputbox .input {
+		height: 30px;
+	}
+}

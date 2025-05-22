@@ -59,6 +59,7 @@ export interface IDialogOptions {
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
+	readonly buttonSeparator?: string;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly dialogStyles: IDialogStyles;
@@ -278,8 +279,16 @@ export class Dialog extends Disposable {
 			};
 
 			// Handle button clicks
+			let counter = 0;
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
+				counter++;
+				if (counter === 3 && this.options.buttonSeparator) {
+					const separator = this.buttonsContainer.appendChild($('.separator'));
+					separator.appendChild($('.separator-left'));
+					separator.appendChild($('.separator-center', undefined, 'Or'));
+					separator.appendChild($('.separator-right'));
+				}
 
 				let button: IButton;
 				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];

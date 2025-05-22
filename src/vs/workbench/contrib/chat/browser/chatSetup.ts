@@ -5,7 +5,7 @@
 
 import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
-import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
+import { Dialog, DialogContentsAlignment, IDialogInputOptions } from '../../../../base/browser/ui/dialog/dialog.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -673,7 +673,7 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown>('chat.setup.signInDialogVariant');
+		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown>('chat.setup.signInDialogVariant');
 
 		const buttons = this.getButtons(dialogVariant);
 
@@ -696,11 +696,17 @@ class ChatSetup {
 			buttons.map(button => button[0]),
 			createWorkbenchDialogOptions({
 				type: 'none',
-				extraClasses: coalesce(['chat-setup-dialog', dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined]),
+				extraClasses: coalesce([
+					'chat-setup-dialog',
+					dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined,
+					dialogVariant === 'input-email' ? 'chat-setup-input-email' : undefined
+				]),
 				detail: ' ', // workaround allowing us to render the message in large
 				icon,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
+				inputs: this.getInputs(dialogVariant),
+				buttonSeparator: dialogVariant === 'input-email' ? 'or' : undefined,
 				disableCloseButton: true,
 				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
 				buttonOptions: buttons.map(button => button[2])
@@ -713,7 +719,15 @@ class ChatSetup {
 		return buttons[button]?.[1] ?? ChatSetupStrategy.Canceled;
 	}
 
-	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | unknown): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
+	private getInputs(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): IDialogInputOptions[] | undefined {
+		if (variant !== 'input-email') {
+			return [];
+		}
+
+		return [{ placeholder: localize('emailPlaceholder', "Enter your email") }];
+	}
+
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
@@ -735,6 +749,11 @@ class ChatSetup {
 
 			if (supportAlternateProvider && variant === 'alt-first') {
 				[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
+			}
+
+			if (variant === 'input-email') {
+				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, { extraClasses: ['link-button'] }]);
+				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
