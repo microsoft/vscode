@@ -6,15 +6,15 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TCombinedToolsMetadata, TPromptsType } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TPromptsType } from '../../common/promptSyntax/service/types.js';
 
 export class MockPromptsService implements IPromptsService {
 	_serviceBrand: undefined;
 
-	getCombinedToolsMetadata(files: readonly URI[]): Promise<TCombinedToolsMetadata> {
+	getAllMetadata(_files: readonly URI[]): Promise<readonly IMetadata[]> {
 		throw new Error('Method not implemented.');
 	}
-	getAllMetadata(_files: readonly URI[]): Promise<readonly IMetadata[]> {
+	getMetadata(_file: URI): Promise<IMetadata> {
 		throw new Error('Method not implemented.');
 	}
 	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
@@ -29,7 +29,7 @@ export class MockPromptsService implements IPromptsService {
 	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
 		return undefined;
 	}
-	resolvePromptSlashCommand(_data: IChatPromptSlashCommand): Promise<IPromptPath | undefined> {
+	resolvePromptSlashCommand(_data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {

@@ -149,7 +149,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IPromptPath | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -165,6 +165,11 @@ export interface IPromptsService extends IDisposable {
 	): Promise<readonly URI[]>;
 
 	/**
+	 * Gets the metadata for the given prompt file uri.
+	 */
+	getMetadata(promptFileUri: URI): Promise<IMetadata>;
+
+	/**
 	 * Get all metadata for entire prompt references tree
 	 * that spans out of each of the provided files.
 	 *
@@ -176,22 +181,6 @@ export interface IPromptsService extends IDisposable {
 		promptUris: readonly URI[],
 	): Promise<readonly IMetadata[]>;
 
-	/**
-	 * Computes "combined" tools and chat mode metadata based on
-	 * all provided files and their respective child references
-	 * at the same time.
-	 *
-	 * For instance, the resulting {@link TCombinedToolsMetadata.mode}
-	 * is computed as the least-privileged chat mode that can satisfy
-	 * all the prompt files and their child references.
-	 *
-	 * On the other hand the resulting {@link TCombinedToolsMetadata.tools}
-	 * metadata is computed as a union of all tools metadata that all
-	 * prompt files and their child references specify.
-	 */
-	getCombinedToolsMetadata(
-		promptUris: readonly URI[],
-	): Promise<TCombinedToolsMetadata | null>;
 }
 
 export interface IChatPromptSlashCommand {

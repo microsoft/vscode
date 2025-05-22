@@ -174,6 +174,7 @@ export class SearchView extends ViewPane {
 	private refreshTreeController: RefreshTreeController;
 
 	private _cachedResults: ISearchComplete | undefined;
+	public _pendingSemanticSearchPromise: Promise<ISearchComplete> | undefined;
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -354,7 +355,7 @@ export class SearchView extends ViewPane {
 
 	private async refreshHasAISetting(): Promise<void> {
 		const shouldShowAI = this.shouldShowAIResults();
-		if (!this.tree.hasNode(this.searchResult)) {
+		if (!this.tree || !this.tree.hasNode(this.searchResult)) {
 			return;
 		}
 		if (shouldShowAI && !this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
@@ -636,6 +637,9 @@ export class SearchView extends ViewPane {
 
 		this._register(this.searchWidget.onSearchSubmit(options => {
 			const shouldRenderAIResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+			if (shouldRenderAIResults === SemanticSearchBehavior.Auto) {
+				this.logService.info(`SearchView: Automatically rendering AI results`);
+			}
 			this.triggerQueryChange({
 				...options,
 				shouldKeepAIResults: false,
@@ -1637,7 +1641,9 @@ export class SearchView extends ViewPane {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
-		this.clearAIResults();
+		if (!shouldKeepAIResults) {
+			this.clearAIResults();
+		}
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch))
@@ -1838,12 +1844,16 @@ export class SearchView extends ViewPane {
 	}
 
 	public clearAIResults() {
-		this._cachedResults = undefined;
-		this.model.cancelAISearch(true);
-		this.model.clearAiSearchResults();
+		this.model.searchResult.aiTextSearchResult.hidden = true;
+		if (!this._pendingSemanticSearchPromise) {
+			this._cachedResults = undefined;
+			this.model.cancelAISearch(true);
+			this.model.clearAiSearchResults();
+		}
 	}
 
 	public async requestAIResults() {
+		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
 		if (!this.cachedResults) {
 			this.clearAIResults();
 		}
@@ -1863,9 +1873,19 @@ export class SearchView extends ViewPane {
 		this.tree.setFocus([]);
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-		this.viewModel.searchResult.setAIQueryUsingTextQuery();
-		const result = this.viewModel.aiSearch();
-		result.then((complete) => {
+		// Reuse pending aiSearch if available
+		let aiSearchPromise = this._pendingSemanticSearchPromise;
+		if (!aiSearchPromise) {
+			this.viewModel.searchResult.setAIQueryUsingTextQuery();
+			aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(() => {
+				// Clear pending promise when first result comes in
+				if (this._pendingSemanticSearchPromise === aiSearchPromise) {
+					this._pendingSemanticSearchPromise = undefined;
+				}
+			});
+		}
+
+		aiSearchPromise.then((complete) => {
 			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			return this.onSearchComplete(() => { }, excludePatternText, includePatternText, complete, false, complete.aiKeywords);
 		}, (e) => {
@@ -1882,7 +1902,10 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-		this.model.searchResult.aiTextSearchResult.hidden = !shouldKeepAIResults && !shouldUpdateAISearch;
+		if (this.model.searchResult.aiTextSearchResult.hidden && shouldUpdateAISearch) {
+			this.logService.info(`SearchView: Semantic search visible. Keep semantic results: ${shouldKeepAIResults}. Update semantic search: ${shouldUpdateAISearch}`);
+			this.model.searchResult.aiTextSearchResult.hidden = false;
+		}
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -1908,6 +1931,7 @@ export class SearchView extends ViewPane {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
 			if (complete.results.length === 0 && config === SemanticSearchBehavior.RunOnEmpty) {
+				this.logService.info(`SearchView: Requesting semantic results on empty search.`);
 				this.model.searchResult.aiTextSearchResult.hidden = false;
 			}
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
@@ -1952,8 +1976,8 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		const fileCount = this.viewModel.searchResult.fileCount();
-		const resultCount = this.viewModel.searchResult.count();
+		const fileCount = this.viewModel.searchResult.fileCount(this.viewModel.searchResult.aiTextSearchResult.hidden);
+		const resultCount = this.viewModel.searchResult.count(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
@@ -2015,8 +2039,18 @@ export class SearchView extends ViewPane {
 	private async updateKeywordSuggestion(keywords?: AISearchKeyword[]) {
 		if (!keywords || keywords.length === 0) {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.viewModel.searchResult.setAIQueryUsingTextQuery();
-			this._cachedResults = await this.viewModel.aiSearch();
+			// Reuse pending aiSearch if available
+			let aiSearchPromise = this._pendingSemanticSearchPromise;
+			if (!aiSearchPromise) {
+				this.viewModel.searchResult.setAIQueryUsingTextQuery();
+				aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(() => {
+					// Clear pending promise when first result comes in
+					if (this._pendingSemanticSearchPromise === aiSearchPromise) {
+						this._pendingSemanticSearchPromise = undefined;
+					}
+				});
+			}
+			this._cachedResults = await aiSearchPromise;
 			keywords = this._cachedResults.aiKeywords;
 			if (!keywords || keywords.length === 0) {
 				return;
@@ -2539,7 +2573,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		if (isSearchResult(element)) {
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
-			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
+			if (element.isAIContributed && (!this.searchView.model.hasAIResults || !!this.searchView._pendingSemanticSearchPromise)) {
 				if (this.searchView.cachedResults) {
 					return this.createTextSearchResultIterator(element);
 				}

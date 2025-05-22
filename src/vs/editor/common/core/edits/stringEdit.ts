@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { commonPrefixLength, commonSuffixLength } from '../../../../base/common/strings.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 import { BaseEdit, BaseReplacement } from './edit.js';
 
@@ -142,6 +143,21 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 			len: e.replaceRange.length,
 		}));
 	}
+
+	public isNeutralOn(text: string): boolean {
+		return this.replacements.every(e => e.isNeutralOn(text));
+	}
+
+	public removeCommonSuffixPrefix(originalText: string): StringEdit {
+		const edits: StringReplacement[] = [];
+		for (const e of this.replacements) {
+			const edit = e.removeCommonSuffixPrefix(originalText);
+			if (!edit.isEmpty) {
+				edits.push(edit);
+			}
+		}
+		return new StringEdit(edits);
+	}
 }
 
 /**
@@ -198,6 +214,32 @@ export class StringReplacement extends BaseReplacement<StringReplacement> {
 
 	replace(str: string): string {
 		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
+	}
+
+	/**
+	 * Checks if the edit would produce no changes when applied to the given text.
+	 */
+	isNeutralOn(text: string): boolean {
+		return this.newText === text.substring(this.replaceRange.start, this.replaceRange.endExclusive);
+	}
+
+	removeCommonSuffixPrefix(originalText: string): StringReplacement {
+		const oldText = originalText.substring(this.replaceRange.start, this.replaceRange.endExclusive);
+
+		const prefixLen = commonPrefixLength(oldText, this.newText);
+		const suffixLen = Math.min(
+			oldText.length - prefixLen,
+			this.newText.length - prefixLen,
+			commonSuffixLength(oldText, this.newText)
+		);
+
+		const replaceRange = new OffsetRange(
+			this.replaceRange.start + prefixLen,
+			this.replaceRange.endExclusive - suffixLen,
+		);
+		const newText = this.newText.substring(prefixLen, this.newText.length - suffixLen);
+
+		return new StringReplacement(replaceRange, newText);
 	}
 }
 

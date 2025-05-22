@@ -25,8 +25,10 @@ import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspac
 import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
+import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { McpResourceFilesystem } from '../common/mcpResourceFilesystem.js';
 import { McpService } from '../common/mcpService.js';
 import { HasInstalledMcpServersContext, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
@@ -42,6 +44,7 @@ registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
 registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
+registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
@@ -52,6 +55,7 @@ registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.Afte
 registerWorkbenchContribution2('mcpContextKeys', McpContextKeysController, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2('mcpLanguageFeatures', McpLanguageFeatures, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2('mcpUrlHandler', McpUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2('mcpResourceFilesystem', McpResourceFilesystem, WorkbenchPhase.BlockRestore);
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);

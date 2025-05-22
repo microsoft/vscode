@@ -9,9 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { IChatContentPart } from './chatContentParts.js';
-import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { ChatErrorLevel } from '../../common/chatService.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -21,6 +21,7 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
+		private readonly errorDetails: IChatRendererContent,
 		renderer: MarkdownRenderer,
 	) {
 		super();
@@ -47,8 +48,7 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 		this.domNode.appendChild(markdownContent.element);
 	}
 
-	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		// No other change allowed for this content type
-		return other.kind === 'warning';
+	hasSameContent(other: IChatRendererContent): boolean {
+		return other.kind === this.errorDetails.kind;
 	}
 }

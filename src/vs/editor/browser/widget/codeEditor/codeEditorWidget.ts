@@ -2164,7 +2164,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._tabMovesFocus.set(TabFocus.getTabFocusMode());
+		this._tabMovesFocus.set(options.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode());
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));

@@ -699,7 +699,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
-				title: localize2('configureCompletions', "Configure Code Completions..."),
+				title: localize2('configureCompletions', "Configure code completions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
 					ChatContextKeys.Setup.disabled.negate()

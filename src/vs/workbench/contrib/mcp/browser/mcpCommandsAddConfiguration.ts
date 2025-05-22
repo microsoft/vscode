@@ -336,6 +336,8 @@ export class McpAddConfigurationCommand {
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
 			const server = match && servers.find(s => s.definition.id === match.server.id);
+
+
 			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
@@ -349,7 +351,7 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
 
-				server.start(true).then(state => {
+				server.start({ isFromInteraction: true }).then(state => {
 					if (state.state === McpConnectionState.Kind.Error) {
 						server.showOutput();
 					}

@@ -150,10 +150,15 @@ export interface IChatCodeCitations {
 	kind: 'codeCitations';
 }
 
+export interface IChatErrorDetailsPart {
+	kind: 'errorDetails';
+	errorDetails: IChatResponseErrorDetails;
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;

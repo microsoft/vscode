@@ -232,7 +232,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -257,7 +257,7 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -480,8 +480,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
-	userSelectedTools2?: Record<string, boolean>;
+	userSelectedTools?: Record<string, boolean>;
 	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
