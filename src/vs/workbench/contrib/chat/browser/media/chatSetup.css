@@ -3,28 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
-	border: 0 !important;
-	background-color: unset !important;
-	color: var(--vscode-textLink-foreground) !important;
-	width: fit-content;
-	margin-left: auto;
-	margin-right: auto;
+/* Glowing Animation */
+
+@property --chat-setup-dialog-glow-progress {
+	syntax: '<percentage>';
+	initial-value: 0%;
+	inherits: false;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button.skip-button {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground) !important;
+@keyframes chat-setup-dialog-glow-progress-animation {
+	0% {
+		--chat-setup-dialog-glow-progress: -100%;
+	}
+
+	50% {
+		--chat-setup-dialog-glow-progress: 100%;
+	}
+
+	100% {
+		--chat-setup-dialog-glow-progress: -100%;
+	}
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button.link-button:focus {
-	text-decoration: underline !important;
-	outline: none !important;
+.chat-setup-dialog.chat-setup-glow {
+	border: 2px solid !important;
+	border-image: linear-gradient(45deg, var(--vscode-button-background) var(--chat-setup-dialog-glow-progress), var(--vscode-editorGutter-addedBackground)) 1 !important;
+	animation: 3s chat-setup-dialog-glow-progress-animation linear infinite;
 }
 
-.chat-setup-dialog-footer {
+.chat-setup-dialog {
 
-	p.setup-settings {
+	/* Link Buttons */
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {
+		border: 0 !important;
+		background-color: unset !important;
+		color: var(--vscode-textLink-foreground) !important;
+		width: fit-content;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button.skip-button {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground) !important;
+	}
+
+	/* Footer */
+
+	.chat-setup-dialog-footer {
 		font-size: 11px;
 		color: var(--vscode-descriptionForeground);
 	}

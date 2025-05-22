@@ -66,6 +66,12 @@
 	font-size: 48px;
 }
 
+.monaco-dialog-box.align-vertical .dialog-message-row > .dialog-icon.codicon {
+	flex: 0 0 64px;
+	height: 64px;
+	font-size: 64px;
+}
+
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row > .dialog-icon.codicon {
 	align-self: baseline;
 }

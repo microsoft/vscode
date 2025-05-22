@@ -671,16 +671,19 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
+		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'>('chat.setup.signInDialogVariant');
+
 		const buttons = this.getButtons();
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			this.getDialogTitle(),
+			this.getDialogTitle(dialogVariant),
 			buttons.map(button => button[0]),
 			createWorkbenchDialogOptions({
 				type: 'none',
+				extraClasses: coalesce(['chat-setup-dialog', dialogVariant === 'style-glow' ? 'chat-setup-glow' : undefined]),
 				detail: ' ', // workaround allowing us to render the message in large
-				icon: Codicon.copilotLarge,
+				icon: dialogVariant === 'brand-vsc' ? Codicon.vscode : Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				disableCloseButton: true,
@@ -723,16 +726,12 @@ class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(): string {
+	private getDialogTitle(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow'): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return localize('signUp', "Sign in to use Copilot");
+			return variant === 'brand-vsc' ? localize('signInVSC', "Sign in to use AI") : localize('signIn', "Sign in to use Copilot");
 		}
 
-		if (isProUser(this.context.state.entitlement)) {
-			return localize('copilotProTitle', "Start using Copilot Pro");
-		}
-
-		return localize('copilotTitle', "Start using Copilot");
+		return variant === 'brand-vsc' ? localize('vscAITitle', "Start using AI") : localize('copilotTitle', "Start using Copilot");
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
@@ -742,7 +741,7 @@ class ChatSetup {
 
 		// SKU Settings
 		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 
 		return element;
 	}

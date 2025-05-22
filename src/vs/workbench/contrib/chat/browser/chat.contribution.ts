@@ -401,11 +401,18 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
-		'chat.setup.signInWithAlternateProvider': {
+		'chat.setup.signInWithAlternateProvider': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.signInWithAlternateProvider', "Enable alternative sign-in provider."),
 			default: false,
 			tags: ['onExp', 'experimental'],
+		},
+		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
+			type: 'string',
+			enum: ['default', 'brand-gh', 'brand-vsc', 'style-glow'],
+			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
+			default: 'default',
+			tags: ['onExp', 'experimental']
 		},
 	}
 });
