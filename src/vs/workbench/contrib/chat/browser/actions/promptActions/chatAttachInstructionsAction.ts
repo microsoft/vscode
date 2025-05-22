@@ -19,8 +19,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
@@ -201,7 +200,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 		return widget.attachmentModel.promptInstructions.featureEnabled;
 	}
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> | ((query: string, token: CancellationToken) => Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>) } {
+	asPicker(): { readonly placeholder: string; readonly picks: Promise<ChatContextPick[]> } {
 
 		const picks = this.promptsService.listPromptFiles('instructions').then(value => {
 
