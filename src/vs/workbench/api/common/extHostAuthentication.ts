@@ -20,6 +20,7 @@ import { derived, IObservable, ISettableObservable, observableValue } from '../.
 import { stringHash } from '../../../base/common/hash.js';
 import { DisposableStore, isDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -287,9 +288,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				const token = tokenMap.get(session.accessToken);
 				if (token && token.expires_in) {
 					const now = Date.now();
-					const expiresInSecs = token.expires_in * 1000;
+					const expiresInMS = token.expires_in * 1000;
 					// Check if the token is about to expire in 5 minutes or if it is expired
-					if (now > token.created_at + expiresInSecs - (5 * 60)) {
+					if (now > token.created_at + expiresInMS - (5 * 60 * 1000)) {
 						removedTokens.push(token);
 						removedSessions.push(session);
 						if (!token.refresh_token) {
@@ -426,7 +427,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		const digest = await crypto.subtle.digest('SHA-256', data);
 
 		// Base64url encode the digest
-		return btoa(String.fromCharCode(...new Uint8Array(digest)))
+		return encodeBase64(VSBuffer.wrap(new Uint8Array(digest)), false, false)
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_')
 			.replace(/=+$/, '');
@@ -545,11 +546,16 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	}
 }
 
-type IAuthorizationToken = IAuthorizationTokenResponse & { created_at: number };
+type IAuthorizationToken = IAuthorizationTokenResponse & {
+	/**
+	 * The time when the token was created, in milliseconds since the epoch.
+	 */
+	created_at: number;
+};
 
 class TokenStore implements Disposable {
-	private readonly _tokensObservable: ISettableObservable<IAuthorizationToken[] | undefined>;
-	private readonly _sessionsObservable: IObservable<vscode.AuthenticationSession[] | undefined>;
+	private readonly _tokensObservable: ISettableObservable<IAuthorizationToken[]>;
+	private readonly _sessionsObservable: IObservable<vscode.AuthenticationSession[]>;
 
 	private readonly _disposable: DisposableStore;
 
@@ -559,22 +565,15 @@ class TokenStore implements Disposable {
 	) {
 		this._disposable = new DisposableStore();
 		this._tokensObservable = observableValue<IAuthorizationToken[]>('tokens', initialTokens);
-		this._sessionsObservable = derived((reader) => {
-			const tokens = this._tokensObservable.read(reader);
-			if (!tokens) {
-				return undefined;
-			}
-			return tokens.map(t => this._getSessionFromToken(t));
-		});
-		this._disposable.add(this._persistence.onDidChange((tokens) =>
-			this._tokensObservable.set(tokens, undefined)));
+		this._sessionsObservable = derived((reader) => this._tokensObservable.read(reader).map(t => this._getSessionFromToken(t)));
+		this._disposable.add(this._persistence.onDidChange((tokens) => this._tokensObservable.set(tokens, undefined)));
 	}
 
-	get tokens(): IAuthorizationToken[] | undefined {
+	get tokens(): IAuthorizationToken[] {
 		return this._tokensObservable.get();
 	}
 
-	get sessions(): vscode.AuthenticationSession[] | undefined {
+	get sessions(): vscode.AuthenticationSession[] {
 		return this._sessionsObservable.get();
 	}
 
@@ -637,7 +636,7 @@ class TokenStore implements Disposable {
 			accessToken: token.access_token,
 			account: {
 				id: claims?.sub || 'unknown',
-				label: claims?.preferred_username || claims?.name || claims?.email || 'User Account',
+				label: claims?.preferred_username || claims?.name || claims?.email || 'Account',
 			},
 			scopes: scopes,
 			idToken: token.id_token
