@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/v
 import { append, $, Dimension, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -538,7 +538,6 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
 
 	constructor(
-		private viewMode: () => ViewMode,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
@@ -578,7 +577,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
-		const hidePath = this.viewMode() === ViewMode.Tree;
+		const hidePath = this.scmViewService.viewMode.get() === ViewMode.Tree;
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
@@ -770,8 +769,9 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 	constructor(
-		private readonly viewMode: () => ViewMode,
-		private readonly viewSortKey: () => ViewSortKey) { }
+		private readonly viewSortKey: () => ViewSortKey,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
+	) { }
 
 	compare(one: TreeElement, other: TreeElement): number {
 		if (isSCMRepository(one)) {
@@ -799,7 +799,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		// Resource (List)
-		if (this.viewMode() === ViewMode.List) {
+		if (this.scmViewService.viewMode.get() === ViewMode.List) {
 			// FileName
 			if (this.viewSortKey() === ViewSortKey.Name) {
 				const oneName = basename((one as ISCMResource).sourceUri);
@@ -843,8 +843,8 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
 	constructor(
-		private viewMode: () => ViewMode,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) { }
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
@@ -855,7 +855,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			if (this.viewMode() === ViewMode.List) {
+			if (this.scmViewService.viewMode.get() === ViewMode.List) {
 				// In List mode match using the file name and the path.
 				// Since we want to match both on the file name and the
 				// full path we return an array of labels. A match in the
@@ -960,11 +960,6 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return result.join(', ');
 		}
 	}
-}
-
-const enum ViewMode {
-	List = 'list',
-	Tree = 'tree'
 }
 
 const enum ViewSortKey {
@@ -1133,8 +1128,8 @@ class SetListViewModeAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewMode = ViewMode.List;
+	async runInView(accessor: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		accessor.get(ISCMViewService).setViewMode(ViewMode.List);
 	}
 }
 
@@ -1167,8 +1162,8 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane> {
 			});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewMode = ViewMode.Tree;
+	async runInView(accessor: ServicesAccessor, view: SCMViewPane): Promise<void> {
+		accessor.get(ISCMViewService).setViewMode(ViewMode.Tree);
 	}
 }
 
@@ -2130,27 +2125,6 @@ export class SCMViewPane extends ViewPane {
 	private inputRenderer!: InputRenderer;
 	private actionButtonRenderer!: ActionButtonRenderer;
 
-	private _viewMode: ViewMode;
-	get viewMode(): ViewMode { return this._viewMode; }
-	set viewMode(mode: ViewMode) {
-		if (this._viewMode === mode) {
-			return;
-		}
-
-		this._viewMode = mode;
-
-		// Update sort key based on view mode
-		this.viewSortKey = this.getViewSortKey();
-
-		this.updateChildren();
-		this.onDidActiveEditorChange();
-		this._onDidChangeViewMode.fire(mode);
-		this.viewModeContextKey.set(mode);
-
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
 	private readonly _onDidChangeViewMode = new Emitter<ViewMode>();
 	readonly onDidChangeViewMode = this._onDidChangeViewMode.event;
 
@@ -2167,7 +2141,7 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey.set(sortKey);
 		this._onDidChangeViewSortKey.fire(sortKey);
 
-		if (this._viewMode === ViewMode.List) {
+		if (this.scmViewService.viewMode.get() === ViewMode.List) {
 			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
@@ -2214,13 +2188,12 @@ export class SCMViewPane extends ViewPane {
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		// View mode and sort key
-		this._viewMode = this.getViewMode();
+		// Sort key
 		this._viewSortKey = this.getViewSortKey();
 
 		// Context Keys
 		this.viewModeContextKey = ContextKeys.SCMViewMode.bindTo(contextKeyService);
-		this.viewModeContextKey.set(this._viewMode);
+		this.viewModeContextKey.set(this.scmViewService.viewMode.get());
 		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
@@ -2234,9 +2207,6 @@ export class SCMViewPane extends ViewPane {
 
 		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
 			switch (e.key) {
-				case 'scm.viewMode':
-					this.viewMode = this.getViewMode();
-					break;
 				case 'scm.viewSortKey':
 					this.viewSortKey = this.getViewSortKey();
 					break;
@@ -2244,11 +2214,20 @@ export class SCMViewPane extends ViewPane {
 		}, this, this.disposables);
 
 		this.storageService.onWillSaveState(e => {
-			this.viewMode = this.getViewMode();
 			this.viewSortKey = this.getViewSortKey();
-
 			this.storeTreeViewState();
 		}, this, this.disposables);
+
+		// View Mode
+		this.disposables.add(runOnChange(this.scmViewService.viewMode, viewMode => {
+			this.viewSortKey = this.getViewSortKey();
+
+			this.updateChildren();
+			this.onDidActiveEditorChange();
+			this.viewModeContextKey.set(viewMode);
+
+			this.updateIndentStyles(this.themeService.getFileIconTheme());
+		}));
 
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
@@ -2367,7 +2346,7 @@ export class SCMViewPane extends ViewPane {
 		resourceActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(resourceActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource);
 		this.disposables.add(treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
@@ -2383,7 +2362,7 @@ export class SCMViewPane extends ViewPane {
 				this.actionButtonRenderer,
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
-				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)
+				this.instantiationService.createInstance(ResourceRenderer, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)
 			],
 			treeDataSource,
 			{
@@ -2393,8 +2372,8 @@ export class SCMViewPane extends ViewPane {
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
-				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
-				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
+				sorter: this.instantiationService.createInstance(SCMTreeSorter, () => this.viewSortKey),
+				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				compressionEnabled: compressionEnabled.get(),
 				collapseByDefault: (e: unknown) => {
@@ -2539,7 +2518,7 @@ export class SCMViewPane extends ViewPane {
 						// go backwards from last group
 						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 							const groupItem = repository.provider.groups[j];
-							const resource = this.viewMode === ViewMode.Tree
+							const resource = this.scmViewService.viewMode.get() === ViewMode.Tree
 								? groupItem.resourceTree.getNode(uri)?.element
 								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
@@ -2676,19 +2655,9 @@ export class SCMViewPane extends ViewPane {
 		return this.tree.getSelection().filter(r => isSCMResourceGroup(r) || isSCMResource(r) || isSCMResourceNode(r));
 	}
 
-	private getViewMode(): ViewMode {
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
-		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewMode;
-		if (typeof storageMode === 'string') {
-			mode = storageMode;
-		}
-
-		return mode;
-	}
-
 	private getViewSortKey(): ViewSortKey {
 		// Tree
-		if (this._viewMode === ViewMode.Tree) {
+		if (this.scmViewService.viewMode.get() === ViewMode.Tree) {
 			return ViewSortKey.Path;
 		}
 
@@ -2759,10 +2728,12 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
-		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
-		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
-		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
+		const viewMode = this.scmViewService.viewMode.get();
+
+		this.treeContainer.classList.toggle('list-view-mode', viewMode === ViewMode.List);
+		this.treeContainer.classList.toggle('tree-view-mode', viewMode === ViewMode.Tree);
+		this.treeContainer.classList.toggle('align-icons-and-twisties', (viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.treeContainer.classList.toggle('hide-arrows', viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	private updateScmProviderContextKeys(): void {
@@ -2936,7 +2907,6 @@ export class SCMViewPane extends ViewPane {
 
 class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
 	constructor(
-		private readonly viewMode: () => ViewMode,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
@@ -2980,10 +2950,10 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
-			if (this.viewMode() === ViewMode.List) {
+			if (this.scmViewService.viewMode.get() === ViewMode.List) {
 				// Resources (List)
 				return inputOrElement.resources;
-			} else if (this.viewMode() === ViewMode.Tree) {
+			} else if (this.scmViewService.viewMode.get() === ViewMode.Tree) {
 				// Resources (Tree)
 				const children: TreeElement[] = [];
 				for (const node of inputOrElement.resourceTree.root.children) {
@@ -3015,7 +2985,7 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 				throw new Error('Invalid element passed to getParent');
 			}
 		} else if (isSCMResource(element)) {
-			if (this.viewMode() === ViewMode.List) {
+			if (this.scmViewService.viewMode.get() === ViewMode.List) {
 				return element.resourceGroup;
 			}
 
