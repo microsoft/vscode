@@ -18,7 +18,7 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ariaLabelForScreenReaderContent } from '../screenReaderUtils.js';
-import { ComplexScreenReaderContent } from './screenReaderContentComplex.js';
+import { RichScreenReaderContent } from './screenReaderContentRich.js';
 import { SimpleScreenReaderContent } from './screenReaderContentSimple.js';
 import { IScreenReaderContent } from './screenReaderUtils.js';
 
@@ -75,7 +75,7 @@ export class ScreenReaderSupport extends Disposable {
 		if (this._renderRichContent !== renderRichContent) {
 			this._renderRichContent = renderRichContent;
 			if (renderRichContent) {
-				this._state = new ComplexScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
+				this._state = new RichScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			} else {
 				this._state = new SimpleScreenReaderContent(this._domNode, this._context, this._viewController, this._accessibilityService);
 			}

@@ -23,21 +23,21 @@ import { ViewController } from '../../../view/viewController.js';
 import { IScreenReaderContent } from './screenReaderUtils.js';
 import { getColumnOfNodeOffset } from '../../../viewParts/viewLines/viewLine.js';
 
-const ttPolicy = createTrustedTypesPolicy('screenReaderSupport', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('richScreenReaderContent', { createHTML: value => value });
 
-const LINE_NUMBER_ATTRIBUTE_NAME = 'data-line-number';
+const LINE_NUMBER_ATTRIBUTE = 'data-line-number';
 
-export class ComplexScreenReaderContent extends Disposable implements IScreenReaderContent {
+export class RichScreenReaderContent extends Disposable implements IScreenReaderContent {
 
 	private readonly _selectionChangeListener = this._register(new MutableDisposable());
 
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
 
-	private _state: ComplexScreenReaderState = new ComplexScreenReaderState([]);
-	private _strategy: ComplexPagedScreenReaderStrategy = new ComplexPagedScreenReaderStrategy();
+	private _state: RichScreenReaderState = new RichScreenReaderState([]);
+	private _strategy: RichPagedScreenReaderStrategy = new RichPagedScreenReaderStrategy();
 
-	private _renderedLines: Map<number, RenderedScreenReaderLine> = new Map();
+	private _renderedLines: Map<number, RichRenderedScreenReaderLine> = new Map();
 	private _renderedSelection: Selection = new Selection(1, 1, 1, 1);
 
 	constructor(
@@ -66,7 +66,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 				this._setSelectionOnScreenReaderContent(this._context, this._renderedLines, primarySelection);
 			}
 		} else {
-			this._state = new ComplexScreenReaderState([]);
+			this._state = new RichScreenReaderState([]);
 			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
@@ -139,9 +139,9 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		});
 	}
 
-	private _renderScreenReaderContent(state: ComplexScreenReaderState): Map<number, RenderedScreenReaderLine> {
+	private _renderScreenReaderContent(state: RichScreenReaderState): Map<number, RichRenderedScreenReaderLine> {
 		const nodes: HTMLDivElement[] = [];
-		const renderedLines = new Map<number, RenderedScreenReaderLine>();
+		const renderedLines = new Map<number, RichRenderedScreenReaderLine>();
 		for (const interval of state.intervals) {
 			for (let lineNumber = interval.startLine; lineNumber <= interval.endLine; lineNumber++) {
 				const renderedLine = this._renderLine(lineNumber);
@@ -154,7 +154,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		return renderedLines;
 	}
 
-	private _renderLine(viewLineNumber: number): RenderedScreenReaderLine {
+	private _renderLine(viewLineNumber: number): RichRenderedScreenReaderLine {
 		const viewModel = this._context.viewModel;
 		const positionLineData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const options = this._context.configuration.options;
@@ -199,16 +199,16 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		const renderOutput = renderViewLine(renderLineInput, htmlBuilder);
 		const html = htmlBuilder.build();
 		const trustedhtml = ttPolicy?.createHTML(html) ?? html;
-		const domNode = document.createElement('div');
 		const lineHeight = viewModel.viewLayout.getLineHeightForLineNumber(viewLineNumber) + 'px';
+		const domNode = document.createElement('div');
+		domNode.innerHTML = trustedhtml as string;
 		domNode.style.lineHeight = lineHeight;
 		domNode.style.height = lineHeight;
-		domNode.innerHTML = trustedhtml as string;
-		domNode.setAttribute(LINE_NUMBER_ATTRIBUTE_NAME, viewLineNumber.toString());
-		return new RenderedScreenReaderLine(domNode, renderOutput.characterMapping);
+		domNode.setAttribute(LINE_NUMBER_ATTRIBUTE, viewLineNumber.toString());
+		return new RichRenderedScreenReaderLine(domNode, renderOutput.characterMapping);
 	}
 
-	private _setSelectionOnScreenReaderContent(context: ViewContext, renderedLines: Map<number, RenderedScreenReaderLine>, viewSelection: Selection): void {
+	private _setSelectionOnScreenReaderContent(context: ViewContext, renderedLines: Map<number, RichRenderedScreenReaderLine>, viewSelection: Selection): void {
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -248,7 +248,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
 	}
 
-	private _getScreenReaderContentLineIntervals(primarySelection: Selection): ComplexScreenReaderState {
+	private _getScreenReaderContentLineIntervals(primarySelection: Selection): RichScreenReaderState {
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -273,16 +273,15 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		if (!this._renderedLines) {
 			return;
 		}
-		const activeDocument = getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (!activeDocumentSelection) {
+		const selection = getActiveWindow().document.getSelection();
+		if (!selection) {
 			return;
 		}
-		const rangeCount = activeDocumentSelection.rangeCount;
+		const rangeCount = selection.rangeCount;
 		if (rangeCount === 0) {
 			return;
 		}
-		const range = activeDocumentSelection.getRangeAt(0);
+		const range = selection.getRangeAt(0);
 		const startContainer = range.startContainer;
 		const endContainer = range.endContainer;
 		const startSpanElement = startContainer.parentElement;
@@ -295,8 +294,8 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		if (!startLineDomNode || !endLineDomNode) {
 			return;
 		}
-		const startLineNumberAttribute = startLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE_NAME);
-		const endLineNumberAttribute = endLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE_NAME);
+		const startLineNumberAttribute = startLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE);
+		const endLineNumberAttribute = endLineDomNode.getAttribute(LINE_NUMBER_ATTRIBUTE);
 		if (!startLineNumberAttribute || !endLineNumberAttribute) {
 			return;
 		}
@@ -318,7 +317,7 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 	}
 }
 
-class RenderedScreenReaderLine {
+class RichRenderedScreenReaderLine {
 	constructor(
 		public readonly domNode: HTMLDivElement,
 		public readonly characterMapping: CharacterMapping
@@ -332,11 +331,11 @@ class LineInterval {
 	) { }
 }
 
-class ComplexScreenReaderState {
+class RichScreenReaderState {
 
 	constructor(public readonly intervals: LineInterval[]) { }
 
-	equals(other: ComplexScreenReaderState): boolean {
+	equals(other: RichScreenReaderState): boolean {
 		if (this.intervals.length !== other.intervals.length) {
 			return false;
 		}
@@ -349,7 +348,7 @@ class ComplexScreenReaderState {
 	}
 }
 
-class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<ComplexScreenReaderState> {
+class RichPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<RichScreenReaderState> {
 
 	constructor() { }
 
@@ -364,20 +363,15 @@ class ComplexPagedScreenReaderStrategy implements IPagedScreenReaderStrategy<Com
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): ComplexScreenReaderState {
-
+	public fromEditorSelection(context: ISimpleModel, viewSelection: Selection, linesPerPage: number): RichScreenReaderState {
 		const selectionStartPage = this._getPageOfLine(viewSelection.startLineNumber, linesPerPage);
 		const selectionStartPageRange = this._getRangeForPage(selectionStartPage, linesPerPage);
 		const selectionEndPage = this._getPageOfLine(viewSelection.endLineNumber, linesPerPage);
 		const selectionEndPageRange = this._getRangeForPage(selectionEndPage, linesPerPage);
-
-		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
-			return new ComplexScreenReaderState([{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber }]);
-		} else {
-			return new ComplexScreenReaderState([
-				{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionStartPageRange.endLineNumber },
-				{ startLine: selectionEndPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber }
-			]);
+		const lineIntervals: LineInterval[] = [{ startLine: selectionStartPageRange.startLineNumber, endLine: selectionStartPageRange.endLineNumber }];
+		if (selectionStartPage + 1 < selectionEndPage) {
+			lineIntervals.push({ startLine: selectionEndPageRange.startLineNumber, endLine: selectionEndPageRange.endLineNumber });
 		}
+		return new RichScreenReaderState(lineIntervals);
 	}
 }
