@@ -23,10 +23,11 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getCleanPromptName, isValidPromptType, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, IMetadata, IPromptPath, IPromptsService, TPromptsStorage, TPromptsType } from './types.js';
+import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 
 /**
  * Provides prompt services.
@@ -110,7 +111,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(type: TPromptsType): Promise<readonly IPromptPath[]> {
+	public async listPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]> {
 		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
@@ -123,13 +124,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return prompts.flat();
 	}
 
-	public getSourceFolders(type: TPromptsType): readonly IPromptPath[] {
+	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
 		// sanity check to make sure we don't miss a new
 		// prompt type that could be added in the future
-		assert(
-			type === 'prompt' || type === 'instructions',
-			`Unknown prompt type '${type}'.`,
-		);
+		assert(isValidPromptType(type), `Unknown prompt type '${type}'.`);
 
 		const result: IPromptPath[] = [];
 
@@ -162,7 +160,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return data.promptPath.uri;
 		}
 
-		const files = await this.listPromptFiles('prompt');
+		const files = await this.listPromptFiles(PromptsType.prompt);
 		const command = data.command;
 		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
 		if (result) {
@@ -176,7 +174,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
-		const promptFiles = await this.listPromptFiles('prompt');
+		const promptFiles = await this.listPromptFiles(PromptsType.prompt);
 		return promptFiles.map(promptPath => {
 			const command = getPromptCommandName(promptPath.uri.path);
 			return {
@@ -187,11 +185,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
+	private readonly _onDidChangeCustomChatModesEmitter: Emitter<void> = new Emitter<void>();
+	// todo: firing events not yet implemented
+	public readonly onDidChangeCustomChatModes: Event<void> = this._onDidChangeCustomChatModesEmitter.event;
+
+	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
+		const modeFiles = await this.listPromptFiles(PromptsType.mode);
+		const metaDatas = await this.getAllMetadata(modeFiles.map(promptPath => promptPath.uri));
+		return metaDatas.map(metadata => {
+			return {
+				uri: metadata.uri,
+				name: getCleanPromptName(metadata.uri),
+				description: metadata.metadata.description,
+				tools: metadata.metadata.tools
+			};
+		});
+	}
+
 	@logTime()
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
-		const instructionFiles = await this.listPromptFiles('instructions');
+		const instructionFiles = await this.listPromptFiles(PromptsType.instructions);
 		if (instructionFiles.length === 0) {
 			return [];
 		}
@@ -299,7 +314,7 @@ export function getPromptCommandName(path: string): string {
  */
 const addType = (
 	storage: TPromptsStorage,
-	type: TPromptsType,
+	type: PromptsType,
 ): (uri: URI) => IPromptPath => {
 	return (uri) => {
 		return { uri, storage, type };
@@ -311,7 +326,7 @@ const addType = (
  */
 const withType = (
 	storage: TPromptsStorage,
-	type: TPromptsType,
+	type: PromptsType,
 ): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris

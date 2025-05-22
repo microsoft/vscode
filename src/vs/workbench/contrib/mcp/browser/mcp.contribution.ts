@@ -9,6 +9,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -22,6 +23,7 @@ import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { RemoteNativeMpcDiscovery } from '../common/discovery/nativeMcpRemoteDiscovery.js';
 import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspaceMcpDiscoveryAdapter.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
@@ -31,9 +33,11 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpResourceFilesystem } from '../common/mcpResourceFilesystem.js';
 import { McpService } from '../common/mcpService.js';
 import { HasInstalledMcpServersContext, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { McpAddContextContribution } from './mcpAddContextContribution.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
+import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { McpServersListView } from './mcpServersView.js';
@@ -71,8 +75,10 @@ registerAction2(InstallFromActivation);
 registerAction2(RestartServer);
 registerAction2(ShowConfiguration);
 registerAction2(McpBrowseCommand);
+registerAction2(McpBrowseResourcesCommand);
 
 registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2('mcpAddContext', McpAddContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(MCPContextsInitialisation.ID, MCPContextsInitialisation, WorkbenchPhase.AfterRestored);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
@@ -105,3 +111,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[
 		new SyncDescriptor(McpServerEditorInput)
 	]);
+
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: McpResourceQuickAccess,
+	prefix: McpResourceQuickAccess.PREFIX,
+	placeholder: localize('mcp.quickaccess.placeholder', "Filter to an MCP resource"),
+	helpEntries: [{
+		description: localize('mcp.quickaccess.add', "Add Server"),
+		commandId: McpCommandIds.AddConfiguration
+	}]
+});

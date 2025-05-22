@@ -978,7 +978,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		return arrays.distinct(filterMatches, (match) => match.setting.key);
 	}
 
-	getUniqueResults(): ISearchResult | null {
+	getUniqueSearchResults(): ISearchResult | null {
 		if (this.cachedUniqueSearchResults) {
 			return this.cachedUniqueSearchResults;
 		}
@@ -1018,25 +1018,15 @@ export class SearchResultModel extends SettingsTreeModel {
 		return this.rawSearchResults ?? [];
 	}
 
-	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
-		this.cachedUniqueSearchResults = null;
-		this.newExtensionSearchResults = null;
-
-		this.rawSearchResults ??= [];
-		if (!result) {
-			delete this.rawSearchResults[order];
-			return;
-		}
-
-		this.rawSearchResults[order] = result;
-		this.updateChildren();
+	private getUniqueSearchResultSettings(): ISetting[] {
+		return this.getUniqueSearchResults()?.filterMatches.map(m => m.setting) ?? [];
 	}
 
 	updateChildren(): void {
 		this.update({
 			id: 'searchResultModel',
 			label: 'searchResultModel',
-			settings: this.getFlatSettings()
+			settings: this.getUniqueSearchResultSettings()
 		});
 
 		// Save time by filtering children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
@@ -1074,12 +1064,22 @@ export class SearchResultModel extends SettingsTreeModel {
 		}
 	}
 
-	getUniqueResultsCount(): number {
-		return this.searchResultCount ?? 0;
+	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
+		this.cachedUniqueSearchResults = null;
+		this.newExtensionSearchResults = null;
+
+		this.rawSearchResults ??= [];
+		if (!result) {
+			delete this.rawSearchResults[order];
+			return;
+		}
+
+		this.rawSearchResults[order] = result;
+		this.updateChildren();
 	}
 
-	private getFlatSettings(): ISetting[] {
-		return this.getUniqueResults()?.filterMatches.map(m => m.setting) ?? [];
+	getUniqueResultsCount(): number {
+		return this.searchResultCount ?? 0;
 	}
 }
 

@@ -7,6 +7,19 @@ import { URI } from '../../../base/common/uri.js';
 import { basename } from '../../../base/common/path.js';
 
 /**
+ * What the prompt is used for.
+ */
+export enum PromptsType {
+	instructions = 'instructions',
+	prompt = 'prompt',
+	mode = 'mode'
+}
+
+export function isValidPromptType(type: string): type is PromptsType {
+	return Object.values(PromptsType).includes(type as PromptsType);
+}
+
+/**
  * File extension for the reusable prompt files.
  */
 export const PROMPT_FILE_EXTENSION = '.prompt.md';
@@ -15,6 +28,11 @@ export const PROMPT_FILE_EXTENSION = '.prompt.md';
  * File extension for the reusable instruction files.
  */
 export const INSTRUCTION_FILE_EXTENSION = '.instructions.md';
+
+/**
+ * File extension for the modes files.
+ */
+export const MODE_FILE_EXTENSION = '.chatmode.md';
 
 /**
  * Copilot custom instructions file name.
@@ -38,6 +56,11 @@ export const PROMPT_LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
 export const INSTRUCTIONS_LOCATIONS_CONFIG_KEY: string = 'chat.instructionsFilesLocations';
 
 /**
+ * Configuration key for the locations of mode files.
+ */
+export const MODE_LOCATIONS_CONFIG_KEY: string = 'chat.modeFilesLocations';
+
+/**
  * Default reusable prompt files source folder.
  */
 export const PROMPT_DEFAULT_SOURCE_FOLDER = '.github/prompts';
@@ -48,17 +71,26 @@ export const PROMPT_DEFAULT_SOURCE_FOLDER = '.github/prompts';
 export const INSTRUCTIONS_DEFAULT_SOURCE_FOLDER = '.github/instructions';
 
 /**
+ * Default modes source folder.
+ */
+export const MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
+
+/**
  * Gets the prompt file type from the provided path.
  */
-export function getPromptFileType(fileUri: URI): 'instructions' | 'prompt' | undefined {
+export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 	const filename = basename(fileUri.path);
 
 	if (filename.endsWith(PROMPT_FILE_EXTENSION)) {
-		return 'prompt';
+		return PromptsType.prompt;
 	}
 
 	if (filename.endsWith(INSTRUCTION_FILE_EXTENSION) || (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME)) {
-		return 'instructions';
+		return PromptsType.instructions;
+	}
+
+	if (filename.endsWith(MODE_FILE_EXTENSION)) {
+		return PromptsType.mode;
 	}
 
 	return undefined;
@@ -72,9 +104,45 @@ export function isPromptOrInstructionsFile(fileUri: URI): boolean {
 }
 
 
-export function getPromptFileExtension(type: 'instructions' | 'prompt'): string {
-	return type === 'instructions' ? INSTRUCTION_FILE_EXTENSION : PROMPT_FILE_EXTENSION;
+export function getPromptFileExtension(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return INSTRUCTION_FILE_EXTENSION;
+		case PromptsType.prompt:
+			return PROMPT_FILE_EXTENSION;
+		case PromptsType.mode:
+			return MODE_FILE_EXTENSION;
+		default:
+			throw new Error('Unknown prompt type');
+	}
 }
+
+export function getPromptFileDefaultLocation(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return INSTRUCTIONS_DEFAULT_SOURCE_FOLDER;
+		case PromptsType.prompt:
+			return PROMPT_DEFAULT_SOURCE_FOLDER;
+		case PromptsType.mode:
+			return MODE_DEFAULT_SOURCE_FOLDER;
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}
+
+export function getPromptFileLocationsConfigKey(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return INSTRUCTIONS_LOCATIONS_CONFIG_KEY;
+		case PromptsType.prompt:
+			return PROMPT_LOCATIONS_CONFIG_KEY;
+		case PromptsType.mode:
+			return MODE_LOCATIONS_CONFIG_KEY;
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}
+
 
 /**
  * Check whether provided URI belongs to an `untitled` document.
@@ -93,12 +161,16 @@ export const getCleanPromptName = (
 ): string => {
 	const fileName = basename(fileUri.path);
 
-	if (fileName.endsWith(PROMPT_FILE_EXTENSION)) {
-		return basename(fileUri.path, PROMPT_FILE_EXTENSION);
-	}
+	const extensions = [
+		PROMPT_FILE_EXTENSION,
+		INSTRUCTION_FILE_EXTENSION,
+		MODE_FILE_EXTENSION,
+	];
 
-	if (fileName.endsWith(INSTRUCTION_FILE_EXTENSION)) {
-		return basename(fileUri.path, INSTRUCTION_FILE_EXTENSION);
+	for (const ext of extensions) {
+		if (fileName.endsWith(ext)) {
+			return basename(fileUri.path, ext);
+		}
 	}
 
 	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
