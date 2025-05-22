@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -205,8 +206,8 @@ class ConfigureToolsAction extends Action2 {
 		for (const [toolSetOrTool, picked] of widget.input.selectedToolsModel.entriesMap) {
 
 			let bucket: BucketPick | undefined;
-			let buttons: ActionableButton[] | undefined;
 			let description: string | undefined;
+			const buttons: ActionableButton[] = [];
 
 			if (toolSetOrTool.source.type === 'mcp') {
 				const { definitionId } = toolSetOrTool.source;
@@ -216,8 +217,6 @@ class ConfigureToolsAction extends Action2 {
 				}
 				bucket = mcpBucket;
 
-				// if (!bucket) {
-				buttons = [];
 				const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
 				if (collection?.presentation?.origin) {
 					buttons.push({
@@ -253,6 +252,14 @@ class ConfigureToolsAction extends Action2 {
 				bucket = builtinBucket;
 			} else if (toolSetOrTool.source.type === 'user') {
 				bucket = userBucket;
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.edit),
+					tooltip: localize('editUserBucket', "Edit Tool Set"),
+					action: () => {
+						assertType(toolSetOrTool.source.type === 'user');
+						editorService.openEditor({ resource: toolSetOrTool.source.file });
+					}
+				});
 			} else {
 				assertNever(toolSetOrTool.source);
 			}
