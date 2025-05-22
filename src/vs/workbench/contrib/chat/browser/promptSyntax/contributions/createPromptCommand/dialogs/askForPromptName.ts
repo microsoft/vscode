@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
-import { getPromptFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileExtension, PromptsType } from '../../../../../../../../platform/prompts/common/prompts.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
@@ -18,16 +17,11 @@ import { ServicesAccessor } from '../../../../../../../../editor/browser/editorE
  */
 export async function askForPromptFileName(
 	accessor: ServicesAccessor,
-	type: TPromptsType,
+	type: PromptsType,
 	selectedFolder: URI
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
-
-	const placeHolder = (type === 'instructions')
-		? localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file")
-		: localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
-
 
 	const sanitizeInput = (input: string) => {
 		const trimmedName = input.trim();
@@ -68,10 +62,24 @@ export async function askForPromptFileName(
 		return undefined;
 	};
 
-	const result = await quickInputService.input({ placeHolder, validateInput });
+	const result = await quickInputService.input({ placeHolder: getPlaceholderString(type), validateInput });
 	if (!result) {
 		return undefined;
 	}
 
 	return sanitizeInput(result);
 }
+
+function getPlaceholderString(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file");
+		case PromptsType.prompt:
+			return localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
+		case PromptsType.mode:
+			return localize('askForModeFileName.placeholder', "Enter the name of the custom chat mode file");
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}
+
