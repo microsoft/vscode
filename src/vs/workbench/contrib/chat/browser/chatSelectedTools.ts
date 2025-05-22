@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, ObservableMap } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, ObservableMap, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatMode } from '../common/constants.js';
@@ -36,7 +36,7 @@ export class ChatSelectedTools extends Disposable {
 	/**
 	 * All tools and tool sets with their enabled state.
 	 */
-	readonly entriesMap: ObservableMap<IToolData | ToolSet, boolean> = new ObservableMap<ToolSet | IToolData, boolean>();
+	readonly entriesMap = new ObservableMap<ToolSet | IToolData, boolean>();
 
 	/**
 	 * All enabled tools and tool sets.
@@ -105,21 +105,24 @@ export class ChatSelectedTools extends Disposable {
 				? disabledDataObs.read(r)
 				: undefined;
 
-			for (const tool of sourceByTool.keys()) {
-				const enabled = !disabledData || !disabledData.toolIds.has(tool.id);
-				this.entriesMap.set(tool, enabled);
-				oldItems.delete(tool);
-			}
+			transaction(tx => {
 
-			for (const toolSet of toolSets) {
-				const enabled = !disabledData || !disabledData.toolSetIds.has(toolSet.id);
-				this.entriesMap.set(toolSet, enabled);
-				oldItems.delete(toolSet);
-			}
+				for (const tool of sourceByTool.keys()) {
+					const enabled = !disabledData || !disabledData.toolIds.has(tool.id);
+					this.entriesMap.set(tool, enabled, tx);
+					oldItems.delete(tool);
+				}
 
-			for (const item of oldItems) {
-				this.entriesMap.delete(item);
-			}
+				for (const toolSet of toolSets) {
+					const enabled = !disabledData || !disabledData.toolSetIds.has(toolSet.id);
+					this.entriesMap.set(toolSet, enabled, tx);
+					oldItems.delete(toolSet);
+				}
+
+				for (const item of oldItems) {
+					this.entriesMap.delete(item, tx);
+				}
+			});
 		}));
 	}
 
