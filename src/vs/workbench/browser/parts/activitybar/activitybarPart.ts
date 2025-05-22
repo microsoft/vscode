@@ -19,7 +19,7 @@ import { addDisposableListener, append, EventType, isAncestor, $, clearNode } fr
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getMenuBarVisibility } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -194,7 +194,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	private element: HTMLElement | undefined;
 
-	private menuBar: CustomMenubarControl | undefined;
+	private readonly menuBar = this._register(new MutableDisposable<CustomMenubarControl>());
 	private menuBarContainer: HTMLElement | undefined;
 	private compositeBarContainer: HTMLElement | undefined;
 	private readonly globalCompositeBar: GlobalCompositeBar | undefined;
@@ -231,7 +231,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.menuBarVisibility')) {
+			if (e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 				if (getMenuBarVisibility(this.configurationService) === 'compact') {
 					this.installMenubar();
 				} else {
@@ -245,12 +245,12 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		// Menu
 		const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
+			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
 		}
 
 		if (menuBarVisibility === 'compact' && this.menuBarContainer && e?.target) {
 			if (isAncestor(e.target as Node, this.menuBarContainer)) {
-				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue('window.menuBarVisibility', 'toggle') }), new Separator()]);
+				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, 'toggle') }), new Separator()]);
 			}
 		}
 
@@ -264,9 +264,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private uninstallMenubar() {
-		if (this.menuBar) {
-			this.menuBar.dispose();
-			this.menuBar = undefined;
+		if (this.menuBar.value) {
+			this.menuBar.value = undefined;
 		}
 
 		if (this.menuBarContainer) {
@@ -276,7 +275,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private installMenubar() {
-		if (this.menuBar) {
+		if (this.menuBar.value) {
 			return; // prevent menu bar from installing twice #110720
 		}
 
@@ -286,8 +285,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.menuBar.create(this.menuBarContainer);
+		this.menuBar.value = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.value.create(this.menuBarContainer);
 
 	}
 
@@ -311,7 +310,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					this.globalCompositeBar?.focus();
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					this.menuBar?.toggleFocus();
+					this.menuBar.value?.toggleFocus();
 				}
 			}));
 		}

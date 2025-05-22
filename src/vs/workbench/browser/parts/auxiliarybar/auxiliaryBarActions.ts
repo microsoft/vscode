@@ -9,7 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryTitleBarContext } from '../../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -133,7 +133,7 @@ MenuRegistry.appendMenuItems([
 				icon: auxiliaryBarLeftOffIcon,
 			},
 			when: ContextKeyExpr.and(
-				IsAuxiliaryTitleBarContext.negate(),
+				IsAuxiliaryWindowContext.negate(),
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
@@ -152,7 +152,7 @@ MenuRegistry.appendMenuItems([
 				icon: auxiliaryBarRightOffIcon,
 			},
 			when: ContextKeyExpr.and(
-				IsAuxiliaryTitleBarContext.negate(),
+				IsAuxiliaryWindowContext.negate(),
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),

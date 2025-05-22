@@ -196,8 +196,9 @@
 		height: 22px;
 }
 
-/* Show toolbar on hover */
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar {
+/* Show toolbar on hover and last response */
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
+.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar {
 	opacity: 1;
 	visibility: visible;
 }
@@ -976,6 +977,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-inline-start: unset;
 }
 
+
+@keyframes kf-chat-editing-atomic-edit {
+	0% {
+		opacity: 0.8;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+.monaco-editor .chat-editing-atomic-edit {
+	z-index: 1;
+	opacity: 0.8;
+	background-color: var(--vscode-editor-background);
+	animation: 350ms kf-chat-editing-atomic-edit ease-out;
+}
+
 .monaco-editor .chat-editing-pending-edit {
 	z-index: 1;
 	opacity: 0.6;
@@ -1320,6 +1338,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled {
 	border-style: dashed;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	cursor: pointer;
+	border-style: solid;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {

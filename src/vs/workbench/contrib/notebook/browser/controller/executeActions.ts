@@ -21,7 +21,7 @@ import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.j
 import { insertCell } from './cellOperations.js';
 import { NotebookChatController } from './chat/notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { CellKind, CellUri, NotebookSetting } from '../../common/notebookCommon.js';
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from '../../common/notebookContextKeys.js';
@@ -29,6 +29,7 @@ import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
 import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -80,20 +81,18 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	}
 
 	if (context.ui && context.cell) {
-		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 		if (context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+			handleAutoReveal(context.cell, context.notebookEditor);
 		}
+		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 	} else if (context.selectedCells?.length || context.cell) {
 		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
-		await context.notebookEditor.executeNotebookCells(selectedCells);
 		const firstCell = selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+			handleAutoReveal(firstCell, context.notebookEditor);
 		}
+		await context.notebookEditor.executeNotebookCells(selectedCells);
 	}
 
 	let foundEditor: ICodeEditor | undefined = undefined;
@@ -106,6 +105,82 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 
 	if (!foundEditor) {
 		return;
+	}
+}
+
+const SMART_VIEWPORT_TOP_REVEAL_PADDING = 20; // enough to not cut off top of cell toolbar
+const SMART_VIEWPORT_BOTTOM_REVEAL_PADDING = 60; // enough to show full bottom of output element + tiny buffer below that vertical bar
+function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor): void {
+	// always focus the container, blue bar is a good visual aid in tracking what's happening
+	notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+
+	// Handle markup cells with simple reveal
+	if (cell.cellKind === CellKind.Markup) {
+		const cellIndex = notebookEditor.getCellIndex(cell);
+		notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		return;
+	}
+
+	// Ensure we're working with a code cell - we need the CodeCellViewModel type for accessing layout properties like outputTotalHeight
+	if (!(cell instanceof CodeCellViewModel)) {
+		return;
+	}
+
+	// Get all dimensions
+	const cellEditorHeight = cell.layoutInfo.editorHeight;
+	const cellEditorScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
+	const cellEditorScrollBottom = cellEditorScrollTop + cellEditorHeight;
+
+	const cellOutputHeight = cell.layoutInfo.outputTotalHeight;
+	const cellOutputScrollBottom = notebookEditor.getAbsoluteBottomOfElement(cell);
+
+	const viewportHeight = notebookEditor.getLayoutInfo().height;
+	const viewportHeight34 = viewportHeight * 0.34;
+	const viewportHeight66 = viewportHeight * 0.66;
+
+	const totalHeight = cellEditorHeight + cellOutputHeight;
+
+	const isFullyVisible = cellEditorScrollTop >= notebookEditor.scrollTop && cellOutputScrollBottom <= notebookEditor.scrollBottom;
+
+	// Common scrolling functions
+	const revealWithTopPadding = (position: number) => { notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING); };
+	const revealWithNoPadding = (position: number) => { notebookEditor.setScrollTop(position); };
+	const revealWithBottomPadding = (position: number) => { notebookEditor.setScrollTop(position + SMART_VIEWPORT_BOTTOM_REVEAL_PADDING); };
+
+	// CASE 0: Total is already visible
+	if (isFullyVisible) {
+		return;
+	}
+
+	// CASE 1: Total fits within viewport
+	// * this could potentially be more robust to minimize scrolling, but I kinda like it
+	if (totalHeight <= viewportHeight) {
+		revealWithTopPadding(cellEditorScrollTop);
+		return;
+	}
+
+	// CASE 2: Total doesn't fit in the viewport
+	if (totalHeight > viewportHeight) {
+		if (cellOutputHeight > 0) { // CASE 2.1: there are outputs
+			if (cellOutputHeight >= viewportHeight66) {
+				// Show 34% editor, 66% output
+				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+				return;
+			} else {
+				// Show output at viewport bottom
+				revealWithBottomPadding(cellOutputScrollBottom - viewportHeight);
+				return;
+			}
+		} else { // CASE 2.2: There are no outputs (cell editor itself is larger than viewport)
+			if (cellEditorScrollBottom <= notebookEditor.scrollBottom) {
+				// bottom is visible, don't scroll
+				return;
+			} else {
+				// cell bottom @ 2/3 of viewport height
+				revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+				return;
+			}
+		}
 	}
 }
 

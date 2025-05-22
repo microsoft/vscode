@@ -85,7 +85,7 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger next edit suggestion"),
 			precondition: EditorContextKeys.writable,
 		});
 	}

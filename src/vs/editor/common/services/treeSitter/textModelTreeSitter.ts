@@ -475,42 +475,10 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				}
 			}
 
-			let nodesInRange: Parser.Node[];
-			// It's possible we end up with a really large range if the parent node is big
-			// Try to avoid this large range by finding several smaller nodes that together encompass the range of the changed node.
-			const foundNodeSize = cursor.endIndex - cursor.startIndex;
-			if (foundNodeSize > 5000) {
-				// Try to find 3 consecutive nodes that together encompass the changed node.
-				let child = cursor.gotoFirstChild();
-				nodesInRange = [];
-				while (child) {
-					if (cursor.endIndex > node.startIndex) {
-						// Found the starting point of our nodes
-						nodesInRange.push(cursor.currentNode);
-						do {
-							child = cursor.gotoNextSibling();
-						} while (child && (cursor.endIndex < node.endIndex));
-
-						nodesInRange.push(cursor.currentNode);
-						break;
-					}
-					child = cursor.gotoNextSibling();
-				}
-			} else {
-				nodesInRange = [cursor.currentNode];
-			}
-
-			// Fill in gaps between nodes
-			// Reset the cursor to the first node in the range;
-			while (cursor.currentNode.id !== nodesInRange[0].id) {
-				cursor.gotoPreviousSibling();
-			}
-			const previousNode = getClosestPreviousNodes(cursor, newTree);
-			cursor.delete();
-			const startPosition = previousNode ? previousNode.endPosition : nodesInRange[0].startPosition;
-			const startIndex = previousNode ? previousNode.endIndex : nodesInRange[0].startIndex;
-			const endPosition = nodesInRange[nodesInRange.length - 1].endPosition;
-			const endIndex = nodesInRange[nodesInRange.length - 1].endIndex;
+			const startPosition = cursor.currentNode.startPosition;
+			const endPosition = cursor.currentNode.endPosition;
+			const startIndex = cursor.currentNode.startIndex;
+			const endIndex = cursor.currentNode.endIndex;
 
 			const newChange = { newRange: new Range(startPosition.row + 1, startPosition.column + 1, endPosition.row + 1, endPosition.column + 1), newRangeStartOffset: startIndex, newRangeEndOffset: endIndex };
 			if ((newRangeIndex < newRanges.length) && rangesIntersect(newRanges[newRangeIndex], { startIndex, endIndex, startPosition, endPosition })) {

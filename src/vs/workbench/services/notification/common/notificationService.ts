@@ -18,16 +18,11 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	readonly model = this._register(new NotificationsModel());
 
-	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
-	readonly onDidAddNotification = this._onDidAddNotification.event;
-
-	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
-	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
-
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
 		this.mapSourceToFilter = (() => {
 			const map = new Map<string, INotificationSourceFilter>();
 
@@ -37,6 +32,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 			return map;
 		})();
+
 		this.globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
 
 		this.updateFilters();
@@ -46,35 +42,18 @@ export class NotificationService extends Disposable implements INotificationServ
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => {
 			switch (e.kind) {
-				case NotificationChangeType.ADD:
-				case NotificationChangeType.REMOVE: {
+				case NotificationChangeType.ADD: {
 					const source = typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source;
 
-					const notification: INotification = {
-						message: e.item.message.original,
-						severity: e.item.severity,
-						source,
-						priority: e.item.priority
-					};
+					// Make sure to track sources for notifications by registering
+					// them with our do not disturb system which is backed by storage
 
-					if (e.kind === NotificationChangeType.ADD) {
-
-						// Make sure to track sources for notifications by registering
-						// them with our do not disturb system which is backed by storage
-
-						if (isNotificationSource(source)) {
-							if (!this.mapSourceToFilter.has(source.id)) {
-								this.setFilter({ ...source, filter: NotificationsFilter.OFF });
-							} else {
-								this.updateSourceFilter(source);
-							}
+					if (isNotificationSource(source)) {
+						if (!this.mapSourceToFilter.has(source.id)) {
+							this.setFilter({ ...source, filter: NotificationsFilter.OFF });
+						} else {
+							this.updateSourceFilter(source);
 						}
-
-						this._onDidAddNotification.fire(notification);
-					}
-
-					if (e.kind === NotificationChangeType.REMOVE) {
-						this._onDidRemoveNotification.fire(notification);
 					}
 
 					break;

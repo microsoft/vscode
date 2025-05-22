@@ -2171,6 +2171,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.getCellViewScrollTop(cell);
 	}
 
+	getAbsoluteBottomOfElement(cell: ICellViewModel) {
+		return this._list.getCellViewScrollBottom(cell);
+	}
+
 	getHeightOfElement(cell: ICellViewModel) {
 		return this._list.elementHeight(cell);
 	}

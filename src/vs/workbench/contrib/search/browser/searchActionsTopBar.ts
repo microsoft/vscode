@@ -224,12 +224,7 @@ registerAction2(class SearchWithAIAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const viewer = searchView.getControl();
-			searchView.model.searchResult.aiTextSearchResult.hidden = false;
-			searchView.model.cancelAISearch(true);
-			searchView.model.clearAiSearchResults();
-			await searchView.queueRefreshTree();
-			await forcedExpandRecursively(viewer, searchView.model.searchResult.aiTextSearchResult);
+			searchView.requestAIResults();
 		}
 	}
 });
