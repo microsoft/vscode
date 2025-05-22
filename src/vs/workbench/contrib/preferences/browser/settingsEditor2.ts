@@ -1716,10 +1716,11 @@ export class SettingsEditor2 extends EditorPane {
 			if (searchInProgress.token.isCancellationRequested) {
 				return;
 			}
-			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			const localResults = await this.doLocalSearch(query, searchInProgress.token);
 			let remoteResults = null;
 			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
-				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
+				// This search also kicks off the LLM search, whose results are fetched with the AI settings search service.
+				remoteResults = await this.doRemoteSearch(query, searchInProgress.token);
 			}
 
 			if (searchInProgress.token.isCancellationRequested) {
@@ -1804,12 +1805,12 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private localFilterPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+	private doRemoteSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
 		if (!remoteSearchProvider) {
 			return Promise.resolve(null);
