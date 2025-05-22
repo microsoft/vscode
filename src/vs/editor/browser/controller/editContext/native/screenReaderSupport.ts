@@ -104,10 +104,6 @@ export class ScreenReaderSupport {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._screenReaderContentState) {
-			return;
-		}
-
 		if (!this._primaryCursorVisibleRange) {
 			// The primary cursor is outside the viewport => place textarea to the top left
 			this._renderAtTopLeft();
@@ -135,9 +131,7 @@ export class ScreenReaderSupport {
 		// all the lines must have the same height. We use the line height of the cursor position as the
 		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
-		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
+		this._doRender(top, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
