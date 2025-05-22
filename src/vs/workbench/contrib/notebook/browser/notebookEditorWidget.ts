@@ -2832,7 +2832,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (this._dimension) {
 			listViewOffset = (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0) + (this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0);
 		}
-		// this._notebookTopToolbar?.
 
 		return {
 			width: this._dimension?.width ?? 0,
