@@ -1340,6 +1340,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	cursor: pointer;
+	border-style: solid;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
