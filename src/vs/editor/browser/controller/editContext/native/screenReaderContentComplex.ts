@@ -285,11 +285,13 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		const range = activeDocumentSelection.getRangeAt(0);
 		const startContainer = range.startContainer;
 		const endContainer = range.endContainer;
-		if (!isHTMLElement(startContainer) || !isHTMLElement(endContainer)) {
+		const startSpanElement = startContainer.parentElement;
+		const endSpanElement = endContainer.parentElement;
+		if (!startSpanElement || !isHTMLElement(startSpanElement) || !endSpanElement || !isHTMLElement(endSpanElement)) {
 			return;
 		}
-		const startLineDomNode = startContainer.parentElement?.parentElement;
-		const endLineDomNode = endContainer.parentElement?.parentElement;
+		const startLineDomNode = startSpanElement.parentElement?.parentElement;
+		const endLineDomNode = endSpanElement.parentElement?.parentElement;
 		if (!startLineDomNode || !endLineDomNode) {
 			return;
 		}
@@ -305,8 +307,8 @@ export class ComplexScreenReaderContent extends Disposable implements IScreenRea
 		if (!startMapping || !endMapping) {
 			return;
 		}
-		const startColumn = getColumnOfNodeOffset(startMapping, startContainer, range.startOffset);
-		const endColumn = getColumnOfNodeOffset(endMapping, endContainer, range.endOffset);
+		const startColumn = getColumnOfNodeOffset(startMapping, startSpanElement, range.startOffset);
+		const endColumn = getColumnOfNodeOffset(endMapping, endSpanElement, range.endOffset);
 		return new Selection(
 			startLineNumber,
 			startColumn,

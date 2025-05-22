@@ -106,9 +106,8 @@ export class ScreenReaderSupport extends Disposable {
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
-		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
-		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
-		this._domNode.domNode.style.textWrap = wordWrap === 'off' ? 'nowrap' : 'wrap';
+		const wordWrapValue = wordWrapOverride2 !== 'inherit' ? wordWrapOverride2 : options.get(EditorOption.wordWrap);
+		this._domNode.domNode.style.textWrap = wordWrapValue === 'off' ? 'nowrap' : 'wrap';
 	}
 
 	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
@@ -159,12 +158,11 @@ export class ScreenReaderSupport extends Disposable {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
-		this._domNode.setTop(300);
+		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
-		this._domNode.setHeight(500);
+		this._domNode.setHeight(height);
 		this._domNode.setLineHeight(height);
-		this._domNode.domNode.style.background = 'white';
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 

@@ -40,8 +40,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 
 	public setScreenReaderContent(primarySelection: Selection): void {
 		const domNode = this._domNode.domNode;
-		const document = getActiveWindow().document;
-		const focusedElement = document.activeElement;
+		const focusedElement = getActiveWindow().document.activeElement;
 		if (!focusedElement || focusedElement !== domNode) {
 			return;
 		}
@@ -52,7 +51,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 				this._setIgnoreSelectionChangeTime('setValue');
 				domNode.textContent = this._state.value;
 			}
-			const selection = document.getSelection();
+			const selection = getActiveWindow().document.getSelection();
 			if (!selection) {
 				return;
 			}
@@ -113,13 +112,12 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			if (!this._state || !isScreenReaderOptimized || !IME.enabled) {
 				return;
 			}
-			const document = getActiveWindow().document;
-			const activeElement = document.activeElement;
+			const activeElement = getActiveWindow().document.activeElement;
 			const isFocused = activeElement === this._domNode.domNode;
 			if (!isFocused) {
 				return;
 			}
-			const selection = document.getSelection();
+			const selection = getActiveWindow().document.getSelection();
 			if (!selection) {
 				return;
 			}
