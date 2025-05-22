@@ -1730,5 +1730,21 @@ suite('Async', () => {
 
 			assert.strictEqual(calledOnReturn, false);
 		});
+
+		test('emitMany emits all items', async function () {
+			const source = new async.AsyncIterableSource<number>();
+			const values = [10, 20, 30, 40];
+			source.emitMany(values);
+			source.resolve();
+
+			const result: number[] = [];
+			for await (const item of source.asyncIterable) {
+				result.push(item);
+			}
+
+			assert.deepStrictEqual(result, values);
+		});
+
+
 	});
 });
