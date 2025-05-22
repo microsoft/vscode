@@ -371,6 +371,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 				this.indent = indent;
 
 				for (const [node, templateData] of this.renderedNodes) {
+					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
