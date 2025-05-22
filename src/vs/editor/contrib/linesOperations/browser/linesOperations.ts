@@ -363,6 +363,54 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 	}
 }
 
+export class ReverseLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.reverseLines',
+			label: nls.localize2('lines.reverseLines', "Reverse lines"),
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const model: ITextModel = editor.getModel();
+
+		let range: Range = model.getFullModelRange();
+		// Exclude last line if empty
+		if (model.getLineContent(range.endLineNumber) === '') {
+			range = range.setEndPosition(range.endLineNumber - 1, model.getLineMaxColumn(range.endLineNumber - 1));
+		}
+
+		const lines: string[] = [];
+		for (let i = range.endLineNumber; i >= range.startLineNumber; i--) {
+			lines.push(model.getLineContent(i));
+		}
+		const edit: ISingleEditOperation = EditOperation.replace(range, lines.join('\n'));
+
+		const updateLineNumber = function (lineNumber: number): number {
+			return lineNumber <= range.endLineNumber ? range.endLineNumber - lineNumber + 1 : lineNumber;
+		};
+		const updateSelection = function (selection: Selection): Selection {
+			if (selection.selectionStartLineNumber === selection.positionLineNumber) {
+				// keep selection
+				return new Selection(updateLineNumber(selection.selectionStartLineNumber), selection.selectionStartColumn, updateLineNumber(selection.positionLineNumber), selection.positionColumn);
+			} else {
+				// keep just the cursor
+				return new Selection(updateLineNumber(selection.positionLineNumber), selection.positionColumn, updateLineNumber(selection.positionLineNumber), selection.positionColumn);
+			}
+		};
+		const selections: Selection[] = editor.getSelections().map(updateSelection);
+
+		editor.pushUndoStop();
+		editor.executeEdits(this.id, [edit], selections);
+		editor.pushUndoStop();
+	}
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -1277,6 +1325,7 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(ReverseLinesAction);
 
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
