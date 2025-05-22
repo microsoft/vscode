@@ -143,9 +143,11 @@ export class ObservableCodeEditor extends Disposable {
 		this.layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 		this.layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
 		this.layoutInfoWidth = this.layoutInfo.map(l => l.width);
+		this.layoutInfoHeight = this.layoutInfo.map(l => l.height);
 		this.layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
 		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
+		this.contentHeight = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
 		this._widgetCounter = 0;
 		this.openedPeekWidgets = observableValue(this, 0);
 
@@ -263,10 +265,12 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfoContentLeft;
 	public readonly layoutInfoDecorationsLeft;
 	public readonly layoutInfoWidth;
+	public readonly layoutInfoHeight;
 	public readonly layoutInfoMinimap;
 	public readonly layoutInfoVerticalScrollbarWidth;
 
 	public readonly contentWidth;
+	public readonly contentHeight;
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {
