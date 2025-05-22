@@ -47,6 +47,7 @@ export interface IDialogOptions {
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
@@ -112,6 +113,9 @@ export class Dialog extends Disposable {
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		if (options.alignment === DialogContentsAlignment.Vertical) {
 			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
 		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
