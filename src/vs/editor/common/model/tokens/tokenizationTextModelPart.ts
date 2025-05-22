@@ -16,15 +16,15 @@ import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent,
 import { BracketPairsTextModelPart } from '../bracketPairsTextModelPart/bracketPairsImpl.js';
 import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
-import { AbstractTokens, AttachedViews } from './tokens.js';
-import { TreeSitterTokens } from './treeSitter/treeSitterTokens.js';
+import { AbstractSyntaxTokenBackend, AttachedViews } from './abstractSyntaxTokenBackend.js';
+import { TreeSitterSyntaxTokenBackend } from './treeSitter/treeSitterSyntaxTokenBackend.js';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
 import { ITokenizationTextModelPart } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../../tokens/sparseMultilineTokens.js';
 import { SparseTokensStore } from '../../tokens/sparseTokensStore.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { TokenizerTokens } from './tokenizerTokens.js';
+import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 
@@ -40,7 +40,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	public readonly tokens: IObservable<AbstractTokens>;
+	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
 	private readonly _languageIdObs: ISettableObservable<string>;
 
@@ -64,17 +64,17 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		});
 
 		this.tokens = derived(this, reader => {
-			let tokens: AbstractTokens;
+			let tokens: AbstractSyntaxTokenBackend;
 			if (this._useTreeSitter.read(reader)) {
 				tokens = reader.store.add(this._instantiationService.createInstance(
-					TreeSitterTokens,
+					TreeSitterSyntaxTokenBackend,
 					this._languageIdObs,
 					this._languageService.languageIdCodec,
 					this._textModel,
 					this._attachedViews.visibleLineRanges
 				));
 			} else {
-				tokens = reader.store.add(new TokenizerTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+				tokens = reader.store.add(new TokenizerSyntaxTokenBackend(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 			}
 
 			reader.store.add(tokens.onDidChangeTokens(e => {

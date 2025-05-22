@@ -20,10 +20,10 @@ import { ContiguousTokensStore } from '../../tokens/contiguousTokensStore.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { TextModel } from '../textModel.js';
 import { TokenizerWithStateStoreAndTextModel, DefaultBackgroundTokenizer, TrackingTokenizationStateStore } from '../textModelTokens.js';
-import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens.js';
+import { AbstractSyntaxTokenBackend, AttachedViewHandler, AttachedViews } from './abstractSyntaxTokenBackend.js';
 
 /** For TextMate */
-export class TokenizerTokens extends AbstractTokens {
+export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
 	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());

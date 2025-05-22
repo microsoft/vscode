@@ -131,7 +131,7 @@ export class AttachedViewHandler extends Disposable {
 	}
 }
 
-export abstract class AbstractTokens extends Disposable {
+export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	protected abstract _backgroundTokenizationState: BackgroundTokenizationState;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;

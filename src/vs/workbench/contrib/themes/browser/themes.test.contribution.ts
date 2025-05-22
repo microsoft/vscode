@@ -25,10 +25,10 @@ import { ColorThemeData, findMetadata } from '../../../services/themes/common/co
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { Event } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { TreeSitterModel } from '../../../../editor/common/model/tokens/treeSitter/treeSitterModel.js';
+import { TreeSitterTree } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 import { TokenizationTextModelPart } from '../../../../editor/common/model/tokens/tokenizationTextModelPart.js';
-import { TreeSitterTokens } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokens.js';
-import { TreeSitterTokenizationModel } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokensModel.js';
+import { TreeSitterSyntaxTokenBackend } from '../../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
+import { TreeSitterTokenizationImpl } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
 
 interface IToken {
 	c: string; // token
@@ -292,7 +292,7 @@ class Snapper {
 		}
 	}
 
-	private _treeSitterTokenize(treeSitterModel: TreeSitterModel, tokenizationModel: TreeSitterTokenizationModel, tree: Parser.Tree, languageId: string): IToken[] {
+	private _treeSitterTokenize(treeSitterModel: TreeSitterTree, tokenizationModel: TreeSitterTokenizationImpl, tree: Parser.Tree, languageId: string): IToken[] {
 		const cursor = tree.walk();
 		cursor.gotoFirstChild();
 		let cursorResult: boolean = true;
@@ -369,8 +369,8 @@ class Snapper {
 		if (languageId) {
 			const model = this.modelService.getModel(resource) ?? this.modelService.createModel(content, { languageId, onDidChange: Event.None }, resource);
 			// let textModelTreeSitter = this.treeSitterParserService.getParseResult(model);
-			const treeSitterModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).treeModel;
-			const tokenizationModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).tokenModel;
+			const treeSitterModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
+			const tokenizationModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel;
 			const tree = treeSitterModel?.tree.get();
 			if (!treeSitterModel || !tokenizationModel) {
 				return [];

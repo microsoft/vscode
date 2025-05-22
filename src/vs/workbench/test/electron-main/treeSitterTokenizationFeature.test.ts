@@ -47,10 +47,10 @@ import { ITreeSitterLibraryService } from '../../../editor/common/services/treeS
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TreeSitterLibraryService } from '../../services/treeSitter/browser/treeSitterLibraryService.js';
 import { TokenizationTextModelPart } from '../../../editor/common/model/tokens/tokenizationTextModelPart.js';
-import { TreeSitterTokens } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokens.js';
-import { TreeParseUpdateEvent, TreeSitterModel } from '../../../editor/common/model/tokens/treeSitter/treeSitterModel.js';
+import { TreeSitterSyntaxTokenBackend } from '../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
+import { TreeParseUpdateEvent, TreeSitterTree } from '../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { TreeSitterTokenizationModel } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokensModel.js';
+import { TreeSitterTokenizationImpl } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -153,10 +153,10 @@ suite('Tree Sitter TokenizationFeature', function () {
 	}
 
 	let nameNumber = 1;
-	async function getModelAndPrepTree(content: string): Promise<{ model: ITextModel; treeSitterModel: TreeSitterModel; treeSitterTokenModel: TreeSitterTokenizationModel }> {
+	async function getModelAndPrepTree(content: string): Promise<{ model: ITextModel; treeSitterModel: TreeSitterTree; treeSitterTokenModel: TreeSitterTokenizationImpl }> {
 		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file(`file${nameNumber++}.ts`)));
-		const treeSitterModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).treeModel;
-		const treeSitterTokenModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).tokenModel!;
+		const treeSitterModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
+		const treeSitterTokenModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel!;
 		// const treeParseResult = new Promise<void>(resolve => {
 		// 	const disposable = tree?.onDidUpdate(() => {
 		// 		disposable?.dispose();

@@ -14,21 +14,19 @@ import { findLikelyRelevantLines } from '../../textModelTokens.js';
 import { TokenStore, TokenUpdate, TokenQuality } from './tokenStore.js';
 import { TreeSitterTree, RangeChange, RangeWithOffsets } from './treeSitterTree.js';
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
-import { autorun, IObservable, runOnChange } from '../../../../../base/common/observable.js';
+import { autorun, autorunHandleChanges, IObservable, recordChanges, runOnChange } from '../../../../../base/common/observable.js';
 import { LineRange } from '../../../core/ranges/lineRange.js';
 import { LineTokens } from '../../../tokens/lineTokens.js';
 import { Position } from '../../../core/position.js';
 import { Range } from '../../../core/range.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { ITreeSitterThemeService } from '../../../services/treeSitter/treeSitterThemeService.js';
-
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
 
 export class TreeSitterTokenizationImpl extends Disposable {
 	private readonly _tokenStore: TokenStore;
 	private _accurateVersion: number;
 	private _guessVersion: number;
-
-
 
 	private readonly _onDidChangeTokens: Emitter<{ changes: IModelTokensChangedEvent }> = this._register(new Emitter());
 	public readonly onDidChangeTokens: Event<{ changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
@@ -38,11 +36,11 @@ export class TreeSitterTokenizationImpl extends Disposable {
 	private _encodedLanguageId: LanguageId;
 
 	private get _textModel() {
-		return this._treeSitterModel.textModel;
+		return this._tree.textModel;
 	}
 
 	constructor(
-		private readonly _treeSitterModel: TreeSitterTree,
+		private readonly _tree: TreeSitterTree,
 		private readonly _highlightingQueries: TreeSitter.Query,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _visibleLineRanges: IObservable<readonly LineRange[]>,
@@ -51,7 +49,7 @@ export class TreeSitterTokenizationImpl extends Disposable {
 	) {
 		super();
 
-		this._encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._treeSitterModel.languageId);
+		this._encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._tree.languageId);
 
 		this._register(runOnChange(this._treeSitterThemeService.onChange, () => {
 			this._updateTheme();
@@ -67,23 +65,34 @@ export class TreeSitterTokenizationImpl extends Disposable {
 			this._parseAndTokenizeViewPort(visibleLineRanges);
 		}));
 
-		// TODO handle the case that the tree is initially set on the tree model!
-
-		this._register(this._treeSitterModel.onDidUpdate((e) => {
-
-			if (this.hasTokens()) {
-				// Mark the range for refresh immediately
-
-				for (const range of e.ranges) {
-					this._markForRefresh(range.newRange);
-				}
+		this._register(autorunHandleChanges({
+			owner: this,
+			changeTracker: recordChanges({ tree: this._tree.tree }),
+		}, (reader, ctx) => {
+			const changeEvent = ctx.changes.at(0)?.change;
+			if (ctx.changes.length > 1) {
+				throw new BugIndicatingError('The tree changed twice in one transaction. This is currently not supported and should not happen.');
 			}
 
-			// First time we see a tree we need to build a token store.
-			if (!this.hasTokens()) {
-				this._firstTreeUpdate(e.versionId);
+			if (!changeEvent) {
+				if (ctx.tree) {
+					this._firstTreeUpdate(this._tree.treeLastParsedVersion.read(reader));
+				}
 			} else {
-				this._handleTreeUpdate(e.ranges, e.versionId);
+				if (this.hasTokens()) {
+					// Mark the range for refresh immediately
+
+					for (const range of changeEvent.ranges) {
+						this._markForRefresh(range.newRange);
+					}
+				}
+
+				// First time we see a tree we need to build a token store.
+				if (!this.hasTokens()) {
+					this._firstTreeUpdate(changeEvent.versionId);
+				} else {
+					this._handleTreeUpdate(changeEvent.ranges, changeEvent.versionId);
+				}
 			}
 		}));
 	}
@@ -295,7 +304,7 @@ export class TreeSitterTokenizationImpl extends Disposable {
 		const likelyRelevantLines = findLikelyRelevantLines(this._textModel, range.startLineNumber).likelyRelevantLines;
 		const likelyRelevantPrefix = likelyRelevantLines.join(this._textModel.getEOL());
 
-		const tree = this._treeSitterModel.createParsedTreeSync(`${likelyRelevantPrefix}${content}`);
+		const tree = this._tree.createParsedTreeSync(`${likelyRelevantPrefix}${content}`);
 		if (!tree) {
 			return;
 		}
@@ -397,7 +406,7 @@ export class TreeSitterTokenizationImpl extends Disposable {
 		const captures = rangeChanges.map(range => this._getCaptures(range.range));
 		// Don't block
 		return this._updateTreeForRanges(rangeChanges, versionId, captures).then(() => {
-			if (!this._textModel.isDisposed() && (this._treeSitterModel.treeLastParsedVersion.get() === this._textModel.getVersionId())) {
+			if (!this._textModel.isDisposed() && (this._tree.treeLastParsedVersion.get() === this._textModel.getVersionId())) {
 				this._refreshNeedsRefresh(versionId);
 			}
 		});
@@ -489,7 +498,7 @@ export class TreeSitterTokenizationImpl extends Disposable {
 	}
 
 	private captureAtRange(range: Range): QueryCapture[] {
-		const tree = this._treeSitterModel.tree.get();
+		const tree = this._tree.tree.get();
 		if (!tree) {
 			return [];
 		}
@@ -577,15 +586,15 @@ export class TreeSitterTokenizationImpl extends Disposable {
 		if (!result) {
 			return undefined;
 		}
-		return { ...result, versionId: this._treeSitterModel.treeLastParsedVersion.get() };
+		return { ...result, versionId: this._tree.treeLastParsedVersion.get() };
 	}
 
 	private _createTokensFromCaptures(captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: EndOffsetAndScopes[]; captureTime: number } | undefined {
-		const tree = this._treeSitterModel.tree.get();
+		const tree = this._tree.tree.get();
 		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
-		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._treeSitterModel.languageId);
-		const baseScope: string = TREESITTER_BASE_SCOPES[this._treeSitterModel.languageId] || 'source';
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._tree.languageId);
+		const baseScope: string = TREESITTER_BASE_SCOPES[this._tree.languageId] || 'source';
 
 		if (captures.length === 0) {
 			if (tree) {

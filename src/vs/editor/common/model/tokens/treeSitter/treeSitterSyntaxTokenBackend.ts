@@ -12,21 +12,21 @@ import { IModelContentChangedEvent } from '../../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../../tokens/lineTokens.js';
 import { TextModel } from '../../textModel.js';
-import { AbstractTokens } from '../tokens.js';
+import { AbstractSyntaxTokenBackend } from '../abstractSyntaxTokenBackend.js';
 import { autorun, derived, IObservable, ObservablePromise } from '../../../../../base/common/observable.js';
-import { TreeSitterModel } from './treeSitterModel.js';
+import { TreeSitterTree } from './treeSitterTree.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TreeSitterTokenizationModel } from './treeSitterTokensModel.js';
+import { TreeSitterTokenizationImpl } from './treeSitterTokenizationImpl.js';
 import { ITreeSitterLibraryService } from '../../../services/treeSitter/treeSitterLibraryService.js';
 import { LineRange } from '../../../core/ranges/lineRange.js';
 
-export class TreeSitterTokens extends AbstractTokens {
+export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
 
-	private readonly _treeModel: IObservable<TreeSitterModel | undefined>;
-	private readonly _tokenizationModel: IObservable<TreeSitterTokenizationModel | undefined>;
+	private readonly _tree: IObservable<TreeSitterTree | undefined>;
+	private readonly _tokenizationModel: IObservable<TreeSitterTokenizationImpl | undefined>;
 
 	constructor(
 		private readonly _languageIdObs: IObservable<string>,
@@ -48,7 +48,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		});
 
 
-		this._treeModel = derived(this, reader => {
+		this._tree = derived(this, reader => {
 			const parserClass = parserClassObs.read(reader);
 			if (!parserClass) {
 				return undefined;
@@ -71,12 +71,12 @@ export class TreeSitterTokens extends AbstractTokens {
 				return undefined;
 			}
 
-			return reader.store.add(this._instantiationService.createInstance(TreeSitterModel, currentLanguage, undefined, parser, parserClass, queries, this._textModel));
+			return reader.store.add(this._instantiationService.createInstance(TreeSitterTree, currentLanguage, undefined, parser, parserClass, queries, this._textModel));
 		});
 
 
 		this._tokenizationModel = derived(this, reader => {
-			const treeModel = this._treeModel.read(reader);
+			const treeModel = this._tree.read(reader);
 			if (!treeModel) {
 				return undefined;
 			}
@@ -86,7 +86,7 @@ export class TreeSitterTokens extends AbstractTokens {
 				return undefined;
 			}
 
-			return this._instantiationService.createInstance(TreeSitterTokenizationModel, treeModel, queries, this._languageIdCodec, visibleLineRanges);
+			return reader.store.add(this._instantiationService.createInstance(TreeSitterTokenizationImpl, treeModel, queries, this._languageIdCodec, visibleLineRanges));
 		});
 
 		this._register(autorun(reader => {
@@ -104,11 +104,11 @@ export class TreeSitterTokens extends AbstractTokens {
 		}));
 	}
 
-	get treeModel(): TreeSitterModel | undefined {
-		return this._treeModel.get();
+	get treeModel(): TreeSitterTree | undefined {
+		return this._tree.get();
 	}
 
-	get tokenModel(): TreeSitterTokenizationModel | undefined {
+	get tokenModel(): TreeSitterTokenizationImpl | undefined {
 		return this._tokenizationModel.get();
 	}
 
@@ -148,7 +148,7 @@ export class TreeSitterTokens extends AbstractTokens {
 			model?.handleContentChanged(e);
 		}
 
-		const treeModel = this._treeModel.get();
+		const treeModel = this._tree.get();
 		treeModel?.handleContentChange(e);
 	}
 

@@ -38,7 +38,7 @@ import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.j
 import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
-import { AttachedViews } from './tokens/tokens.js';
+import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';

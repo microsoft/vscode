@@ -32,9 +32,9 @@ import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } 
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
-import { TreeSitterTokens } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterTokens.js';
+import { TreeSitterSyntaxTokenBackend } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
 import { TokenizationTextModelPart } from '../../../../../editor/common/model/tokens/tokenizationTextModelPart.js';
-import { TreeSitterModel } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterModel.js';
+import { TreeSitterTree } from '../../../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 
 const $ = dom.$;
 
@@ -241,7 +241,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
-		const treeModel = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).treeModel;
+		const treeModel = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -271,7 +271,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return this._themeService.getColorTheme().semanticHighlighting;
 	}
 
-	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, tree: TreeSitterModel | undefined, position: Position) {
+	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, tree: TreeSitterTree | undefined, position: Position) {
 		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
 		const treeSitterTokenInfo = tree && this._getTreeSitterTokenAtPosition(tree, position);
@@ -421,7 +421,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
-			const tokenizationSupport = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterTokens).tokenModel;
+			const tokenizationSupport = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel;
 			const captures = tokenizationSupport?.captureAtPosition(position.lineNumber, position.column);
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
@@ -660,7 +660,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return lastGoodNode;
 	}
 
-	private _getTreeSitterTokenAtPosition(treeModel: TreeSitterModel | undefined, pos: Position): TreeSitter.Node[] | null {
+	private _getTreeSitterTokenAtPosition(treeModel: TreeSitterTree | undefined, pos: Position): TreeSitter.Node[] | null {
 		const nodes: TreeSitter.Node[] = [];
 
 		let tree;

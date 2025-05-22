@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
 import { LimitedQueue } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction, IObservableWithChange } from '../../../../../base/common/observable.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -14,24 +13,20 @@ import { TextLength } from '../../../core/text/textLength.js';
 import { IModelContentChangedEvent, IModelContentChange } from '../../../textModelEvents.js';
 import { TextModel } from '../../textModel.js';
 import { gotoParent, getClosestPreviousNodes, nextSiblingOrParentSibling, gotoNthChild } from './cursorUtils.js';
-import { rangesIntersect, rangesEqual } from './treeSitterTokens.js';
+import { rangesIntersect, rangesEqual } from './treeSitterSyntaxTokenBackend.js';
 import { Range } from '../../../core/range.js';
 
-export class TreeSitterModel extends Disposable {
-	public readonly tree: IObservable<TreeSitter.Tree | undefined>;
-	public readonly treeLastParsedVersion: IObservable<number>;
+export class TreeSitterTree extends Disposable {
 
-	private readonly _onDidUpdate: Emitter<TreeParseUpdateEvent> = new Emitter<TreeParseUpdateEvent>();
-	public readonly onDidUpdate: Event<TreeParseUpdateEvent> = this._onDidUpdate.event;
+	private readonly _tree = observableValue<TreeSitter.Tree | undefined, TreeParseUpdateEvent>(this, undefined);
+	public readonly tree: IObservableWithChange<TreeSitter.Tree | undefined, TreeParseUpdateEvent> = this._tree;
 
-	private readonly _treeObs: ISettableObservable<TreeSitter.Tree | undefined>;
-	private readonly _treeLastParsedVersion: ISettableObservable<number, void>;
+	private readonly _treeLastParsedVersion = observableValue(this, -1);
+	public readonly treeLastParsedVersion: IObservable<number> = this._treeLastParsedVersion;
 
-	private _tree: TreeSitter.Tree | undefined;
 	private _lastFullyParsed: TreeSitter.Tree | undefined;
 	private _lastFullyParsedWithEdits: TreeSitter.Tree | undefined;
 
-	private _versionId: number = 0;
 	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
 
 	constructor(
@@ -44,26 +39,20 @@ export class TreeSitterModel extends Disposable {
 		private readonly _injectionQuery: TreeSitter.Query,
 		public readonly textModel: TextModel,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
-		this._treeObs = observableValue(this, undefined);
-		this.tree = this._treeObs;
-		this._treeLastParsedVersion = observableValue(this, -1);
-		this.treeLastParsedVersion = this._treeLastParsedVersion;
+		this._tree = observableValue(this, undefined);
+		this.tree = this._tree;
 
 		this._register(toDisposable(() => {
-			this._tree?.delete();
+			this._tree.get()?.delete();
 			this._lastFullyParsed?.delete();
 			this._lastFullyParsedWithEdits?.delete();
 			this._parser.delete();
 		}));
 		this.handleContentChange(undefined, this._ranges);
-	}
-
-	get versionId() {
-		return this._versionId;
 	}
 
 	public handleContentChange(e: IModelContentChangedEvent | undefined, ranges?: TreeSitter.Range[]): void {
@@ -102,11 +91,12 @@ export class TreeSitterModel extends Disposable {
 					ranges = [{ newRange: this.textModel.getFullModelRange(), newRangeStartOffset: 0, newRangeEndOffset: this.textModel.getValueLength() }];
 				}
 
+				const previousTree = this._tree.get();
 				transaction(tx => {
-					this._treeObs.set(completed, tx);
+					this._tree.set(completed, tx, { ranges, versionId: version });
 					this._treeLastParsedVersion.set(version, tx);
-					this._onDidUpdate.fire({ language: this.languageId, ranges, versionId: version });
 				});
+				previousTree?.delete();
 			}
 		});
 	}
@@ -115,7 +105,7 @@ export class TreeSitterModel extends Disposable {
 		return this._ranges;
 	}
 
-	public getInjectionTrees(startIndex: number, languageId: string): TreeSitterModel | undefined {
+	public getInjectionTrees(startIndex: number, languageId: string): TreeSitterTree | undefined {
 		// TODO
 		return undefined;
 	}
@@ -133,7 +123,7 @@ export class TreeSitterModel extends Disposable {
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
 				newEndPosition: { row: change.range.startLineNumber + summedTextLengths.lineCount - 1, column: summedTextLengths.lineCount ? summedTextLengths.columnCount : (change.range.endColumn + summedTextLengths.columnCount) }
 			};
-			this._tree?.edit(edit);
+			this._tree.get()?.edit(edit);
 			this._lastFullyParsedWithEdits?.edit(edit);
 		}
 	}
@@ -312,15 +302,13 @@ export class TreeSitterModel extends Disposable {
 	private async _parseAndUpdateTree(version: number): Promise<TreeSitter.Tree | undefined> {
 		const tree = await this._parse();
 		if (tree) {
-			this._tree?.delete();
-			this._tree = tree;
 			this._lastFullyParsed?.delete();
 			this._lastFullyParsed = tree.copy();
 			this._lastFullyParsedWithEdits?.delete();
 			this._lastFullyParsedWithEdits = tree.copy();
 
 			return tree;
-		} else if (!this._tree) {
+		} else if (!this._tree.get()) {
 			// No tree means this is the initial parse and there were edits
 			// parse function doesn't handle this well and we can end up with an incorrect tree, so we reset
 			this._parser.reset();
@@ -330,7 +318,7 @@ export class TreeSitterModel extends Disposable {
 
 	private _parse(): Promise<TreeSitter.Tree | undefined> {
 		let parseType: TelemetryParseType = TelemetryParseType.Full;
-		if (this._treeObs) {
+		if (this._tree.get()) {
 			parseType = TelemetryParseType.Incremental;
 		}
 		return this._parseAndYield(parseType);
@@ -347,7 +335,7 @@ export class TreeSitterModel extends Disposable {
 		do {
 			const timer = performance.now();
 
-			newTree = this._parser.parse((index: number, position?: TreeSitter.Point) => this._parseCallback(index), this._tree, { progressCallback, includedRanges: this._ranges });
+			newTree = this._parser.parse((index: number, position?: TreeSitter.Point) => this._parseCallback(index), this._tree.get(), { progressCallback, includedRanges: this._ranges });
 
 			time += performance.now() - timer;
 			passes++;
@@ -430,7 +418,6 @@ const enum TelemetryParseType {
 
 export interface TreeParseUpdateEvent {
 	ranges: RangeChange[];
-	language: string;
 	versionId: number;
 }
 
