@@ -129,7 +129,7 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	const extraArgs = '';
 	if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
 		const profilePaths = await getPowershellProfilePaths(systemShell);
-		const profilePathThatExists = await first(profilePaths.map(profilePath => () => FSPromises.exists(profilePath)));
+		const profilePathThatExists = await first(profilePaths.map(profilePath => async () => (await FSPromises.exists(profilePath)) ? profilePath : undefined));
 		if (!profilePathThatExists) {
 			logService.trace('doResolveShellEnv#noPowershellProfile after testing paths', profilePaths);
 
