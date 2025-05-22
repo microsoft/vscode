@@ -350,7 +350,7 @@ export class SettingMatches {
 	}
 }
 
-class AiSettingsSearchKeysProvider {
+class SettingsRecordProvider {
 	private settingsRecord: IStringDictionary<ISetting> = {};
 	private currentPreferencesModel: ISettingsEditorModel | undefined;
 
@@ -389,14 +389,14 @@ class AiSettingsSearchKeysProvider {
 	}
 }
 
-class AiSettingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_SETTINGS_SEARCH_MAX_PICKS = 5;
+class EmbeddingsSearchProvider implements IRemoteSearchProvider {
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
 
-	private readonly _keysProvider: AiSettingsSearchKeysProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
 
 	constructor(private readonly aiSettingsSearchService: IAiSettingsSearchService) {
-		this._keysProvider = new AiSettingsSearchKeysProvider();
+		this._recordProvider = new SettingsRecordProvider();
 	}
 
 	setFilter(filter: string) {
@@ -411,17 +411,17 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 			return null;
 		}
 
-		this._keysProvider.updateModel(preferencesModel);
+		this._recordProvider.updateModel(preferencesModel);
 		this.aiSettingsSearchService.startSearch(this._filter, false, token);
 
 		return {
-			filterMatches: await this.getAiSettingsSearchItems(token),
+			filterMatches: await this.getEmbeddingsItems(token),
 			exactMatch: false
 		};
 	}
 
-	private async getAiSettingsSearchItems(token: CancellationToken): Promise<ISettingMatch[]> {
-		const settingsRecord = this._keysProvider.getSettingsRecord();
+	private async getEmbeddingsItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
 		const filterMatches: ISettingMatch[] = [];
 		const settings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
 		if (!settings) {
@@ -429,7 +429,7 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 		}
 
 		for (const settingKey of settings) {
-			if (filterMatches.length === AiSettingsSearchProvider.AI_SETTINGS_SEARCH_MAX_PICKS) {
+			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
 			filterMatches.push({
@@ -543,14 +543,14 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private aiSettingsSearchProvider: AiSettingsSearchProvider;
+	private aiSettingsSearchProvider: EmbeddingsSearchProvider;
 	private tfIdfSearchProvider: TfIdfSearchProvider;
 	private filter: string = '';
 
 	constructor(
 		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
-		this.aiSettingsSearchProvider = new AiSettingsSearchProvider(this.aiSettingsSearchService);
+		this.aiSettingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService);
 		this.tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
