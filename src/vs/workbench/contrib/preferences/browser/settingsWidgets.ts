@@ -513,7 +513,12 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
 		valueElement.textContent = item.value.data.toString();
-		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
+		if (item.sibling) {
+			siblingElement.textContent = `when: ${item.sibling}`;
+		} else {
+			siblingElement.textContent = null;
+			valueElement.classList.add('no-sibling');
+		}
 
 		this.addDragAndDrop(rowElement, item, idx);
 		return { rowElement, keyElement: valueElement, valueElement: siblingElement };
