@@ -63,15 +63,16 @@
 	margin: 0 0 16px 0;
 }
 
+.interactive-result-code-block {
+	box-shadow: 0px 2px 16px 0px var(--colors-Effects-Shadow, rgba(0, 0, 0, 0.10));
+}
+
 .interactive-session .interactive-request .interactive-result-code-block {
 	border: 1px solid var(--vscode-editor-wordHighlightStrongBackground);
-	box-shadow: 0px 2px 16px 0px var(--colors-Effects-Shadow, rgba(0, 0, 0, 0.36));
-	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
-	box-shadow: 0px 2px 16px 0px var(--colors-Effects-Shadow, rgba(0, 0, 0, 0.36));
 }
 
 .interactive-result-code-block:has(.monaco-editor.focused) {
@@ -173,8 +174,6 @@
 }
 
 .interactive-session .interactive-request .rendered-markdown .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-request .rendered-markdown .monaco-editor,
-.interactive-session .interactive-response .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-response .monaco-editor {
+.interactive-session .interactive-request .rendered-markdown .monaco-editor {
 	width: 100% !important;
 }

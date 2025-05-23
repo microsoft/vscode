@@ -102,8 +102,6 @@
 	flex-basis: 100%;
 	padding: 0 8px;
 	margin: 8px 0;
-	width: 100%;
-	box-sizing: border-box;
 
 	&:last-child {
 		margin-bottom: 0;
