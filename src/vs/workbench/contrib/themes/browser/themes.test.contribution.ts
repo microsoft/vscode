@@ -29,6 +29,7 @@ import { TreeSitterTree } from '../../../../editor/common/model/tokens/treeSitte
 import { TokenizationTextModelPart } from '../../../../editor/common/model/tokens/tokenizationTextModelPart.js';
 import { TreeSitterSyntaxTokenBackend } from '../../../../editor/common/model/tokens/treeSitter/treeSitterSyntaxTokenBackend.js';
 import { TreeSitterTokenizationImpl } from '../../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
+import { waitForState } from '../../../../base/common/observable.js';
 
 interface IToken {
 	c: string; // token
@@ -292,13 +293,17 @@ class Snapper {
 		}
 	}
 
-	private _treeSitterTokenize(treeSitterModel: TreeSitterTree, tokenizationModel: TreeSitterTokenizationImpl, tree: Parser.Tree, languageId: string): IToken[] {
+	private async _treeSitterTokenize(treeSitterTree: TreeSitterTree, tokenizationModel: TreeSitterTokenizationImpl, languageId: string): Promise<IToken[]> {
+		const tree = await waitForState(treeSitterTree.tree);
+		if (!tree) {
+			return [];
+		}
 		const cursor = tree.walk();
 		cursor.gotoFirstChild();
 		let cursorResult: boolean = true;
 		const tokens: IToken[] = [];
 
-		const cursors: { cursor: Parser.TreeCursor; languageId: string; startOffset: number; endOffset: number }[] = [{ cursor, languageId, startOffset: 0, endOffset: treeSitterModel.textModel.getValueLength() }];
+		const cursors: { cursor: Parser.TreeCursor; languageId: string; startOffset: number; endOffset: number }[] = [{ cursor, languageId, startOffset: 0, endOffset: treeSitterTree.textModel.getValueLength() }];
 		do {
 			const current = cursors[cursors.length - 1];
 			const currentCursor = current.cursor;
@@ -307,7 +312,7 @@ class Snapper {
 
 			if (!isOutsideRange && (currentCursor.currentNode.childCount === 0)) {
 				const range = new Range(currentCursor.currentNode.startPosition.row + 1, currentCursor.currentNode.startPosition.column + 1, currentCursor.currentNode.endPosition.row + 1, currentCursor.currentNode.endPosition.column + 1);
-				const injection = treeSitterModel.getInjectionTrees(currentCursor.currentNode.startIndex, currentLanguageId);
+				const injection = treeSitterTree.getInjectionTrees(currentCursor.currentNode.startIndex, currentLanguageId);
 				const treeSitterRange = injection?.ranges!.find(r => r.startIndex <= currentCursor.currentNode.startIndex && r.endIndex >= currentCursor.currentNode.endIndex);
 
 				const injectionTree = injection?.tree.get();
@@ -369,24 +374,19 @@ class Snapper {
 		if (languageId) {
 			const model = this.modelService.getModel(resource) ?? this.modelService.createModel(content, { languageId, onDidChange: Event.None }, resource);
 			// let textModelTreeSitter = this.treeSitterParserService.getParseResult(model);
-			const treeSitterModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
-			const tokenizationModel = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel;
-			const tree = treeSitterModel?.tree.get();
-			if (!treeSitterModel || !tokenizationModel) {
+			const treeObs = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree;
+			const tokenizationImplObs = ((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenizationImpl;
+			const treeSitterTree = treeObs.get() ?? await waitForState(treeObs);
+			const tokenizationImpl = tokenizationImplObs.get() ?? await waitForState(tokenizationImplObs);
+			// Once more for injections
+			// TODO: injections
+			// if (e.hasInjections) {
+			// 	e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+			// }
+			if (!treeSitterTree) {
 				return [];
 			}
-			if (!tree) {
-				await Event.toPromise(treeSitterModel.onDidUpdate);
-				// Once more for injections
-				// TODO: injections
-				// if (e.hasInjections) {
-				// 	e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
-				// }
-			}
-			if (!tree) {
-				return [];
-			}
-			const result = (await this._treeSitterTokenize(treeSitterModel, tokenizationModel, tree, languageId)).filter(t => t.c.length > 0);
+			const result = (await this._treeSitterTokenize(treeSitterTree, tokenizationImpl, languageId)).filter(t => t.c.length > 0);
 			const themeTokens = await this._getTreeSitterThemesResult(result, languageId);
 			this._enrichResult(result, themeTokens);
 			return result;

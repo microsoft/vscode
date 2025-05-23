@@ -241,7 +241,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
-		const treeModel = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
+		const treeSitterTree = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree.get();
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -250,7 +250,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (this._isDisposed) {
 				return;
 			}
-			this._compute(grammar, semanticTokens, treeModel, position);
+			this._compute(grammar, semanticTokens, treeSitterTree, position);
 			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
@@ -421,7 +421,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
-			const tokenizationSupport = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel;
+			const tokenizationSupport = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenizationImpl.get();
 			const captures = tokenizationSupport?.captureAtPosition(position.lineNumber, position.column);
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
@@ -660,16 +660,18 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return lastGoodNode;
 	}
 
-	private _getTreeSitterTokenAtPosition(treeModel: TreeSitterTree | undefined, pos: Position): TreeSitter.Node[] | null {
+	private _getTreeSitterTokenAtPosition(treeSitterTree: TreeSitterTree | undefined, pos: Position): TreeSitter.Node[] | null {
 		const nodes: TreeSitter.Node[] = [];
 
-		let tree;
-		while (tree = treeModel?.tree.get()) {
+		let tree = treeSitterTree?.tree.get();
+		while (tree) {
 			const cursor = tree.walk();
 			const node = this._walkTreeforPosition(cursor, pos);
+			cursor.delete();
 			if (node) {
 				nodes.push(node);
-				treeModel = treeModel?.getInjectionTrees(node.startIndex, treeModel.languageId);
+				treeSitterTree = treeSitterTree?.getInjectionTrees(node.startIndex, treeSitterTree.languageId);
+				tree = treeSitterTree?.tree.get();
 			} else {
 				tree = undefined;
 			}

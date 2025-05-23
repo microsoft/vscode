@@ -96,7 +96,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 			]);
 
 			if (querySource === undefined) {
-				return undefined;
+				return null;
 			}
 
 			const Query = treeSitter.Query;
@@ -129,7 +129,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return lang;
 	}
 
-	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | undefined {
+	getInjectionQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}
@@ -137,7 +137,7 @@ export class TreeSitterLibraryService extends Disposable implements ITreeSitterL
 		return query;
 	}
 
-	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | undefined {
+	getHighlightingQueries(languageId: string, reader: IReader | undefined): Query | null | undefined {
 		if (!this.supportsLanguage(languageId, reader)) {
 			return undefined;
 		}

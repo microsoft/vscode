@@ -36,7 +36,7 @@ export class TreeSitterTree extends Disposable {
 		/** Must have the language set! */
 		private readonly _parser: TreeSitter.Parser,
 		private readonly _parserClass: typeof TreeSitter.Parser,
-		private readonly _injectionQuery: TreeSitter.Query,
+		// private readonly _injectionQuery: TreeSitter.Query,
 		public readonly textModel: TextModel,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService

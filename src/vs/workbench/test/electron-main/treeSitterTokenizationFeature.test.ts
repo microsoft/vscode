@@ -39,10 +39,6 @@ import { TextMateThemingRuleDefinitions } from '../../services/themes/common/col
 import { Color } from '../../../base/common/color.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { TokenUpdate } from '../../../editor/common/model/tokens/treeSitter/tokenStore.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
 import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TreeSitterLibraryService } from '../../services/treeSitter/browser/treeSitterLibraryService.js';
@@ -51,6 +47,10 @@ import { TreeSitterSyntaxTokenBackend } from '../../../editor/common/model/token
 import { TreeParseUpdateEvent, TreeSitterTree } from '../../../editor/common/model/tokens/treeSitter/treeSitterTree.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TreeSitterTokenizationImpl } from '../../../editor/common/model/tokens/treeSitter/treeSitterTokenizationImpl.js';
+import { autorunHandleChanges, recordChanges, waitForState } from '../../../base/common/observable.js';
+import { ITreeSitterThemeService } from '../../../editor/common/services/treeSitter/treeSitterThemeService.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TreeSitterThemeService } from '../../services/treeSitter/browser/treeSitterThemeService.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -120,14 +120,17 @@ suite('Tree Sitter TokenizationFeature', function () {
 		instantiationService.set(ITextResourcePropertiesService, textResourcePropertiesService);
 		languageConfigurationService = disposables.add(instantiationService.createInstance(TestLanguageConfigurationService));
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
-		instantiationService.set(ITreeSitterLibraryService, instantiationService.createInstance(TreeSitterLibraryService));
-		instantiationService.set(ICodeEditorService, instantiationService.createInstance(TestCodeEditorService));
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
-
 		instantiationService.set(IFileService, fileService);
+
+		const libraryService = disposables.add(instantiationService.createInstance(TreeSitterLibraryService));
+		libraryService.isTest = true;
+		instantiationService.set(ITreeSitterLibraryService, libraryService);
+
+		instantiationService.set(ITreeSitterThemeService, instantiationService.createInstance(TreeSitterThemeService));
 
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
@@ -153,21 +156,18 @@ suite('Tree Sitter TokenizationFeature', function () {
 	}
 
 	let nameNumber = 1;
-	async function getModelAndPrepTree(content: string): Promise<{ model: ITextModel; treeSitterModel: TreeSitterTree; treeSitterTokenModel: TreeSitterTokenizationImpl }> {
+	async function getModelAndPrepTree(content: string): Promise<{ model: ITextModel; treeSitterTree: TreeSitterTree; tokenizationImpl: TreeSitterTokenizationImpl }> {
 		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file(`file${nameNumber++}.ts`)));
-		const treeSitterModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).treeModel;
-		const treeSitterTokenModel = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenModel!;
-		// const treeParseResult = new Promise<void>(resolve => {
-		// 	const disposable = tree?.onDidUpdate(() => {
-		// 		disposable?.dispose();
-		// 		resolve();
-		// 	});
-		// });
-		// await tree?.tree.
-		// await treeParseResult;
+		const treeSitterTreeObs = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree;
+		const tokenizationImplObs = disposables.add((model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tokenizationImpl;
+		const treeSitterTree = treeSitterTreeObs.get() ?? await waitForState(treeSitterTreeObs);
+		if (!treeSitterTree.tree.get()) {
+			await waitForState(treeSitterTree.tree);
+		}
+		const tokenizationImpl = tokenizationImplObs.get() ?? await waitForState(tokenizationImplObs);
 
-		assert.ok(treeSitterModel);
-		return { model, treeSitterModel, treeSitterTokenModel };
+		assert.ok(treeSitterTree);
+		return { model, treeSitterTree, tokenizationImpl };
 	}
 
 	function verifyTokens(tokens: TokenUpdate[] | undefined) {
@@ -181,24 +181,27 @@ suite('Tree Sitter TokenizationFeature', function () {
 
 	test('Three changes come back to back ', async () => {
 		const content = `/**
-	**/
-	class x {
-	}
+**/
+class x {
+}
 
 
 
 
-	class y {
-	}`;
-		const { model, treeSitterModel } = await getModelAndPrepTree(content);
+class y {
+}`;
+		const { model, treeSitterTree } = await getModelAndPrepTree(content);
 
 		let updateListener: IDisposable | undefined;
-		let change: TreeParseUpdateEvent | undefined;
-
-		const updatePromise = new Promise<void>(resolve => {
-			updateListener = treeSitterModel.onDidUpdate(async e => {
-				change = e;
-				resolve();
+		const changePromise = new Promise<TreeParseUpdateEvent | undefined>(resolve => {
+			updateListener = autorunHandleChanges({
+				owner: this,
+				changeTracker: recordChanges({ tree: treeSitterTree.tree }),
+			}, (reader, ctx) => {
+				const changeEvent = ctx.changes.at(0)?.change;
+				if (changeEvent) {
+					resolve(changeEvent);
+				}
 			});
 		});
 
@@ -215,7 +218,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 			resolve();
 		});
 		const edits = Promise.all([edit1, edit2, edit3]);
-		await updatePromise;
+		const change = await changePromise;
 		await edits;
 		assert.ok(change);
 
@@ -231,8 +234,8 @@ suite('Tree Sitter TokenizationFeature', function () {
 
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 1, 18), 0, 17);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 1, 18), 0, 17);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -243,8 +246,8 @@ suite('Tree Sitter TokenizationFeature', function () {
 		const content = `
 console.log('x');
 `;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 3, 1), 0, 19);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 3, 1), 0, 19);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -253,8 +256,8 @@ console.log('x');
 
 	test('File with new lines at beginning and end \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 3, 1), 0, 21);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 3, 1), 0, 21);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -267,8 +270,8 @@ console.log('x');
 
 console.log('7');
 `;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 5, 1), 0, 38);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 38);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -277,8 +280,8 @@ console.log('7');
 
 	test('File with empty lines in the middle \\r\\n', async () => {
 		const content = '\r\nconsole.log(\'x\');\r\n\r\nconsole.log(\'7\');\r\n';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 5, 1), 0, 42);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 42);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -291,8 +294,8 @@ console.log('7');
 {
 }
 `;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 5, 1), 0, 24);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -301,8 +304,8 @@ console.log('7');
 
 	test('File with non-empty lines that match no scopes \\r\\n', async () => {
 		const content = 'console.log(\'x\');\r\n;\r\n{\r\n}\r\n';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 5, 1), 0, 28);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -316,8 +319,8 @@ console.log('7');
 console.log('x');
 
 `;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 6, 1), 0, 28);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 1), 0, 28);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -326,8 +329,8 @@ console.log('x');
 
 	test('File with tree-sitter token that spans multiple lines \\r\\n', async () => {
 		const content = '/**\r\n**/\r\n\r\nconsole.log(\'x\');\r\n\r\n';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 6, 1), 0, 33);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 1), 0, 33);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -342,8 +345,8 @@ console.log('x');
 class Y {
 	private z = false;
 }`;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 7, 1), 0, 63);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 7, 1), 0, 63);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -352,8 +355,8 @@ class Y {
 
 	test('File with tabs \\r\\n', async () => {
 		const content = 'function x() {\r\n\treturn true;\r\n}\r\n\r\nclass Y {\r\n\tprivate z = false;\r\n}';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 7, 1), 0, 69);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 7, 1), 0, 69);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -362,8 +365,8 @@ class Y {
 
 	test('Template string', async () => {
 		const content = '`t ${6}`';
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 1, 8), 0, 8);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 1, 8), 0, 8);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 6);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
@@ -377,8 +380,8 @@ class Y {
 	// To make sure the translators don't break the link
 	comment: ["{Locked=']({'}"]
 }));`;
-		const { model, treeSitterTokenModel } = await getModelAndPrepTree(content);
-		const tokens = treeSitterTokenModel.getTokensInRange(new Range(1, 1, 6, 5), 0, 238);
+		const { model, tokenizationImpl } = await getModelAndPrepTree(content);
+		const tokens = tokenizationImpl.getTokensInRange(new Range(1, 1, 6, 5), 0, 238);
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 65);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);

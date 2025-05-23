@@ -26,7 +26,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
 
 	private readonly _tree: IObservable<TreeSitterTree | undefined>;
-	private readonly _tokenizationModel: IObservable<TreeSitterTokenizationImpl | undefined>;
+	private readonly _tokenizationImpl: IObservable<TreeSitterTokenizationImpl | undefined>;
 
 	constructor(
 		private readonly _languageIdObs: IObservable<string>,
@@ -67,15 +67,15 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			parser.setLanguage(treeSitterLang);
 
 			const queries = this._treeSitterLibraryService.getInjectionQueries(currentLanguage, reader);
-			if (!queries) {
+			if (queries === undefined) {
 				return undefined;
 			}
 
-			return reader.store.add(this._instantiationService.createInstance(TreeSitterTree, currentLanguage, undefined, parser, parserClass, queries, this._textModel));
+			return reader.store.add(this._instantiationService.createInstance(TreeSitterTree, currentLanguage, undefined, parser, parserClass, /*queries, */this._textModel));
 		});
 
 
-		this._tokenizationModel = derived(this, reader => {
+		this._tokenizationImpl = derived(this, reader => {
 			const treeModel = this._tree.read(reader);
 			if (!treeModel) {
 				return undefined;
@@ -90,7 +90,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		});
 
 		this._register(autorun(reader => {
-			const tokModel = this._tokenizationModel.read(reader);
+			const tokModel = this._tokenizationImpl.read(reader);
 			if (!tokModel) {
 				return;
 			}
@@ -104,16 +104,16 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		}));
 	}
 
-	get treeModel(): TreeSitterTree | undefined {
-		return this._tree.get();
+	get tree(): IObservable<TreeSitterTree | undefined> {
+		return this._tree;
 	}
 
-	get tokenModel(): TreeSitterTokenizationImpl | undefined {
-		return this._tokenizationModel.get();
+	get tokenizationImpl(): IObservable<TreeSitterTokenizationImpl | undefined> {
+		return this._tokenizationImpl;
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
-		const model = this._tokenizationModel.get();
+		const model = this._tokenizationImpl.get();
 		if (!model) {
 			const content = this._textModel.getLineContent(lineNumber);
 			return LineTokens.createEmpty(content, this._languageIdCodec);
@@ -144,7 +144,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			// Don't fire the event, as the view might not have got the text change event yet
 			this.todo_resetTokenization(false);
 		} else {
-			const model = this._tokenizationModel.get();
+			const model = this._tokenizationImpl.get();
 			model?.handleContentChanged(e);
 		}
 
@@ -153,7 +153,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	public override forceTokenization(lineNumber: number): void {
-		const model = this._tokenizationModel.get();
+		const model = this._tokenizationImpl.get();
 		if (!model) {
 			return;
 		}
@@ -163,7 +163,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	public override hasAccurateTokensForLine(lineNumber: number): boolean {
-		const model = this._tokenizationModel.get();
+		const model = this._tokenizationImpl.get();
 		if (!model) {
 			return false;
 		}
@@ -181,7 +181,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
-		const model = this._tokenizationModel.get();
+		const model = this._tokenizationImpl.get();
 		if (!model) {
 			return null;
 		}
@@ -189,7 +189,7 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	public override get hasTokens(): boolean {
-		const model = this._tokenizationModel.get();
+		const model = this._tokenizationImpl.get();
 		if (!model) {
 			return false;
 		}
