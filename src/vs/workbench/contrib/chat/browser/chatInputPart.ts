@@ -155,8 +155,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
-	// private recentlyRemovedAttachments = new Set<URI>();
-
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
@@ -1254,10 +1252,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const implicitUri = this.implicitContext?.value;
-		let currentlyAttached = false;
 
 		if (URI.isUri(implicitUri)) {
-			currentlyAttached = attachments.some(
+			const currentlyAttached = attachments.some(
 				([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, implicitUri)
 			);
 
