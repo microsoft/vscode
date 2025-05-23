@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
-import { LimitedQueue } from '../../../../../base/common/async.js';
+import { TaskQueue } from '../../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction, IObservableWithChange } from '../../../../../base/common/observable.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
@@ -27,7 +27,7 @@ export class TreeSitterTree extends Disposable {
 	private _lastFullyParsed: TreeSitter.Tree | undefined;
 	private _lastFullyParsedWithEdits: TreeSitter.Tree | undefined;
 
-	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
+	private _onDidChangeContentQueue: TaskQueue = new TaskQueue();
 
 	constructor(
 		public readonly languageId: string,
@@ -65,7 +65,8 @@ export class TreeSitterTree extends Disposable {
 			this._applyEdits(e.changes);
 		}
 
-		this._onDidChangeContentQueue.queue(async () => {
+		this._onDidChangeContentQueue.clearPending();
+		this._onDidChangeContentQueue.schedule(async () => {
 			if (this._store.isDisposed) {
 				// No need to continue the queue if we are disposed
 				return;
