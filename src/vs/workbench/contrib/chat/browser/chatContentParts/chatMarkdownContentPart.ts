@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -46,6 +48,8 @@ import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { MarkedKatexSupport } from './markedKatexSupport.js';
+import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
 
@@ -55,6 +59,7 @@ export interface IChatMarkdownContentPartOptions {
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 	private static idPool = 0;
+
 	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
@@ -91,13 +96,27 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
+		const markedExtensions = coalesce([
+			MarkedKatexSupport.getExtension(context.container),
+		]);
+
 		// Don't set to 'false' for responses, respect defaults
-		const markedOpts = isRequestVM(element) ? {
+		const markedOpts: MarkedOptions = isRequestVM(element) || true ? {
 			gfm: true,
 			breaks: true,
-		} : undefined;
+			markedExtensions,
+		} : {
+			markedExtensions,
+		};
 
 		const result = this._register(renderer.render(markdown.content, {
+			sanitizerOptions: {
+				allowedTags: [
+					...dom.basicMarkupHtmlTags,
+					...dom.trustedMathMlTags,
+				],
+				preserveClassAndStyleAttrs: true,
+			},
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
@@ -212,6 +231,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
+		result.element.classList.add('chat-markdown-part');
 		this.domNode = result.element;
 	}
 
@@ -306,7 +326,7 @@ function codeblockHasClosingBackticks(str: string): boolean {
 	return !!str.match(/\n```+$/);
 }
 
-class CollapsedCodeBlock extends Disposable {
+export class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
 

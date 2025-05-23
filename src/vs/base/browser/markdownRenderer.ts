@@ -40,8 +40,9 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 }
 
 export interface ISanitizerOptions {
-	replaceWithPlaintext?: boolean;
-	allowedTags?: string[];
+	readonly replaceWithPlaintext?: boolean;
+	readonly allowedTags?: readonly string[];
+	readonly preserveClassAndStyleAttrs?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -106,14 +107,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const element = createElement(options);
 
 	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markedOptions, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
-			...marked.defaults,
+			...markedInstance.defaults,
 			...markedOptions,
 			renderer
 		};
@@ -244,8 +245,8 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
-	const renderer = new marked.Renderer();
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markedOptions: MarkedOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+	const renderer = new marked.Renderer(markedOptions);
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
@@ -396,7 +397,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 }
 
 interface IInternalSanitizerOptions extends ISanitizerOptions {
-	isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
@@ -409,6 +410,11 @@ function sanitizeRenderedMarkdown(
 	const store = new DisposableStore();
 	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
 		if (e.attrName === 'style' || e.attrName === 'class') {
+			if (options.preserveClassAndStyleAttrs) {
+				e.keepAttr = true;
+				return;
+			}
+
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
 					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
@@ -418,6 +424,7 @@ function sanitizeRenderedMarkdown(
 					return;
 				}
 			}
+
 			e.keepAttr = false;
 			return;
 		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
@@ -484,7 +491,8 @@ function sanitizeRenderedMarkdown(
 	store.add(DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes));
 
 	try {
-		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
+		const a = dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
+		return a;
 	} finally {
 		store.dispose();
 	}
@@ -541,8 +549,8 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-			ALLOWED_TAGS: options.allowedTags ?? [...DOM.basicMarkupHtmlTags],
-			ALLOWED_ATTR: allowedMarkdownAttr,
+			ALLOWED_TAGS: options.allowedTags ? [...options.allowedTags] : [...DOM.basicMarkupHtmlTags],
+			ALLOWED_ATTR: [...allowedMarkdownAttr, ...(options.preserveClassAndStyleAttrs ? ['class'] : [])],
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
 		allowedSchemes
