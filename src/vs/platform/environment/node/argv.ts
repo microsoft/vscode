@@ -129,6 +129,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'sandbox': { type: 'boolean' },
 	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
+	'enable-native-wayland-client': { type: 'boolean', cat: 't', description: localize('enableNativeWaylandClient', "Uses native wayland client support when running on Linux. This argument is ignored on Windows & macOS.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },

@@ -19,6 +19,8 @@ parts:
   code:
     plugin: dump
     source: .
+    build-packages:
+      - patchelf
     stage-packages:
       - ca-certificates
       - libasound2
@@ -41,6 +43,7 @@ parts:
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
+      - libvulkan1
       - libwayland-egl1
       - libxcomposite1
       - libxdamage1
@@ -51,13 +54,19 @@ parts:
       - libxss1
       - locales-all
       - packagekit-gtk3-module
+      - gnome-settings-daemon-common
       - xdg-utils
     prime:
+      - -lib/udev
+      - -usr/lib/systemd
       - -usr/share/doc
       - -usr/share/fonts
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
+      - -usr/share/@@NAME@@/libEGL.so*
+      - -usr/share/@@NAME@@/libGLESv2.so*
+      - -usr/share/@@NAME@@/libvulkan.so*
     override-build: |
       snapcraftctl build
       patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler

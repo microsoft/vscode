@@ -444,6 +444,10 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			type: 'string',
 			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
+		schema.properties!['enable-native-wayland-client'] = {
+			type: 'boolean',
+			description: localize('argv.enableNativeWaylandClient', "Uses native wayland client support when running on Linux. This argument is ignored on Windows & macOS.")
+		};
 	}
 	if (isWindows) {
 		schema.properties!['enable-rdp-display-tracking'] = {
