@@ -71,10 +71,11 @@ export namespace NotebookDto {
 		};
 	}
 
-	export function fromNotebookDataDto(data: extHostProtocol.NotebookDataDto): notebookCommon.NotebookData {
+	export function fromNotebookDataDto(data: extHostProtocol.NotebookDataDto, mapper?: notebookCommon.NotebookMapper): notebookCommon.NotebookData {
 		return {
 			metadata: data.metadata,
-			cells: data.cells.map(fromNotebookCellDataDto)
+			cells: data.cells.map(fromNotebookCellDataDto),
+			mapper,
 		};
 	}
 
