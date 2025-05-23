@@ -1198,7 +1198,6 @@ export class SettingsEditor2 extends EditorPane {
 				this.renderTree(key, isManualReset);
 				this.pendingSettingUpdate = null;
 
-				// TODO: Also include whether the user was using the new AI feature.
 				const reportModifiedProps = {
 					key,
 					query,

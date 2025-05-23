@@ -421,10 +421,11 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 		this._recordProvider.updateModel(preferencesModel);
 		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
 
+		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
 			exactMatch: false,
-			providerName: 'embeddings'
+			providerName
 		};
 	}
 
@@ -627,7 +628,8 @@ class AiSearchProvider implements IAiSearchProvider {
 		const items = await this.getLLMRankedItems(token);
 		return {
 			filterMatches: items,
-			exactMatch: false
+			exactMatch: false,
+			providerName: 'llmRanked'
 		};
 	}
 
