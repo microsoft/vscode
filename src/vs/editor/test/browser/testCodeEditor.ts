@@ -59,6 +59,8 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -218,6 +220,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
+	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

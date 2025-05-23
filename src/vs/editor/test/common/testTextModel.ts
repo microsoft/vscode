@@ -34,6 +34,8 @@ import { ILanguageFeaturesService } from '../../common/services/languageFeatures
 import { LanguageFeaturesService } from '../../common/services/languageFeaturesService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { mock } from '../../../base/test/common/mock.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from './services/testTreeSitterLibraryService.js';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -105,5 +107,7 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 		[ILanguageFeatureDebounceService, LanguageFeatureDebounceService],
 		[ILanguageFeaturesService, LanguageFeaturesService],
 		[IModelService, ModelService],
+		[IModelService, ModelService],
+		[ITreeSitterLibraryService, TestTreeSitterLibraryService],
 	]));
 }
