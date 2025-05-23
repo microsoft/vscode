@@ -156,6 +156,7 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		this.domNode.classList.toggle('has-references', data.length > 0);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}

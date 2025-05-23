@@ -1318,10 +1318,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: -4px;
 }
 
-.interactive-session .interactive-item-container.editing-session.interactive-request .chat-attached-context {
-	margin-top: 0px;
-}
-
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {
 	display: flex;
 	gap: 4px;
@@ -1833,9 +1829,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: 7px;
 	right: 12px;
 	border-radius: 100%;
-	width: initial;
-	width: 27px;
-	height: 27px;
 	width: 27px;
 	height: 27px;
 
@@ -1887,4 +1880,69 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
 	display: none;
+}
+
+.interactive-item-container.interactive-request {
+	align-items: flex-end;
+}
+
+.interactive-item-container.interactive-request .value .rendered-markdown  {
+	background-color: var(--vscode-editor-foldBackground);
+	border-radius: 8px;
+	padding: 8px 12px;
+	max-width: 90%;
+	margin-left: auto;
+	width: fit-content;
+	margin-bottom: 5px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	position: relative;
+}
+
+.interactive-item-container.interactive-response .value:has(.rendered-markdown),
+.interactive-item-container.interactive-response .value:has(.chat-used-context.has-references) {
+	background-color: var(--vscode-editorInlayHint-typeBackground);
+	border-radius: 8px;
+	padding: 8px 12px;
+	max-width: 90%;
+	min-width: 90%;
+	margin-bottom: 5px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	position: relative;
+}
+
+.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.interactive-item-container.interactive-request .value .rendered-markdown {
+	margin-left: auto;
+}
+
+.interactive-item-container.interactive-request .value > .rendered-markdown p {
+	margin-left: auto;
+	width: fit-content;
+}
+
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context {
+	margin-top: 10px;
+	max-width: 100%;
+	width: fit-content;
+	justify-content: flex-end;
+	margin-left: auto;
+}
+
+.hc-black .interactive-item-container.interactive-request .value,
+.hc-light .interactive-item-container.interactive-request .value {
+	outline: 1px solid var(--vscode-chat-requestBorder);
+	box-shadow: none;
+}
+.interactive-session .interactive-request .header.hidden {
+	display: none;
+}
+
+.interactive-session .interactive-request .rendered-markdown .interactive-result-code-block .monaco-editor .overflow-guard,
+.interactive-session .interactive-request .rendered-markdown .monaco-editor,
+.interactive-session .interactive-response .interactive-result-code-block .monaco-editor .overflow-guard,
+.interactive-session .interactive-response .monaco-editor {
+	width: 100% !important;
 }

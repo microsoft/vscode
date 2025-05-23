@@ -89,6 +89,7 @@ interface IChatListItemTemplate {
 	renderedParts?: IChatContentPart[];
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
+	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
 	readonly username: HTMLElement;
@@ -365,7 +366,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
+		const template: IChatListItemTemplate = { header, avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
 		return template;
 	}
 
@@ -434,6 +435,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isRequestVM(element) && element.confirmation) {
 			this.renderConfirmationAction(element, templateData);
 		}
+
+		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
+		templateData.header?.classList.toggle('hidden', !shouldShowHeader);
 
 		// Do a progressive render if
 		// - This the last response in the list
