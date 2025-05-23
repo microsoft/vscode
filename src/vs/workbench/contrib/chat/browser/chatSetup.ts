@@ -680,8 +680,8 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		let dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown>('chat.setup.signInDialogVariant');
-		if (this.context.state.entitlement !== ChatEntitlement.Unknown && dialogVariant === 'input-email') {
+		let dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | 'account-create' | unknown>('chat.setup.signInDialogVariant');
+		if (this.context.state.entitlement !== ChatEntitlement.Unknown && (dialogVariant === 'input-email' || dialogVariant === 'account-create')) {
 			dialogVariant = 'default'; // fallback to default for users that are signed in already
 		}
 
@@ -736,7 +736,7 @@ class ChatSetup {
 		return [{ placeholder: localize('emailOrUserIdPlaceholder', "Enter your email or username") }];
 	}
 
-	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | 'account-create' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
 		let buttons: Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
@@ -765,19 +765,40 @@ class ChatSetup {
 						buttons = coalesce([
 							[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
 							supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-							[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
+							[variant !== 'account-create' ? localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName) : localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+								styleButton: button => {
+									if (variant !== 'account-create') {
+										button.element.classList.add('link-button');
+									}
+								}
+							}]
 						]);
 					} else {
 						buttons = coalesce([
 							[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
 							supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-							[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
+							[variant !== 'account-create' ? localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName) : localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, {
+								styleButton: button => {
+									if (variant !== 'account-create') {
+										button.element.classList.add('link-button');
+									}
+								}
+							}]
 						]);
 					}
 
 					if (supportAlternateProvider && variant === 'alt-first') {
 						[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
 					}
+
+					if (variant === 'account-create') {
+						buttons.push([localize('createAccount', "Create a New Account"), ChatSetupStrategy.SetupWithAccountCreate, {
+							styleButton: button => {
+								button.element.classList.add('link-button');
+							}
+						}]);
+					}
+
 					break;
 			}
 		} else {
