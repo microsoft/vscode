@@ -155,8 +155,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
-	private recentlyRemovedAttachments = new Set<URI>();
-
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
@@ -640,7 +638,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
-		this.recentlyRemovedAttachments.clear();
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
@@ -963,7 +960,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			);
 
 			this._register(this._implicitContext.onDidChangeValue(() => {
-				this.recentlyRemovedAttachments.clear();
 				this._handleAttachedContextChange();
 			}));
 		}
@@ -1256,23 +1252,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const implicitUri = this.implicitContext?.value;
-		let recentlyAttached = false;
 
 		if (URI.isUri(implicitUri)) {
-			// check if file exists in current attachments
-			recentlyAttached = attachments.some(
-				([, attachment]) => URI.isUri(attachment.value) && attachment.value.fsPath === implicitUri.fsPath
+			const currentlyAttached = attachments.some(
+				([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, implicitUri)
 			);
 
-			// if not found in attachments, check in recently removed attachments
-			if (!recentlyAttached) {
-				recentlyAttached = [...this.recentlyRemovedAttachments].some(removed => isEqual(removed, implicitUri));
+			if (implicitUri && !currentlyAttached) {
+				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
+				container.appendChild(implicitPart.domNode);
 			}
-		}
-
-		if (this.implicitContext?.value && URI.isUri(implicitUri) && !recentlyAttached) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
-			container.appendChild(implicitPart.domNode);
 		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
@@ -1286,9 +1275,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastAttachedContextDeletedWithKeyboard = index;
 		}
 
-		if (URI.isUri(attachment.value)) {
-			this.recentlyRemovedAttachments.add(attachment.value);
-		}
 
 		this._attachmentModel.delete(attachment.id);
 
