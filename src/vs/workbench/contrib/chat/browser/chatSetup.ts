@@ -68,6 +68,7 @@ import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IButton } from '../../../../base/browser/ui/button/button.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -706,7 +707,6 @@ class ChatSetup {
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
 				inputs: this.getInputs(dialogVariant),
-				buttonSeparator: dialogVariant === 'input-email' ? 'or' : undefined,
 				disableCloseButton: true,
 				renderFooter: this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ? footer => footer.appendChild(this.createDialogFooter(disposables)) : undefined,
 				buttonOptions: buttons.map(button => button[2])
@@ -727,8 +727,8 @@ class ChatSetup {
 		return [{ placeholder: localize('emailPlaceholder', "Enter your email") }];
 	}
 
-	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]> {
-		let buttons: Array<[string, ChatSetupStrategy, { extraClasses: string[] } | undefined]>;
+	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
+		let buttons: Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]>;
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			const supportAlternateProvider = this.configurationService.getValue('chat.setup.signInWithAlternateProvider') === true && defaultChat.alternativeProviderId;
@@ -737,13 +737,13 @@ class ChatSetup {
 				buttons = coalesce([
 					[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
 					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { extraClasses: ['link-button'] }]
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
 				]);
 			} else {
 				buttons = coalesce([
 					[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
 					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { extraClasses: ['link-button'] }]
+					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
 				]);
 			}
 
@@ -752,14 +752,21 @@ class ChatSetup {
 			}
 
 			if (variant === 'input-email') {
-				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, { extraClasses: ['link-button'] }]);
-				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
+				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, { styleButton: button => button.element.classList.add('link-button') }]);
+				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, {
+					styleButton: button => {
+						const separator = button.element.parentElement?.appendChild($('.separator'));
+						separator?.appendChild($('.separator-left'));
+						separator?.appendChild($('.separator-center', undefined, 'Or'));
+						separator?.appendChild($('.separator-right'));
+					}
+				}]);
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
 		}
 
-		buttons.push([localize('skipForNow', "Skip for now"), ChatSetupStrategy.Canceled, { extraClasses: ['link-button', 'skip-button'] }]);
+		buttons.push([localize('skipForNow', "Skip for now"), ChatSetupStrategy.Canceled, { styleButton: button => button.element.classList.add('link-button', 'skip-button') }]);
 
 		return buttons;
 	}
