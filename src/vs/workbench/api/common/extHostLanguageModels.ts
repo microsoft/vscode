@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
+import { AsyncIterableObject, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -25,6 +25,8 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -86,30 +88,46 @@ class LanguageModelResponse {
 		}
 	}
 
-	handleFragment(fragment: IChatResponseFragment): void {
+	handleFragment(fragments: IChatResponseFragment | IChatResponseFragment[]): void {
 		if (this._isDone) {
 			return;
 		}
-		let res = this._responseStreams.get(fragment.index);
-		if (!res) {
-			if (this._responseStreams.size === 0) {
-				// the first response claims the default response
-				res = new LanguageModelResponseStream(fragment.index, this._defaultStream);
+
+		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[]>();
+
+		for (const fragment of Iterable.wrap(fragments)) {
+
+			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+			if (fragment.part.type === 'text') {
+				out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
+			} else if (fragment.part.type === 'data') {
+				out = new extHostTypes.LanguageModelTextPart('');
 			} else {
-				res = new LanguageModelResponseStream(fragment.index);
+				out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 			}
-			this._responseStreams.set(fragment.index, res);
+			const array = partsByIndex.get(fragment.index);
+			if (!array) {
+				partsByIndex.set(fragment.index, [out]);
+			} else {
+				array.push(out);
+			}
 		}
 
-		let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
-		if (fragment.part.type === 'text') {
-			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
-		} else {
-			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
+
+		for (const [index, parts] of partsByIndex) {
+			let res = this._responseStreams.get(index);
+			if (!res) {
+				if (this._responseStreams.size === 0) {
+					// the first response claims the default response
+					res = new LanguageModelResponseStream(index, this._defaultStream);
+				} else {
+					res = new LanguageModelResponseStream(index);
+				}
+				this._responseStreams.set(index, res);
+			}
+			res.stream.emitMany(parts);
 		}
-		res.stream.emitOne(out);
 	}
-
 
 	reject(err: Error): void {
 		this._isDone = true;
@@ -173,6 +191,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			vendor: metadata.vendor ?? ExtensionIdentifier.toKey(extension.identifier),
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
+			cost: metadata.cost,
+			description: metadata.description,
 			version: metadata.version,
 			maxInputTokens: metadata.maxInputTokens,
 			maxOutputTokens: metadata.maxOutputTokens,
@@ -180,6 +200,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			targetExtensions: metadata.extensions,
 			isDefault: metadata.isDefault,
 			isUserSelectable: metadata.isUserSelectable,
+			modelPickerCategory: metadata.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 			capabilities: metadata.capabilities,
 		});
 
@@ -199,6 +220,26 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			throw new Error('Provider not found');
 		}
+
+		const queue: IChatResponseFragment[] = [];
+		const sendNow = () => {
+			if (queue.length > 0) {
+				this._proxy.$reportResponsePart(requestId, queue);
+				queue.length = 0;
+			}
+		};
+		const queueScheduler = new RunOnceScheduler(sendNow, 30);
+		const sendSoon = (part: IChatResponseFragment) => {
+			const newLen = queue.push(part);
+			// flush/send if things pile up more than expected
+			if (newLen > 30) {
+				sendNow();
+				queueScheduler.cancel();
+			} else {
+				queueScheduler.schedule();
+			}
+		};
+
 		const progress = new Progress<vscode.ChatResponseFragment2>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
@@ -210,6 +251,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
+			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
+				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) } };
 			}
 
 			if (!part) {
@@ -217,30 +260,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return;
 			}
 
-			this._proxy.$reportResponsePart(requestId, { index: fragment.index, part });
+			sendSoon({ index: fragment.index, part });
 		});
 
 		let value: any;
 
 		try {
-			if (data.provider.provideLanguageModelResponse2) {
-				value = data.provider.provideLanguageModelResponse2(
-					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-					options,
-					ExtensionIdentifier.toKey(from),
-					progress,
-					token
-				);
-
-			} else {
-				value = data.provider.provideLanguageModelResponse(
-					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-					options,
-					ExtensionIdentifier.toKey(from),
-					progress,
-					token
-				);
-			}
+			value = data.provider.provideLanguageModelResponse(
+				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
+				options,
+				ExtensionIdentifier.toKey(from),
+				progress,
+				token
+			);
 
 		} catch (err) {
 			// synchronously failed
@@ -248,8 +280,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		Promise.resolve(value).then(() => {
+			sendNow();
 			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
+			sendNow();
 			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
@@ -415,7 +449,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return internalMessages;
 	}
 
-	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (data) {
 			data.res.handleFragment(chunk);
@@ -566,7 +600,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		};
 	}
 
-	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken): Promise<boolean> {
+	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken = CancellationToken.None): Promise<boolean> {
 		checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 
 		return this._proxy.$fileIsIgnored(uri, token);

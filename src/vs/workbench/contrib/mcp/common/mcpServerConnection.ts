@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger, log } from '../../../../platform/log/common/log.js';
+import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
@@ -75,7 +76,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
-				McpServerRequestHandler.create(this._instantiationService, launch, this._logger, cts.token).then(
+				McpServerRequestHandler.create(this._instantiationService, launch, this._logger, this.definition.devMode ? LogLevel.Info : LogLevel.Debug, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
 							this._requestHandler.set(handler, undefined);
@@ -84,11 +85,17 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						store.dispose();
 						if (!store.isDisposed) {
-							this._logger.error(err);
-							this._state.set({ state: McpConnectionState.Kind.Error, message: `Could not initialize MCP server: ${err.message}` }, undefined);
+							let message = err.message;
+							if (err instanceof CancellationError) {
+								message = 'Server exited before responding to `initialize` request.';
+								this._logger.error(message);
+							} else {
+								this._logger.error(err);
+							}
+							this._state.set({ state: McpConnectionState.Kind.Error, message }, undefined);
 						}
+						store.dispose();
 					},
 				);
 			}

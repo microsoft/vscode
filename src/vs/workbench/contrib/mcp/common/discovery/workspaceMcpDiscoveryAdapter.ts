@@ -51,7 +51,7 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 		const configFile = joinPath(folder.uri, '.cursor', 'mcp.json');
 		const collection: WritableMcpCollectionDefinition = {
 			id: `cursor-workspace.${folder.index}`,
-			label: `From ${folder.name}/.cursor/mcp.json`,
+			label: `${folder.name}/.cursor/mcp.json`,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
 			scope: StorageScope.WORKSPACE,
 			isTrustedByDefault: false,

@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -19,7 +19,7 @@ import { URI } from '../../../base/common/uri.js';
 import { realpath } from '../../../base/node/extpath.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
-import { findFreePort } from '../../../base/node/ports.js';
+import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -28,7 +28,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -97,6 +97,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
 			);
 
+			this.onDidChangeWindowAlwaysOnTop = Event.any(
+				Event.None, // always on top is unsupported in main windows currently
+				Event.map(this.auxiliaryWindowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop }))
+			);
+
 			this.onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 			this.onDidFocusMainWindow = Event.any(
 				Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
@@ -153,6 +158,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
 
 	readonly onDidResumeOS: Event<void>;
 
@@ -304,6 +311,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.win?.moveTop();
 	}
 
+	async isWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isAlwaysOnTop() ?? false;
+	}
+
+	async toggleWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(!window.win.isAlwaysOnTop());
+	}
+
+	async setWindowAlwaysOnTop(windowId: number | undefined, alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(alwaysOnTop);
+	}
+
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
@@ -322,9 +344,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { force?: boolean }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.focus({ force: options?.force ?? false });
+		window?.focus({ mode: options?.mode ?? FocusMode.Transfer });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -720,11 +742,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Screenshots
 
-	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<ArrayBufferLike | undefined> {
+	async getScreenshot(windowId: number | undefined, rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		const captured = await window?.win?.webContents.capturePage();
+		const captured = await window?.win?.webContents.capturePage(rect);
 
-		return captured?.toJPEG(95);
+		const buf = captured?.toJPEG(95);
+		return buf && VSBuffer.wrap(buf);
 	}
 
 	//#endregion
@@ -748,6 +771,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
+	}
+
+	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.webContents.paste() ?? Promise.resolve();
 	}
 
 	async readImage(): Promise<Uint8Array> {
@@ -904,6 +932,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.requestService.loadCertificates();
 	}
 
+	isPortFree(windowId: number | undefined, port: number): Promise<boolean> {
+		return isPortFree(port, 1_000);
+	}
+
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
 		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
@@ -959,6 +991,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 			window?.focus();
 		}
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this.environmentMainService.args.trace) {
+			return; // requires tracing to be on
+		}
+
+		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
+
+		// Inform user to report an issue
+		await this.dialogMainService.showMessageBox({
+			type: 'info',
+			message: localize('trace.message', "Successfully created the trace file"),
+			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
+		}, BrowserWindow.getFocusedWindow() ?? undefined);
+
+		// Show item in explorer
+		this.showItemInFolder(undefined, path);
 	}
 
 	//#endregion

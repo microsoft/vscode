@@ -543,14 +543,14 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
-			id: MenuId.ChatInput,
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), when),
+			id: MenuId.ChatExecute,
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
 			group: 'navigation',
 			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
 			group: 'navigation',
 			order: 2
 		}
@@ -736,7 +736,7 @@ class ChatSynthesizerSessions {
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
 		const disposables = new DisposableStore();
-		activeSession.token.onCancellationRequested(() => disposables.dispose());
+		disposables.add(activeSession.token.onCancellationRequested(() => disposables.dispose()));
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 
@@ -1282,10 +1282,14 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
 			const { confirmed } = await dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSetupError', "An error occurred while setting up voice chat. Would you like to try again?"),
-				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+				detail: toErrorMessage(error),
 				primaryButton: localize('retry', "Retry")
 			});
 			if (confirmed) {

@@ -444,7 +444,6 @@ class ShellExecutionDataStream extends Disposable {
 
 	endExecution(): void {
 		this._barrier?.open();
-		this._barrier = undefined;
 	}
 
 	async flush(): Promise<void> {

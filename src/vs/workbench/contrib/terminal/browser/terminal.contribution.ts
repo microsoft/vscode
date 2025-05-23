@@ -50,6 +50,7 @@ import { registerTerminalConfiguration } from '../common/terminalConfiguration.j
 import { TerminalContextKeyStrings, TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { registerSendSequenceKeybinding } from './terminalKeybindings.js';
+import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -64,6 +65,7 @@ registerSingleton(ITerminalProfileService, TerminalProfileService, Instantiation
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TerminalTelemetryContribution.ID, TerminalTelemetryContribution, WorkbenchPhase.AfterRestored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();

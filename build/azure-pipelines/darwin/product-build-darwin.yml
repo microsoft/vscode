@@ -1,14 +1,22 @@
 parameters:
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_QUALITY
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
-  - name: VSCODE_RUN_UNIT_TESTS
+  - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
     type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+    default: false
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+    default: ""
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -45,7 +53,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -165,15 +173,7 @@ steps:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-darwin-test.yml@self
-      parameters:
-        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-        VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
-        VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
-        VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-
-  - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
@@ -218,25 +218,105 @@ steps:
 
     - script: |
         set -e
-        ARCHIVE_PATH=".build/darwin/client/VSCode-darwin-$(VSCODE_ARCH).zip"
+        ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH *)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
       displayName: Package client
 
-    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
-      displayName: Generate artifact prefix
+    - pwsh: node build/azure-pipelines/common/checkForArtifact.js CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Check for client artifact
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: $(CLIENT_PATH)
-        artifactName: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
+      condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
+      displayName: Publish client archive (unsigned)
+
+    - task: UseDotNet@2
+      inputs:
+        version: 6.x
+
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
+
+    - pwsh: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+      displayName: Find ESRP CLI
+
+    - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.js
+      env:
+        EsrpCliDllPath: $(EsrpCliDllPath)
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: ✍️ Codesign & Notarize
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: product-build-darwin-test.yml@self
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
+
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+    - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.js
+      condition: succeededOrFailed()
+      displayName: "Post-job: ✍️ Codesign & Notarize"
+
+    - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      displayName: Extract signed app
+
+    - script: |
+        set -e
+        APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        codesign -dv --deep --verbose=4 "$APP_PATH"
+        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+      displayName: Verify signature
+
+    - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+      displayName: Rename x64 build to its legacy name
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
+        ${{ else }}:
+          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+        artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+        sbomPackageVersion: $(Build.SourceVersion)
       displayName: Publish client archive
+
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:

@@ -697,6 +697,20 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 /**
+ * Returns whether the element is in the bottom right quarter of the container.
+ *
+ * @param element the element to check for being in the bottom right quarter
+ * @param container the container to check against
+ * @returns true if the element is in the bottom right quarter of the container
+ */
+export function isElementInBottomRightQuarter(element: HTMLElement, container: HTMLElement): boolean {
+	const position = getDomNodePagePosition(element);
+	const clientArea = getClientArea(container);
+
+	return position.left > clientArea.width / 2 && position.top > clientArea.height / 2;
+}
+
+/**
  * Returns the effective zoom on a given element before window zoom level is applied
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
@@ -1530,7 +1544,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
 	} else {
-		const blob = new Blob([dataOrUri]);
+		const blob = new Blob([dataOrUri as Uint8Array<ArrayBuffer>]);
 		url = URL.createObjectURL(blob);
 
 		// Ensure to free the data from DOM eventually

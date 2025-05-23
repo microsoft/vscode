@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -229,26 +232,46 @@ if (PasteAction) {
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const productService = accessor.get(IProductService);
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					result = nativeEditContext.executePaste();
-				} else {
-					result = false;
+					nativeEditContext.onWillPaste();
 				}
-			} else {
-				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
 			}
-			if (result) {
-				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-			} else if (platform.isWeb) {
+
+			const sw = StopWatch.create(true);
+			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
+			if (triggerPaste) {
+				return triggerPaste.then(async () => {
+
+					if (productService.quality !== 'stable') {
+						const duration = sw.elapsed();
+						type EditorAsyncPasteClassification = {
+							duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the paste operation.' };
+							owner: 'aiday-mar';
+							comment: 'Provides insight into the delay introduced by pasting async via keybindings.';
+						};
+						type EditorAsyncPasteEvent = {
+							duration: number;
+						};
+						telemetryService.publicLog2<EditorAsyncPasteEvent, EditorAsyncPasteClassification>(
+							'editorAsyncPaste',
+							{ duration }
+						);
+					}
+
+					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+				});
+			}
+			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
@@ -278,8 +301,8 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		getActiveDocument().execCommand('paste');
-		return true;
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
+		return triggerPaste ?? false;
 	});
 }
 

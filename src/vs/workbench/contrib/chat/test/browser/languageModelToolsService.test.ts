@@ -13,7 +13,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocation, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Barrier } from '../../../../../base/common/async.js';
@@ -39,7 +39,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		const disposable = service.registerToolData(toolData);
@@ -52,7 +53,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -71,20 +73,23 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		const toolData2: IToolData = {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData1));
@@ -101,7 +106,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -135,14 +141,15 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));
 
 		const toolBarrier = new Barrier();
 		const toolImpl: IToolImpl = {
-			invoke: async (invocation, countTokens, cancelToken) => {
+			invoke: async (invocation, countTokens, progress, cancelToken) => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });

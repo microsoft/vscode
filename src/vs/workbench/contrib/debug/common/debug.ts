@@ -368,7 +368,7 @@ export interface IDebugLocationReferenced {
 	source: Source;
 }
 
-export interface IDebugSession extends ITreeElement {
+export interface IDebugSession extends ITreeElement, IDisposable {
 
 	readonly configuration: IConfig;
 	readonly unresolvedConfiguration: IConfig | undefined;
@@ -809,6 +809,7 @@ export interface IDebugConfiguration {
 		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 		acceptSuggestionOnEnter: 'off' | 'on';
+		maximumLines: number;
 	};
 	focusWindowOnBreak: boolean;
 	focusEditorOnBreak: boolean;

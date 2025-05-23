@@ -293,7 +293,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		// Help in case we fail to start it
-		let startupTimeoutHandle: any;
+		let startupTimeoutHandle: Timeout | undefined;
 		if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 			startupTimeoutHandle = setTimeout(() => {
 				this._logService.error(`[LocalProcessExtensionHost]: Extension host did not start in 10 seconds (debugBrk: ${this._isExtensionDevDebugBrk})`);
@@ -409,7 +409,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		// 2) wait for the incoming `initialized` event.
 		return new Promise<void>((resolve, reject) => {
 
-			let timeoutHandle: any;
+			let timeoutHandle: Timeout;
 			const installTimeoutCheck = () => {
 				timeoutHandle = setTimeout(() => {
 					reject('The local extension host took longer than 60s to send its ready message.');

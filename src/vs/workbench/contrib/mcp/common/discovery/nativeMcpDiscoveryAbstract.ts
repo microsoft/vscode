@@ -36,7 +36,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 	) {
 		super();
 
-		this._fsDiscoveryEnabled = observableConfigValue(mcpDiscoverySection, false, configurationService);
+		this._fsDiscoveryEnabled = observableConfigValue(mcpDiscoverySection, true, configurationService);
 	}
 
 	protected _isDiscoveryEnabled(reader: IReader, discoverySource: DiscoverySource | undefined): boolean {

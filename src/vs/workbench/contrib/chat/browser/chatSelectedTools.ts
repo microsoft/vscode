@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-import { reset } from '../../../../base/browser/dom.js';
-import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
-import { assertType } from '../../../../base/common/types.js';
-import { localize } from '../../../../nls.js';
-import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { autorun, IObservable, observableFromEvent, ObservableMap, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ILanguageModelToolsService, IToolData } from '../common/languageModelToolsService.js';
+import { ChatMode } from '../common/constants.js';
+import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '../common/languageModelToolsService.js';
 
-type StoredData = { all: boolean; ids?: string[] };
+/**
+ * New tools and new tool sources that come in should generally be enabled until
+ * the user disables them. To store things, we store only the tool sets and
+ * individual tools that were disabled, so the new data sources that come in
+ * are enabled, and new tools that come in for data sources not disabled are
+ * also enabled.
+ */
+type StoredData = {
+	disabledToolSets?: readonly string[];
+	disabledTools?: readonly string[];
+};
 
 const storedTools = observableMemento<StoredData>({
-	defaultValue: { all: true },
+	defaultValue: {},
 	key: 'chat/selectedTools',
 });
 
@@ -29,83 +31,139 @@ export class ChatSelectedTools extends Disposable {
 
 	private readonly _selectedTools: ObservableMemento<StoredData>;
 
-	readonly tools: IObservable<IToolData[]>;
+	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
 
-	readonly toolsActionItemViewItemProvider: IActionViewItemProvider;
+	/**
+	 * All tools and tool sets with their enabled state.
+	 */
+	readonly entriesMap = new ObservableMap<ToolSet | IToolData, boolean>();
+
+	/**
+	 * All enabled tools and tool sets.
+	 */
+	readonly entries: IObservable<ReadonlySet<IToolData | ToolSet>> = this.entriesMap.observable.map(function (value) {
+		const result = new Set<IToolData | ToolSet>();
+		for (const [item, enabled] of value) {
+			if (enabled) {
+				result.add(item);
+			}
+		}
+		return result;
+	});
 
 	constructor(
+		mode: IObservable<ChatMode>,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instaService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
-		this._selectedTools = this._register(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, storageService));
+		this._selectedTools = this._store.add(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, storageService));
 
-		const allTools = observableFromEvent(
-			toolsService.onDidChangeTools,
-			() => Array.from(toolsService.getTools()).filter(t => t.canBeReferencedInPrompt)
-		);
+		this._allTools = observableFromEvent(toolsService.onDidChangeTools, () => Array.from(toolsService.getTools()));
 
-		this.tools = derived(r => {
-			const stored = this._selectedTools.read(r);
-			const tools = allTools.read(r);
-			if (stored.all) {
-				return tools;
-			}
-
-			const ids = new Set(stored.ids);
-			return tools.filter(t => ids.has(t.id));
+		const disabledDataObs = this._selectedTools.map(data => {
+			return (data.disabledToolSets?.length || data.disabledTools?.length)
+				? {
+					toolSetIds: new Set(data.disabledToolSets),
+					toolIds: new Set(data.disabledTools),
+				}
+				: undefined;
 		});
 
-		const toolsCount = derived(r => {
-			const count = allTools.read(r).length;
-			const enabled = this.tools.read(r).length;
-			return { count, enabled };
-		});
+		this._store.add(autorun(r => {
 
-		this.toolsActionItemViewItemProvider = (action, options) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
+			const sourceByTool = new Map<IToolData, ToolDataSource>();
+
+			for (const tool of this._allTools.read(r)) {
+				if (!tool.canBeReferencedInPrompt) {
+					continue;
+				}
+				sourceByTool.set(tool, tool.source);
 			}
 
-			return instaService.createInstance(class extends MenuEntryActionViewItem {
+			const toolSets = toolsService.toolSets.read(r);
 
-				override render(container: HTMLElement): void {
-					this.options.icon = false;
-					this.options.label = true;
-					container.classList.add('chat-mcp');
-					super.render(container);
+			for (const toolSet of toolSets) {
+
+				if (!toolSet.isHomogenous.read(r)) {
+					// only homogenous tool sets can shallow tools
+					continue;
 				}
 
-				protected override updateLabel(): void {
-					this._store.add(autorun(r => {
-						assertType(this.label);
+				for (const toolInSet of toolSet.getTools(r)) {
+					const source = sourceByTool.get(toolInSet);
+					if (source && ToolDataSource.equals(source, toolInSet.source)) {
+						sourceByTool.delete(toolInSet);
+					}
+				}
+			}
 
-						const { enabled, count } = toolsCount.read(r);
+			const oldItems = new Set(this.entriesMap.keys());
 
-						if (count === 0) {
-							super.updateLabel();
-							return;
-						}
+			const disabledData = mode.read(r) === ChatMode.Agent
+				? disabledDataObs.read(r)
+				: undefined;
 
-						const message = enabled !== count
-							? localize('tool.1', "{0} {1} of {2}", '$(tools)', enabled, count)
-							: localize('tool.0', "{0} {1}", '$(tools)', count);
-						reset(this.label, ...renderLabelWithIcons(message));
-					}));
+			transaction(tx => {
+
+				for (const tool of sourceByTool.keys()) {
+					const enabled = !disabledData || !disabledData.toolIds.has(tool.id);
+					this.entriesMap.set(tool, enabled, tx);
+					oldItems.delete(tool);
 				}
 
-			}, action, { ...options, keybindingNotRenderedWithLabel: true });
+				for (const toolSet of toolSets) {
+					const enabled = !disabledData || !disabledData.toolSetIds.has(toolSet.id);
+					this.entriesMap.set(toolSet, enabled, tx);
+					oldItems.delete(toolSet);
+				}
 
+				for (const item of oldItems) {
+					this.entriesMap.delete(item, tx);
+				}
+			});
+		}));
+	}
+
+	selectOnly(toolIds: readonly string[]): void {
+		const uniqueTools = new Set(toolIds);
+
+		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
+
+		this.update([], disabledTools);
+	}
+
+	update(disabledToolSets: readonly ToolSet[], disableTools: readonly IToolData[]): void {
+		this._selectedTools.set({
+			disabledToolSets: disabledToolSets.map(t => t.id),
+			disabledTools: disableTools.map(t => t.id)
+		}, undefined);
+	}
+
+	asEnablementMap(): Map<IToolData, boolean> {
+		const result = new Map<IToolData, boolean>();
+
+		const _set = (tool: IToolData, enabled: boolean) => {
+			if (!tool.canBeReferencedInPrompt) {
+				return;
+			}
+			// ONLY disable a tool that isn't enabled yet
+			const enabledNow = result.get(tool);
+			if (enabled || !enabledNow) {
+				result.set(tool, enabled);
+			}
 		};
-	}
 
-	update(tools: readonly IToolData[]): void {
-		this._selectedTools.set({ all: false, ids: tools.map(t => t.id) }, undefined);
-	}
-
-	reset(): void {
-		this._selectedTools.set({ all: true }, undefined);
+		for (const [item, enabled] of this.entriesMap) {
+			if (item instanceof ToolSet) {
+				for (const tool of item.getTools()) {
+					_set(tool, enabled);
+				}
+			} else {
+				_set(item, enabled);
+			}
+		}
+		return result;
 	}
 }

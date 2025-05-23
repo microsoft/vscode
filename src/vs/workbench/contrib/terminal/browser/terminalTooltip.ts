@@ -96,6 +96,10 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	if (seenSequences.length > 0) {
 		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
 	}
+	const promptType = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptType;
+	if (promptType) {
+		detailedAdditions.push(`Prompt type: \`${promptType}\``);
+	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
 		detailedAdditions.push(`Prompt input: \`${combinedString}\``);

@@ -47,7 +47,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const { location } = options;
 
 		const task = async (progress: IProgress<IProgressStep>) => {
-			const activeLock = this.userActivityService.markActive({ whenHeldFor: 15_000 });
+			const activeLock = this.userActivityService.markActive({ extendOnly: true, whenHeldFor: 15_000 });
 			try {
 				return await originalTask(progress);
 			} finally {
@@ -120,7 +120,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const promise = callback(task[1]);
 
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			this.windowProgressStack.unshift(task);
 			this.updateWindowProgress();
@@ -370,7 +370,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let notificationHandle: INotificationHandle | undefined;
-		let notificationTimeout: any | undefined;
+		let notificationTimeout: Timeout | undefined;
 		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
@@ -386,7 +386,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (typeof notificationTimeout !== 'number') {
+					if (notificationTimeout !== undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
@@ -466,7 +466,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P): void {
 		let activityProgress: IDisposable;
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();
@@ -545,6 +545,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const disposables = new DisposableStore();
 
 		let dialog: Dialog;
+		let taskCompleted = false;
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
@@ -571,8 +572,15 @@ export class ProgressService extends Disposable implements IProgressService {
 			disposables.add(dialog);
 
 			dialog.show().then(dialogResult => {
-				onDidCancel?.(dialogResult.button);
-
+				// The dialog may close as a result of disposing it after the
+				// task has completed. In that case, we do not want to trigger
+				// the `onDidCancel` callback.
+				// However, if the task is still running, this means that the
+				// user has clicked the cancel button and we want to trigger
+				// the `onDidCancel` callback.
+				if (!taskCompleted) {
+					onDidCancel?.(dialogResult.button);
+				}
 				dispose(dialog);
 			});
 
@@ -611,6 +619,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 
 		promise.finally(() => {
+			taskCompleted = true;
 			dispose(disposables);
 		});
 

@@ -99,20 +99,21 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
 		failedShellIntegrationActivation: false,
-		usedShellIntegrationInjection: undefined
+		usedShellIntegrationInjection: undefined,
+		shellIntegrationInjectionFailureReason: undefined,
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
-	private _closeTimeout: any;
+	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: NodeJS.Timeout | null = null;
+	private _titleInterval: Timeout | undefined;
 	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: NodeJS.Timeout | undefined;
+	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -196,7 +197,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
 				clearInterval(this._titleInterval);
-				this._titleInterval = null;
+				this._titleInterval = undefined;
 			}
 		}));
 	}
@@ -208,39 +209,38 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
-		let injection: IShellIntegrationConfigInjection | undefined;
-		if (this._options.shellIntegration.enabled) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
-			if (injection) {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
-				if (injection.envMixin) {
-					for (const [key, value] of Object.entries(injection.envMixin)) {
-						this._ptyOptions.env ||= {};
-						this._ptyOptions.env[key] = value;
-					}
+		const injection = await getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
+		if (injection.type === 'injection') {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
+			if (injection.envMixin) {
+				for (const [key, value] of Object.entries(injection.envMixin)) {
+					this._ptyOptions.env ||= {};
+					this._ptyOptions.env[key] = value;
 				}
-				if (injection.filesToCopy) {
-					for (const f of injection.filesToCopy) {
-						try {
-							await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
-							await fs.promises.copyFile(f.source, f.dest);
-						} catch {
-							// Swallow error, this should only happen when multiple users are on the same
-							// machine. Since the shell integration scripts rarely change, plus the other user
-							// should be using the same version of the server in this case, assume the script is
-							// fine if copy fails and swallow the error.
-						}
-					}
-				}
-			} else {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
+			if (injection.filesToCopy) {
+				for (const f of injection.filesToCopy) {
+					try {
+						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.promises.copyFile(f.source, f.dest);
+					} catch {
+						// Swallow error, this should only happen when multiple users are on the same
+						// machine. Since the shell integration scripts rarely change, plus the other user
+						// should be using the same version of the server in this case, assume the script is
+						// fine if copy fails and swallow the error.
+					}
+				}
+			}
+		} else {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellIntegrationInjectionFailureReason, value: injection.reason });
 		}
 
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
-			if (injection?.newArgs) {
-				return { injectedArgs: injection.newArgs };
+			const injectionConfig: IShellIntegrationConfigInjection | undefined = injection.type === 'injection' ? injection : undefined;
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injectionConfig);
+			if (injectionConfig?.newArgs) {
+				return { injectedArgs: injectionConfig.newArgs };
 			}
 			return undefined;
 		} catch (err) {
@@ -377,13 +377,33 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('node-pty.IPty#kill');
-				this._ptyProcess.kill();
+				if (this.shellLaunchConfig.killGracefully) {
+					this._killGracefully(this._ptyProcess);
+				} else {
+					this._ptyProcess.kill();
+				}
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
 		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
+	}
+
+	private async _killGracefully(ptyProcess: IPty): Promise<void> {
+		if (!isWindows) {
+			ptyProcess.kill('SIGTERM');
+		} else if (isWindows && process.platform === 'win32') {
+			const windir = process.env['WINDIR'] || 'C:\\Windows';
+			const TASK_KILL = path.join(windir, 'System32', 'taskkill.exe');
+			try {
+				await exec(`${TASK_KILL} /T /PID ${ptyProcess.pid}`);
+			} catch (err) {
+				ptyProcess.kill();
+			}
+		} else {
+			ptyProcess.kill();
+		}
 	}
 
 	private async _throttleKillSpawn(): Promise<void> {
@@ -452,7 +472,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				setTimeout(() => {
 					if (this._closeTimeout && !this._store.isDisposed) {
 						this._closeTimeout = undefined;
-						this._kill();
+						if (this._ptyProcess && this.shellLaunchConfig.killGracefully) {
+							this._killGracefully(this._ptyProcess);
+						} else {
+							this._kill();
+						}
 					}
 				}, ShutdownConstants.MaximumShutdownTime);
 			}
@@ -654,7 +678,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 class DelayedResizer extends Disposable {
 	rows: number | undefined;
 	cols: number | undefined;
-	private _timeout: NodeJS.Timeout;
+	private _timeout: Timeout;
 
 	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
 	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }

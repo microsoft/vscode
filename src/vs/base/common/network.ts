@@ -358,7 +358,11 @@ class FileAccessImpl {
 export const FileAccess = new FileAccessImpl();
 
 export const CacheControlheaders: Record<string, string> = Object.freeze({
-	'Cache-Control': 'no-cache, no-store',
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
 });
 
 export namespace COI {

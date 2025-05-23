@@ -21,7 +21,7 @@ import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from '../testNotebookEditor.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ChatAgentLocation } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../../../chat/common/constants.js';
 
 
 suite('notebookCellDiagnostics', () => {
@@ -73,6 +73,7 @@ suite('notebookCellDiagnostics', () => {
 			name: 'testEditorAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Notebook],
+			modes: [ChatMode.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],
@@ -157,12 +158,12 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell2.handle);
 
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
-			cell.model.internalMetadata.error = undefined;
 
+			const clearMarkers = new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 			// on NotebookCellExecution value will make it look like its currently running
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle, {} as INotebookCellExecution);
 
-			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
+			await clearMarkers;
 
 			assert.strictEqual(cell?.executionErrorDiagnostic.get(), undefined);
 			assert.strictEqual(cell2?.executionErrorDiagnostic.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');

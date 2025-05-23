@@ -121,6 +121,7 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	KillGracefully = 'terminal.integrated.killGracefully',
 
 	// Debug settings that are hidden from user
 
@@ -251,7 +252,8 @@ export const enum ProcessPropertyType {
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
 	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
-	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection',
+	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -270,6 +272,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
 	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
+	[ProcessPropertyType.ShellIntegrationInjectionFailureReason]: ShellIntegrationInjectionFailureReason | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -647,6 +650,10 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
+	/**
+	 * Whether the process should be killed gracefully
+	 */
+	killGracefully?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -973,6 +980,51 @@ export const enum ShellIntegrationStatus {
 	FinalTerm,
 	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
 	VSCode
+}
+
+
+export const enum ShellIntegrationInjectionFailureReason {
+	/**
+	 * The setting is disabled.
+	 */
+	InjectionSettingDisabled = 'injectionSettingDisabled',
+	/**
+	 * There is no executable (so there's no way to determine how to inject).
+	 */
+	NoExecutable = 'noExecutable',
+	/**
+	 * It's a feature terminal (tasks, debug), unless it's explicitly being forced.
+	 */
+	FeatureTerminal = 'featureTerminal',
+	/**
+	 * The ignoreShellIntegration flag is passed (eg. relaunching without shell integration).
+	 */
+	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
+	/**
+	 * Shell integration doesn't work with winpty.
+	 */
+	Winpty = 'winpty',
+	/**
+	 * We're conservative whether we inject when we don't recognize the arguments used for the
+	 * shell as we would prefer launching one without shell integration than breaking their profile.
+	 */
+	UnsupportedArgs = 'unsupportedArgs',
+	/**
+	 * The shell doesn't have built-in shell integration. Note that this doesn't mean the shell
+	 * won't have shell integration in the end.
+	 */
+	UnsupportedShell = 'unsupportedShell',
+
+
+	/**
+	 * For zsh, we failed to set the sticky bit on the shell integration script folder.
+	 */
+	FailedToSetStickyBit = 'failedToSetStickyBit',
+
+	/**
+	 * For zsh, we failed to create a temp directory for the shell integration script.
+	 */
+	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
 export enum TerminalExitReason {

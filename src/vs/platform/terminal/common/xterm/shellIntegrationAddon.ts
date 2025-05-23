@@ -325,7 +325,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = this._register(new TerminalCapabilityStore());
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout: any;
+	private _activationTimeout: Timeout | undefined;
 	private _commonProtocolDisposables: IDisposable[] = [];
 
 	private _seenSequences: Set<string> = new Set();
@@ -581,6 +581,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						// Remove escape sequences from the user's prompt
 						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
 						this._updatePromptTerminator(sanitizedValue);
+						return true;
+					}
+					case 'PromptType': {
+						this._createOrGetCommandDetection(this._terminal).setPromptType(value);
 						return true;
 					}
 					case 'Task': {

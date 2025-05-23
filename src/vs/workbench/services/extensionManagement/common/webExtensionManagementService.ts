@@ -255,7 +255,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
 
-	private _profileLocation = this.options.profileLocation;
+	private _profileLocation: URI;
 	get profileLocation() { return this._profileLocation; }
 
 	private _operation = InstallOperation.Install;
@@ -269,6 +269,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this._profileLocation = options.profileLocation;
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
 		this.source = extension;
 	}

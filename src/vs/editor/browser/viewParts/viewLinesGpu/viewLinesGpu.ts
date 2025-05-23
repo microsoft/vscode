@@ -535,7 +535,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				continue;
 			}
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const continuesInNextLine = lineNumber !== range.endLineNumber;
+			const continuesInNextLine = lineNumber !== originalEndLineNumber;
 			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
 
 			const visibleRangesForLine = this._visibleRangesForLineRange(lineNumber, startColumn, endColumn);

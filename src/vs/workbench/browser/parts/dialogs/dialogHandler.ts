@@ -114,12 +114,9 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown, {
 					actionHandler: {
-						callback: link => {
-							if (markdownDetail.dismissOnLinkClick) {
-								dialog.dispose();
-							}
+						callback: markdownDetail.actionHandler || (link => {
 							return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
-						},
+						}),
 						disposables: dialogDisposables
 					}
 				});
@@ -140,7 +137,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				renderBody,
 				icon: customOptions?.icon,
 				disableCloseAction: customOptions?.disableCloseAction,
-				buttonDetails: customOptions?.buttonDetails,
+				buttonOptions: customOptions?.buttonDetails?.map(detail => ({ sublabel: detail })),
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs

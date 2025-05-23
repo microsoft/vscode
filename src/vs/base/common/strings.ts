@@ -102,7 +102,7 @@ export function count(value: string, substr: string): number {
 	return result;
 }
 
-export function truncate(value: string, maxLength: number, suffix = '…'): string {
+export function truncate(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -110,7 +110,7 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
-export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+export function truncateMiddle(value: string, maxLength: number, suffix = Ellipsis): string {
 	if (value.length <= maxLength) {
 		return value;
 	}
@@ -264,6 +264,14 @@ export function splitLinesIncludeSeparators(str: string): string[] {
 		linesWithSeparators.push(splitLinesAndSeparators[2 * i] + (splitLinesAndSeparators[2 * i + 1] ?? ''));
 	}
 	return linesWithSeparators;
+}
+
+export function indexOfPattern(str: string, re: RegExp) {
+	const match = re.exec(str);
+	if (match) {
+		return match.index;
+	}
+	return -1;
 }
 
 /**
@@ -1351,3 +1359,5 @@ export class InvisibleCharacters {
 		return InvisibleCharacters.getData();
 	}
 }
+
+export const Ellipsis = '\u2026';

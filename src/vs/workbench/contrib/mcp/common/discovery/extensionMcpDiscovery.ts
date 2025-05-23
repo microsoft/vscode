@@ -101,7 +101,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	private async _activateExtensionServers(collectionId: string): Promise<void> {
 		await this._extensionService.activateByEvent(mcpActivationEvent(collectionId));
-		await Promise.all(this._mcpRegistry.delegates
+		await Promise.all(this._mcpRegistry.delegates.get()
 			.map(r => r.waitForInitialProviderPromises()));
 	}
 

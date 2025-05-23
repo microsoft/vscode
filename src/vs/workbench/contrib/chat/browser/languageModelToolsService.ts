@@ -3,18 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -29,13 +35,20 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { ChatConfiguration } from '../common/constants.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
+import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 interface IToolEntry {
 	data: IToolData;
 	impl?: IToolImpl;
+}
+
+interface ITrackedCall {
+	invocation?: ChatToolInvocation;
+	store: IDisposable;
 }
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -51,7 +64,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
-	private _callsByRequestId = new Map<string, IDisposable[]>();
+	private _callsByRequestId = new Map<string, ITrackedCall[]>();
 
 	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
 	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
@@ -66,7 +79,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 
@@ -80,7 +94,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+				this._onDidChangeToolsScheduler.schedule();
+			}
+		}));
+
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
+	}
+	override dispose(): void {
+		super.dispose();
+
+		this._callsByRequestId.forEach(calls => calls.forEach(call => call.store.dispose()));
+		this._ctxToolsCount.reset();
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -97,7 +123,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let store: DisposableStore | undefined;
 		if (toolData.inputSchema) {
 			store = new DisposableStore();
-			const schemaUrl = URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolData.id}` }).toString();
+			const schemaUrl = createToolSchemaUri(toolData.id).toString();
 			jsonSchemaRegistry.registerSchema(schemaUrl, toolData.inputSchema, store);
 			store.add(jsonSchemaRegistry.registerSchemaAssociation(schemaUrl, `/lm/tool/${toolData.id}/tool_input.json`));
 		}
@@ -136,7 +162,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getTools(): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
-		return Iterable.filter(toolDatas, toolData => !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when));
+		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
+		return Iterable.filter(
+			toolDatas,
+			toolData => {
+				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
+				return satisfiesWhenClause && satisfiesExternalToolCheck;
+			});
 	}
 
 	getTool(id: string): IToolData | undefined {
@@ -218,7 +251,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				if (!this._callsByRequestId.has(requestId)) {
 					this._callsByRequestId.set(requestId, []);
 				}
-				this._callsByRequestId.get(requestId)!.push(store);
+				const trackedCall: ITrackedCall = { store };
+				this._callsByRequestId.get(requestId)!.push(trackedCall);
 
 				const source = new CancellationTokenSource();
 				store.add(toDisposable(() => {
@@ -233,18 +267,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}));
 				token = source.token;
 
-				const prepared = tool.impl.prepareToolInvocation ?
-					await tool.impl.prepareToolInvocation(dto.parameters, token)
-					: undefined;
-
+				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
-				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
+				trackedCall.invocation = toolInvocation;
+				const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
+				if (autoConfirmed) {
 					toolInvocation.confirmed.complete(true);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
+
 				if (prepared?.confirmationMessages) {
-					this._accessibilityService.alert(prepared.confirmationMessages.title);
+					if (!toolInvocation.isConfirmed && !autoConfirmed) {
+						this.playAccessibilitySignal([toolInvocation]);
+					}
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
 						throw new CancellationError();
@@ -258,12 +294,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				const prepared = tool.impl.prepareToolInvocation ?
-					await tool.impl.prepareToolInvocation(dto.parameters, token)
-					: undefined;
-
-				if (prepared?.confirmationMessages) {
-					const result = await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+				const prepared = await this.prepareToolInvocation(tool, dto, token);
+				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
+					const result = await this._dialogService.confirm({ message: renderStringAsPlaintext(prepared.confirmationMessages.title), detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
@@ -274,14 +307,21 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			toolResult = await tool.impl.invoke(dto, countTokens, token);
+			toolResult = await tool.impl.invoke(dto, countTokens, {
+				report: step => {
+					toolInvocation?.acceptProgress(step);
+				}
+			}, token);
+			this.ensureToolDetails(dto, toolResult, tool.data);
+
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
 					result: 'success',
 					chatSessionId: dto.context?.sessionId,
 					toolId: tool.data.id,
-					toolExtensionId: tool.data.extensionId?.value,
+					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
+					toolSourceKind: tool.data.source.type,
 				});
 			return toolResult;
 		} catch (err) {
@@ -292,8 +332,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					result,
 					chatSessionId: dto.context?.sessionId,
 					toolId: tool.data.id,
-					toolExtensionId: tool.data.extensionId?.value,
+					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
+					toolSourceKind: tool.data.source.type,
 				});
+			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
+
+			toolResult ??= { content: [] };
+			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
+			if (tool.data.alwaysDisplayInputOutput) {
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
+			}
+
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
@@ -304,12 +353,72 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const prepared = tool.impl!.prepareToolInvocation ?
+			await tool.impl!.prepareToolInvocation(dto.parameters, token)
+			: undefined;
+
+		if (prepared?.confirmationMessages) {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+				prepared.confirmationMessages.allowAutoConfirm = true;
+			}
+
+			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
+				prepared.toolSpecificData = {
+					kind: 'input',
+					rawInput: dto.parameters,
+				};
+			}
+		}
+
+		return prepared;
+	}
+
+	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
+		const hasFocusedWindow = getActiveDocument().hasFocus();
+		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
+		if (autoApproved) {
+			return;
+		}
+		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
+		}
+	}
+
+	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
+		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
+			toolResult.toolResultDetails = {
+				input: this.formatToolInput(dto),
+				output: this.toolResultToIO(toolResult),
+			};
+		}
+	}
+
+	private formatToolInput(dto: IToolInvocation): string {
+		return JSON.stringify(dto.parameters, undefined, 2);
+	}
+
+	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
+		return toolResult.content.map(part => {
+			if (part.kind === 'text') {
+				return { type: 'text', value: part.value };
+			} else if (part.kind === 'promptTsx') {
+				return { type: 'text', value: stringifyPromptTsxPart(part) };
+			} else if (part.kind === 'data') {
+				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+			} else {
+				assertNever(part);
+			}
+		});
+	}
+
 	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
 		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId) || this._profileToolConfirmStore.value.getAutoConfirm(toolId) || this._memoryToolConfirmStore.has(toolId)) {
 			return true;
 		}
 
-		const config = this._configurationService.inspect<boolean | string[]>('chat.tools.autoApprove');
+		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
 
 		// If we know the tool runs at a global level, only consider the global config.
 		// If we know the tool runs at a workspace level, use those specific settings when appropriate.
@@ -321,13 +430,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return value === true || (Array.isArray(value) && value.includes(toolId));
+		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
 	}
 
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
 		const disposables = this._callsByRequestId.get(requestId);
 		if (disposables) {
-			const index = disposables.indexOf(store);
+			const index = disposables.findIndex(d => d.store === store);
 			if (index > -1) {
 				disposables.splice(index, 1);
 			}
@@ -341,16 +450,40 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	cancelToolCallsForRequest(requestId: string): void {
 		const calls = this._callsByRequestId.get(requestId);
 		if (calls) {
-			calls.forEach(call => call.dispose());
+			calls.forEach(call => call.store.dispose());
 			this._callsByRequestId.delete(requestId);
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	private readonly _toolSets = new ObservableSet<ToolSet>();
 
-		this._callsByRequestId.forEach(calls => dispose(calls));
-		this._ctxToolsCount.reset();
+	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+
+	getToolSetByName(name: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.toolReferenceName === name) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
+
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
+
+		const that = this;
+
+		const result = new class extends ToolSet implements IDisposable {
+			dispose(): void {
+				if (that._toolSets.has(result)) {
+					this._tools.clear();
+					that._toolSets.delete(result);
+				}
+
+			}
+		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
+
+		this._toolSets.add(result);
+		return result;
 	}
 }
 
@@ -359,6 +492,7 @@ type LanguageModelToolInvokedEvent = {
 	chatSessionId: string | undefined;
 	toolId: string;
 	toolExtensionId: string | undefined;
+	toolSourceKind: string;
 };
 
 type LanguageModelToolInvokedClassification = {
@@ -366,6 +500,7 @@ type LanguageModelToolInvokedClassification = {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
 	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

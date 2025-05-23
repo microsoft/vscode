@@ -5,7 +5,8 @@
 
 .monaco-editor .codelens-decoration {
 	overflow: hidden;
-	display: inline-block;
+	display: inline-flex !important; /* !important to override inline display:block style */
+	align-items: center;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	color: var(--vscode-editorCodeLens-foreground);

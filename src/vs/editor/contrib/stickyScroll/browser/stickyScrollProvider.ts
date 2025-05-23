@@ -15,6 +15,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelProvider.js';
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
+import { Position } from '../../../common/core/position.js';
 
 export class StickyLineCandidate {
 	constructor(
@@ -70,12 +71,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	private readConfiguration() {
 		this._sessionStore.clear();
-
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (!options.enabled) {
 			return;
 		}
-
 		this._sessionStore.add(this._editor.onDidChangeModel(() => {
 			// We should not show an old model for a different file, it will always be wrong.
 			// So we clear the model here immediately and then trigger an update.
@@ -103,7 +102,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private updateStickyModelProvider() {
 		this._stickyModelProvider?.dispose();
 		this._stickyModelProvider = null;
-
 		const editor = this._editor;
 		if (editor.hasModel()) {
 			this._stickyModelProvider = new StickyModelProvider(
@@ -123,7 +121,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private async updateStickyModel(token: CancellationToken): Promise<void> {
-
 		if (!this._editor.hasModel() || !this._stickyModelProvider || this._editor.getModel().isTooLargeForTokenization()) {
 			this._model = null;
 			return;
@@ -133,7 +130,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			// the computation was canceled, so do not overwrite the model
 			return;
 		}
-
 		this._model = model;
 	}
 
@@ -167,19 +163,20 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		}
 		const lowerBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
-		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
+		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.endLineNumber, (a: number, b: number) => { return a - b; }));
 
 		for (let i = lowerBound; i <= upperBound; i++) {
 			const child = outlineModel.children[i];
 			if (!child) {
 				return;
 			}
-			if (child.range) {
-				const childStartLine = child.range.startLineNumber;
-				const childEndLine = child.range.endLineNumber;
+			const childRange = child.range;
+			if (childRange) {
+				const childStartLine = childRange.startLineNumber;
+				const childEndLine = childRange.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+					const lineHeight = this._editor.getLineHeightForPosition(new Position(childStartLine, 1));
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, top, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, top + lineHeight, childStartLine);
 				}
