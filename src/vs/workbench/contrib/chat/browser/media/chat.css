@@ -191,7 +191,6 @@
 		display: block;
 		opacity: 0;
 		visibility: hidden;
-		transition: opacity 0.2s ease, visibility 0.2s ease;
 		padding-top: 6px;
 		height: 22px;
 }
