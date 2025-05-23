@@ -173,7 +173,9 @@
 	display: none;
 }
 
-.interactive-session .interactive-request .rendered-markdown .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-request .rendered-markdown .monaco-editor {
+.interactive-session .interactive-request .value .interactive-result-code-block .monaco-editor .overflow-guard,
+.interactive-session .interactive-request .value .monaco-editor,
+.interactive-session .interactive-response .value .interactive-result-code-block .monaco-editor .overflow-guard,
+.interactive-session .interactive-response .value .monaco-editor {
 	width: 100% !important;
 }
