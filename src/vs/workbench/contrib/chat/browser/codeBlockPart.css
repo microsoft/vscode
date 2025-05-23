@@ -64,7 +64,8 @@
 }
 
 .interactive-result-code-block {
-	border: 1px solid var(--vscode-peekView-border, transparent);
+	border: 1px solid var(--vscode-editor-wordHighlightStrongBackground);
+	box-shadow: 0px 2px 16px 0px var(--colors-Effects-Shadow, rgba(0, 0, 0, 0.36));
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 

@@ -156,9 +156,9 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar {
+.interactive-item-container.interactive-response .header .monaco-toolbar {
 	position: absolute;
-	right: 0px;
+	left: 0px;
 	background-color: var(--vscode-chat-list-background);
 }
 
