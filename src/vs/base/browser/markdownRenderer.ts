@@ -42,7 +42,8 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 export interface ISanitizerOptions {
 	readonly replaceWithPlaintext?: boolean;
 	readonly allowedTags?: readonly string[];
-	readonly preserveClassAndStyleAttrs?: boolean;
+	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedSchemes?: readonly string[];
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -409,12 +410,22 @@ function sanitizeRenderedMarkdown(
 	const { config, allowedSchemes } = getSanitizerOptions(options);
 	const store = new DisposableStore();
 	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
-		if (e.attrName === 'style' || e.attrName === 'class') {
-			if (options.preserveClassAndStyleAttrs) {
-				e.keepAttr = true;
-				return;
+		if (options.customAttrSanitizer) {
+			const result = options.customAttrSanitizer(e.attrName, e.attrValue);
+			if (typeof result === 'string') {
+				if (result) {
+					e.attrValue = result;
+					e.keepAttr = true;
+				} else {
+					e.keepAttr = false;
+				}
+			} else {
+				e.keepAttr = result;
 			}
+			return;
+		}
 
+		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
 					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
@@ -549,7 +560,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 			ALLOWED_TAGS: options.allowedTags ? [...options.allowedTags] : [...DOM.basicMarkupHtmlTags],
-			ALLOWED_ATTR: [...allowedMarkdownAttr, ...(options.preserveClassAndStyleAttrs ? ['class'] : [])],
+			ALLOWED_ATTR: allowedMarkdownAttr,
 			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
 		allowedSchemes

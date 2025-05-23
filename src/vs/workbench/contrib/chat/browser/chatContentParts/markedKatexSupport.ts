@@ -22,13 +22,13 @@ export class MarkedKatexSupport {
 		});
 	}
 
-	public static getExtension(container: HTMLElement): marked.MarkedExtension | undefined {
+	public static getExtension(container: HTMLElement, options: MarkedKatexExtension.MarkedKatexOptions = {}): marked.MarkedExtension | undefined {
 		if (!this._katex) {
 			return undefined;
 		}
 
 		this.ensureKatexStyles(container);
-		return MarkedKatexExtension.extension(this._katex);
+		return MarkedKatexExtension.extension(this._katex, options);
 	}
 
 	public static ensureKatexStyles(container: HTMLElement) {
@@ -45,9 +45,14 @@ export class MarkedKatexSupport {
 
 
 namespace MarkedKatexExtension {
+	type KatexOptions = import('katex').KatexOptions;
 
 	// From https://github.com/UziTech/marked-katex-extension/blob/main/src/index.js
-	export interface MarkedKatexOptions {
+	export interface MarkedKatexOptions extends KatexOptions {
+		/**
+		 * If true, the extension will try to parse $ and $$ even if there are no spaces before and after $ or $$.
+		 * This is non-standard behavior and may not work with all markdown parsers.
+		 */
 		nonStandard?: boolean;
 	}
 
@@ -56,7 +61,7 @@ namespace MarkedKatexExtension {
 
 	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
-	export function extension(katex: typeof import('katex').default, options = {}): marked.MarkedExtension {
+	export function extension(katex: typeof import('katex').default, options: MarkedKatexOptions = {}): marked.MarkedExtension {
 		return {
 			extensions: [
 				inlineKatex(options, createRenderer(katex, options, false)),
@@ -66,7 +71,12 @@ namespace MarkedKatexExtension {
 	}
 
 	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
-		return (token: marked.Tokens.Generic) => katex.renderToString(token.text, { ...options, displayMode: token.displayMode }) + (newlineAfter ? '\n' : '');
+		return (token: marked.Tokens.Generic) => {
+			return katex.renderToString(token.text, {
+				...options,
+				displayMode: token.displayMode,
+			}) + (newlineAfter ? '\n' : '');
+		};
 	}
 
 	function inlineKatex(options: MarkedKatexOptions, renderer: marked.RendererExtensionFunction): marked.TokenizerAndRendererExtension {

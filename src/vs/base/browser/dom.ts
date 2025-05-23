@@ -1772,6 +1772,8 @@ export const basicMarkupHtmlTags = Object.freeze([
 ]);
 
 export const trustedMathMlTags = Object.freeze([
+	'semantics',
+	'annotation',
 	'math',
 	'menclose',
 	'merror',
