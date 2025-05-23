@@ -12,6 +12,11 @@ export class MarkedKatexSupport {
 	public static _katex?: typeof import('katex').default;
 
 	static {
+		// TODO: figure out a better way to do this
+		// I ran into two issues:
+		// - We don't support to level imports of node_modules so you have to use `import(...)`
+		// - I also didn't want to make all the callers to markdown rendering async to properly await
+		//     loading of the extension, especially because many of them are ctors.
 		importAMDNodeModule<typeof import('katex')>('katex', 'dist/katex.js').then(katex => {
 			this._katex = katex;
 		});

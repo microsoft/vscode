@@ -26,6 +26,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -39,6 +40,7 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
@@ -80,6 +82,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -96,9 +99,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
-		const markedExtensions = coalesce([
-			MarkedKatexSupport.getExtension(context.container),
-		]);
+		const markedExtensions = configurationService.getValue<boolean>(ChatConfiguration.EnableMath)
+			? coalesce([MarkedKatexSupport.getExtension(context.container)])
+			: [];
 
 		// Don't set to 'false' for responses, respect defaults
 		const markedOpts: MarkedOptions = isRequestVM(element) || true ? {
