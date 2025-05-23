@@ -144,8 +144,8 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			),
 			this.createAction(
 				'idSettingsSearch',
-				localize('idSettingsSearch', "Settings ID"),
-				localize('idSettingsSearchTooltip', "Add Settings ID filter"),
+				localize('idSettingsSearch', "Setting ID"),
+				localize('idSettingsSearchTooltip', "Add Setting ID filter"),
 				`@${ID_SETTING_TAG}`,
 				false
 			)
