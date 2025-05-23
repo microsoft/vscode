@@ -724,7 +724,7 @@ class ChatSetup {
 			return [];
 		}
 
-		return [{ placeholder: localize('emailPlaceholder', "Enter your email") }];
+		return [{ placeholder: localize('emailOrUserIdPlaceholder', "Enter your email or username") }];
 	}
 
 	private getButtons(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
@@ -762,7 +762,7 @@ class ChatSetup {
 						separator?.appendChild($('.buttons-separator-right'));
 					}
 				}]);
-				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
+				buttons.unshift([localize('continueWithEmailOrUserId', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
