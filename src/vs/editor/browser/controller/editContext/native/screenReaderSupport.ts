@@ -30,7 +30,7 @@ export class ScreenReaderSupport extends Disposable {
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
 	private _fontInfo!: FontInfo;
-	private _renderRichContent: boolean = false;
+	private _renderRichContent: boolean | undefined;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
