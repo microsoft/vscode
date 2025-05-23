@@ -5891,7 +5891,6 @@ export const EditorOptions = {
 		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', product.quality !== 'stable' && platform.isWindows,
 		{
 			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.experimentalEditContext` is enabled."),
-			included: platform.isWindows
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
