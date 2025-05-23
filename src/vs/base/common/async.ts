@@ -930,6 +930,86 @@ export class ResourceQueue implements IDisposable {
 	}
 }
 
+export type Task<T = void> = () => (Promise<T> | T);
+
+/**
+ * Processes tasks in the order they were scheduled.
+*/
+export class TaskQueue {
+	private _runningTask: Task<any> | undefined = undefined;
+	private _pendingTasks: { task: Task<any>; deferred: DeferredPromise<any>; setUndefinedWhenCleared: boolean }[] = [];
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is rejected with a CancellationError.
+	*/
+	public schedule<T>(task: Task<T>): Promise<T> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: false });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is resolved with undefined.
+	*/
+	public scheduleSkipIfCleared<T>(task: Task<T>): Promise<T | undefined> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: true });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	private _runIfNotRunning(): void {
+		if (this._runningTask === undefined) {
+			this._processQueue();
+		}
+	}
+
+	private async _processQueue(): Promise<void> {
+		if (this._pendingTasks.length === 0) {
+			return;
+		}
+
+		const next = this._pendingTasks.shift();
+		if (!next) {
+			return;
+		}
+
+		if (this._runningTask) {
+			throw new BugIndicatingError();
+		}
+
+		this._runningTask = next.task;
+
+		try {
+			const result = await next.task();
+			next.deferred.complete(result);
+		} catch (e) {
+			next.deferred.error(e);
+		} finally {
+			this._runningTask = undefined;
+			this._processQueue();
+		}
+	}
+
+	/**
+	 * Clears all pending tasks. Does not cancel the currently running task.
+	*/
+	public clearPending(): void {
+		const tasks = this._pendingTasks;
+		this._pendingTasks = [];
+		for (const task of tasks) {
+			if (task.setUndefinedWhenCleared) {
+				task.deferred.complete(undefined);
+			} else {
+				task.deferred.error(new CancellationError());
+			}
+		}
+	}
+}
+
 export class TimeoutTimer implements IDisposable {
 	private _token: Timeout | undefined;
 	private _isDisposed = false;

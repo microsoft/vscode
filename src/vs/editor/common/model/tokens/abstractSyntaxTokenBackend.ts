@@ -3,56 +3,100 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from '../../../base/common/arrays.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
-import { LineRange } from '../core/ranges/lineRange.js';
-import { StandardTokenType } from '../encodedTokenAttributes.js';
-import { ILanguageIdCodec } from '../languages.js';
-import { IAttachedView } from '../model.js';
-import { TextModel } from './textModel.js';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
-import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
-import { LineTokens } from '../tokens/lineTokens.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { LineRange } from '../../core/ranges/lineRange.js';
+import { StandardTokenType } from '../../encodedTokenAttributes.js';
+import { ILanguageIdCodec } from '../../languages.js';
+import { IAttachedView } from '../../model.js';
+import { TextModel } from '../textModel.js';
+import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
+import { LineTokens } from '../../tokens/lineTokens.js';
+import { derivedOpts, IObservable, ISettableObservable, observableSignal, observableValueOpts } from '../../../../base/common/observable.js';
+import { equalsIfDefined, itemEquals, itemsEquals } from '../../../../base/common/equals.js';
 
 /**
  * @internal
  */
 export class AttachedViews {
-	private readonly _onDidChangeVisibleRanges = new Emitter<{ view: IAttachedView; state: IAttachedViewState | undefined }>();
+	private readonly _onDidChangeVisibleRanges = new Emitter<{ view: IAttachedView; state: AttachedViewState | undefined }>();
 	public readonly onDidChangeVisibleRanges = this._onDidChangeVisibleRanges.event;
 
 	private readonly _views = new Set<AttachedViewImpl>();
+	private readonly _viewsChanged = observableSignal(this);
+
+	public readonly visibleLineRanges: IObservable<readonly LineRange[]>;
+
+	constructor() {
+		this.visibleLineRanges = derivedOpts({
+			owner: this,
+			equalsFn: itemsEquals(itemEquals())
+		}, reader => {
+			this._viewsChanged.read(reader);
+			const ranges = LineRange.joinMany(
+				[...this._views].map(view => view.state.read(reader)?.visibleLineRanges ?? [])
+			);
+			return ranges;
+		});
+	}
 
 	public attachView(): IAttachedView {
 		const view = new AttachedViewImpl((state) => {
 			this._onDidChangeVisibleRanges.fire({ view, state });
 		});
 		this._views.add(view);
+		this._viewsChanged.trigger(undefined);
 		return view;
 	}
 
 	public detachView(view: IAttachedView): void {
 		this._views.delete(view as AttachedViewImpl);
 		this._onDidChangeVisibleRanges.fire({ view, state: undefined });
+		this._viewsChanged.trigger(undefined);
 	}
 }
 
 /**
  * @internal
  */
-export interface IAttachedViewState {
-	readonly visibleLineRanges: readonly LineRange[];
-	readonly stabilized: boolean;
+export class AttachedViewState {
+	constructor(
+		readonly visibleLineRanges: readonly LineRange[],
+		readonly stabilized: boolean,
+	) { }
+
+	public equals(other: AttachedViewState): boolean {
+		if (this === other) {
+			return true;
+		}
+		if (!equals(this.visibleLineRanges, other.visibleLineRanges, (a, b) => a.equals(b))) {
+			return false;
+		}
+		if (this.stabilized !== other.stabilized) {
+			return false;
+		}
+		return true;
+	}
 }
 
 class AttachedViewImpl implements IAttachedView {
-	constructor(private readonly handleStateChange: (state: IAttachedViewState) => void) { }
+	private readonly _state: ISettableObservable<AttachedViewState | undefined>;
+	public get state(): IObservable<AttachedViewState | undefined> { return this._state; }
+
+	constructor(
+		private readonly handleStateChange: (state: AttachedViewState) => void
+	) {
+		this._state = observableValueOpts<AttachedViewState | undefined>({ owner: this, equalsFn: equalsIfDefined((a, b) => a.equals(b)) }, undefined);
+	}
 
 	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void {
 		const visibleLineRanges = visibleLines.map((line) => new LineRange(line.startLineNumber, line.endLineNumber + 1));
-		this.handleStateChange({ visibleLineRanges, stabilized });
+		const state = new AttachedViewState(visibleLineRanges, stabilized);
+		this._state.set(state, undefined, undefined);
+		this.handleStateChange(state);
 	}
 }
 
@@ -76,7 +120,7 @@ export class AttachedViewHandler extends Disposable {
 		this._refreshTokens();
 	}
 
-	public handleStateChange(state: IAttachedViewState): void {
+	public handleStateChange(state: AttachedViewState): void {
 		this._lineRanges = state.visibleLineRanges;
 		if (state.stabilized) {
 			this.runner.cancel();
@@ -87,7 +131,7 @@ export class AttachedViewHandler extends Disposable {
 	}
 }
 
-export abstract class AbstractTokens extends Disposable {
+export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	protected abstract _backgroundTokenizationState: BackgroundTokenizationState;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
@@ -104,12 +148,11 @@ export abstract class AbstractTokens extends Disposable {
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,
 		protected readonly _textModel: TextModel,
-		protected getLanguageId: () => string,
 	) {
 		super();
 	}
 
-	public abstract resetTokenization(fireTokenChangeEvent?: boolean): void;
+	public abstract todo_resetTokenization(fireTokenChangeEvent?: boolean): void;
 
 	public abstract handleDidChangeAttached(): void;
 
