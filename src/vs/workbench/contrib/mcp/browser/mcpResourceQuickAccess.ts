@@ -279,7 +279,7 @@ export class McpResourcePickHelper {
 }
 
 export class McpResourceQuickAccess implements IQuickAccessProvider {
-	public static readonly PREFIX = 'mcpr';
+	public static readonly PREFIX = 'mcpr ';
 
 	defaultFilterValue = DefaultQuickAccessFilterValue.LAST;
 
