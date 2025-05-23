@@ -180,7 +180,13 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 
 					return TriggerAction.NO_ACTION;
 				},
-				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
+				accept: (keyMods, event) => {
+					if (this.editorGroupService.partOptions.alwaysOpenInActiveGroupFromQuickOpen) {
+						this.editorGroupService.activeGroup?.openEditor(editor, { preserveFocus: event.inBackground });
+					} else {
+						this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground });
+					}
+				},
 			};
 		});
 	}
