@@ -8,22 +8,25 @@ import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 
 /**
- * Base class for all tokens with a `range` that
- * reflects token position in the original data.
+ * Base class for all tokens with a `range` that reflects
+ * token position in the original text.
  */
-export abstract class BaseToken {
+export abstract class BaseToken<TText extends string = string> {
 	constructor(
-		private _range: Range,
+		private tokenRange: Range,
 	) { }
 
+	/**
+	 * Range of the token in the original text.
+	 */
 	public get range(): Range {
-		return this._range;
+		return this.tokenRange;
 	}
 
 	/**
-	 * Return text representation of the token.
+	 * Text representation of the token.
 	 */
-	public abstract get text(): string;
+	public abstract get text(): TText;
 
 	/**
 	 * Check if this token has the same range as another one.
@@ -40,8 +43,16 @@ export abstract class BaseToken {
 	/**
 	 * Check if this token is equal to another one.
 	 */
-	public equals<T extends BaseToken>(other: T): boolean {
-		if (!(other instanceof this.constructor)) {
+	public equals(other: BaseToken): other is typeof this {
+		if (other.constructor !== this.constructor) {
+			return false;
+		}
+
+		if (this.text.length !== other.text.length) {
+			return false;
+		}
+
+		if (this.text !== other.text) {
 			return false;
 		}
 
@@ -52,7 +63,7 @@ export abstract class BaseToken {
 	 * Change `range` of the token with provided range components.
 	 */
 	public withRange(components: Partial<IRange>): this {
-		this._range = new Range(
+		this.tokenRange = new Range(
 			components.startLineNumber ?? this.range.startLineNumber,
 			components.startColumn ?? this.range.startColumn,
 			components.endLineNumber ?? this.range.endLineNumber,
@@ -63,10 +74,23 @@ export abstract class BaseToken {
 	}
 
 	/**
+	 * Collapse range of the token to its start position.
+	 * See {@link Range.collapseToStart} for more details.
+	 */
+	public collapseRangeToStart(): this {
+		this.tokenRange = this.tokenRange.collapseToStart();
+
+		return this;
+	}
+
+	/**
 	 * Render a list of tokens into a string.
 	 */
-	public static render(tokens: readonly BaseToken[]): string {
-		return tokens.map(pick('text')).join('');
+	public static render(
+		tokens: readonly BaseToken[],
+		delimiter: string = '',
+	): string {
+		return tokens.map(pick('text')).join(delimiter);
 	}
 
 	/**
@@ -93,6 +117,7 @@ export abstract class BaseToken {
 			firstToken.range.startLineNumber <= lastToken.range.startLineNumber,
 			'First token must start on previous or the same line as the last token.',
 		);
+
 		if ((firstToken !== lastToken) && (firstToken.range.startLineNumber === lastToken.range.startLineNumber)) {
 			assert(
 				firstToken.range.endColumn <= lastToken.range.startColumn,
@@ -122,46 +147,5 @@ export abstract class BaseToken {
 		}
 
 		return `${this.text.slice(0, maxLength - 1)}...`;
-	}
-}
-
-/**
- * Tokens that represent a sequence of tokens that does not
- * hold an additional meaning in the text.
- */
-export class Text<TToken extends BaseToken = BaseToken> extends BaseToken {
-	public get text(): string {
-		return BaseToken.render(this.tokens);
-	}
-
-	constructor(
-		range: Range,
-		public readonly tokens: readonly TToken[],
-	) {
-		super(range);
-	}
-
-	/**
-	 * Create new instance of the token from a provided list of tokens.
-	 *
-	 * @throws if the provided tokens list is empty because this function
-	 *         automatically infers the range of the resulting token based
-	 *         on the first and last token in the list.
-	 */
-	public static fromTokens<TToken extends BaseToken = BaseToken>(
-		tokens: readonly TToken[],
-	): Text<TToken> {
-		assert(
-			tokens.length > 0,
-			'Cannot infer range from an empty list of tokens.',
-		);
-
-		const range = BaseToken.fullRange(tokens);
-
-		return new Text(range, tokens);
-	}
-
-	public override toString(): string {
-		return `text(${this.shortText()})${this.range}`;
 	}
 }

@@ -33,8 +33,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
 	CODE_SOURCE_PART_DEB822=${APT_SOURCE_PARTS}vscode.sources
 
-	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
-	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
+	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
+	CODE_TRUSTED_PART_OLD="/etc/apt/trusted.gpg.d/microsoft.gpg"
 
 	# RET seems to be true by default even after db_get is called on a first install.
 	RET='true'
@@ -48,23 +48,17 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	if [ "$RET" = 'false' ]; then
 		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
+	elif [ -f "$CODE_SOURCE_PART" ]; then
+		# The user is not on the new DEB822 format
+		WRITE_SOURCE='yes'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
-		# The user has migrated themselves to the DEB822 format
-		WRITE_SOURCE='no'
-	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/vscode" $CODE_SOURCE_PART); then
-		# Migrate from old repository
+		# The user is on the new DEB822 format, but refresh the file contents
 		WRITE_SOURCE='yes'
-	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/code" $CODE_SOURCE_PART); then
-		# Migrate from old repository
-		WRITE_SOURCE='yes'
-	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
-		# The user is already on the new repository
+	elif [ -f /etc/rpi-issue ]; then
+		# Do not write on Raspberry Pi OS
+		# https://github.com/microsoft/vscode/issues/118825
 		WRITE_SOURCE='no'
-	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
-		# Source list does not exist and we're not running on Raspberry Pi OS
-		WRITE_SOURCE='ask'
-	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
-		# Source list was disabled by OS upgrade
+	else
 		WRITE_SOURCE='ask'
 	fi
 
@@ -81,6 +75,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 			db_get @@NAME@@/add-microsoft-repo
 			if [ "$RET" = false ]; then
 				WRITE_SOURCE='no'
+			else
+				WRITE_SOURCE='yes'
 			fi
 		else
 			# The terminal is interactive but there is no debconf.
@@ -90,9 +86,27 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	if [ "$WRITE_SOURCE" != 'no' ]; then
-		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+		# Check if apt modernize-sources is available.
+		if apt modernize-sources --help >/dev/null 2>&1; then
+			# Write repository in deb822 format with Signed-By.
+			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+# You may comment out this entry, but any other modifications may be lost." > "$CODE_SOURCE_PART_DEB822"
+			cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
+Types: deb
+URIs: https://packages.microsoft.com/repos/code
+Suites: stable
+Components: main
+Architectures: amd64,arm64,armhf
+Signed-By: $CODE_TRUSTED_PART
+EOF
+			if [ -f "$CODE_SOURCE_PART" ]; then
+				rm -f "$CODE_SOURCE_PART"
+			fi
+		else
+			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
 deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+		fi
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 		if [ ! -f $CODE_TRUSTED_PART ]; then
@@ -116,6 +130,9 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 =J6gs
 -----END PGP PUBLIC KEY BLOCK-----
 " | gpg --dearmor > $CODE_TRUSTED_PART
+			if [ -f "$CODE_TRUSTED_PART_OLD" ]; then
+				rm -f "$CODE_TRUSTED_PART_OLD"
+			fi
 		fi
 	fi
 fi

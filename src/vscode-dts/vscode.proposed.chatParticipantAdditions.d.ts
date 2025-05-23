@@ -79,7 +79,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart;
+	export class ChatPrepareToolInvocationPart {
+		toolName: string;
+		constructor(toolName: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -216,6 +221,8 @@ declare module 'vscode' {
 		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
+
+		prepareToolInvocation(toolName: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
 	}

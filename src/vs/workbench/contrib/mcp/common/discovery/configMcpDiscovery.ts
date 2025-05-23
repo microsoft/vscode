@@ -128,7 +128,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					command: value.command,
 					env: value.env || {},
 					envFile: value.envFile,
-					cwd: undefined,
+					cwd: src.path.workspaceFolder?.uri,
 				},
 				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
 				variableReplacement: {
@@ -136,6 +136,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					section: mcpConfigurationSection,
 					target: src.path.target,
 				},
+				devMode: value.dev,
 				presentation: {
 					order: src.path.order,
 					origin: configMapping?.get(name),

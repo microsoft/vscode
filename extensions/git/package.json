@@ -977,7 +977,7 @@
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && (resourceScheme == file || resourceScheme == git)"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
       },
       {
         "command": "git.revertSelectedRanges",
@@ -1082,7 +1082,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && (resourceScheme == file || resourceScheme == git)"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
         },
         {
           "command": "git.unstageChange",
@@ -2238,7 +2238,7 @@
         },
         {
           "command": "git.unstageChange",
-          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22HEAD%22%7D$/"
+          "when": "false"
         }
       ],
       "timeline/item/context": [
@@ -3591,7 +3591,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

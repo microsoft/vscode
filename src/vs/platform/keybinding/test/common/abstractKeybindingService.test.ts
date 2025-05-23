@@ -159,8 +159,6 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				onDidAddNotification: undefined!,
-				onDidRemoveNotification: undefined!,
 				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
@@ -30,23 +31,21 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly sourceName: string;
 
 	/**
-	 * Start the contents provider to produce the underlying contents.
-	 */
-	start(): this;
-
-	/**
 	 * Event that fires when the prompt contents change. The event is either a
 	 * {@linkcode VSBufferReadableStream} stream with changed contents or
 	 * an instance of the {@linkcode ResolveError} error.
 	 */
-	onContentChanged(
-		callback: (streamOrError: VSBufferReadableStream | ResolveError) => void,
-	): IDisposable;
+	readonly onContentChanged: Event<VSBufferReadableStream | ResolveError>;
 
 	/**
 	 * Subscribe to `onDispose` event of the contents provider.
 	 */
-	onDispose(callback: () => void): this;
+	readonly onDispose: Event<void>;
+
+	/**
+	 * Start the contents provider to produce the underlying contents.
+	 */
+	start(): this;
 
 	/**
 	 * Create a new instance of prompt contents provider.

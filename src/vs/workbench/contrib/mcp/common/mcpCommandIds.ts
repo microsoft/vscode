@@ -14,10 +14,12 @@ export const enum McpCommandIds {
 	AddConfiguration = 'workbench.mcp.addConfiguration',
 	RemoveStoredInput = 'workbench.mcp.removeStoredInput',
 	EditStoredInput = 'workbench.mcp.editStoredInput',
+	BrowseResources = 'workbench.mcp.browseResources',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowOutput = 'workbench.mcp.showOutput',
 	RestartServer = 'workbench.mcp.restartServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
-	InstallFromActivation = 'workbench.mcp.installFromActivation'
+	InstallFromActivation = 'workbench.mcp.installFromActivation',
+	Browse = 'workbench.mcp.browseServers'
 }

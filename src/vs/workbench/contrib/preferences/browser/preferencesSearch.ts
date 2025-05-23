@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch, SettingKeyMatchTypes, ISettingMatcher } from '../../../services/preferences/common/preferences.js';
-import { IRange } from '../../../../editor/common/core/range.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import * as strings from '../../../../base/common/strings.js';
-import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
+import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -350,53 +350,56 @@ export class SettingMatches {
 	}
 }
 
-class AiSettingsSearchKeysProvider {
-	private settingsRecord: IStringDictionary<ISetting> = {};
-	private currentPreferencesModel: ISettingsEditorModel | undefined;
+class SettingsRecordProvider {
+	private _settingsRecord: IStringDictionary<ISetting> = {};
+	private _currentPreferencesModel: ISettingsEditorModel | undefined;
 
 	constructor() { }
 
 	updateModel(preferencesModel: ISettingsEditorModel) {
-		if (preferencesModel === this.currentPreferencesModel) {
+		if (preferencesModel === this._currentPreferencesModel) {
 			return;
 		}
 
-		this.currentPreferencesModel = preferencesModel;
+		this._currentPreferencesModel = preferencesModel;
 		this.refresh();
 	}
 
 	private refresh() {
-		this.settingsRecord = {};
+		this._settingsRecord = {};
 
-		if (!this.currentPreferencesModel) {
+		if (!this._currentPreferencesModel) {
 			return;
 		}
 
-		for (const group of this.currentPreferencesModel.settingsGroups) {
+		for (const group of this._currentPreferencesModel.settingsGroups) {
 			if (group.id === 'mostCommonlyUsed') {
 				continue;
 			}
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					this.settingsRecord[setting.key] = setting;
+					this._settingsRecord[setting.key] = setting;
 				}
 			}
 		}
 	}
 
 	getSettingsRecord(): IStringDictionary<ISetting> {
-		return this.settingsRecord;
+		return this._settingsRecord;
 	}
 }
 
-class AiSettingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_SETTINGS_SEARCH_MAX_PICKS = 5;
+class EmbeddingsSearchProvider implements IRemoteSearchProvider {
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
 
-	private readonly _keysProvider: AiSettingsSearchKeysProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
 
-	constructor(private readonly aiSettingsSearchService: IAiSettingsSearchService) {
-		this._keysProvider = new AiSettingsSearchKeysProvider();
+	constructor(
+		private readonly _aiSettingsSearchService: IAiSettingsSearchService,
+		private readonly _excludeSelectionStep: boolean
+	) {
+		this._recordProvider = new SettingsRecordProvider();
 	}
 
 	setFilter(filter: string) {
@@ -404,32 +407,30 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
-		if (
-			!this._filter ||
-			!this.aiSettingsSearchService.isEnabled()
-		) {
+		if (!this._filter || !this._aiSettingsSearchService.isEnabled()) {
 			return null;
 		}
 
-		this._keysProvider.updateModel(preferencesModel);
-		this.aiSettingsSearchService.startSearch(this._filter, token);
+		this._recordProvider.updateModel(preferencesModel);
+		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
 
 		return {
-			filterMatches: await this.getAiSettingsSearchItems(token),
-			exactMatch: false
+			filterMatches: await this.getEmbeddingsItems(token),
+			exactMatch: false,
+			providerName: 'embeddings'
 		};
 	}
 
-	private async getAiSettingsSearchItems(token: CancellationToken): Promise<ISettingMatch[]> {
-		const settingsRecord = this._keysProvider.getSettingsRecord();
+	private async getEmbeddingsItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
 		const filterMatches: ISettingMatch[] = [];
-		const settings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
+		const settings = await this._aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
 		if (!settings) {
 			return [];
 		}
 
 		for (const settingKey of settings) {
-			if (filterMatches.length === AiSettingsSearchProvider.AI_SETTINGS_SEARCH_MAX_PICKS) {
+			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
 			filterMatches.push({
@@ -507,7 +508,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getTfIdfItems(token),
-			exactMatch: false
+			exactMatch: false,
+			providerName: 'tfIdf'
 		};
 	}
 
@@ -543,38 +545,38 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private aiSettingsSearchProvider: AiSettingsSearchProvider;
-	private tfIdfSearchProvider: TfIdfSearchProvider;
-	private filter: string = '';
+	private _embeddingsSearchProvider: EmbeddingsSearchProvider;
+	private _tfIdfSearchProvider: TfIdfSearchProvider;
+	private _filter: string = '';
 
 	constructor(
 		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
-		this.aiSettingsSearchProvider = new AiSettingsSearchProvider(this.aiSettingsSearchService);
-		this.tfIdfSearchProvider = new TfIdfSearchProvider();
+		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, true);
+		this._tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
-		this.filter = filter;
-		this.tfIdfSearchProvider.setFilter(filter);
-		this.aiSettingsSearchProvider.setFilter(filter);
+		this._filter = filter;
+		this._tfIdfSearchProvider.setFilter(filter);
+		this._embeddingsSearchProvider.setFilter(filter);
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
-		if (!this.filter) {
+		if (!this._filter) {
 			return null;
 		}
 
 		if (!this.aiSettingsSearchService.isEnabled()) {
-			return this.tfIdfSearchProvider.searchModel(preferencesModel, token);
+			return this._tfIdfSearchProvider.searchModel(preferencesModel, token);
 		}
 
-		let results = await this.aiSettingsSearchProvider.searchModel(preferencesModel, token);
+		let results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
 		if (results?.filterMatches.length) {
 			return results;
 		}
 		if (!token.isCancellationRequested) {
-			results = await this.tfIdfSearchProvider.searchModel(preferencesModel, token);
+			results = await this._tfIdfSearchProvider.searchModel(preferencesModel, token);
 			if (results?.filterMatches.length) {
 				return results;
 			}

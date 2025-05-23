@@ -8,10 +8,11 @@ import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { canLog, ILogger, LogLevel } from '../../../../platform/log/common/log.js';
+import { canLog, ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpConnectionState, MpcResponseError } from './mcpTypes.js';
@@ -57,6 +58,10 @@ export class McpServerRequestHandler extends Disposable {
 		return this._serverInit.capabilities;
 	}
 
+	public get serverInfo(): MCP.Implementation {
+		return this._serverInit.serverInfo;
+	}
+
 	// Event emitters for server notifications
 	private readonly _onDidReceiveCancelledNotification = this._register(new Emitter<MCP.CancelledNotification>());
 	readonly onDidReceiveCancelledNotification = this._onDidReceiveCancelledNotification.event;
@@ -80,8 +85,8 @@ export class McpServerRequestHandler extends Disposable {
 	 * Connects to the MCP server and does the initialization handshake.
 	 * @throws MpcResponseError if the server fails to initialize.
 	 */
-	public static async create(instaService: IInstantiationService, launch: IMcpMessageTransport, logger: ILogger, token?: CancellationToken) {
-		const mcp = new McpServerRequestHandler(launch, logger);
+	public static async create(instaService: IInstantiationService, launch: IMcpMessageTransport, logger: ILogger, requestLogLevel = LogLevel.Debug, token?: CancellationToken) {
+		const mcp = new McpServerRequestHandler(launch, logger, requestLogLevel);
 		const store = new DisposableStore();
 		try {
 			const timer = store.add(new IntervalTimer());
@@ -124,6 +129,7 @@ export class McpServerRequestHandler extends Disposable {
 	protected constructor(
 		private readonly launch: IMcpMessageTransport,
 		public readonly logger: ILogger,
+		private readonly requestLogLevel: LogLevel,
 	) {
 		super();
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
@@ -186,8 +192,8 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private send(mcp: MCP.JSONRPCMessage) {
-		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
-			this.logger.debug(`[editor -> server] ${JSON.stringify(mcp)}`);
+		if (canLog(this.logger.getLevel(), this.requestLogLevel)) { // avoid building the string if we don't need to
+			log(this.logger, this.requestLogLevel, `[editor -> server] ${JSON.stringify(mcp)}`);
 		}
 
 		this.launch.send(mcp);
@@ -202,8 +208,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * @param token Cancellation token
 	 * @returns Promise with all items combined
 	 */
-	private async sendRequestPaginated<T extends MCP.PaginatedRequest & MCP.ClientRequest, R extends MCP.PaginatedResult, I>(method: T['method'], getItems: (result: R) => I[], initialParams?: Omit<T['params'], 'jsonrpc' | 'id'>, token: CancellationToken = CancellationToken.None): Promise<I[]> {
-		let allItems: I[] = [];
+	private async *sendRequestPaginated<T extends MCP.PaginatedRequest & MCP.ClientRequest, R extends MCP.PaginatedResult, I>(method: T['method'], getItems: (result: R) => I[], initialParams?: Omit<T['params'], 'jsonrpc' | 'id'>, token: CancellationToken = CancellationToken.None): AsyncIterable<I[]> {
 		let nextCursor: MCP.Cursor | undefined = undefined;
 
 		do {
@@ -213,11 +218,9 @@ export class McpServerRequestHandler extends Disposable {
 			};
 
 			const result: R = await this.sendRequest<T, R>({ method, params }, token);
-			allItems = allItems.concat(getItems(result));
+			yield getItems(result);
 			nextCursor = result.nextCursor;
 		} while (nextCursor !== undefined && !token.isCancellationRequested);
-
-		return allItems;
 	}
 
 	private sendNotification<N extends MCP.ClientNotification>(notification: N): void {
@@ -228,8 +231,8 @@ export class McpServerRequestHandler extends Disposable {
 	 * Handle incoming messages from the server
 	 */
 	private handleMessage(message: MCP.JSONRPCMessage): void {
-		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
-			this.logger.debug(`[server <- editor] ${JSON.stringify(message)}`);
+		if (canLog(this.logger.getLevel(), this.requestLogLevel)) { // avoid building the string if we don't need to
+			log(this.logger, this.requestLogLevel, `[server -> editor] ${JSON.stringify(message)}`);
 		}
 
 		// Handle responses to our requests
@@ -247,7 +250,6 @@ export class McpServerRequestHandler extends Disposable {
 				this.handleServerRequest(message as MCP.JSONRPCRequest & MCP.ServerRequest);
 			} else {
 				this.handleServerNotification(message as MCP.JSONRPCNotification & MCP.ServerNotification);
-
 			}
 		}
 	}
@@ -411,6 +413,13 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available resources
 	 */
 	listResources(params?: MCP.ListResourcesRequest['params'], token?: CancellationToken): Promise<MCP.Resource[]> {
+		return Iterable.asyncToArrayFlat(this.listResourcesIterable(params, token));
+	}
+
+	/**
+	 * List available resources (iterable)
+	 */
+	listResourcesIterable(params?: MCP.ListResourcesRequest['params'], token?: CancellationToken): AsyncIterable<MCP.Resource[]> {
 		return this.sendRequestPaginated<MCP.ListResourcesRequest, MCP.ListResourcesResult, MCP.Resource>('resources/list', result => result.resources, params, token);
 	}
 
@@ -425,7 +434,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available resource templates
 	 */
 	listResourceTemplates(params?: MCP.ListResourceTemplatesRequest['params'], token?: CancellationToken): Promise<MCP.ResourceTemplate[]> {
-		return this.sendRequestPaginated<MCP.ListResourceTemplatesRequest, MCP.ListResourceTemplatesResult, MCP.ResourceTemplate>('resources/templates/list', result => result.resourceTemplates, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListResourceTemplatesRequest, MCP.ListResourceTemplatesResult, MCP.ResourceTemplate>('resources/templates/list', result => result.resourceTemplates, params, token));
 	}
 
 	/**
@@ -446,7 +455,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available prompts
 	 */
 	listPrompts(params?: MCP.ListPromptsRequest['params'], token?: CancellationToken): Promise<MCP.Prompt[]> {
-		return this.sendRequestPaginated<MCP.ListPromptsRequest, MCP.ListPromptsResult, MCP.Prompt>('prompts/list', result => result.prompts, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListPromptsRequest, MCP.ListPromptsResult, MCP.Prompt>('prompts/list', result => result.prompts, params, token));
 	}
 
 	/**
@@ -460,7 +469,7 @@ export class McpServerRequestHandler extends Disposable {
 	 * List available tools
 	 */
 	listTools(params?: MCP.ListToolsRequest['params'], token?: CancellationToken): Promise<MCP.Tool[]> {
-		return this.sendRequestPaginated<MCP.ListToolsRequest, MCP.ListToolsResult, MCP.Tool>('tools/list', result => result.tools, params, token);
+		return Iterable.asyncToArrayFlat(this.sendRequestPaginated<MCP.ListToolsRequest, MCP.ListToolsResult, MCP.Tool>('tools/list', result => result.tools, params, token));
 	}
 
 	/**

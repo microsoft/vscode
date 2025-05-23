@@ -1342,7 +1342,7 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
-	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
@@ -1373,7 +1373,7 @@ export class Repository {
 		args.push('--', uri.fsPath);
 
 		try {
-			const result = await this.exec(args);
+			const result = await this.exec(args, { cancellationToken });
 			if (result.exitCode) {
 				// No file history, e.g. a new file or untracked
 				return [];
@@ -2927,6 +2927,19 @@ export class Repository {
 		return commits[0];
 	}
 
+	async showCommit(ref: string): Promise<string> {
+		try {
+			const result = await this.exec(['show', ref]);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
 	async revList(ref1: string, ref2: string): Promise<string[]> {
 		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
 		if (result.stderr) {
@@ -3008,8 +3021,8 @@ export class Repository {
 			return relativePath;
 		}
 
-		// Fallback to the original path
-		filePath = sanitizeRelativePath(filePath);
+		// Fallback to relative()
+		filePath = sanitizeRelativePath(path.relative(this.repositoryRoot, filePath));
 		this.logger.trace(`[Git][sanitizeRelativePath] relativePath (fallback): ${filePath}`);
 		return filePath;
 	}

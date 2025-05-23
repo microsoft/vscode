@@ -13,6 +13,7 @@ import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '.
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -108,7 +109,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	protected readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -167,13 +168,13 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		});
 	}
 
-	protected renderMessage(element: HTMLElement): void {
+	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
 		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
-			const targetWindow = dom.getWindow(element);
+			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
-				this._hostService.focus(targetWindow, { force: true /* Application may not be active */ });
+				this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 			}
 		}
 	}
@@ -181,10 +182,11 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		private readonly message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
+		container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -196,22 +198,23 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
 			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
-		this.renderMessage(renderedMessage.element);
+		this.renderMessage(renderedMessage.element, container);
 	}
 }
 
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		messageElement: HTMLElement,
 		buttons: IChatConfirmationButton[],
+		container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 	) {
 		super(title, subtitle, buttons, instantiationService, contextMenuService, configurationService, hostService);
-		this.renderMessage(messageElement);
+		this.renderMessage(messageElement, container);
 	}
 }

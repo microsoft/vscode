@@ -36,10 +36,10 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
-export interface IChatMessageExtraDataPart {
-	type: 'extra_data';
-	kind: string;
-	data: any;
+export interface IChatMessageDataPart {
+	type: 'data';
+	mimeType: string;
+	data: VSBuffer;
 }
 
 export interface IChatImageURLPart {
@@ -81,7 +81,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageExtraDataPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -147,7 +147,7 @@ export interface ILanguageModelChatMetadata {
 }
 
 export interface ILanguageModelChatResponse {
-	stream: AsyncIterable<IChatResponseFragment>;
+	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
 	result: Promise<any>;
 }
 

@@ -435,6 +435,10 @@ export default tseslint.config(
 			'no-restricted-syntax': [
 				'warn',
 				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+				{
 					'selector': `BinaryExpression[operator='instanceof'][right.name='MouseEvent']`,
 					'message': 'Use DOM.isMouseEvent() to support multi-window scenarios.'
 				},
@@ -817,7 +821,7 @@ export default tseslint.config(
 						'net',
 						'node-pty',
 						'os',
-						'path',
+						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
 						'stream',
@@ -1242,10 +1246,6 @@ export default tseslint.config(
 					'restrictions': []
 				},
 				{
-					'target': 'src/bootstrap-window.ts',
-					'restrictions': []
-				},
-				{
 					'target': 'src/vs/nls.ts',
 					'restrictions': [
 						'vs/*'
@@ -1430,5 +1430,5 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 		}
-	}
+	},
 );

@@ -33,6 +33,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution extends Disposable implements IEditorContribution {
@@ -287,7 +288,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				'Preserve double-square brackets and their order',
 				'language refers to a programming language'
 			]
-		}, '[[Select a language]] ({0}), or [[fill with template]] ({1}), or [[open a different editor]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '')).replaceAll('()', '');
+		}, '[[Select a language]] ({0}), or [[fill with template]] ({1}), or [[open a different editor]] ({2}) to get started.\nStart typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '', keybindingLabels.at(2) ?? '')).replaceAll(' ()', '');
 		const hintElement = renderFormattedText(hintMsg, {
 			actionHandler: hintHandler,
 			renderCodeSegments: false,
@@ -319,6 +320,8 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			}));
 
 			this.editor.applyFontInfo(this.domNode);
+			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
+			this.domNode.style.lineHeight = lineHeight + 'px';
 		}
 
 		return this.domNode;

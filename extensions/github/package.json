@@ -20,6 +20,7 @@
     "vscode.git-base"
   ],
   "main": "./out/extension.js",
+  "type": "module",
   "capabilities": {
     "virtualWorkspaces": false,
     "untrustedWorkspaces": {
@@ -227,14 +228,14 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/graphql": "5.0.5",
+    "@octokit/graphql": "8.2.0",
     "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "19.0.4",
+    "@octokit/rest": "21.1.0",
     "tunnel": "^0.0.6",
-    "@vscode/extension-telemetry": "^0.9.8"
+    "@vscode/extension-telemetry": "^1.0.0"
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

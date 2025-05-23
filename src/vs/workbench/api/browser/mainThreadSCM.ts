@@ -195,6 +195,10 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
+	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
+		return this.proxy.$resolveHistoryItemChatContext(this.handle, historyItemId, CancellationToken.None);
+	}
+
 	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {
 		return this.proxy.$resolveHistoryItemRefsCommonAncestor(this.handle, historyItemRefs, CancellationToken.None);
 	}
@@ -516,6 +520,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	dispose(): void {
+		this._stagedQuickDiff?.dispose();
 		this._quickDiff?.dispose();
 	}
 }

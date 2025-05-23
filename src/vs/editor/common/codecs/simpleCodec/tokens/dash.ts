@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `-` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Dash extends SimpleToken {
+export class Dash extends SimpleToken<'-'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -18,7 +18,7 @@ export class Dash extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '-' {
 		return Dash.symbol;
 	}
 

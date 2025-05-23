@@ -117,6 +117,7 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly trustedMcpAuthAccess?: string[] | IStringDictionary<string[]>;
 	readonly inheritAuthAccountPreference?: IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
@@ -327,8 +328,6 @@ export interface IDefaultChatAgent {
 	readonly chatExtensionId: string;
 
 	readonly documentationUrl: string;
-	readonly termsStatementUrl: string;
-	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
@@ -340,6 +339,8 @@ export interface IDefaultChatAgent {
 	readonly providerName: string;
 	readonly enterpriseProviderId: string;
 	readonly enterpriseProviderName: string;
+	readonly alternativeProviderId: string;
+	readonly alternativeProviderName: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
@@ -353,6 +354,7 @@ export interface IDefaultChatAgent {
 	readonly completionsMenuCommand: string;
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;
