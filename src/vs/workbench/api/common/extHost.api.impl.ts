@@ -104,7 +104,7 @@ import * as typeConverters from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { ExtHostUriOpeners } from './extHostUriOpener.js';
 import { IURITransformerService } from './extHostUriTransformerService.js';
-import { ExtHostUrls } from './extHostUrls.js';
+import { IExtHostUrlsService } from './extHostUrls.js';
 import { ExtHostWebviews } from './extHostWebview.js';
 import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
@@ -143,6 +143,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
+	const extHostUrls = accessor.get(IExtHostUrlsService);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
 	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
 	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
@@ -159,6 +160,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
+	rpcProtocol.set(ExtHostContext.ExtHostUrls, extHostUrls);
 	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
 	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
 	rpcProtocol.set(ExtHostContext.ExtHostEditorTabs, extHostEditorTabs);
@@ -179,7 +181,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLocalization = rpcProtocol.set(ExtHostContext.ExtHostLocalization, accessor.get(IExtHostLocalizationService));
 
 	// manually create and register addressable instances
-	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));

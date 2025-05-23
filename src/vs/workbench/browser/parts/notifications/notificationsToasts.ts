@@ -289,7 +289,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 		// Install Timers to Purge Notification
-		let purgeTimeoutHandle: any;
+		let purgeTimeoutHandle: Timeout;
 		let listener: IDisposable;
 
 		const hideAfterTimeout = () => {

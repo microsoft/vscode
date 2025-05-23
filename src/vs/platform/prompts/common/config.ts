@@ -5,11 +5,11 @@
 
 import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
-import { CONFIG_KEY, PROMPT_DEFAULT_SOURCE_FOLDER, INSTRUCTIONS_LOCATIONS_CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER } from './constants.js';
+import { CONFIG_KEY, PROMPT_DEFAULT_SOURCE_FOLDER, INSTRUCTIONS_LOCATIONS_CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PromptsType, getPromptFileDefaultLocation, MODE_LOCATIONS_CONFIG_KEY, getPromptFileLocationsConfigKey } from './prompts.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link CONFIG_KEY},  {@link PROMPT_LOCATIONS_CONFIG_KEY} and {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}.
+ * @see {@link CONFIG_KEY}, {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY} or {@link MODE_LOCATIONS_CONFIG_KEY}.
  *
  * ### Functions
  *
@@ -31,6 +31,7 @@ export namespace PromptsConfig {
 	export const KEY = CONFIG_KEY;
 	export const PROMPT_LOCATIONS_KEY = PROMPT_LOCATIONS_CONFIG_KEY;
 	export const INSTRUCTIONS_LOCATION_KEY = INSTRUCTIONS_LOCATIONS_CONFIG_KEY;
+	export const MODE_LOCATION_KEY = MODE_LOCATIONS_CONFIG_KEY;
 
 	/**
 	 * Checks if the feature is enabled.
@@ -51,13 +52,13 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
-	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY} or  {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}.
+	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */
 	export const getLocationsValue = (
 		configService: IConfigurationService,
-		type: 'instructions' | 'prompt'
+		type: PromptsType
 	): Record<string, boolean> | undefined => {
-		const key = type === 'instructions' ? INSTRUCTIONS_LOCATIONS_CONFIG_KEY : PROMPT_LOCATIONS_CONFIG_KEY;
+		const key = getPromptFileLocationsConfigKey(type);
 		const configValue = configService.getValue(key);
 
 		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
@@ -88,14 +89,14 @@ export namespace PromptsConfig {
 
 	/**
 	 * Gets list of source folders for prompt files.
-	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER} or {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER}.
+	 * Defaults to {@link PROMPT_DEFAULT_SOURCE_FOLDER}, {@link INSTRUCTIONS_DEFAULT_SOURCE_FOLDER} or {@link MODE_DEFAULT_SOURCE_FOLDER}.
 	 */
 	export const promptSourceFolders = (
 		configService: IConfigurationService,
-		type: 'instructions' | 'prompt'
+		type: PromptsType
 	): string[] => {
 		const value = getLocationsValue(configService, type);
-		const defaultSourceFolder = type === 'instructions' ? INSTRUCTIONS_DEFAULT_SOURCE_FOLDER : PROMPT_DEFAULT_SOURCE_FOLDER;
+		const defaultSourceFolder = getPromptFileDefaultLocation(type);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {

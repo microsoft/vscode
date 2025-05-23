@@ -119,8 +119,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				verticalPadding: 5,
 				editorOptions: {
 					wordWrap: 'on',
-					tabFocusMode: true
-				}
+					tabFocusMode: true,
+					ariaLabel: typeof title === 'string' ? title : title.value
+				},
 			};
 
 			const elements = dom.h('div', [
@@ -139,7 +140,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'off',
-						readOnly: false
+						readOnly: false,
+						ariaLabel: typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value
 					}
 				};
 

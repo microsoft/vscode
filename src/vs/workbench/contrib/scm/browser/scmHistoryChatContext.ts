@@ -13,14 +13,17 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatWidget } from '../../chat/browser/chat.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
+import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { ISCMService, ISCMViewService } from '../common/scm.js';
-import { getHistoryItemEditorTitle } from './util.js';
+import { ISCMHistoryItem } from '../common/history.js';
+import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
 
 export class SCMHistoryItemContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -43,8 +46,24 @@ export class SCMHistoryItemContextContribution extends Disposable implements IWo
 
 class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.scmHistoryItems', 'Source Control History Items...');
+	readonly label = localize('chatContext.scmHistoryItems', 'Source Control...');
 	readonly icon = Codicon.gitCommit;
+
+	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
+		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+
+		return {
+			id: historyItem.id,
+			name: attachmentName,
+			value: multiDiffSourceUri,
+			historyItem: {
+				...historyItem,
+				references: []
+			},
+			kind: 'scmHistoryItem'
+		} satisfies ISCMHistoryItemVariableEntry;
+	}
 
 	constructor(
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
@@ -57,8 +76,8 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 
 	asPicker(_widget: IChatWidget) {
 		return {
-			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a source control history item'),
-			picks: async (_query: string) => {
+			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change'),
+			picks: (async (): Promise<ChatContextPick[]> => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
@@ -89,22 +108,10 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
 						label: historyItem.subject,
 						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-						asAttachment: () => {
-							const historyItemTitle = getHistoryItemEditorTitle(historyItem);
-							const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(activeRepository.provider, historyItem);
-							const attachmentName = `$(${Codicon.repo.id})\u00A0${activeRepository.provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
-
-							return {
-								id: historyItem.id,
-								name: attachmentName,
-								value: multiDiffSourceUri,
-								title: historyItemTitle,
-								kind: 'scmHistoryItem'
-							} satisfies ISCMHistoryItemVariableEntry;
-						}
+						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
 					} satisfies IChatContextPickerPickItem;
 				});
-			}
+			})()
 		};
 	}
 }
@@ -141,3 +148,52 @@ class SCMHistoryItemContextContentProvider implements ITextModelContentProvider 
 		return this._modelService.createModel(historyItemContext, null, resource, false);
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.addHistoryItemToChat',
+			title: localize('chat.action.scmHistoryItemContext', 'Add History Item to Chat'),
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItemChatContext,
+				when: ChatContextKeys.Setup.installed
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const widget = await showChatView(viewsService);
+		if (!provider || !historyItem || !widget) {
+			return;
+		}
+
+		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.summarizeHistoryItem',
+			title: localize('chat.action.scmHistoryItemSummarize', 'Summarize History Item'),
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItemChatContext,
+				when: ChatContextKeys.Setup.installed
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const widget = await showChatView(viewsService);
+		if (!provider || !historyItem || !widget) {
+			return;
+		}
+
+		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
+		await widget.acceptInput('Summarize the attached history item');
+	}
+});

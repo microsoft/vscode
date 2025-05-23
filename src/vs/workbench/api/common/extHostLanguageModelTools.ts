@@ -235,7 +235,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 			return {
 				confirmationMessages: result.confirmationMessages ? {
-					title: result.confirmationMessages.title,
+					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 				} : undefined,
 				toolSpecificData: {
@@ -256,7 +256,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 			return {
 				confirmationMessages: result.confirmationMessages ? {
-					title: result.confirmationMessages.title,
+					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),

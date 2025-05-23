@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch, SettingKeyMatchTypes, ISettingMatcher } from '../../../services/preferences/common/preferences.js';
-import { IRange } from '../../../../editor/common/core/range.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import * as strings from '../../../../base/common/strings.js';
-import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
-import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
+import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
+import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -350,7 +350,7 @@ export class SettingMatches {
 	}
 }
 
-class AiSettingsSearchKeysProvider {
+class SettingsRecordProvider {
 	private settingsRecord: IStringDictionary<ISetting> = {};
 	private currentPreferencesModel: ISettingsEditorModel | undefined;
 
@@ -389,14 +389,14 @@ class AiSettingsSearchKeysProvider {
 	}
 }
 
-class AiSettingsSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_SETTINGS_SEARCH_MAX_PICKS = 5;
+class EmbeddingsSearchProvider implements IRemoteSearchProvider {
+	private static readonly EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS = 5;
 
-	private readonly _keysProvider: AiSettingsSearchKeysProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
 	private _filter: string = '';
 
 	constructor(private readonly aiSettingsSearchService: IAiSettingsSearchService) {
-		this._keysProvider = new AiSettingsSearchKeysProvider();
+		this._recordProvider = new SettingsRecordProvider();
 	}
 
 	setFilter(filter: string) {
@@ -411,17 +411,18 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 			return null;
 		}
 
-		this._keysProvider.updateModel(preferencesModel);
-		this.aiSettingsSearchService.startSearch(this._filter, token);
+		this._recordProvider.updateModel(preferencesModel);
+		this.aiSettingsSearchService.startSearch(this._filter, false, token);
 
 		return {
-			filterMatches: await this.getAiSettingsSearchItems(token),
-			exactMatch: false
+			filterMatches: await this.getEmbeddingsItems(token),
+			exactMatch: false,
+			providerName: 'embeddings'
 		};
 	}
 
-	private async getAiSettingsSearchItems(token: CancellationToken): Promise<ISettingMatch[]> {
-		const settingsRecord = this._keysProvider.getSettingsRecord();
+	private async getEmbeddingsItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
 		const filterMatches: ISettingMatch[] = [];
 		const settings = await this.aiSettingsSearchService.getEmbeddingsResults(this._filter, token);
 		if (!settings) {
@@ -429,7 +430,7 @@ class AiSettingsSearchProvider implements IRemoteSearchProvider {
 		}
 
 		for (const settingKey of settings) {
-			if (filterMatches.length === AiSettingsSearchProvider.AI_SETTINGS_SEARCH_MAX_PICKS) {
+			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
 			}
 			filterMatches.push({
@@ -507,7 +508,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getTfIdfItems(token),
-			exactMatch: false
+			exactMatch: false,
+			providerName: 'tfIdf'
 		};
 	}
 
@@ -543,14 +545,14 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 }
 
 class RemoteSearchProvider implements IRemoteSearchProvider {
-	private aiSettingsSearchProvider: AiSettingsSearchProvider;
+	private aiSettingsSearchProvider: EmbeddingsSearchProvider;
 	private tfIdfSearchProvider: TfIdfSearchProvider;
 	private filter: string = '';
 
 	constructor(
 		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
-		this.aiSettingsSearchProvider = new AiSettingsSearchProvider(this.aiSettingsSearchService);
+		this.aiSettingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService);
 		this.tfIdfSearchProvider = new TfIdfSearchProvider();
 	}
 

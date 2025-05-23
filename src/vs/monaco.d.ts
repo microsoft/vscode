@@ -7061,7 +7061,8 @@ declare namespace monaco.languages {
 		TypeParameter = 24,
 		User = 25,
 		Issue = 26,
-		Snippet = 27
+		Tool = 27,
+		Snippet = 28
 	}
 
 	export interface CompletionItemLabel {

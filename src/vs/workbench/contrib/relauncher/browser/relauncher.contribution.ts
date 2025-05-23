@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWindowsConfiguration, IWindowSettings, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { localize } from '../../../../nls.js';
@@ -41,6 +41,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private static SETTINGS = [
 		TitleBarSetting.TITLE_BAR_STYLE,
+		MenuSettings.MenuStyle,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -58,6 +59,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
+	private readonly menuStyle = new ChangeObserver<MenuStyleConfiguration>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -118,6 +120,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Titlebar style
 			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
+
+			// Windows/Linux: Menu style
+			processChanged(!isMacintosh && this.menuStyle.handleChange(config.window?.menuStyle));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));

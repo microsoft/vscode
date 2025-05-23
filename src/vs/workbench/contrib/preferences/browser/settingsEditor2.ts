@@ -184,6 +184,7 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTree!: TOCTree;
 
 	private searchDelayer: Delayer<void>;
+	private aiSearchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -256,6 +257,7 @@ export class SettingsEditor2 extends EditorPane {
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(300);
+		this.aiSearchDelayer = new Delayer(2000);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
@@ -1173,7 +1175,7 @@ export class SettingsEditor2 extends EditorPane {
 				const reportModifiedProps = {
 					key,
 					query,
-					searchResults: this.searchResultModel?.getUniqueResults() ?? null,
+					searchResults: this.searchResultModel?.getUniqueSearchResults() ?? null,
 					rawResults: this.searchResultModel?.getRawResults() ?? null,
 					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
@@ -1187,6 +1189,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingEvent = {
 			key: string;
 			groupId: string | undefined;
+			providerName: string | undefined;
 			nlpIndex: number | undefined;
 			displayIndex: number | undefined;
 			showConfiguredOnly: boolean;
@@ -1196,6 +1199,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingClassification = {
 			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
 			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
+			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the remote search provider, if applicable.' };
 			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
 			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the combined search results, if applicable.' };
 			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
@@ -1206,6 +1210,7 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		let groupId: string | undefined = undefined;
+		let providerName: string | undefined = undefined;
 		let nlpIndex: number | undefined = undefined;
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
@@ -1218,6 +1223,7 @@ export class SettingsEditor2 extends EditorPane {
 					groupId = settingInLocalResults ? 'local' : 'remote';
 				}
 				if (rawResults[SearchResultIdx.Remote]) {
+					providerName = rawResults[SearchResultIdx.Remote].providerName;
 					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
@@ -1232,6 +1238,7 @@ export class SettingsEditor2 extends EditorPane {
 		const data = {
 			key: props.key,
 			groupId,
+			providerName,
 			nlpIndex,
 			displayIndex,
 			showConfiguredOnly: props.showConfiguredOnly,
@@ -1646,6 +1653,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 
 			this.searchDelayer.cancel();
+			this.aiSearchDelayer.cancel();
 			if (this.searchInProgress) {
 				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
@@ -1713,10 +1721,11 @@ export class SettingsEditor2 extends EditorPane {
 			if (searchInProgress.token.isCancellationRequested) {
 				return;
 			}
-			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			const localResults = await this.doLocalSearch(query, searchInProgress.token);
 			let remoteResults = null;
 			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
-				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
+				// This search also kicks off the LLM search, whose results are fetched with the AI settings search service.
+				remoteResults = await this.doRemoteSearch(query, searchInProgress.token);
 			}
 
 			if (searchInProgress.token.isCancellationRequested) {
@@ -1728,24 +1737,26 @@ export class SettingsEditor2 extends EditorPane {
 			this.onDidFinishSearch(expandResults);
 
 			if (remoteResults?.filterMatches.length) {
-				if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
-					const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
-					if (!searchInProgress.token.isCancellationRequested) {
-						if (rankedResults === null) {
-							this.logService.trace('No ranked results found');
-						} else {
-							this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
-							// Make a suggestion if the setting isn't in the top five results.
-							const firstFewResults = new Set([
-								...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
-								...(remoteResults.filterMatches.map(m => m.setting.key))
-							].slice(0, 5));
-							const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
-							this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
-							this.setSearchSuggestions(suggestedResults);
+				this.aiSearchDelayer.trigger(async () => {
+					if (this.aiSettingsSearchService.isEnabled() && !searchInProgress.token.isCancellationRequested) {
+						const rankedResults = await this.aiSettingsSearchService.getLLMRankedResults(query, searchInProgress.token);
+						if (!searchInProgress.token.isCancellationRequested) {
+							if (rankedResults === null) {
+								this.logService.trace('No ranked results found');
+							} else {
+								this.logService.trace(`Got ranked results ${rankedResults.join(', ')}`);
+								// Make a suggestion if the setting isn't in the top five results.
+								const firstFewResults = new Set([
+									...(localResults?.filterMatches.map(m => m.setting.key) ?? []),
+									...(remoteResults.filterMatches.map(m => m.setting.key))
+								].slice(0, 5));
+								const suggestedResults = rankedResults.filter(r => !firstFewResults.has(r));
+								this.logService.trace(`Filtering ranked results down to ${suggestedResults.join(', ')}`);
+								this.setSearchSuggestions(suggestedResults);
+							}
 						}
 					}
-				}
+				});
 			}
 		});
 	}
@@ -1799,12 +1810,12 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private localFilterPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
+	private doRemoteSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
 		if (!remoteSearchProvider) {
 			return Promise.resolve(null);

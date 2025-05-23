@@ -15,7 +15,7 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
@@ -234,7 +234,7 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
-		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart || p instanceof ChatRequestToolSetPart);
 		for (const tool of toolParts) {
 			varDecorations.push({ range: tool.editorRange });
 		}

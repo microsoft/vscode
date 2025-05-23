@@ -821,7 +821,7 @@ export default tseslint.config(
 						'net',
 						'node-pty',
 						'os',
-						'path',
+						// 'path', NOT allowed: use src/vs/base/common/path.ts instead
 						'perf_hooks',
 						'readline',
 						'stream',

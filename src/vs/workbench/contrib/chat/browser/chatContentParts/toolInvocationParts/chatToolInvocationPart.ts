@@ -16,6 +16,7 @@ import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
+import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgressPart.js';
@@ -78,11 +79,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	createToolInvocationSubPart(): BaseChatToolInvocationSubPart {
-		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.confirmationMessages) {
-			if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
-				return this.instantiationService.createInstance(TerminalConfirmationWidgetSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
-			} else {
-				return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
+		if (this.toolInvocation.kind === 'toolInvocation') {
+			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
+				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
+			}
+			if (this.toolInvocation.confirmationMessages) {
+				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
+					return this.instantiationService.createInstance(TerminalConfirmationWidgetSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
+				} else {
+					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
+				}
 			}
 		}
 

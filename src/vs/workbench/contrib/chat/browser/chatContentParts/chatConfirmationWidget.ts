@@ -109,7 +109,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	protected readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -182,7 +182,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		private readonly message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
@@ -204,7 +204,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
-		title: string,
+		title: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		messageElement: HTMLElement,
 		buttons: IChatConfirmationButton[],
