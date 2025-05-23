@@ -69,6 +69,14 @@ export class ObservablePromise<T> {
 			throw error;
 		});
 	}
+
+	public readonly resolvedValue = derived(this, reader => {
+		const result = this.promiseResult.read(reader);
+		if (!result) {
+			return undefined;
+		}
+		return result.getDataOrThrow();
+	});
 }
 
 export class PromiseResult<T> {

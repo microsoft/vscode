@@ -28,10 +28,9 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -40,6 +39,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
+import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
@@ -545,7 +545,7 @@ class StartParameterizedPromptAction extends Action2 {
 			return;
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const notificationService = accessor.get(INotificationService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const fileService = accessor.get(IFileService);
@@ -564,51 +564,21 @@ class StartParameterizedPromptAction extends Action2 {
 		};
 
 		const store = new DisposableStore();
-		const quickInput = store.add(quickInputService.createInputBox());
+		const pick = store.add(instantiationService.createInstance(McpPromptArgumentPick, prompt));
 
 		try {
-			// remove fake /command if hidden before accepting
-			store.add(quickInput.onDidHide(() => replaceTextWith('')));
-
-			quickInput.totalSteps = prompt.arguments.length;
-			quickInput.step = 0;
-			quickInput.ignoreFocusOut = true;
-
-			const args: Record<string, string> = {};
-			for (const arg of prompt.arguments) {
-				quickInput.step++;
-				quickInput.placeholder = arg.name;
-				quickInput.description = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-				quickInput.value = '';
-
-				const value = await new Promise<string | undefined>(resolve => {
-					store.add(quickInput.onDidAccept(() => {
-						resolve(quickInput.value);
-					}));
-					store.add(quickInput.onDidHide(() => {
-						resolve(undefined);
-						store.dispose();
-					}));
-					quickInput.show();
-				});
-
-				if (value === undefined || (value === '' && arg.required)) {
-					store.dispose();
-					return;
-				}
-
-				args[arg.name] = value;
+			const args = await pick.createArgs();
+			if (!args) {
+				replaceTextWith('');
+				return;
 			}
-
-			quickInput.value = '';
-			quickInput.placeholder = localize('loading', 'Loading...');
-			quickInput.busy = true;
 
 			let messages: IMcpPromptMessage[];
 			try {
 				messages = await prompt.resolve(args);
 			} catch (e) {
 				notificationService.error(localize('mcp.prompt.error', "Error resolving prompt: {0}", String(e)));
+				replaceTextWith('');
 				return;
 			}
 

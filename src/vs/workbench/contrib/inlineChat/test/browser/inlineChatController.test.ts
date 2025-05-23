@@ -74,6 +74,7 @@ import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLan
 import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
 import { IPromptsService } from '../../../chat/common/promptSyntax/service/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 
 suite('InlineChatController', function () {
 
@@ -203,6 +204,7 @@ suite('InlineChatController', function () {
 					return [];
 				}
 			}],
+			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }]
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

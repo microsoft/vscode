@@ -240,4 +240,17 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	// #region ChatErrorDetailsWithConfirmation
+
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
+	}
+
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
+	}
+
+	// #endregion
 }

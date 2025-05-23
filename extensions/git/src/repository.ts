@@ -1105,9 +1105,9 @@ export class Repository implements Disposable {
 		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
 	}
 
-	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		// TODO: This probably needs per-uri granularity
-		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options, cancellationToken));
 	}
 
 	@throttle

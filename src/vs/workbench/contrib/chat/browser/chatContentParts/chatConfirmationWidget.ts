@@ -122,7 +122,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget@root', [
 			dom.h('.chat-confirmation-widget-title@title'),
 			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
+			dom.h('.chat-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});

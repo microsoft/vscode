@@ -121,7 +121,7 @@ import '../editor/common/services/languageFeaturesService.js';
 import '../editor/common/services/semanticTokensStylingService.js';
 import '../editor/common/services/treeViewsDndService.js';
 import './services/textMate/browser/textMateTokenizationFeature.contribution.js';
-import './services/treeSitter/browser/treeSitterTokenizationFeature.contribution.js';
+import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';

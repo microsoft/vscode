@@ -97,7 +97,7 @@
 	}
 }
 
-.chat-confirmation-widget .chat-confirmation-buttons-container,
+.chat-confirmation-widget .chat-buttons-container,
 .chat-confirmation-widget .chat-confirmation-widget-message {
 	flex-basis: 100%;
 	padding: 0 8px;
@@ -131,17 +131,10 @@
 	}
 }
 
-.chat-confirmation-widget .chat-confirmation-buttons-container {
-	display: flex;
-	gap: 8px;
-	margin-top: 0px;
-	flex-wrap: wrap;
-
-	&:last-child {
-		margin-bottom: 8px;
-	}
+.chat-confirmation-widget .chat-buttons-container:last-child {
+	margin-bottom: 8px;
 }
 
-.chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {
+.chat-confirmation-widget.hideButtons .chat-buttons-container {
 	display: none;
 }

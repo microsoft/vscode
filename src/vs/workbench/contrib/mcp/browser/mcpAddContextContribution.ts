@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -59,7 +60,13 @@ export class McpAddContextContribution extends Disposable implements IWorkbenchC
 				for (const resource of resources) {
 					picks.push({
 						...McpResourcePickHelper.item(resource),
-						asAttachment: () => this._helper.toAttachment(resource),
+						asAttachment: () => this._helper.toAttachment(resource).then(r => {
+							if (!r) {
+								throw new CancellationError();
+							} else {
+								return r;
+							}
+						}),
 					});
 				}
 			}
