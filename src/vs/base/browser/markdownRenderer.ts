@@ -491,8 +491,7 @@ function sanitizeRenderedMarkdown(
 	store.add(DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes));
 
 	try {
-		const a = dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
-		return a;
+		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
 	} finally {
 		store.dispose();
 	}
