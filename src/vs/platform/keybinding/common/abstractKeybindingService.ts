@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IME } from '../../../base/common/ime.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 
 import { ICommandService } from '../../commands/common/commands.js';
