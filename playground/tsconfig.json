@@ -1,0 +1,10 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"experimentalDecorators": true,
+		"module": "preserve",
+		"noEmit": true,
+		"strict": true,
+		"target": "esnext"
+	}
+}

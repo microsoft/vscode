@@ -173,15 +173,15 @@ class AMDModuleImporter {
 		if (this._amdPolicy) {
 			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as unknown as string;
 		}
-		await import(scriptSrc);
+		await import(/* @vite-ignore */ scriptSrc);
 		return this._defineCalls.pop();
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (await import(`${'fs'}`)).default;
-			const vm = (await import(`${'vm'}`)).default;
-			const module = (await import(`${'module'}`)).default;
+			const fs = (await import(/* @vite-ignore */ `${'fs'}`)).default;
+			const vm = (await import(/* @vite-ignore */ `${'vm'}`)).default;
+			const module = (await import(/* @vite-ignore */ `${'module'}`)).default;
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
