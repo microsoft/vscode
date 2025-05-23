@@ -206,7 +206,6 @@ const ModulesToLookFor = [
 	'onnxruntime-web',
 	'pg',
 	'postgresql',
-	'praisonai',
 	'redis',
 	'@supabase/supabase-js',
 	'@tensorflow/tfjs',
