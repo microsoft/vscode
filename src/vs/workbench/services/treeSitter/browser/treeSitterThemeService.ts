@@ -19,7 +19,7 @@ export class TreeSitterThemeService implements ITreeSitterThemeService {
 		this._colorTheme = observableFromEvent(this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme() as ColorThemeData);
 		this.onChange = derived(this, (reader) => {
 			this._colorTheme.read(reader);
-			reader.reportChange();
+			reader.reportChange(void 0);
 		});
 	}
 
