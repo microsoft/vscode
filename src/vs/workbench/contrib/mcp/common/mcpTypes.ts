@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
-import { Event } from '../../../../base/common/event.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -14,20 +16,19 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
-import { IGalleryMcpServer, ILocalMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { UriTemplate } from './uriTemplate.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -252,14 +253,20 @@ export interface IMcpServer extends IDisposable {
 	start(opts?: IMcpServerStartOpts): Promise<McpConnectionState>;
 	stop(): Promise<void>;
 
-	readonly toolsState: IObservable<McpServerToolsState>;
+	readonly cacheState: IObservable<McpServerCacheState>;
 	readonly tools: IObservable<readonly IMcpTool[]>;
 	readonly prompts: IObservable<readonly IMcpPrompt[]>;
+	readonly capabilities: IObservable<McpCapability | undefined>;
 
 	/**
 	 * Lists all resources on the server.
 	 */
 	resources(token?: CancellationToken): AsyncIterable<IMcpResource[]>;
+
+	/**
+	 * List resource templates on the server.
+	 */
+	resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]>;
 }
 
 /**
@@ -267,14 +274,37 @@ export interface IMcpServer extends IDisposable {
  * can be used in filesystem APIs.
  */
 export interface IMcpResource {
+	/** Identifier for the file in VS Code and operable with filesystem API */
 	readonly uri: URI;
+	/** Identifier of the file as given from the MCP server. */
+	readonly mcpUri: string;
 	readonly name: string;
 	readonly description?: string;
 	readonly mimeType?: string;
 	readonly sizeInBytes?: number;
 }
 
-export const enum McpServerToolsState {
+export interface IMcpResourceTemplate {
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly template: UriTemplate;
+
+	/** Gets string completions for the given template part. */
+	complete(templatePart: string, prefix: string, token: CancellationToken): Promise<string[]>;
+
+	/** Gets the resolved URI from template parts. */
+	resolveURI(vars: Record<string, unknown>): URI;
+}
+
+export const isMcpResourceTemplate = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResourceTemplate => {
+	return (obj as IMcpResourceTemplate).template !== undefined;
+};
+export const isMcpResource = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResource => {
+	return (obj as IMcpResource).mcpUri !== undefined;
+};
+
+export const enum McpServerCacheState {
 	/** Tools have not been read before */
 	Unknown,
 	/** Tools were read from the cache */
@@ -294,6 +324,9 @@ export interface IMcpPrompt {
 	readonly name: string;
 	readonly description?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
+
+	/** Gets string completions for the given prompt part. */
+	complete(argument: string, prefix: string, token: CancellationToken): Promise<string[]>;
 
 	resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
@@ -565,7 +598,7 @@ export namespace McpResourceURI {
 		}
 		return resourceURI.with({
 			scheme,
-			authority: encodeBase64(VSBuffer.fromString(def.id), false, true),
+			authority: encodeHex(VSBuffer.fromString(def.id)),
 			path: ['', resourceURI.scheme, resourceURI.authority].join('/') + resourceURI.path,
 		});
 	}
@@ -583,7 +616,7 @@ export namespace McpResourceURI {
 		}
 		const [, serverScheme, authority, ...path] = parts;
 		return {
-			definitionId: decodeBase64(uri.authority).toString(),
+			definitionId: decodeHex(uri.authority).toString(),
 			resourceURI: uri.with({
 				scheme: serverScheme,
 				authority,
@@ -592,4 +625,17 @@ export namespace McpResourceURI {
 		};
 	}
 
+}
+
+/** Warning: this enum is cached in `mcpServer.ts` and all changes MUST only be additive. */
+export const enum McpCapability {
+	Logging = 1 << 0,
+	Completions = 1 << 1,
+	Prompts = 1 << 2,
+	PromptsListChanged = 1 << 3,
+	Resources = 1 << 4,
+	ResourcesSubscribe = 1 << 5,
+	ResourcesListChanged = 1 << 6,
+	Tools = 1 << 7,
+	ToolsListChanged = 1 << 8,
 }

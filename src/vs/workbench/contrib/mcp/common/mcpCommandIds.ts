@@ -14,6 +14,7 @@ export const enum McpCommandIds {
 	AddConfiguration = 'workbench.mcp.addConfiguration',
 	RemoveStoredInput = 'workbench.mcp.removeStoredInput',
 	EditStoredInput = 'workbench.mcp.editStoredInput',
+	BrowseResources = 'workbench.mcp.browseResources',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowOutput = 'workbench.mcp.showOutput',
 	RestartServer = 'workbench.mcp.restartServer',

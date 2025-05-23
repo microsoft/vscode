@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib="webworker" />
 
-// Make the file a module so globals don't leak
-export { };
-
 const sw: ServiceWorkerGlobalScope = self as any as ServiceWorkerGlobalScope;
 
 const VERSION = 4;

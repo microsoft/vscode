@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../base/common/lifecycle.js';
-import { ITextModel } from '../model.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../model.js';
 
 class ListNode implements IDisposable {
 	parent?: ListNode;

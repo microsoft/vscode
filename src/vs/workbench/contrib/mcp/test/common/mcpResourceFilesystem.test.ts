@@ -73,7 +73,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const response = await fs.readFile(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/world.txt'));
+		const response = await fs.readFile(URI.parse('mcp-resource://746573742D736572766572/custom/hello/world.txt'));
 		assert.strictEqual(new TextDecoder().decode(response), 'Hello World');
 	});
 
@@ -89,7 +89,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const fileStats = await fs.stat(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/world.txt'));
+		const fileStats = await fs.stat(URI.parse('mcp-resource://746573742D736572766572/custom/hello/world.txt'));
 		assert.strictEqual(fileStats.type, FileType.File);
 		assert.strictEqual(fileStats.size, 'Hello World'.length);
 	});
@@ -109,7 +109,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const dirStats = await fs.stat(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/'));
+		const dirStats = await fs.stat(URI.parse('mcp-resource://746573742D736572766572/custom/hello/'));
 		assert.strictEqual(dirStats.type, FileType.Directory);
 		// Size should be sum of all file contents in the directory
 		assert.strictEqual(dirStats.size, 'File 1'.length + 'File 2'.length);
@@ -127,7 +127,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		});
 
 		await assert.rejects(
-			() => fs.stat(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/nonexistent.txt')),
+			() => fs.stat(URI.parse('mcp-resource://746573742D736572766572/custom/nonexistent.txt')),
 			(err: any) => err.code === FileSystemProviderErrorCode.FileNotFound
 		);
 	});
@@ -148,7 +148,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const dirEntries = await fs.readdir(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/dir/'));
+		const dirEntries = await fs.readdir(URI.parse('mcp-resource://746573742D736572766572/custom/hello/dir/'));
 		assert.deepStrictEqual(dirEntries, [
 			['file1.txt', FileType.File],
 			['file2.txt', FileType.File],
@@ -168,7 +168,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		});
 
 		await assert.rejects(
-			() => fs.readdir(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/file.txt')),
+			() => fs.readdir(URI.parse('mcp-resource://746573742D736572766572/custom/hello/file.txt')),
 			(err: any) => err.code === FileSystemProviderErrorCode.FileNotADirectory
 		);
 	});
@@ -197,7 +197,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const uri = URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/file.txt');
+		const uri = URI.parse('mcp-resource://746573742D736572766572/custom/hello/file.txt');
 		const fileChanges: IFileChange[] = [];
 
 		// Create a listener for file change events
@@ -251,12 +251,12 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			};
 		});
 
-		const response = await fs.readFile(URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/blob.bin'));
+		const response = await fs.readFile(URI.parse('mcp-resource://746573742D736572766572/custom/hello/blob.bin'));
 		assert.strictEqual(new TextDecoder().decode(response), 'Hello World as Blob');
 	});
 
 	test('throws error for write operations', async () => {
-		const uri = URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/file.txt');
+		const uri = URI.parse('mcp-resource://746573742D736572766572/custom/hello/file.txt');
 
 		await assert.rejects(
 			async () => fs.writeFile(uri, new Uint8Array(), { create: true, overwrite: true, atomic: false, unlock: false }),
@@ -274,7 +274,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		);
 
 		await assert.rejects(
-			async () => fs.rename(uri, URI.parse('mcp-resource://dGVzdC1zZXJ2ZXI/custom/hello/newfile.txt'), { overwrite: false }),
+			async () => fs.rename(uri, URI.parse('mcp-resource://746573742D736572766572/custom/hello/newfile.txt'), { overwrite: false }),
 			(err: any) => err.code === FileSystemProviderErrorCode.NoPermissions
 		);
 	});

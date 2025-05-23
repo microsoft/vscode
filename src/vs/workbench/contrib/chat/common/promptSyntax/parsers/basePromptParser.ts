@@ -27,7 +27,7 @@ import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js'
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import type { IPromptMetadata, TPromptReference, IResolveError, ITopError } from './types.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';

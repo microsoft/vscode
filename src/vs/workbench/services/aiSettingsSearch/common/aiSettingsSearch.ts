@@ -23,6 +23,7 @@ export interface AiSettingsSearchResult {
 
 export interface AiSettingsSearchProviderOptions {
 	limit: number;
+	embeddingsOnly: boolean;
 }
 
 export interface IAiSettingsSearchService {
@@ -30,7 +31,7 @@ export interface IAiSettingsSearchService {
 
 	// Called from the Settings editor
 	isEnabled(): boolean;
-	startSearch(query: string, token: CancellationToken): void;
+	startSearch(query: string, embeddingsOnly: boolean, token: CancellationToken): void;
 	getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null>;
 	getLLMRankedResults(query: string, token: CancellationToken): Promise<string[] | null>;
 

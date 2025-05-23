@@ -29,8 +29,9 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerCacheState, McpServerTransportType, McpCapability, IMcpResourceTemplate } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -68,6 +69,8 @@ interface IToolCacheEntry {
 	readonly tools: readonly IValidatedMcpTool[];
 	/** Cached prompts */
 	readonly prompts: readonly MCP.Prompt[] | undefined;
+	/** Cached capabilities */
+	readonly capabilities: McpCapability | undefined;
 }
 
 interface IServerCacheEntry {
@@ -230,6 +233,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	public readonly connection = this._connection;
 	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
+
+	private readonly _capabilities = observableValue<number | undefined>('mcpserver.capabilities', undefined);
+	public get capabilities() {
+		return this._capabilities;
+	}
+
 	private readonly _tools: CachedPrimitive<IMcpTool, IValidatedMcpTool>;
 	public get tools() {
 		return this._tools.value;
@@ -245,14 +254,14 @@ export class McpServer extends Disposable implements IMcpServer {
 		collection: McpCollectionDefinition | undefined;
 	}>;
 
-	public readonly toolsState = derived(reader => {
+	public readonly cacheState = derived(reader => {
 		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
 		const stateWhenServingFromCache = () => {
 			if (!this._tools.fromCache) {
-				return McpServerToolsState.Unknown;
+				return McpServerCacheState.Unknown;
 			}
 
-			return currentNonce() === this._tools.fromCache.nonce ? McpServerToolsState.Cached : McpServerToolsState.Outdated;
+			return currentNonce() === this._tools.fromCache.nonce ? McpServerCacheState.Cached : McpServerCacheState.Outdated;
 		};
 
 		const fromServer = this._tools.fromServerPromise.read(reader);
@@ -264,14 +273,14 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		const fromServerResult = fromServer?.promiseResult.read(reader);
 		if (!fromServerResult) {
-			return this._tools.fromCache ? McpServerToolsState.RefreshingFromCached : McpServerToolsState.RefreshingFromUnknown;
+			return this._tools.fromCache ? McpServerCacheState.RefreshingFromCached : McpServerCacheState.RefreshingFromUnknown;
 		}
 
 		if (fromServerResult.error) {
 			return stateWhenServingFromCache();
 		}
 
-		return fromServerResult.data?.nonce === currentNonce() ? McpServerToolsState.Live : McpServerToolsState.Outdated;
+		return fromServerResult.data?.nonce === currentNonce() ? McpServerCacheState.Live : McpServerCacheState.Outdated;
 	});
 
 	private readonly _loggerId: string;
@@ -363,6 +372,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			(entry) => entry.prompts || [],
 			(entry) => entry.map(e => new McpPrompt(this, e)),
 		);
+
+		this._capabilities.set(this._primitiveCache.get(this.definition.id)?.capabilities, undefined);
 	}
 
 	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
@@ -386,6 +397,13 @@ export class McpServer extends Disposable implements IMcpServer {
 				}
 			});
 		}, () => cts.dispose(true));
+	}
+
+	public resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]> {
+		return McpServer.callOn(this, async (handler) => {
+			const templates = await handler.listResourceTemplates({}, token);
+			return templates.map(t => new McpResourceTemplate(this, t));
+		}, token);
 	}
 
 	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
@@ -597,11 +615,15 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		transaction(tx => {
 			// note: all update* methods must use tx synchronously
+			const capabilities = encodeCapabilities(handler.capabilities);
+			this._capabilities.set(capabilities, tx);
+
 			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
 				this._primitiveCache.store(this.definition.id, {
 					nonce: cacheNonce,
 					tools,
 					prompts,
+					capabilities,
 				});
 
 				this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
@@ -637,6 +659,42 @@ class McpPrompt implements IMcpPrompt {
 		const result = await McpServer.callOn(this._server, h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
 		return result.messages;
 	}
+
+	async complete(argument: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/prompt', name: this._definition.name },
+			argument: { name: argument, value: prefix, }
+		}, token), token);
+		return result.completion.values;
+	}
+}
+
+function encodeCapabilities(cap: MCP.ServerCapabilities): McpCapability {
+	let out = 0;
+	if (cap.logging) { out |= McpCapability.Logging; }
+	if (cap.completions) { out |= McpCapability.Completions; }
+	if (cap.prompts) {
+		out |= McpCapability.Prompts;
+		if (cap.prompts.listChanged) {
+			out |= McpCapability.PromptsListChanged;
+		}
+	}
+	if (cap.resources) {
+		out |= McpCapability.Resources;
+		if (cap.resources.subscribe) {
+			out |= McpCapability.ResourcesSubscribe;
+		}
+		if (cap.resources.listChanged) {
+			out |= McpCapability.ResourcesListChanged;
+		}
+	}
+	if (cap.tools) {
+		out |= McpCapability.Tools;
+		if (cap.tools.listChanged) {
+			out |= McpCapability.ToolsListChanged;
+		}
+	}
+	return out;
 }
 
 export class McpTool implements IMcpTool {
@@ -727,6 +785,7 @@ function warnInvalidTools(instaService: IInstantiationService, serverName: strin
 
 class McpResource implements IMcpResource {
 	uri: URI;
+	mcpUri: string;
 	name: string;
 	description: string | undefined;
 	mimeType: string | undefined;
@@ -736,10 +795,41 @@ class McpResource implements IMcpResource {
 		server: McpServer,
 		original: MCP.Resource,
 	) {
+		this.mcpUri = original.uri;
 		this.uri = McpResourceURI.fromServer(server.definition, original.uri);
 		this.name = original.name;
 		this.description = original.description;
 		this.mimeType = original.mimeType;
 		this.sizeInBytes = original.size;
+	}
+}
+
+class McpResourceTemplate implements IMcpResourceTemplate {
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly template: UriTemplate;
+
+	constructor(
+		private readonly _server: McpServer,
+		private readonly _definition: MCP.ResourceTemplate,
+	) {
+		this.name = _definition.name;
+		this.description = _definition.description;
+		this.mimeType = _definition.mimeType;
+		this.template = UriTemplate.parse(_definition.uriTemplate);
+	}
+
+	public resolveURI(vars: Record<string, unknown>): URI {
+		const serverUri = this.template.resolve(vars);
+		return McpResourceURI.fromServer(this._server.definition, serverUri);
+	}
+
+	async complete(templatePart: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/resource', uri: this._definition.uriTemplate },
+			argument: { name: templatePart, value: prefix, }
+		}, token), token);
+		return result.completion.values;
 	}
 }

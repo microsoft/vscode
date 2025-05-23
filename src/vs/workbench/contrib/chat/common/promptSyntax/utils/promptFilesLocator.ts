@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromptsType } from '../service/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -14,12 +13,13 @@ import { PromptsConfig } from '../../../../../../platform/prompts/common/config.
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getPromptFileType, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileType, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -31,7 +31,7 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(type: TPromptsType): Promise<readonly URI[]> {
+	public async listFiles(type: PromptsType): Promise<readonly URI[]> {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
@@ -48,7 +48,7 @@ export class PromptFilesLocator {
 	 */
 	public async listFilesIn(
 		folders: readonly URI[],
-		type: TPromptsType,
+		type: PromptsType,
 	): Promise<readonly URI[]> {
 		return await this.findFilesInLocations(folders, type);
 	}
@@ -65,7 +65,7 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
-	public getConfigBasedSourceFolders(type: TPromptsType): readonly URI[] {
+	public getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
@@ -116,7 +116,7 @@ export class PromptFilesLocator {
 	 */
 	private async findFilesInLocations(
 		absoluteLocations: readonly URI[],
-		type: TPromptsType,
+		type: PromptsType,
 	): Promise<readonly URI[]> {
 
 		// find all prompt files in the provided locations, then match
@@ -279,7 +279,7 @@ export const firstNonGlobParent = (
  */
 const findFilesInLocation = async (
 	location: URI,
-	type: TPromptsType,
+	type: PromptsType,
 	fileService: IFileService,
 ): Promise<readonly URI[]> => {
 	const result: URI[] = [];

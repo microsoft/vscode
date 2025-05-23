@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable } from '../observable.js';
+import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
 
 
 export class ObservableSet<T> implements Set<T> {
@@ -22,27 +22,27 @@ export class ObservableSet<T> implements Set<T> {
 		return this._data.has(value);
 	}
 
-	add(value: T): this {
+	add(value: T, tx?: ITransaction): this {
 		const hadValue = this._data.has(value);
 		if (!hadValue) {
 			this._data.add(value);
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 		return this;
 	}
 
-	delete(value: T): boolean {
+	delete(value: T, tx?: ITransaction): boolean {
 		const result = this._data.delete(value);
 		if (result) {
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 		return result;
 	}
 
-	clear(): void {
+	clear(tx?: ITransaction): void {
 		if (this._data.size > 0) {
 			this._data.clear();
-			this._obs.set(this, undefined);
+			this._obs.set(this, tx);
 		}
 	}
 

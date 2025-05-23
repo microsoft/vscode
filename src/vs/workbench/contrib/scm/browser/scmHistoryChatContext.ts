@@ -18,7 +18,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
@@ -77,7 +77,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	asPicker(_widget: IChatWidget) {
 		return {
 			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change'),
-			picks: async (_query: string) => {
+			picks: (async (): Promise<ChatContextPick[]> => {
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
@@ -111,7 +111,7 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
 					} satisfies IChatContextPickerPickItem;
 				});
-			}
+			})()
 		};
 	}
 }

@@ -19,7 +19,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { derived, IObservable, IReader, ObservableSet } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IToolData {
@@ -212,14 +212,14 @@ export class ToolSet {
 		});
 	}
 
-	addTool(data: IToolData): IDisposable {
+	addTool(data: IToolData, tx?: ITransaction): IDisposable {
 		this._tools.add(data);
 		return toDisposable(() => {
 			this._tools.delete(data);
 		});
 	}
 
-	addToolSet(toolSet: ToolSet): IDisposable {
+	addToolSet(toolSet: ToolSet, tx?: ITransaction): IDisposable {
 		if (toolSet === this) {
 			return Disposable.None;
 		}

@@ -7,7 +7,7 @@ import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableFromEvent, observableSignalFromEvent, autorun } from '../../../../../base/common/observable.js';
+import { observableFromEvent, observableSignalFromEvent, autorun, transaction } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -156,12 +156,12 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			for (const tool of tools) {
 				if (tool.toolReferenceName && tool.canBeReferencedInPrompt) {
 					toolEnumValues.push(tool.toolReferenceName);
-					toolEnumDescriptions.push(localize('tooldesc', "{0} ({1})", tool.userDescription ?? tool.modelDescription, tool.source.label));
+					toolEnumDescriptions.push(localize('tooldesc', "{0} - {1}", tool.source.label, tool.userDescription ?? tool.modelDescription));
 				}
 			}
 			for (const toolSet of toolSets) {
 				toolEnumValues.push(toolSet.toolReferenceName);
-				toolEnumDescriptions.push(localize('toolsetdesc', "{0} ({1})", toolSet.description ?? toolSet.displayName ?? '', toolSet.source.label));
+				toolEnumDescriptions.push(localize('toolsetdesc', "{0} - {1}", toolSet.source.label, toolSet.description ?? toolSet.displayName ?? ''));
 			}
 			store.clear(); // reset old schema
 			reg.registerSchema(toolSetSchemaId, toolSetsSchema, store);
@@ -256,9 +256,11 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						}
 					);
 
-					tools.forEach(tool => store.add(toolset.addTool(tool)));
-					toolSets.forEach(toolSet => store.add(toolset.addToolSet(toolSet)));
-					store.add(toolset);
+					transaction(tx => {
+						store.add(toolset);
+						tools.forEach(tool => store.add(toolset.addTool(tool, tx)));
+						toolSets.forEach(toolSet => store.add(toolset.addToolSet(toolSet, tx)));
+					});
 				}
 			}
 		}));
