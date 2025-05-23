@@ -752,15 +752,17 @@ class ChatSetup {
 			}
 
 			if (variant === 'input-email') {
-				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, { styleButton: button => button.element.classList.add('link-button') }]);
-				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, {
+				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, {
 					styleButton: button => {
-						const separator = button.element.parentElement?.appendChild($('.separator'));
-						separator?.appendChild($('.separator-left'));
-						separator?.appendChild($('.separator-center', undefined, 'Or'));
-						separator?.appendChild($('.separator-right'));
+						button.element.classList.add('link-button');
+
+						const separator = button.element.parentElement?.appendChild($('.buttons-separator'));
+						separator?.appendChild($('.buttons-separator-left'));
+						separator?.appendChild($('.buttons-separator-center', undefined, localize('or', "Or")));
+						separator?.appendChild($('.buttons-separator-right'));
 					}
 				}]);
+				buttons.unshift([localize('continueWithEmail', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];

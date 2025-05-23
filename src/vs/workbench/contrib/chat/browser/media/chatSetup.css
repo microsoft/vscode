@@ -64,7 +64,7 @@
 		width: 100% !important;
 	}
 
-	.separator {
+	.buttons-separator {
 		display: flex;
 		width: 100%;
 		margin-top: 10px;
@@ -73,13 +73,13 @@
 		align-items: center;
 	}
 
-	.separator-left {
+	.buttons-separator-left {
 		width: 100%;
 		margin-right: 5px;
 		border-top: 1px solid var(--vscode-descriptionForeground);
 	}
 
-	.separator-right {
+	.buttons-separator-right {
 		width: 100%;
 		margin-left: 5px;
 		border-top: 1px solid var(--vscode-descriptionForeground);
