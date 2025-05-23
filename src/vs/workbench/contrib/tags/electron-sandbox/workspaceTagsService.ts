@@ -380,7 +380,7 @@ const PyModulesToLookFor = [
 	'google-cloud-aiplatform',
 	'guidance',
 	'openai',
-	'praisonai'
+	'praisonai',
 	'semantic-kernel',
 	'sentence-transformers',
 	'smolagents',
