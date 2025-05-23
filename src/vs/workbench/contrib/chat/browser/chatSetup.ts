@@ -78,6 +78,7 @@ const defaultChat = {
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
+	signUpUrl: product.defaultChatAgent?.signUpUrl ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
 	enterpriseProviderName: product.defaultChatAgent?.enterpriseProviderName ?? '',
@@ -566,7 +567,8 @@ enum ChatSetupStrategy {
 	Canceled = 0,
 	DefaultSetup = 1,
 	SetupWithoutEnterpriseProvider = 2,
-	SetupWithEnterpriseProvider = 3
+	SetupWithEnterpriseProvider = 3,
+	SetupWithAccountCreate = 4
 }
 
 type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;
@@ -583,7 +585,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IProductService));
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IProductService), accessor.get(IOpenerService));
 			});
 		}
 
@@ -605,7 +607,8 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) { }
 
 	skipDialog(): void {
@@ -659,6 +662,9 @@ class ChatSetup {
 				case ChatSetupStrategy.DefaultSetup:
 					success = await this.controller.value.setup();
 					break;
+				case ChatSetupStrategy.SetupWithAccountCreate:
+					this.openerService.open(URI.parse(defaultChat.signUpUrl));
+					return this.doRun(options); // open dialog again
 				case ChatSetupStrategy.Canceled:
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined });
 					break;
@@ -740,7 +746,7 @@ class ChatSetup {
 				case 'input-email':
 					buttons = coalesce([
 						[localize('continueWithEmailOrUserId', "Continue"), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
-						[localize('createAccount', "Create a New Account"), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+						[localize('createAccount', "Create a New Account"), ChatSetupStrategy.SetupWithAccountCreate, {
 							styleButton: button => {
 								button.element.classList.add('link-button');
 
