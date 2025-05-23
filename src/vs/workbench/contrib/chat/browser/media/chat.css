@@ -1898,8 +1898,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
-.interactive-item-container.interactive-response:not(.ask-mode) .value,
-.interactive-item-container.interactive-response.ask-mode .value:has(.chat-used-context:not([style*="display: none"])) {
+.interactive-item-container.interactive-response .value:has(.rendered-markdown),
+.interactive-item-container.interactive-response .value:has(.chat-used-context.has-references) {
 	background-color: var(--vscode-editorInlayHint-typeBackground);
 	border-radius: 8px;
 	padding: 8px 12px;
@@ -1942,7 +1942,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-request .rendered-markdown .interactive-result-code-block .monaco-editor .overflow-guard,
 .interactive-session .interactive-request .rendered-markdown .monaco-editor,
-.interactive-session .interactive-response .rendered-markdown .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-response .rendered-markdown .monaco-editor {
+.interactive-session .interactive-response .interactive-result-code-block .monaco-editor .overflow-guard,
+.interactive-session .interactive-response .monaco-editor {
 	width: 100% !important;
 }
