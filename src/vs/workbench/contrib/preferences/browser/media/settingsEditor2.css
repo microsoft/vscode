@@ -69,6 +69,8 @@
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
 	padding: 2px;
+	margin-left: 0px;
+	box-sizing: content-box;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {

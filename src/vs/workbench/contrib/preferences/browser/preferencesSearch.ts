@@ -33,7 +33,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
-	private _aiSearchProvider: IRemoteSearchProvider | undefined;
+	private _aiSearchProvider: IAiSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -414,10 +414,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 	}
 
 	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
-		if (
-			!this._filter ||
-			!this._aiSettingsSearchService.isEnabled()
-		) {
+		if (!this._filter || !this._aiSettingsSearchService.isEnabled()) {
 			return null;
 		}
 
@@ -617,6 +614,7 @@ class AiSearchProvider implements IAiSearchProvider {
 			return null;
 		}
 
+		this._recordProvider.updateModel(preferencesModel);
 		const results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
 		return results;
 	}
@@ -642,6 +640,10 @@ class AiSearchProvider implements IAiSearchProvider {
 		}
 
 		for (const settingKey of settings) {
+			if (!settingsRecord[settingKey]) {
+				// Non-existent setting.
+				continue;
+			}
 			filterMatches.push({
 				setting: settingsRecord[settingKey],
 				matches: [settingsRecord[settingKey].range],

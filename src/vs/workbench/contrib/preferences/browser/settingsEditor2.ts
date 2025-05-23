@@ -59,7 +59,7 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, ENABLE_SHOW_AI_RESULTS_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, wordifyKey, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, ENABLE_SHOW_AI_RESULTS_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
 import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
@@ -169,7 +169,6 @@ export class SettingsEditor2 extends EditorPane {
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
-	private suggestionsDiv!: HTMLElement;
 
 	private splitView!: SplitView<number>;
 
@@ -230,8 +229,6 @@ export class SettingsEditor2 extends EditorPane {
 	private readonly DISMISSED_EXTENSION_SETTINGS_DELIMITER = '\t';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
-
-	private readonly searchSuggestionDisposables: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -634,8 +631,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		const setupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
 		if (!setupHidden && ENABLE_SHOW_AI_RESULTS_FILTER) {
+			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResults', "Show AI Results"), ThemeIcon.asClassName(preferencesAiResultsIcon)
+				localize('showAiResults', "Show AI Results"), showAiResultActionClassNames.join(' ')
 			));
 			this._register(this.showAiResultsAction.onDidChange(() => {
 				this.onSearchInputChanged(true);
@@ -696,11 +694,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
-
-		this.suggestionsDiv = DOM.append(headerControlsContainer, $('div.settings-suggestions'));
-		if (this.configurationService.getValue('workbench.settings.showSuggestions') !== true) {
-			this.suggestionsDiv.hidden = true;
-		}
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
@@ -1656,7 +1649,6 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string, expandResults: boolean): Promise<void> {
-		this.clearSearchSuggestions();
 		const progressRunner = this.editorProgressService.show(true, 800);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
@@ -1753,27 +1745,34 @@ export class SettingsEditor2 extends EditorPane {
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 
 		if (this.showAiResultsAction?.checked) {
-			// Use both embeddings and LLM results from the AI search.
-			this.searchResultModel.showAiResults = true;
-			const embeddingsResults = await this.doAiSearch(query, searchInProgress.token);
-			if (embeddingsResults?.filterMatches.length) {
-				this.aiSearchDelayer.trigger(async () => {
-					await this.getLLMRankedResults(query, searchInProgress.token);
+			return this.searchDelayer.trigger(async () => {
+				// Use both embeddings and LLM results from the AI search.
+				const embeddingsResults = await this.doAiSearch(query, searchInProgress.token);
+				if (!this.searchResultModel) {
+					return;
+				}
+				this.searchResultModel.showAiResults = true;
+				if (embeddingsResults?.filterMatches.length) {
+					this.aiSearchDelayer.trigger(async () => {
+						await this.getLLMRankedResults(query, searchInProgress.token);
+						this.onDidFinishSearch(expandResults);
+					});
+				} else {
 					this.onDidFinishSearch(expandResults);
-				});
-			} else {
-				this.onDidFinishSearch(expandResults);
-			}
-			return;
+				}
+			});
 		}
 
 		// Use the local search algorithm and only the embeddings from the AI search.
-		this.searchResultModel.showAiResults = false;
 		return this.searchDelayer.trigger(async () => {
 			if (searchInProgress.token.isCancellationRequested) {
 				return;
 			}
 			const localResults = await this.doLocalSearch(query, searchInProgress.token);
+			if (!this.searchResultModel) {
+				return;
+			}
+			this.searchResultModel.showAiResults = false;
 			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
 				await this.doRemoteSearch(query, searchInProgress.token);
 			}
@@ -1797,44 +1796,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
-	}
-
-	private clearSearchSuggestions(): void {
-		this.searchSuggestionDisposables.clear();
-		this.suggestionsDiv.innerText = '';
-	}
-
-	// @ts-expect-error
-	private setSearchSuggestions(suggestions: string[]): void {
-		this.clearSearchSuggestions();
-
-		if (suggestions.length === 0) {
-			return;
-		}
-
-		this.suggestionsDiv.innerText = localize('suggestionsPrefix', "Did you mean: ");
-		suggestions.forEach((suggestion, idx) => {
-			const suggestionLink = document.createElement('a');
-			suggestionLink.textContent = wordifyKey(suggestion);
-			suggestionLink.tabIndex = 0;
-			suggestionLink.setAttribute('aria-label', suggestion);
-			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'click', (e) => {
-				e.preventDefault();
-				this.searchWidget.setValue(suggestion);
-				this.focusSearch();
-			}));
-			this.searchSuggestionDisposables.add(DOM.addDisposableListener(suggestionLink, 'keydown', (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					this.searchWidget.setValue(suggestion);
-					this.focusSearch();
-				}
-			}));
-			this.suggestionsDiv.appendChild(suggestionLink);
-			if (idx < suggestions.length - 1) {
-				this.suggestionsDiv.appendChild(document.createTextNode(', '));
-			}
-		});
 	}
 
 	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
