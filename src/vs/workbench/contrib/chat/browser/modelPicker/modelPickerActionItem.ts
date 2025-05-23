@@ -119,8 +119,8 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		this.setAriaLabelAttributes(element);
 		return null;
 	}
 
