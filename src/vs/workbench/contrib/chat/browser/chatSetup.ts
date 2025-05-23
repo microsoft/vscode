@@ -674,7 +674,10 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
-		const dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown>('chat.setup.signInDialogVariant');
+		let dialogVariant = this.configurationService.getValue<'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown>('chat.setup.signInDialogVariant');
+		if (this.context.state.entitlement !== ChatEntitlement.Unknown && dialogVariant === 'input-email') {
+			dialogVariant = 'default'; // fallback to default for users that are signed in already
+		}
 
 		const buttons = this.getButtons(dialogVariant);
 
@@ -721,7 +724,7 @@ class ChatSetup {
 
 	private getInputs(variant: 'default' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | unknown): IDialogInputOptions[] | undefined {
 		if (variant !== 'input-email') {
-			return [];
+			return undefined;
 		}
 
 		return [{ placeholder: localize('emailOrUserIdPlaceholder', "Enter your email or username") }];
@@ -733,36 +736,43 @@ class ChatSetup {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 			const supportAlternateProvider = this.configurationService.getValue('chat.setup.signInWithAlternateProvider') === true && defaultChat.alternativeProviderId;
 
-			if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
-				buttons = coalesce([
-					[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
-					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
-				]);
-			} else {
-				buttons = coalesce([
-					[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
-					supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
-					[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
-				]);
-			}
+			switch (variant) {
+				case 'input-email':
+					buttons = coalesce([
+						[localize('continueWithEmailOrUserId', "Continue"), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
+						[localize('createAccount', "Create a New Account"), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+							styleButton: button => {
+								button.element.classList.add('link-button');
 
-			if (supportAlternateProvider && variant === 'alt-first') {
-				[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
-			}
-
-			if (variant === 'input-email') {
-				buttons.unshift([localize('createAccount', "Create a New Account"), ChatSetupStrategy.DefaultSetup, {
-					styleButton: button => {
-						button.element.classList.add('link-button');
-
-						const separator = button.element.parentElement?.appendChild($('.buttons-separator'));
-						separator?.appendChild($('.buttons-separator-left'));
-						separator?.appendChild($('.buttons-separator-center', undefined, localize('or', "Or")));
-						separator?.appendChild($('.buttons-separator-right'));
+								const separator = button.element.parentElement?.appendChild($('.buttons-separator'));
+								separator?.appendChild($('.buttons-separator-left'));
+								separator?.appendChild($('.buttons-separator-center', undefined, localize('or', "Or")));
+								separator?.appendChild($('.buttons-separator-right'));
+							}
+						}],
+						supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+						[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined]
+					]);
+					break;
+				default:
+					if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+						buttons = coalesce([
+							[localize('continueWithProvider', "Continue with {0}", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, undefined],
+							supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+							[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
+						]);
+					} else {
+						buttons = coalesce([
+							[localize('continueWithProvider', "Continue with {0}", defaultChat.providerName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined],
+							supportAlternateProvider ? [localize('continueWithProvider', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, undefined] : undefined,
+							[localize('signInWithProvider', "Sign in with a {0} account", defaultChat.enterpriseProviderName), ChatSetupStrategy.SetupWithEnterpriseProvider, { styleButton: button => button.element.classList.add('link-button') }]
+						]);
 					}
-				}]);
-				buttons.unshift([localize('continueWithEmailOrUserId', "Continue"), ChatSetupStrategy.DefaultSetup, undefined]);
+
+					if (supportAlternateProvider && variant === 'alt-first') {
+						[buttons[0], buttons[1]] = [buttons[1], buttons[0]];
+					}
+					break;
 			}
 		} else {
 			buttons = [[localize('setupCopilotButton', "Set up Copilot"), ChatSetupStrategy.DefaultSetup, undefined]];
