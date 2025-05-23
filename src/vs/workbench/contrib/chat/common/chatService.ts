@@ -39,6 +39,7 @@ export enum ChatErrorLevel {
 export interface IChatResponseErrorDetailsConfirmationButton {
 	data: any;
 	label: string;
+	isSecondary?: boolean;
 }
 
 export interface IChatResponseErrorDetails {

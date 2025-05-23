@@ -159,6 +159,7 @@ export interface IChatCodeCitations {
 export interface IChatErrorDetailsPart {
 	kind: 'errorDetails';
 	errorDetails: IChatResponseErrorDetails;
+	isLast: boolean;
 }
 
 /**

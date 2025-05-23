@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
-import { assertIsResponseVM, IChatRendererContent } from '../../common/chatViewModel.js';
+import { assertIsResponseVM, IChatErrorDetailsPart, IChatRendererContent } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatCustomConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatErrorWidget } from './chatErrorContentPart.js';
 
 const $ = dom.$;
 
@@ -28,7 +28,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
-		private readonly errorDetails: IChatRendererContent,
+		private readonly errorDetails: IChatErrorDetailsPart,
 		confirmationButtons: IChatResponseErrorDetailsConfirmationButton[],
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
@@ -41,53 +41,36 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		const element = context.element;
 		assertIsResponseVM(element);
 
-		const messageElement = $('.chat-notification-widget');
-		let icon;
-		let iconClass;
-		switch (kind) {
-			case ChatErrorLevel.Warning:
-				icon = Codicon.warning;
-				iconClass = '.chat-warning-codicon';
-				break;
-			case ChatErrorLevel.Error:
-				icon = Codicon.error;
-				iconClass = '.chat-error-codicon';
-				break;
-			case ChatErrorLevel.Info:
-				icon = Codicon.info;
-				iconClass = '.chat-info-codicon';
-				break;
-		}
-		messageElement.appendChild($(iconClass, undefined, renderIcon(icon)));
-		const markdownContent = this._register(renderer.render(content));
-		messageElement.appendChild(markdownContent.element);
+		this.domNode = $('.chat-error-confirmation');
+		this.domNode.append(this._register(new ChatErrorWidget(kind, content, renderer)).domNode);
 
-		const confirmationWidget = this._register(instantiationService.createInstance(ChatCustomConfirmationWidget, '', undefined, messageElement, confirmationButtons, context.container));
-		this.domNode = confirmationWidget.domNode;
-		confirmationWidget.setShowButtons(true);
+		const buttonOptions: IButtonOptions = { ...defaultButtonStyles };
 
-		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		const buttonContainer = dom.append(this.domNode, $('.chat-buttons-container'));
+		confirmationButtons.forEach(buttonData => {
+			const button = this._register(new Button(buttonContainer, buttonOptions));
+			button.label = buttonData.label;
 
-		this._register(confirmationWidget.onDidClick(async e => {
-			const prompt = e.label;
-			const options: IChatSendRequestOptions = e.isSecondary ?
-				{ rejectedConfirmationData: [e.data] } :
-				{ acceptedConfirmationData: [e.data] };
-			options.agentId = element.agent?.id;
-			options.slashCommand = element.slashCommand?.name;
-			options.confirmation = e.label;
-			const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
-			options.userSelectedModelId = widget?.input.currentLanguageModel;
-			options.mode = widget?.input.currentMode;
-			if (await chatService.sendRequest(element.sessionId, prompt, options)) {
-				confirmationWidget.setShowButtons(false);
-				this._onDidChangeHeight.fire();
-			}
-		}));
+			this._register(button.onDidClick(async () => {
+				const prompt = buttonData.label;
+				const options: IChatSendRequestOptions = buttonData.isSecondary ?
+					{ rejectedConfirmationData: [buttonData.data] } :
+					{ acceptedConfirmationData: [buttonData.data] };
+				options.agentId = element.agent?.id;
+				options.slashCommand = element.slashCommand?.name;
+				options.confirmation = buttonData.label;
+				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				options.mode = widget?.input.currentMode;
+				if (await chatService.sendRequest(element.sessionId, prompt, options)) {
+					this._onDidChangeHeight.fire();
+				}
+			}));
+		});
 	}
 
 	hasSameContent(other: IChatRendererContent): boolean {
-		return other.kind === this.errorDetails.kind;
+		return other.kind === this.errorDetails.kind && other.isLast === this.errorDetails.isLast;
 	}
 
 	addDisposable(disposable: IDisposable): void {

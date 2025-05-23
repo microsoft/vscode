@@ -15,13 +15,31 @@ import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
-export class ChatWarningContentPart extends Disposable implements IChatContentPart {
+export class ChatErrorContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
 		private readonly errorDetails: IChatRendererContent,
+		renderer: MarkdownRenderer,
+	) {
+		super();
+
+		this.domNode = this._register(new ChatErrorWidget(kind, content, renderer)).domNode;
+	}
+
+	hasSameContent(other: IChatRendererContent): boolean {
+		return other.kind === this.errorDetails.kind;
+	}
+}
+
+export class ChatErrorWidget extends Disposable {
+	public readonly domNode: HTMLElement;
+
+	constructor(
+		kind: ChatErrorLevel,
+		content: IMarkdownString,
 		renderer: MarkdownRenderer,
 	) {
 		super();
@@ -46,9 +64,5 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 		this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
 		const markdownContent = this._register(renderer.render(content));
 		this.domNode.appendChild(markdownContent.element);
-	}
-
-	hasSameContent(other: IChatRendererContent): boolean {
-		return other.kind === this.errorDetails.kind;
 	}
 }
