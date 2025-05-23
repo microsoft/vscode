@@ -641,7 +641,8 @@ class TokenStore implements Disposable {
 			accessToken: token.access_token,
 			account: {
 				id: claims?.sub || 'unknown',
-				label: claims?.preferred_username || claims?.name || claims?.email || 'Account',
+				// TODO: Don't say MCP...
+				label: claims?.preferred_username || claims?.name || claims?.email || 'MCP',
 			},
 			scopes: scopes,
 			idToken: token.id_token
