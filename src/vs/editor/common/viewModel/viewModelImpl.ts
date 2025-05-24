@@ -37,10 +37,11 @@ import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
-import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { IViewModelLines, IViewModelLinesFromProjectedModelContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -73,6 +74,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
 		private readonly _transactionalTarget: IBatchableTarget,
+		private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -89,7 +91,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
 
 		} else {
 			const options = this._configuration.options;
@@ -99,11 +101,21 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
+			const context: IViewModelLinesFromProjectedModelContext = {
+				getLineHeightForLineNumber: (lineNumber: number): number => {
+					if (this.viewLayout) {
+						return this.viewLayout.getLineHeightForLineNumber(lineNumber);
+					}
+					return fontInfo.lineHeight;
+				}
+			};
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
+				context,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
+				this._configuration,
 				fontInfo,
 				this.model.getOptions().tabSize,
 				wrappingStrategy,
@@ -218,6 +230,24 @@ export class ViewModel extends Disposable implements IViewModel {
 		return modelVisibleRanges;
 	}
 
+	public getFontSizeAtPosition(position: IPosition): number {
+		let fontSize: number = this._configuration.options.get(EditorOption.fontSize);
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		if (screenReaderOptimized) {
+			return fontSize;
+		}
+		const decorationsInRange = this.model.getDecorationsInRange(Range.fromPositions(position, position));
+		if (decorationsInRange) {
+			for (const decoration of decorationsInRange) {
+				if (decoration.ownerId === this._editorId && decoration.options.fontSize) {
+					fontSize = decoration.options.fontSize;
+					break;
+				}
+			}
+		}
+		return fontSize;
+	}
+
 	public visibleLinesStabilized(): void {
 		const modelVisibleRanges = this.getModelVisibleRanges();
 		this._attachedView.setVisibleLines(modelVisibleRanges, true);
@@ -323,7 +353,11 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								const lineNumber = change.fromLineNumber;
+								const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+								const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
+								const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+								lineBreaksComputer.addRequest(lineNumber, line, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							}
 							break;
 						}
@@ -332,7 +366,11 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
+							const lineNumber = change.lineNumber;
+							const inlineDecorations = this.getInlineDecorationsOnLine(lineNumber);
+							const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
+							const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+							lineBreaksComputer.addRequest(lineNumber, change.detail, lineHeight, injectedText, inlineDecorations, lineTokens, null);
 							break;
 						}
 					}
@@ -865,6 +903,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
 		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
+	}
+
+	public getInlineDecorationsOnLine(modelLineNumber: number): InlineDecoration[] {
+		return this._lines.getInlineDecorationsOnModelLine(modelLineNumber);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {

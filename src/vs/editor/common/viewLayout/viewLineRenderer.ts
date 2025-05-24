@@ -328,7 +328,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: StringBuilder, renderNewLine: boolean = false, renderOuterSpan: boolean = true): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
 		if (input.lineDecorations.length > 0) {
@@ -368,7 +368,11 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		}
 
 		// completely empty line
-		sb.appendString('<span><span></span></span>');
+		if (renderNewLine) {
+			sb.appendString('<span><span>\n</span></span>');
+		} else {
+			sb.appendString('<span><span></span></span>');
+		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,
@@ -376,7 +380,7 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		);
 	}
 
-	return _renderLine(resolveRenderLineInput(input), sb);
+	return _renderLine(resolveRenderLineInput(input), sb, renderOuterSpan);
 }
 
 export class RenderLineOutput2 {
@@ -889,7 +893,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
-function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderLineOutput {
+function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder, renderOuterSpan: boolean = true): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
 	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
@@ -917,11 +921,14 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	let partDisplacement = 0;
 
-	if (containsRTL) {
-		sb.appendString('<span dir="ltr">');
-	} else {
-		sb.appendString('<span>');
+	if (renderOuterSpan) {
+		if (containsRTL) {
+			sb.appendString('<span dir="ltr">');
+		} else {
+			sb.appendString('<span>');
+		}
 	}
+
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
@@ -1111,7 +1118,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		sb.appendString('</span>');
 	}
 
-	sb.appendString('</span>');
+	if (renderOuterSpan) {
+		sb.appendString('</span>');
+	}
 
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }
