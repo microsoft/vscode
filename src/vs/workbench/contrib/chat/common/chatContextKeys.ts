@@ -58,8 +58,8 @@ export namespace ChatContextKeys {
 
 	export const Entitlement = {
 		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat limited user.
-		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),			// True when user is a chat limited user.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
+		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
 		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
 		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.

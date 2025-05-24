@@ -107,6 +107,7 @@ import { LanguageModelToolsService } from './languageModelToolsService.js';
 import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import product from '../../../../platform/product/common/product.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -441,7 +442,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['default', 'modern', 'brand-gh', 'brand-vsc', 'style-glow', 'alt-first', 'input-email', 'account-create'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
-			default: 'default',
+			default: product.quality !== 'stable' ? 'modern' : 'default',
 			tags: ['onExp', 'experimental']
 		},
 	}
@@ -512,11 +513,11 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	private registerMaxRequestsSetting(): void {
 		let lastNode: IConfigurationNode | undefined;
 		const registerMaxRequestsSetting = () => {
-			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Limited ?
+			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Free ?
 				'chatAgentMaxRequestsFree' :
 				'chatAgentMaxRequestsPro';
 			this.experimentService.getTreatment<number>(treatmentId).then(value => {
-				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Limited ? 5 : 15);
+				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Free ? 5 : 15);
 				const node: IConfigurationNode = {
 					id: 'chatSidebar',
 					title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),

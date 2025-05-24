@@ -61,8 +61,8 @@ function getModelPickerActionBarActions(menuService: IMenuService, contextKeySer
 		additionalActions.push(...menuContributions);
 	}
 
-	// Add upgrade option if entitlement is limited
-	if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+	// Add upgrade option if entitlement is free
+	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
 		additionalActions.push({
 			id: 'moreModels',
 			label: localize('chat.moreModels', "Add Premium Models"),
