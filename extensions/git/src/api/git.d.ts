@@ -268,6 +268,7 @@ export interface Repository {
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 	merge(ref: string): Promise<void>;
+	squash(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
 
 	applyStash(index?: number): Promise<void>;

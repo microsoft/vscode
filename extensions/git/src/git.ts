@@ -1958,8 +1958,15 @@ export class Repository {
 	}
 
 	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
+		return this.execMerge(ref);
+	}
 
+	async squash(ref: string): Promise<void> {
+		return this.execMerge(ref, ['--squash']);
+	}
+
+	private async execMerge(ref: string, mergeOptions: string[] = []) {
+		const args = ['merge', ref, ...mergeOptions];
 		try {
 			await this.exec(args);
 		} catch (err) {
@@ -1972,7 +1979,7 @@ export class Repository {
 	}
 
 	async mergeAbort(): Promise<void> {
-		await this.exec(['merge', '--abort']);
+		await this.exec(['reset', '--merge']);
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
