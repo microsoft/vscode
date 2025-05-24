@@ -37,10 +37,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.titleScrollbarSizing': {
 				type: 'string',
-				enum: ['default', 'large'],
+				enum: ['default', 'large', 'hidden'],
 				enumDescriptions: [
 					localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse.")
+					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse."),
+					localize('workbench.editor.titleScrollbarSizing.hidden', "Hides the title scrollbar.")
 				],
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
