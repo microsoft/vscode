@@ -636,7 +636,7 @@ class ChatSetup {
 		this.skipDialogOnce = false;
 
 		let setupStrategy: ChatSetupStrategy;
-		if (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+		if (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
 		} else {
 			setupStrategy = await this.showDialog();
@@ -682,7 +682,7 @@ class ChatSetup {
 	private async showDialog(): Promise<ChatSetupStrategy> {
 		let dialogVariant = this.configurationService.getValue<'default' | 'modern' | 'brand-gh' | 'brand-vsc' | 'style-glow' | 'alt-first' | 'input-email' | 'account-create' | unknown>('chat.setup.signInDialogVariant');
 		if (this.context.state.entitlement !== ChatEntitlement.Unknown && (dialogVariant === 'input-email' || dialogVariant === 'account-create')) {
-			dialogVariant = 'default'; // fallback to default for users that are signed in already
+			dialogVariant = this.productService.quality !== 'stable' ? 'modern' : 'default'; // fallback to modern/default for users that are signed in already
 		}
 
 		if (dialogVariant === 'default') {
@@ -1168,14 +1168,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.or(
 						ChatContextKeys.Entitlement.canSignUp,
-						ChatContextKeys.Entitlement.limited,
+						ChatContextKeys.Entitlement.free,
 					),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.and(
-							ChatContextKeys.Entitlement.limited,
+							ChatContextKeys.Entitlement.free,
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
 								ChatContextKeys.completionsQuotaExceeded
@@ -1429,8 +1429,8 @@ class ChatSetupController extends Disposable {
 		try {
 
 			if (
-				entitlement !== ChatEntitlement.Limited &&	// User is not signed up to Copilot Free
-				!isProUser(entitlement) &&		// User is not signed up for a Copilot subscription
+				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
+				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
 				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
 			) {
 				if (!session) {
@@ -1446,7 +1446,7 @@ class ChatSetupController extends Disposable {
 					}
 				}
 
-				signUpResult = await this.requests.signUpLimited(session);
+				signUpResult = await this.requests.signUpFree(session);
 
 				if (typeof signUpResult !== 'boolean' /* error */) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode });
