@@ -16,6 +16,7 @@ import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutp
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import { sequentialize } from './decorators';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -1239,6 +1240,7 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
+	@sequentialize
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
 		const args = ['config', `--${command}`];
 
