@@ -739,7 +739,7 @@ class ChatSetup {
 			return undefined;
 		}
 
-		return [{ placeholder: localize('emailOrUserIdPlaceholder', "Enter your email or username") }];
+		return [{ placeholder: localize('emailOrUserIdPlaceholder', "Enter your email or {0} username", defaultChat.providerName) }];
 	}
 
 	private getButtons(variant: 'modern' | 'alt-first' | 'input-email' | 'account-create' | unknown): Array<[string, ChatSetupStrategy, { styleButton?: (button: IButton) => void } | undefined]> {
