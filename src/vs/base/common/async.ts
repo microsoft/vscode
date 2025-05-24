@@ -119,19 +119,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 /**
  * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
-export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
+export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromise<T> | Promise<T>)[]): CancelablePromise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	try {
-		const result = await Promise.race(promises);
-		return result;
-	} finally {
+	const promise = Promise.race(promises) as CancelablePromise<T>;
+	promise.cancel = () => {
 		cancellablePromises.forEach((cancellablePromise, index) => {
-			if (index !== resolvedPromiseIndex) {
-				cancellablePromise.cancel();
+			if (index !== resolvedPromiseIndex && (cancellablePromise as CancelablePromise<T>).cancel) {
+				(cancellablePromise as CancelablePromise<T>).cancel();
 			}
 		});
-	}
+	};
+	promise.finally(() => {
+		promise.cancel();
+	});
+	return promise;
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
