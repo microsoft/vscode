@@ -378,8 +378,8 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 				inputs: [],
 				servers: {
 					'mcp-server-time': {
-						command: 'python',
-						args: ['-m', 'mcp_server_time', '--local-timezone=America/Los_Angeles']
+						command: 'uvx',
+						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
 					}
 				}
 			},

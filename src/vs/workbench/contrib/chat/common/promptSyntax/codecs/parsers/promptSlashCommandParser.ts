@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { PromptSlashCommand } from '../tokens/promptSlashCommand.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
@@ -15,8 +15,8 @@ import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tok
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { TSimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
@@ -39,13 +39,13 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [ExclamationMark, Left
  * The parser responsible for parsing a `prompt /command` sequences.
  * E.g., `/search` or `/explain` command.
  */
-export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialPromptSlashCommand | PromptSlashCommand> {
-	constructor(token: At) {
+export class PartialPromptSlashCommand extends ParserBase<TSimpleDecoderToken, PartialPromptSlashCommand | PromptSlashCommand> {
+	constructor(token: Slash) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {
@@ -107,7 +107,7 @@ export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialP
 
 		// render the characters above into strings, excluding the starting `/` character
 		const nameTokens = this.currentTokens.slice(1);
-		const atMentionName = nameTokens.map(pick('text')).join('');
+		const atMentionName = BaseToken.render(nameTokens);
 
 		return new PromptSlashCommand(
 			new Range(

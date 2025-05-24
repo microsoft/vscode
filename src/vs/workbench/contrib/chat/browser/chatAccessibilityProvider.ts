@@ -11,11 +11,42 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatTreeItem } from './chat.js';
 import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
+import { CancelChatActionId } from './actions/chatExecuteActions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatToolInvocation } from '../common/chatService.js';
+
+export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
+	const keybindingService = accessor.get(IKeybindingService);
+	const contextKeyService = accessor.get(IContextKeyService);
+
+	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
+	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();
+	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
+		let input = '';
+		if (v.toolSpecificData) {
+			input = v.toolSpecificData?.kind === 'terminal'
+				? v.toolSpecificData.command
+				: v.toolSpecificData?.kind === 'extensions'
+					? JSON.stringify(v.toolSpecificData.extensions)
+					: JSON.stringify(v.toolSpecificData.rawInput);
+		}
+		const title = v.confirmationMessages?.title || '';
+		return (title + (input ? ': ' + input : '')).trim();
+	}).filter(v => !!v);
+
+	return acceptKb && cancelKb
+		? localize('toolInvocationsHintKb', "Chat confirmation required: {0}. Press {1} to accept or {2} to cancel.", titles.join(', '), acceptKb, cancelKb)
+		: localize('toolInvocationsHint', "Chat confirmation required: {0}", titles.join(', '));
+};
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	constructor(
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 	}
 	getWidgetRole(): AriaRole {
@@ -46,12 +77,16 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
 
-		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation').filter(v => !v.isComplete);
+		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation');
 		let toolInvocationHint = '';
 		if (toolInvocation.length) {
-			const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
-			if (titles.length) {
-				toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", titles.join(', '));
+			const waitingForConfirmation = toolInvocation.filter(v => !v.isComplete);
+			if (waitingForConfirmation.length) {
+				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
+			} else { // all completed
+				for (const invocation of toolInvocation) {
+					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", typeof invocation.confirmationMessages?.title === 'string' ? invocation.confirmationMessages?.title : invocation.confirmationMessages?.title.value);
+				}
 			}
 		}
 		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;

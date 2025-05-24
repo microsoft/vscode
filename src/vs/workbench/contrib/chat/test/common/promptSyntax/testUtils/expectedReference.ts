@@ -8,7 +8,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { ResolveError } from '../../../../common/promptFileReferenceErrors.js';
-import { IPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
+import { TPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { TErrorCondition } from '../../../../common/promptSyntax/parsers/basePromptParser.js';
 
 /**
@@ -63,7 +63,7 @@ export class ExpectedReference {
 	/**
 	 * Validate that the provided reference is equal to this object.
 	 */
-	public validateEqual(other: IPromptReference) {
+	public validateEqual(other: TPromptReference) {
 		const { uri, text, path, childrenOrError = [] } = this.options;
 		const errorPrefix = `[${uri}] `;
 

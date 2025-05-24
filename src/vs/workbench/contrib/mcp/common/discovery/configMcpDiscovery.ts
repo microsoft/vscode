@@ -118,8 +118,8 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
-				launch: 'type' in value && value.type === 'sse' ? {
-					type: McpServerTransportType.SSE,
+				launch: 'url' in value ? {
+					type: McpServerTransportType.HTTP,
 					uri: URI.parse(value.url),
 					headers: Object.entries(value.headers || {}),
 				} : {
@@ -128,7 +128,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					command: value.command,
 					env: value.env || {},
 					envFile: value.envFile,
-					cwd: undefined,
+					cwd: src.path.workspaceFolder?.uri,
 				},
 				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
 				variableReplacement: {
@@ -136,6 +136,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					section: mcpConfigurationSection,
 					target: src.path.target,
 				},
+				devMode: value.dev,
 				presentation: {
 					order: src.path.order,
 					origin: configMapping?.get(name),

@@ -5,8 +5,8 @@
 
 import { MarkdownLink } from '../tokens/markdownLink.js';
 import { MarkdownImage } from '../tokens/markdownImage.js';
-import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
 import { LeftBracket } from '../../simpleCodec/tokens/brackets.js';
+import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { ExclamationMark } from '../../simpleCodec/tokens/exclamationMark.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './markdownLink.js';
@@ -15,7 +15,7 @@ import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } 
  * The parser responsible for parsing the `markdown image` sequence of characters.
  * E.g., `![alt text](./path/to/image.jpeg)` syntax.
  */
-export class PartialMarkdownImage extends ParserBase<TSimpleToken, PartialMarkdownImage | MarkdownImage> {
+export class PartialMarkdownImage extends ParserBase<TSimpleDecoderToken, PartialMarkdownImage | MarkdownImage> {
 	/**
 	 * Current active parser instance, if in the mode of actively parsing the markdown link sequence.
 	 */
@@ -28,7 +28,7 @@ export class PartialMarkdownImage extends ParserBase<TSimpleToken, PartialMarkdo
 	/**
 	 * Get all currently available tokens of the `markdown link` sequence.
 	 */
-	public override get tokens(): readonly TSimpleToken[] {
+	public override get tokens(): readonly TSimpleDecoderToken[] {
 		const linkTokens = this.markdownLinkParser?.tokens ?? [];
 
 		return [
@@ -38,7 +38,7 @@ export class PartialMarkdownImage extends ParserBase<TSimpleToken, PartialMarkdo
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownImage | MarkdownImage> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialMarkdownImage | MarkdownImage> {
 		// on the first call we expect a character that begins `markdown link` sequence
 		// hence we initiate the markdown link parsing process, otherwise we fail
 		if (!this.markdownLinkParser) {

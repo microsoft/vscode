@@ -11,6 +11,7 @@ import { assertDefined } from '../../../../base/common/types.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WriteableStream } from '../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
+import { SimpleToken } from '../../../common/codecs/simpleCodec/tokens/simpleToken.js';
 
 /**
  * Kind of decoder tokens consume methods are different ways
@@ -102,45 +103,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			// initiate the data sending flow
 			this.sendData(inputData);
 
-			// consume the decoder tokens based on specified
-			// (or randomly generated) tokens consume method
-			const receivedTokens: T[] = [];
-			switch (tokensConsumeMethod) {
-				// test the `async iterator` code path
-				case 'async-generator': {
-					for await (const token of this.decoder) {
-						if (token === null) {
-							break;
-						}
-
-						receivedTokens.push(token);
-					}
-
-					break;
-				}
-				// test the `.consumeAll()` method code path
-				case 'consume-all-method': {
-					receivedTokens.push(...(await this.decoder.consumeAll()));
-					break;
-				}
-				// test the `.onData()` event consume flow
-				case 'on-data-event': {
-					this.decoder.onData((token) => {
-						receivedTokens.push(token);
-					});
-
-					this.decoder.start();
-
-					// in this case we also test the `settled` promise of the decoder
-					await this.decoder.settled;
-
-					break;
-				}
-				// ensure that the switch block is exhaustive
-				default: {
-					throw new Error(`Unknown consume method '${tokensConsumeMethod}'.`);
-				}
-			}
+			// receive tokens from the decoder stream
+			const receivedTokens = await this.receiveTokens(tokensConsumeMethod);
 
 			// validate the received tokens
 			this.validateReceivedTokens(
@@ -192,6 +156,55 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	}
 
 	/**
+	 * Receive all tokens from the decoder stream using the specified consume method.
+	 */
+	public async receiveTokens(
+		tokensConsumeMethod: TTokensConsumeMethod = this.randomTokensConsumeMethod(),
+	): Promise<readonly T[]> {
+		// consume the decoder tokens based on specified
+		// (or randomly generated) tokens consume method
+		const receivedTokens: T[] = [];
+		switch (tokensConsumeMethod) {
+			// test the `async iterator` code path
+			case 'async-generator': {
+				for await (const token of this.decoder) {
+					if (token === null) {
+						break;
+					}
+
+					receivedTokens.push(token);
+				}
+
+				break;
+			}
+			// test the `.consumeAll()` method code path
+			case 'consume-all-method': {
+				receivedTokens.push(...(await this.decoder.consumeAll()));
+				break;
+			}
+			// test the `.onData()` event consume flow
+			case 'on-data-event': {
+				this.decoder.onData((token) => {
+					receivedTokens.push(token);
+				});
+
+				this.decoder.start();
+
+				// in this case we also test the `settled` promise of the decoder
+				await this.decoder.settled;
+
+				break;
+			}
+			// ensure that the switch block is exhaustive
+			default: {
+				throw new Error(`Unknown consume method '${tokensConsumeMethod}'.`);
+			}
+		}
+
+		return receivedTokens;
+	}
+
+	/**
 	 * Validate that received tokens list is equal to the expected one.
 	 */
 	private validateReceivedTokens(
@@ -207,9 +220,17 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 				`Expected token '${i}' to be '${expectedToken}', got 'undefined'.`,
 			);
 
+			const expectedTokenString = (expectedToken instanceof SimpleToken)
+				? `${expectedToken} `
+				: `\n  "${expectedToken.text}"(${expectedToken.range})\n`;
+
+			const receivedTokenString = (receivedToken instanceof SimpleToken)
+				? receivedToken.toString()
+				: `\n  "${receivedToken.text}"(${receivedToken.range})\n`;
+
 			assert(
 				receivedToken.equals(expectedToken),
-				`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}'.`,
+				`Expected token '${i}' to be: ${expectedTokenString}got: ${receivedTokenString}`,
 			);
 		}
 

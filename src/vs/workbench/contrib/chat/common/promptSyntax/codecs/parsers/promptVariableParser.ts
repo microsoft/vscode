@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptVariable, PromptVariableWithData } from '../tokens/promptVariable.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
@@ -14,8 +14,8 @@ import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tok
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { TSimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
@@ -41,13 +41,13 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, Colon, Exclamat
  * that is also able to parse the `data` part of the variable. E.g., the `#file` part
  * of the `#file:/path/to/something.md` sequence.
  */
-export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
+export class PartialPromptVariableName extends ParserBase<TSimpleDecoderToken, PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
 	constructor(token: Hash) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {
@@ -131,7 +131,7 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 
 		// render the characters above into strings, excluding the starting `#` character
 		const variableNameTokens = this.currentTokens.slice(1);
-		const variableName = variableNameTokens.map(pick('text')).join('');
+		const variableName = BaseToken.render(variableNameTokens);
 
 		return new PromptVariable(
 			new Range(
@@ -149,9 +149,9 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
  * The parser responsible for parsing a `prompt variable name` with `data`.
  * E.g., the `/path/to/something.md` part of the `#file:/path/to/something.md` sequence.
  */
-export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, PartialPromptVariableWithData | PromptVariableWithData> {
+export class PartialPromptVariableWithData extends ParserBase<TSimpleDecoderToken, PartialPromptVariableWithData | PromptVariableWithData> {
 
-	constructor(tokens: readonly TSimpleToken[]) {
+	constructor(tokens: readonly TSimpleDecoderToken[]) {
 		const firstToken = tokens[0];
 		const lastToken = tokens[tokens.length - 1];
 
@@ -173,7 +173,7 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptVariableWithData | PromptVariableWithData> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptVariableWithData | PromptVariableWithData> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			// in any case, success of failure below, this is an end of the parsing process
@@ -196,8 +196,8 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 			);
 
 			// render the characters above into strings
-			const variableName = variableNameTokens.map(pick('text')).join('');
-			const variableData = variableDataTokens.map(pick('text')).join('');
+			const variableName = BaseToken.render(variableNameTokens);
+			const variableData = BaseToken.render(variableDataTokens);
 
 			return {
 				result: 'success',
@@ -232,8 +232,8 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 		const variableDataTokens = this.currentTokens.slice(this.startTokensCount);
 
 		// render the characters above into strings
-		const variableName = variableNameTokens.map(pick('text')).join('');
-		const variableData = variableDataTokens.map(pick('text')).join('');
+		const variableName = BaseToken.render(variableNameTokens);
+		const variableData = BaseToken.render(variableDataTokens);
 
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];

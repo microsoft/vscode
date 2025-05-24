@@ -97,11 +97,11 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  */
 export class URI implements UriComponents {
 
-	static isUri(thing: any): thing is URI {
+	static isUri(thing: unknown): thing is URI {
 		if (thing instanceof URI) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return typeof (<URI>thing).authority === 'string'
@@ -427,7 +427,7 @@ export interface UriComponents {
 	fragment?: string;
 }
 
-export function isUriComponents(thing: any): thing is UriComponents {
+export function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing || typeof thing !== 'object') {
 		return false;
 	}

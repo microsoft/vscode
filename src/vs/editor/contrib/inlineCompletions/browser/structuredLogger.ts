@@ -18,6 +18,37 @@ export interface IRecordableEditorLogEntry extends IRecordableLogEntry {
 	modelVersion: number;
 }
 
+export type EditorLogEntryData = IDocumentEventDataSetChangeReason | IDocumentEventFetchStart;
+export type LogEntryData = IEventFetchEnd;
+
+export interface IDocumentEventDataSetChangeReason {
+	sourceId: 'TextModel.setChangeReason';
+	source: 'inlineSuggestion.accept' | 'snippet' | string;
+	detailedSource?: string;
+}
+
+interface IDocumentEventFetchStart {
+	sourceId: 'InlineCompletions.fetch';
+	kind: 'start';
+	requestId: number;
+}
+
+export interface IEventFetchEnd {
+	sourceId: 'InlineCompletions.fetch';
+	kind: 'end';
+	requestId: number;
+	error: string | undefined;
+	result: IFetchResult[];
+}
+
+interface IFetchResult {
+	range: string;
+	text: string;
+	isInlineEdit: boolean;
+	source: string;
+}
+
+
 /**
  * The sourceLabel must not contain '@'!
 */

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptAtMention } from '../tokens/promptAtMention.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
@@ -14,8 +14,8 @@ import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tok
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { TSimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
@@ -38,13 +38,13 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [ExclamationMark, Left
  * The parser responsible for parsing a `prompt @mention` sequences.
  * E.g., `@workspace` or `@github` participant mention.
  */
-export class PartialPromptAtMention extends ParserBase<TSimpleToken, PartialPromptAtMention | PromptAtMention> {
+export class PartialPromptAtMention extends ParserBase<TSimpleDecoderToken, PartialPromptAtMention | PromptAtMention> {
 	constructor(token: At) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptAtMention | PromptAtMention> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptAtMention | PromptAtMention> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {
@@ -106,7 +106,7 @@ export class PartialPromptAtMention extends ParserBase<TSimpleToken, PartialProm
 
 		// render the characters above into strings, excluding the starting `@` character
 		const nameTokens = this.currentTokens.slice(1);
-		const atMentionName = nameTokens.map(pick('text')).join('');
+		const atMentionName = BaseToken.render(nameTokens);
 
 		return new PromptAtMention(
 			new Range(

@@ -7,7 +7,7 @@ import { ILanguageIdCodec } from '../languages.js';
 import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from '../encodedTokenAttributes.js';
 import { IPosition } from '../core/position.js';
 import { ITextModel } from '../model.js';
-import { OffsetRange } from '../core/offsetRange.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { TokenArray, TokenArrayBuilder } from './tokenArray.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 
@@ -110,6 +110,10 @@ export class LineTokens implements IViewLineTokens {
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
 		this.languageIdCodec = decoder;
+	}
+
+	public getTextLength(): number {
+		return this._text.length;
 	}
 
 	public equals(other: IViewLineTokens): boolean {

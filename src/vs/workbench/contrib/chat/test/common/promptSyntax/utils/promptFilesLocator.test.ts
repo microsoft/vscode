@@ -9,17 +9,19 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockObject } from '../../../../../../../base/test/common/testUtils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mockObject, mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
+import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -33,7 +35,7 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 			);
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.LOCATIONS_KEY].includes(key),
+				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -62,16 +64,16 @@ suite('PromptFilesLocator', () => {
 		return;
 	}
 
-	let initService: TestInstantiationService;
+	let instantiationService: TestInstantiationService;
 	setup(async () => {
-		initService = disposables.add(new TestInstantiationService());
-		initService.stub(ILogService, new NullLogService());
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
 
-		const fileService = disposables.add(initService.createInstance(FileService));
+		const fileService = disposables.add(instantiationService.createInstance(FileService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
-		initService.stub(IFileService, fileService);
+		instantiationService.stub(IFileService, fileService);
 	});
 
 	/**
@@ -83,9 +85,9 @@ suite('PromptFilesLocator', () => {
 		workspaceFolderPaths: string[],
 		filesystem: IMockFolder[],
 	): Promise<PromptFilesLocator> => {
-		await (initService.createInstance(MockFilesystem, filesystem)).mock();
+		await (instantiationService.createInstance(MockFilesystem, filesystem)).mock();
 
-		initService.stub(IConfigurationService, mockConfigService(configValue));
+		instantiationService.stub(IConfigurationService, mockConfigService(configValue));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = createURI(path);
@@ -96,9 +98,9 @@ suite('PromptFilesLocator', () => {
 				index,
 			});
 		});
-		initService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 
-		return initService.createInstance(PromptFilesLocator);
+		return instantiationService.createInstance(PromptFilesLocator);
 	};
 
 	suite('• empty workspace', () => {
@@ -109,7 +111,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[],
 					'No prompts must be found.',
@@ -123,7 +125,7 @@ suite('PromptFilesLocator', () => {
 				}, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles(),
+					await locator.listFiles(PromptsType.prompt),
 					[],
 					'No prompts must be found.',
 				);
@@ -136,7 +138,7 @@ suite('PromptFilesLocator', () => {
 				], EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles(),
+					await locator.listFiles(PromptsType.prompt),
 					[],
 					'No prompts must be found.',
 				);
@@ -146,7 +148,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[],
 					'No prompts must be found.',
@@ -157,7 +159,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[],
 					'No prompts must be found.',
@@ -210,7 +212,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[
 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md').path,
@@ -287,7 +289,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/my.prompt.md').fsPath,
@@ -447,7 +449,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md').fsPath,
@@ -531,7 +533,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/my.prompt.md').fsPath,
@@ -691,7 +693,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md').fsPath,
@@ -771,7 +773,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/my.prompt.md').fsPath,
@@ -931,7 +933,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md').fsPath,
@@ -1016,7 +1018,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assert.deepStrictEqual(
-			(await locator.listFiles())
+			(await locator.listFiles(PromptsType.prompt))
 				.map((file) => file.fsPath),
 			[
 				createURI('/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md').fsPath,
@@ -1103,7 +1105,7 @@ suite('PromptFilesLocator', () => {
 			]);
 
 		assert.deepStrictEqual(
-			(await locator.listFiles())
+			(await locator.listFiles(PromptsType.prompt))
 				.map((file) => file.fsPath),
 			[
 				createURI('/Users/legomushroom/repos/prompts/test.prompt.md').path,
@@ -1224,7 +1226,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[
 						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md').path,
@@ -1345,7 +1347,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[
 						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md').fsPath,
@@ -1469,7 +1471,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[
 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md').path,
@@ -1592,7 +1594,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					(await locator.listFiles())
+					(await locator.listFiles(PromptsType.prompt))
 						.map((file) => file.fsPath),
 					[
 						// all of these are due to the `.github/prompts` setting
@@ -1707,7 +1709,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
@@ -1913,7 +1915,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
@@ -2038,7 +2040,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
@@ -2274,7 +2276,7 @@ suite('PromptFilesLocator', () => {
 							);
 
 							assert.deepStrictEqual(
-								(await locator.listFiles())
+								(await locator.listFiles(PromptsType.prompt))
 									.map((file) => file.fsPath),
 								[
 									createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
@@ -2390,7 +2392,7 @@ suite('PromptFilesLocator', () => {
 			);
 
 			assert.deepStrictEqual(
-				locator.getConfigBasedSourceFolders()
+				locator.getConfigBasedSourceFolders(PromptsType.prompt)
 					.map((file) => file.fsPath),
 				[
 					createURI('/Users/legomushroom/repos/vscode/.github/prompts').fsPath,
