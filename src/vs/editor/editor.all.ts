@@ -41,6 +41,7 @@ import './contrib/linesOperations/browser/linesOperations.js';
 import './contrib/linkedEditing/browser/linkedEditing.js';
 import './contrib/links/browser/links.js';
 import './contrib/longLinesHelper/browser/longLinesHelper.js';
+import './contrib/middleScroll/browser/middleScroll.js';
 import './contrib/multicursor/browser/multicursor.js';
 import './contrib/parameterHints/browser/parameterHints.js';
 import './contrib/placeholderText/browser/placeholderText.contribution.js';
