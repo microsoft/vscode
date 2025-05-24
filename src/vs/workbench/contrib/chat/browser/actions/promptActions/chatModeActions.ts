@@ -35,6 +35,7 @@ class ManageModeAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatModePicker,
+					when: ChatContextKeys.Modes.hasCustomChatModes
 				}
 			]
 		});
