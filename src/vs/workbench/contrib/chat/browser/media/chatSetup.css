@@ -56,3 +56,96 @@
 		color: var(--vscode-descriptionForeground);
 	}
 }
+
+.chat-setup-input-email {
+
+	.dialog-message-container,
+	.dialog-message-input {
+		width: 100% !important;
+	}
+
+	.buttons-separator {
+		display: flex;
+		width: 100%;
+		margin-top: 10px;
+		margin-bottom: 10px;
+		height: 20px;
+		align-items: center;
+	}
+
+	.buttons-separator-left {
+		width: 100%;
+		margin-right: 5px;
+		border-top: 1px solid var(--vscode-descriptionForeground);
+	}
+
+	.buttons-separator-right {
+		width: 100%;
+		margin-left: 5px;
+		border-top: 1px solid var(--vscode-descriptionForeground);
+	}
+
+	.dialog-buttons-row {
+		padding: 5px 10px 10px !important;
+	}
+
+	.monaco-inputbox {
+		width: 100% !important;
+		margin-left: 5px !important;
+		margin-right: 5px !important;
+		height: 30px;
+	}
+
+	.monaco-inputbox .ibwrapper {
+		height: 30px;
+	}
+
+	.monaco-inputbox .input {
+		height: 30px;
+	}
+}
+
+.chat-setup-dialog-legacy {
+
+	p {
+		margin-top: 0;
+		margin-bottom: 0;
+		width: 100%;
+	}
+
+	p.setup-settings {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 1em;
+	}
+
+	.chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 10px;
+	}
+
+	.chat-feature-container .codicon[class*='codicon-'] {
+		font-size: 16px;
+	}
+
+	.codicon[class*='codicon-'] {
+		font-size: 13px;
+		line-height: 1.4em;
+		vertical-align: bottom;
+	}
+
+	.button-container {
+		padding-top: 20px;
+	}
+
+	/** Dropdown Button */
+	.monaco-button-dropdown {
+		width: 100%;
+	}
+
+	.monaco-button-dropdown .monaco-text-button {
+		width: 100%;
+	}
+}
