@@ -16,14 +16,13 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 
@@ -243,7 +242,7 @@ class OpenModelPickerAction extends Action2 {
 			id: OpenModelPickerAction.ID,
 			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
 			category: CHAT_CATEGORY,
-			f1: true,
+			f1: false,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -269,10 +268,7 @@ class OpenModelPickerAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const widgetService = accessor.get(IChatWidgetService);
-		let widget = widgetService.lastFocusedWidget;
-		if (!widget || widget.location === ChatAgentLocation.Panel) {
-			widget = await showChatView(accessor.get(IViewsService));
-		}
+		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
 			widget.input.openModelPicker();
 		}
