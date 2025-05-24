@@ -77,6 +77,10 @@ export namespace ChatContextKeys {
 	export const Tools = {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
+
+	export const Modes = {
+		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomChatModes', false, { type: 'boolean', description: localize('chatHasCustomChatModes', "True when the chat has custom chat modes available.") }),
+	};
 }
 
 export namespace ChatContextKeyExprs {
