@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
+import { KeyCodeChord, Keybinding, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { IKeybindingService, IKeyboardEvent } from '../../common/keybinding.js';
@@ -168,6 +169,6 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public registerSchemaContribution() {
-		// noop
+		return Disposable.None;
 	}
 }
