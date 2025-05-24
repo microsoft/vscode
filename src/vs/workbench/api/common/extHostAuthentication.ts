@@ -385,10 +385,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		// Prepare the authorization request URL
+		const scopeString = scopes.join(' ');
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
 		authorizationUrl.searchParams.append('client_id', this.clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
-		authorizationUrl.searchParams.append('scope', scopes.join(' '));
+		authorizationUrl.searchParams.append('scope', scopeString);
 		authorizationUrl.searchParams.append('state', state.toString());
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
@@ -400,10 +401,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		const promise = this.waitForAuthorizationCode(callbackUri);
 
 		// Open the browser for user authorization
+		this._logger.info(`Opening authorization URL for scopes: ${scopeString}`);
+		this._logger.trace(`Authorization URL: ${authorizationUrl.toString()}`);
 		await this._extHostWindow.openUri(authorizationUrl.toString(), {});
 
 		// Wait for the authorization code via a redirect
 		const { code } = await promise;
+		this._logger.info(`Authorization code received for scopes: ${scopeString}`);
 
 		if (!code) {
 			throw new Error('Authentication failed: No authorization code received');
