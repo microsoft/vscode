@@ -108,6 +108,7 @@ import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js'
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import product from '../../../../platform/product/common/product.js';
+import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -721,6 +722,7 @@ registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesSe
 registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
+registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
