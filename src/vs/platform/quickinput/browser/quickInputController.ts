@@ -35,6 +35,7 @@ import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common
 import { getZoomFactor } from '../../../base/browser/browser.js';
 import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { getBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 
 const $ = dom.$;
 
@@ -277,6 +278,10 @@ export class QuickInputController extends Disposable {
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
 		}));
+		this._register(inputBox.onDidChange(event => {
+			this.dndController?.updateDragAreas(headerContainer, !event);
+			this.dndController?.updateDragAreas(filterContainer, !event ? true : undefined);
+		}));
 		// TODO: Turn into commands instead of handling KEY_DOWN
 		// Keybindings for the quickinput widget as a whole
 		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
@@ -342,18 +347,14 @@ export class QuickInputController extends Disposable {
 			QuickInputDragAndDropController,
 			this._container,
 			container,
-			[
-				{
-					node: titleBar,
-					includeChildren: true
-				},
-				{
-					node: headerContainer,
-					includeChildren: false
-				}
-			],
+			new Map([[titleBar, true], [headerContainer, true], [filterContainer, true]]),
 			this.viewState
 		));
+
+		// Ensure tooltip is hidden when element is moving
+		this._register(this.dndController.onDidMovingChanged((moving) => {
+			getBaseLayerHoverDelegate().enableHover(!moving);
+		}));
 
 		// DnD update layout
 		this._register(autorun(reader => {
@@ -924,10 +925,15 @@ class QuickInputDragAndDropController extends Disposable {
 
 	private _quickInputAlignmentContext: IContextKey<'center' | 'top' | undefined>;
 
+	private _isMovingQuickInput = false;
+
+	private readonly _onDidMovingChanged = this._register(new Emitter<boolean>());
+	public readonly onDidMovingChanged = this._onDidMovingChanged.event;
+
 	constructor(
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
-		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		private _quickInputDragAreas: Map<HTMLElement, boolean>,
 		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -944,6 +950,29 @@ class QuickInputDragAndDropController extends Disposable {
 		this._registerLayoutListener();
 		this.registerMouseListeners();
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
+	}
+
+	private get quickInputDragAreas() {
+		return Array.from(this._quickInputDragAreas).map(([node, includeChildren]) => ({ node, includeChildren }));
+	}
+
+	private get isMovingQuickInput() {
+		return this._isMovingQuickInput;
+	}
+
+	private set isMovingQuickInput(moving: boolean) {
+		if (moving !== this._isMovingQuickInput) {
+			this._onDidMovingChanged.fire(moving);
+		}
+		this._isMovingQuickInput = moving;
+	}
+
+	updateDragAreas(node: HTMLElement, includeChildren: boolean | undefined) {
+		if (includeChildren === undefined) {
+			this._quickInputDragAreas.delete(node);
+		} else {
+			this._quickInputDragAreas.set(node, includeChildren);
+		}
 	}
 
 	reparentUI(container: HTMLElement): void {
@@ -998,7 +1027,7 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+			if (!this.quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
 				return;
 			}
 
@@ -1011,7 +1040,7 @@ class QuickInputDragAndDropController extends Disposable {
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
 			// Ignore event if the target is not the drag area
-			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+			if (!this.quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
 				return;
 			}
 
@@ -1020,22 +1049,23 @@ class QuickInputDragAndDropController extends Disposable {
 			const dragOffsetX = originEvent.browserEvent.clientX - dragAreaRect.left;
 			const dragOffsetY = originEvent.browserEvent.clientY - dragAreaRect.top;
 
-			let isMovingQuickInput = false;
+			this.isMovingQuickInput = false;
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
 				mouseMoveEvent.preventDefault();
 
-				if (!isMovingQuickInput) {
-					isMovingQuickInput = true;
+				if (!this.isMovingQuickInput) {
+					this.isMovingQuickInput = true;
 				}
 
 				this._layout(e.clientY - dragOffsetY, e.clientX - dragOffsetX);
 			});
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
-				if (isMovingQuickInput) {
+				if (this.isMovingQuickInput) {
 					// Save position
 					const state = this.dndViewState.get();
 					this.dndViewState.set({ top: state?.top, left: state?.left, done: true }, undefined);
+					this.isMovingQuickInput = false;
 				}
 
 				// Dispose listeners
