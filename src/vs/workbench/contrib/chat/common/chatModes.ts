@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -105,7 +106,8 @@ export class CustomChatMode implements IChatMode {
 
 export class BuiltinChatMode implements IChatMode {
 	constructor(
-		public readonly kind: ChatMode
+		public readonly kind: ChatMode,
+		public readonly description: string
 	) { }
 
 	get id(): string {
@@ -119,17 +121,19 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode2 {
-	export const Ask = new BuiltinChatMode(ChatMode.Ask);
-	export const Edit = new BuiltinChatMode(ChatMode.Edit);
-	export const Agent = new BuiltinChatMode(ChatMode.Agent);
+	export const Ask = new BuiltinChatMode(ChatMode.Ask, localize('chatDescription', "Ask Copilot"));
+	export const Edit = new BuiltinChatMode(ChatMode.Edit, localize('editsDescription', "Edit files in your workspace"));
+	export const Agent = new BuiltinChatMode(ChatMode.Agent, localize('agentDescription', "Edit files in your workspace in agent mode"));
 }
 
 export function validateChatMode2(mode: unknown): IChatMode | undefined {
 	switch (mode) {
 		case ChatMode.Ask:
+			return ChatMode2.Ask;
 		case ChatMode.Edit:
+			return ChatMode2.Edit;
 		case ChatMode.Agent:
-			return new BuiltinChatMode(mode);
+			return ChatMode2.Agent;
 		default:
 			if (isIChatMode(mode)) {
 				return mode;

@@ -70,6 +70,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ChatMode2 } from '../common/chatModes.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -109,17 +110,17 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const chatAgentService = accessor.get(IChatAgentService);
 
 			let id: string;
-			let description = localize('chatDescription', "Ask Copilot");
+			let description = ChatMode2.Ask.description;
 			switch (location) {
 				case ChatAgentLocation.Panel:
 					if (mode === ChatMode.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatMode.Edit) {
 						id = 'setup.edits';
-						description = localize('editsDescription', "Edit files in your workspace");
+						description = ChatMode2.Edit.description;
 					} else {
 						id = 'setup.agent';
-						description = localize('agentDescription', "Edit files in your workspace in agent mode");
+						description = ChatMode2.Agent.description;
 					}
 					break;
 				case ChatAgentLocation.Terminal:
