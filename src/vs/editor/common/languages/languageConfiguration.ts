@@ -16,6 +16,10 @@ export interface CommentRule {
 	 */
 	lineComment?: string | null;
 	/**
+	 * Where on the line the token should be placed.
+	 */
+	lineCommentTokenFirstColumn?: boolean | null;
+	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */
 	blockComment?: CharacterPair | null;
