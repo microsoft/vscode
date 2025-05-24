@@ -461,6 +461,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const tool of this._tools.values()) {
 			if (tool.data.toolReferenceName && toolOrToolset.has(tool.data.toolReferenceName) || toolOrToolset.has(tool.data.id)) {
 				result[tool.data.id] = true;
+			} else {
+				result[tool.data.id] = false;
 			}
 		}
 
