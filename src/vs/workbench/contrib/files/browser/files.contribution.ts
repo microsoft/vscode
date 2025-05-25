@@ -636,6 +636,18 @@ configurationRegistry.registerConfiguration({
 				'tsconfig.json': 'tsconfig.*.json',
 				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock',
 			}
+		},
+		'explorer.fontFamily': {
+			'type': 'string',
+			'description': nls.localize('explorerFontFamily', "Controls the font family for the explorer view. Leave empty to use the default font family."),
+			'default': '',
+			'scope': ConfigurationScope.WINDOW
+		},
+		'explorer.fontSize': {
+			'type': ['number'],
+			'description': nls.localize('explorerFontSize', "Controls the font size in pixels for the explorer view. Also accepts string values with units (e.g., '1.2em', '10pt'). Leave empty or null to use the default font size."),
+			'default': null,
+			'scope': ConfigurationScope.WINDOW
 		}
 	}
 });
