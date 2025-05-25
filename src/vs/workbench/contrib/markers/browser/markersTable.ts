@@ -186,7 +186,7 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.message.toString();
 		templateData.highlightedLabel.set(element.marker.message.toString(), element.messageMatches);
 	}
