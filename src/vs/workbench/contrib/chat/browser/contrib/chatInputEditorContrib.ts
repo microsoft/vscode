@@ -115,7 +115,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location, this.widget.input.currentMode);
+			const description = this.widget.input.currentMode2.description;
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -126,7 +126,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
+							contentText: viewModel.inputPlaceholder || (description ?? ''),
 							color: this.getPlaceholderColor()
 						}
 					}

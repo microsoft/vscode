@@ -17,9 +17,10 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatMode2, IChatMode, validateChatMode2 } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -90,7 +91,7 @@ export class ChatSubmitAction extends SubmitAction {
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
-	mode: ChatMode;
+	mode: IChatMode | ChatMode;
 }
 
 class ToggleChatModeAction extends Action2 {
@@ -142,32 +143,32 @@ class ToggleChatModeAction extends Action2 {
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		const chatSession = context.chatWidget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = validateChatMode(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
+		const switchToMode = validateChatMode2(arg?.mode) ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
 
-		if (switchToMode === context.chatWidget.input.currentMode) {
+		if (switchToMode.id === context.chatWidget.input.currentMode2.id) {
 			return;
 		}
 
-		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentMode, switchToMode, requestCount, context.editingSession);
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentMode, switchToMode.kind, requestCount, context.editingSession);
 		if (!chatModeCheck) {
 			return;
 		}
 
-		context.chatWidget.input.setChatMode(switchToMode);
+		context.chatWidget.input.setChatMode2(switchToMode);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): ChatMode {
-		const modes = [ChatMode.Ask];
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): IChatMode {
+		const modes = [ChatMode2.Ask];
 		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
-			modes.push(ChatMode.Edit);
+			modes.push(ChatMode2.Edit);
 		}
-		modes.push(ChatMode.Agent);
+		modes.push(ChatMode2.Agent);
 
-		const modeIndex = modes.indexOf(chatWidget.input.currentMode);
+		const modeIndex = modes.findIndex(mode => mode.id === chatWidget.input.currentMode2.id);
 		const newMode = modes[(modeIndex + 1) % modes.length];
 		return newMode;
 	}
