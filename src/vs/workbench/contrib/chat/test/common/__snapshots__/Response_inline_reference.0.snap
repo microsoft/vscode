@@ -1,8 +1,12 @@
 [
   {
     content: {
+<<<<<<< HEAD
       value: "text before",
       plainTextValue: "text before",
+=======
+      value: "text before ",
+>>>>>>> origin/main
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
@@ -15,8 +19,12 @@
   },
   {
     content: {
+<<<<<<< HEAD
       value: "text after",
       plainTextValue: "text after",
+=======
+      value: " text after",
+>>>>>>> origin/main
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false

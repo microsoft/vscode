@@ -6,6 +6,7 @@ import assert from 'assert';
 import * as arrays from '../../common/arrays.js';
 import * as arraysFind from '../../common/arraysFind.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { pick } from '../../common/arrays.js';
 
 suite('Arrays', () => {
 
@@ -397,6 +398,64 @@ suite('Arrays', () => {
 			array.indexOf(arraysFind.findFirstMin(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
 			2
 		);
+	});
+
+	suite('pick', () => {
+		suite('object', () => {
+			test('numbers', () => {
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: -100, baz: '10' }];
+
+				assert.deepStrictEqual(
+					array.map(pick('v')),
+					[3, 5, 2, 2, 17, -100],
+				);
+			});
+
+			test('strings', () => {
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: -100, baz: '10' }, { foo: '12' }];
+
+				assert.deepStrictEqual(
+					array.map(pick('foo')),
+					['a', 'b', 'c', 'd', undefined, undefined, '12'],
+				);
+			});
+
+			test('booleans', () => {
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: true }, { v: -100, bar: false }, { bar: false }];
+
+				assert.deepStrictEqual(
+					array.map(pick('bar')),
+					[undefined, undefined, undefined, undefined, true, false, false],
+				);
+			});
+
+			test('objects', () => {
+				const array = [{ v: { test: 12 } }, { v: { test: 24 } }, {}, { v: { test: 17892 } }];
+
+				assert.deepStrictEqual(
+					array.map(pick('v')),
+					[{ test: 12 }, { test: 24 }, undefined, { test: 17892 }],
+				);
+			});
+
+			test('mixed', () => {
+				const array = [{ v: { test: 104 } }, { v: 2 }, {}, { v: '24' }, { v: null }];
+
+				assert.deepStrictEqual(
+					array.map(pick('v')),
+					[{ test: 104 }, 2, undefined, '24', null],
+				);
+			});
+		});
+
+		test('string', () => {
+			const array = ['haallo', 'there', ':wave:', '!'];
+
+			assert.deepStrictEqual(
+				array.map(pick('length')),
+				[6, 5, 6, 1],
+			);
+		});
 	});
 
 	suite('ArrayQueue', () => {

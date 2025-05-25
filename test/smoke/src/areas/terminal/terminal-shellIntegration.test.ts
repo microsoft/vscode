@@ -95,8 +95,8 @@ export function setup(options?: { skipSuite: boolean }) {
 				await settingsEditor.clearUserSettings();
 			});
 			beforeEach(async function () {
-				// Create the simplest system profile to get as little process interaction as possible
-				await terminal.createTerminal();
+				// Use the simplest profile to get as little process interaction as possible
+				await terminal.createEmptyTerminal();
 				// Erase all content and reset cursor to top
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 			});
@@ -114,8 +114,7 @@ export function setup(options?: { skipSuite: boolean }) {
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 				});
 			});
-			// TODO: This depends on https://github.com/microsoft/vscode/issues/146587
-			describe.skip('Final Term sequences', () => {
+			describe('Final Term sequences', () => {
 				it('should handle the simple case', async () => {
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 0`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });

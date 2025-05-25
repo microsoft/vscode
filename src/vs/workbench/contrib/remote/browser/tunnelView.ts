@@ -40,7 +40,6 @@ import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPriva
 import { TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from './remoteIcons.js';
 import { IExternalUriOpenerService } from '../../externalUriOpener/common/externalUriOpenerService.js';
@@ -560,7 +559,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		});
 	}
 
-	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
+	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData) {
 		templateData.elementDisposable.dispose();
 	}
 
@@ -782,12 +781,11 @@ export class TunnelPanel extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
@@ -902,7 +900,7 @@ export class TunnelPanel extends ViewPane {
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
-		const actionRunner: ActionRunner = new ActionRunner();
+		const actionRunner: ActionRunner = this.tableDisposables.add(new ActionRunner());
 		actionBarRenderer.actionRunner = actionRunner;
 
 		this.tableDisposables.add(this.table);

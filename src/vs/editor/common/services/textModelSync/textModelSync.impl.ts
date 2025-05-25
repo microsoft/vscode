@@ -6,14 +6,14 @@
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { IPosition, Position } from '../../core/position.js';
 import { IRange, Range } from '../../core/range.js';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from '../../core/wordHelper.js';
 import { IDocumentColorComputerTarget } from '../../languages/defaultDocumentColorsComputer.js';
 import { ILinkComputerTarget } from '../../languages/linkComputer.js';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from '../../model/mirrorTextModel.js';
-import { IMirrorModel, IWordRange } from '../editorSimpleWorker.js';
+import { IMirrorModel, IWordRange } from '../editorWebWorker.js';
 import { IModelService } from '../model.js';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync.protocol.js';
 
@@ -26,7 +26,7 @@ export const WORKER_TEXT_MODEL_SYNC_CHANNEL = 'workerTextModelSync';
 
 export class WorkerTextModelSyncClient extends Disposable {
 
-	public static create(workerClient: IWorkerClient<any>, modelService: IModelService): WorkerTextModelSyncClient {
+	public static create(workerClient: IWebWorkerClient<any>, modelService: IModelService): WorkerTextModelSyncClient {
 		return new WorkerTextModelSyncClient(
 			workerClient.getChannel<IWorkerTextModelSyncChannelServer>(WORKER_TEXT_MODEL_SYNC_CHANNEL),
 			modelService
@@ -136,7 +136,7 @@ export class WorkerTextModelSyncServer implements IWorkerTextModelSyncChannelSer
 		this._models = Object.create(null);
 	}
 
-	public bindToServer(workerServer: IWorkerServer): void {
+	public bindToServer(workerServer: IWebWorkerServer): void {
 		workerServer.setChannel(WORKER_TEXT_MODEL_SYNC_CHANNEL, this);
 	}
 

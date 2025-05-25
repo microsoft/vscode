@@ -116,7 +116,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private readonly splitviewDisposables = this._register(new DisposableStore());
 	private readonly editorDisposables = this._register(new DisposableStore());
 
-	private orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+	private orientation: Orientation;
 	private dimension = new Dimension(0, 0);
 
 	private lastFocusedSide: Side.PRIMARY | Side.SECONDARY | undefined = undefined;
@@ -133,6 +133,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(SideBySideEditor.ID, group, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+
+		this.orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 
 		this.registerListeners();
 	}

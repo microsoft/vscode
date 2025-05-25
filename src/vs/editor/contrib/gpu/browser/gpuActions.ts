@@ -118,7 +118,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					}
 					const tokenMetadata = 0;
 					const charMetadata = 0;
-					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata);
+					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata, 0);
 					if (!rasterizedGlyph) {
 						return;
 					}

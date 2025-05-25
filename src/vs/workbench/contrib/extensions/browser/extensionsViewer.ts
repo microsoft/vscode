@@ -5,17 +5,17 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Action } from '../../../../base/common/actions.js';
-import { IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { IDisposable, dispose, Disposable, DisposableStore, toDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
+import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewState } from '../common/extensions.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IListService, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IListService, IWorkbenchPagedListOptions, WorkbenchAsyncDataTree, WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { IAsyncDataSource, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Delegate, Renderer } from './extensionsList.js';
@@ -27,6 +27,125 @@ import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getAriaLabelForExtension } from './extensionsViews.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ExtensionAction, getContextMenuActions, ManageExtensionAction } from './extensionsActions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
+import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
+
+export class ExtensionsList extends Disposable {
+
+	readonly list: WorkbenchPagedList<IExtension>;
+	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+
+	constructor(
+		parent: HTMLElement,
+		viewId: string,
+		options: Partial<IWorkbenchPagedListOptions<IExtension>>,
+		extensionsViewState: IExtensionsViewState,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@INotificationService notificationService: INotificationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && notificationService.error(error)));
+		const delegate = new Delegate();
+		const renderer = instantiationService.createInstance(Renderer, extensionsViewState, {
+			hoverOptions: {
+				position: () => {
+					const viewLocation = viewDescriptorService.getViewLocationById(viewId);
+					if (viewLocation === ViewContainerLocation.Sidebar) {
+						return layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+					}
+					if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
+						return layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+					}
+					return HoverPosition.RIGHT;
+				}
+			}
+		});
+		this.list = instantiationService.createInstance(WorkbenchPagedList, `${viewId}-Extensions`, parent, delegate, [renderer], {
+			multipleSelectionSupport: false,
+			setRowLineHeight: false,
+			horizontalScrolling: false,
+			accessibilityProvider: {
+				getAriaLabel(extension: IExtension | null): string {
+					return getAriaLabelForExtension(extension);
+				},
+				getWidgetAriaLabel(): string {
+					return localize('extensions', "Extensions");
+				}
+			},
+			overrideStyles: getLocationBasedViewColors(viewDescriptorService.getViewLocationById(viewId)).listOverrideStyles,
+			openOnSingleClick: true,
+			...options
+		}) as WorkbenchPagedList<IExtension>;
+		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+		this._register(this.list);
+
+		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
+			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
+		}));
+	}
+
+	setModel(model: IPagedModel<IExtension>) {
+		this.list.model = new DelayedPagedModel(model);
+	}
+
+	layout(height?: number, width?: number): void {
+		this.list.layout(height, width);
+	}
+
+	private openExtension(extension: IExtension, options: { sideByside?: boolean; preserveFocus?: boolean; pinned?: boolean }): void {
+		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
+		this.extensionsWorkbenchService.open(extension, options);
+	}
+
+	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
+		if (e.element) {
+			const disposables = new DisposableStore();
+			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageExtensionAction));
+			const extension = e.element ? this.extensionsWorkbenchService.local.find(local => areSameExtensions(local.identifier, e.element!.identifier) && (!e.element!.server || e.element!.server === local.server)) || e.element
+				: e.element;
+			manageExtensionAction.extension = extension;
+			let groups: IAction[][] = [];
+			if (manageExtensionAction.enabled) {
+				groups = await manageExtensionAction.getActionGroups();
+			} else if (extension) {
+				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
+				groups.forEach(group => group.forEach(extensionAction => {
+					if (extensionAction instanceof ExtensionAction) {
+						extensionAction.extension = extension;
+					}
+				}));
+			}
+			const actions: IAction[] = [];
+			for (const menuActions of groups) {
+				for (const menuAction of menuActions) {
+					actions.push(menuAction);
+					if (isDisposable(menuAction)) {
+						disposables.add(menuAction);
+					}
+				}
+				actions.push(new Separator());
+			}
+			actions.pop();
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				actionRunner: this.contextMenuActionRunner,
+				onHide: () => disposables.dispose()
+			});
+		}
+	}
+}
 
 export class ExtensionsGridView extends Disposable {
 

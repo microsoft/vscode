@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/d63e2661d4e0c83b6c7810eb1d0eedc5da843b04",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/1381bedfb087c18aca67af8278050d11bc9d9349",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -714,11 +714,11 @@
 		},
 		"enum-declaration": {
 			"begin": "(?=\\benum\\b)",
-			"end": "(?<=\\})",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
 					"begin": "(?=enum)",
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
@@ -805,7 +805,7 @@
 		},
 		"interface-declaration": {
 			"begin": "(?=\\binterface\\b)",
-			"end": "(?<=\\})",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
 					"begin": "(?x)\n(interface)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
@@ -817,7 +817,7 @@
 							"name": "entity.name.type.interface.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
@@ -4206,7 +4206,7 @@
 			]
 		},
 		"invocation-expression": {
-			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?                                    # preceding null-conditional operator?\n  (\\.)\\s*|                                        # preceding dot?\n  (->)\\s*                                         # preceding pointer arrow?\n)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                  # method name\n(\n  <\n  (?<type_args>\n    [^<>()]++|\n    <\\g<type_args>*+>|\n    \\(\\g<type_args>*+\\)\n  )*+\n  >\\s*\n)?                                                # type arguments\n(?=\\()                                            # open paren of argument list",
+			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?                                    # preceding null-conditional operator?\n  (\\.)\\s*|                                        # preceding dot?\n  (->)\\s*                                         # preceding pointer arrow?\n)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                  # method name\n(\n  <\n  (?<type_args>\n    [^<>()]|\n    \\((?:[^<>()]|<[^<>()]*>|\\([^<>()]*\\))*\\)|\n    <\\g<type_args>*>\n  )*\n  >\\s*\n)?                                                # type arguments\n(?=\\()                                            # open paren of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"

@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, constObservable } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
@@ -21,6 +21,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { GhostTextView } from '../view/ghostText/ghostTextView.js';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -79,6 +80,12 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.element) {
+			const ctx = GhostTextView.getWarningWidgetContext(target.element);
+			if (ctx && controller.shouldShowHoverAt(ctx.range)) {
+				return new HoverForeignElementAnchor(1000, this, ctx.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
+			}
+		}
 		return null;
 	}
 
@@ -108,19 +115,28 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		}
 
 		const model = part.controller.model.get()!;
-
-		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false,
-			constObservable(null),
-			model.selectedInlineCompletionIndex,
-			model.inlineCompletionsCount,
-			model.activeCommands,
-		);
-		const widgetNode: HTMLElement = w.getDomNode();
+		const widgetNode: HTMLElement = document.createElement('div');
 		context.fragment.appendChild(widgetNode);
+
+		disposables.add(autorunWithStore((reader, store) => {
+			const w = store.add(this._instantiationService.createInstance(
+				InlineSuggestionHintsContentWidget.hot.read(reader),
+				this._editor,
+				false,
+				constObservable(null),
+				model.selectedInlineCompletionIndex,
+				model.inlineCompletionsCount,
+				model.activeCommands,
+				model.warning,
+				() => {
+					context.onContentsChanged();
+				},
+			));
+			widgetNode.replaceChildren(w.getDomNode());
+		}));
 
 		model.triggerExplicitly();
 
-		disposables.add(w);
 		const renderedHoverPart: IRenderedHoverPart<InlineCompletionsHover> = {
 			hoverPart: part,
 			hoverElement: widgetNode,
@@ -138,15 +154,15 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents', { ['aria-live']: 'assertive' }));
-		const renderer = disposables.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
+		const renderer = new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService);
 		const render = (code: string) => {
-			disposables.add(renderer.onDidRenderAsync(() => {
-				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				context.onContentsChanged();
-			}));
-
 			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
-			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code)));
+			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+				asyncRenderCallback: () => {
+					hoverContentsElement.className = 'hover-contents code-hover-contents';
+					context.onContentsChanged();
+				}
+			}));
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 

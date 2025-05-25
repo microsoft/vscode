@@ -49,6 +49,10 @@ span.label-detail {
 	padding-left: 4px;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
+
+	&:empty {
+		display: none;
+	}
 }
 
 span.label-added {

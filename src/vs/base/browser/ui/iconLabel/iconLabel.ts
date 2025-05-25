@@ -168,6 +168,10 @@ export class IconLabel extends Disposable {
 				iconNode = existingIconNode;
 			}
 			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			iconNode.style.backgroundRepeat = 'no-repeat';
+			iconNode.style.backgroundPosition = 'center';
+			iconNode.style.backgroundSize = 'contain';
+
 		} else if (existingIconNode) {
 			existingIconNode.remove();
 		}
