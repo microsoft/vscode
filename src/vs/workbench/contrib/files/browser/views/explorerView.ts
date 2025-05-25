@@ -412,6 +412,19 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 	}
 
+	private updateExplorerFontStyles(fontFamily: string | undefined, fontSize: string | number | undefined): void {
+		if (this.container) {
+			this.container.style.fontFamily = fontFamily || '';
+
+			if (fontSize !== undefined && fontSize !== null && fontSize !== '') {
+				// If fontSize is a number, append 'px'. Otherwise, use it as is (e.g., "1.2em", "10pt").
+				this.container.style.fontSize = typeof fontSize === 'number' ? `${fontSize}px` : fontSize;
+			} else {
+				this.container.style.fontSize = ''; // Reset
+			}
+		}
+	}
+
 	private async selectActiveFile(reveal = this._autoReveal): Promise<void> {
 		if (this._autoReveal) {
 			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -580,6 +593,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
 			this._autoReveal = configuration?.explorer?.autoReveal;
+		}
+
+		const affectsFontFamily = !event || event.affectsConfiguration('explorer.fontFamily');
+		const affectsFontSize = !event || event.affectsConfiguration('explorer.fontSize');
+
+		if (affectsFontFamily || affectsFontSize) {
+			const fontFamily = this.configurationService.getValue<string>('explorer.fontFamily');
+			const fontSize = this.configurationService.getValue<string | number>('explorer.fontSize');
+
+			this.updateExplorerFontStyles(fontFamily, fontSize);
 		}
 
 		// Push down config updates to components of viewer
