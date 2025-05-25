@@ -100,7 +100,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		}
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
-			const renderedMarkerHover = this._renderMarkerHover(hoverPart, context,);
+			const renderedMarkerHover = this._renderMarkerHover(hoverPart, context);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
 			renderedHoverParts.push(renderedMarkerHover);
 		});
