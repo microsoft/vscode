@@ -3,50 +3,240 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Iterable } from '../../../../base/common/iterator.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 export interface IToolData {
 	id: string;
-	name?: string;
+	source: ToolDataSource;
+	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
-	displayName?: string;
+	tags?: string[];
+	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
-	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
+	inputSchema?: IJSONSchema;
+	canBeReferencedInPrompt?: boolean;
+	/**
+	 * True if the tool runs in the (possibly remote) workspace, false if it runs
+	 * on the host, undefined if known.
+	 */
+	runsInWorkspace?: boolean;
+	alwaysDisplayInputOutput?: boolean;
 }
 
-interface IToolEntry {
-	data: IToolData;
-	impl?: IToolImpl;
+export interface IToolProgressStep {
+	readonly message: string | IMarkdownString | undefined;
+	readonly increment: number | undefined;
+	readonly total: number | undefined;
+}
+
+export type ToolProgress = IProgress<IToolProgressStep>;
+
+export type ToolDataSource =
+	| {
+		type: 'extension';
+		label: string;
+		extensionId: ExtensionIdentifier;
+	}
+	| {
+		type: 'mcp';
+		label: string;
+		collectionId: string;
+		definitionId: string;
+	}
+	| {
+		type: 'user';
+		label: string;
+		file: URI;
+	}
+	| {
+		type: 'internal';
+		label: string;
+	};
+
+export namespace ToolDataSource {
+
+	export const Internal: ToolDataSource = { type: 'internal', label: 'Built-In' };
+
+	export function toKey(source: ToolDataSource): string {
+		switch (source.type) {
+			case 'extension': return `extension:${source.extensionId.value}`;
+			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
+			case 'user': return `user:${source.file.toString()}`;
+			case 'internal': return 'internal';
+		}
+	}
+
+	export function equals(a: ToolDataSource, b: ToolDataSource): boolean {
+		return toKey(a) === toKey(b);
+	}
+
+	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
+		if (source.type === 'internal') {
+			return { ordinal: 3, label: 'Built-In' };
+		} else if (source.type === 'mcp') {
+			return { ordinal: 1, label: 'MCP Servers' };
+		} else if (source.type === 'user') {
+			return { ordinal: 0, label: 'User Defined' };
+		} else {
+			return { ordinal: 2, label: 'Extensions' };
+		}
+	}
 }
 
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: any;
+	parameters: Object;
 	tokenBudget?: number;
+	context: IToolInvocationContext | undefined;
+	chatRequestId?: string;
+	chatInteractionId?: string;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	modelId?: string;
+}
+
+export interface IToolInvocationContext {
+	sessionId: string;
+}
+
+export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
+	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+}
+
+export interface IToolResultInputOutputDetails {
+	readonly input: string;
+	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly isError?: boolean;
+}
+
+export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
+	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
 export interface IToolResult {
-	[contentType: string]: any;
-	string: string;
+	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
+	toolResultMessage?: string | IMarkdownString;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultError?: string;
+}
+
+export function toolResultHasBuffers(result: IToolResult): boolean {
+	return result.content.some(part => part.kind === 'data');
+}
+
+export interface IToolResultPromptTsxPart {
+	kind: 'promptTsx';
+	value: unknown;
+}
+
+export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
+	return stringifyPromptElementJSON(part.value as PromptElementJSON);
+}
+
+export interface IToolResultTextPart {
+	kind: 'text';
+	value: string;
+}
+
+export interface IToolResultDataPart {
+	kind: 'data';
+	value: {
+		mimeType: string;
+		data: VSBuffer;
+	};
+}
+
+export interface IToolConfirmationMessages {
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	allowAutoConfirm?: boolean;
+}
+
+export interface IPreparedToolInvocation {
+	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	originMessage?: string | IMarkdownString;
+	confirmationMessages?: IToolConfirmationMessages;
+	presentation?: 'hidden' | undefined;
+	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 }
 
 export interface IToolImpl {
-	invoke(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
+
+export class ToolSet {
+
+	protected readonly _tools = new ObservableSet<IToolData>();
+
+	protected readonly _toolSets = new ObservableSet<ToolSet>();
+
+	/**
+	 * A homogenous tool set only contains tools from the same source as the tool set itself
+	 */
+	readonly isHomogenous: IObservable<boolean>;
+
+	constructor(
+		readonly id: string,
+		readonly displayName: string,
+		readonly icon: ThemeIcon,
+		readonly source: ToolDataSource,
+		readonly toolReferenceName: string,
+		readonly description?: string,
+	) {
+
+		this.isHomogenous = derived(r => {
+			return !Iterable.some(this._tools.observable.read(r), tool => !ToolDataSource.equals(tool.source, this.source))
+				&& !Iterable.some(this._toolSets.observable.read(r), toolSet => !ToolDataSource.equals(toolSet.source, this.source));
+		});
+	}
+
+	addTool(data: IToolData, tx?: ITransaction): IDisposable {
+		this._tools.add(data);
+		return toDisposable(() => {
+			this._tools.delete(data);
+		});
+	}
+
+	addToolSet(toolSet: ToolSet, tx?: ITransaction): IDisposable {
+		if (toolSet === this) {
+			return Disposable.None;
+		}
+		this._toolSets.add(toolSet);
+		return toDisposable(() => {
+			this._toolSets.delete(toolSet);
+		});
+	}
+
+	getTools(r?: IReader): Iterable<IToolData> {
+		return Iterable.concat(
+			this._tools.observable.read(r),
+			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
+		);
+	}
+}
+
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
@@ -56,123 +246,31 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
+	resetToolAutoConfirmation(): void;
+	cancelToolCallsForRequest(requestId: string): void;
+	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean>;
+
+	readonly toolSets: IObservable<Iterable<ToolSet>>;
+	getToolSetByName(name: string): ToolSet | undefined;
+	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
 }
 
-export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
-	_serviceBrand: undefined;
-
-	private _onDidChangeTools = new Emitter<void>();
-	readonly onDidChangeTools = this._onDidChangeTools.event;
-
-	/** Throttle tools updates because it sends all tools and runs on context key updates */
-	private _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
-
-	private _tools = new Map<string, IToolEntry>();
-	private _toolContextKeys = new Set<string>();
-
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		this._register(this._contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(this._toolContextKeys)) {
-				// Not worth it to compute a delta here unless we have many tools changing often
-				this._onDidChangeToolsScheduler.schedule();
-			}
-		}));
+export function createToolInputUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
 	}
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+}
 
-	registerToolData(toolData: IToolData): IDisposable {
-		if (this._tools.has(toolData.id)) {
-			throw new Error(`Tool "${toolData.id}" is already registered.`);
-		}
-
-		this._tools.set(toolData.id, { data: toolData });
-		this._onDidChangeToolsScheduler.schedule();
-
-		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
-
-		return toDisposable(() => {
-			this._tools.delete(toolData.id);
-			this._refreshAllToolContextKeys();
-			this._onDidChangeToolsScheduler.schedule();
-		});
+export function createToolSchemaUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
 	}
-
-	private _refreshAllToolContextKeys() {
-		this._toolContextKeys.clear();
-		for (const tool of this._tools.values()) {
-			tool.data.when?.keys().forEach(key => this._toolContextKeys.add(key));
-		}
-	}
-
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(name);
-		if (!entry) {
-			throw new Error(`Tool "${name}" was not contributed.`);
-		}
-
-		if (entry.impl) {
-			throw new Error(`Tool "${name}" already has an implementation.`);
-		}
-
-		entry.impl = tool;
-		return toDisposable(() => {
-			entry.impl = undefined;
-		});
-	}
-
-	getTools(): Iterable<Readonly<IToolData>> {
-		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
-		return Iterable.filter(toolDatas, toolData => !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when));
-	}
-
-	getTool(id: string): IToolData | undefined {
-		return this._getToolEntry(id)?.data;
-	}
-
-	private _getToolEntry(id: string): IToolEntry | undefined {
-		const entry = this._tools.get(id);
-		if (entry && (!entry.data.when || this._contextKeyService.contextMatchesRules(entry.data.when))) {
-			return entry;
-		} else {
-			return undefined;
-		}
-	}
-
-	getToolByName(name: string): IToolData | undefined {
-		for (const toolData of this.getTools()) {
-			if (toolData.name === name) {
-				return toolData;
-			}
-		}
-		return undefined;
-	}
-
-	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
-		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
-		let tool = this._tools.get(dto.toolId);
-		if (!tool) {
-			throw new Error(`Tool ${dto.toolId} was not contributed`);
-		}
-
-		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
-
-			// Extension should activate and register the tool implementation
-			tool = this._tools.get(dto.toolId);
-			if (!tool?.impl) {
-				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
-			}
-		}
-
-		return tool.impl.invoke(dto, countTokens, token);
-	}
+	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
 }

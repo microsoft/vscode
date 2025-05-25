@@ -8,8 +8,7 @@ import { getStructuralKey } from '../../../base/common/equals.js';
 import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
-import { derived, observableFromEvent } from '../../../base/common/observable.js';
-import { ValueWithChangeEventFromObservable } from '../../../base/common/observableInternal/utils.js';
+import { derived, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -62,16 +61,19 @@ export interface IAccessbilitySignalOptions {
 	 * play the sound if the user triggered the action.
 	 */
 	userGesture?: boolean;
+
+	/**
+	 * The custom message to alert with.
+	 * This will override the default announcement message.
+	 */
+	customAlertMessage?: string;
 }
 
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
-	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(this,
-		this.accessibilityService.onDidChangeScreenReaderOptimized,
-		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
-	);
-	private readonly sentTelemetry = new Set<string>();
+	private readonly sounds: Map<string, HTMLAudioElement>;
+	private readonly screenReaderAttached;
+	private readonly sentTelemetry;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -79,6 +81,38 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this.sounds = new Map();
+		this.screenReaderAttached = observableFromEvent(this,
+			this.accessibilityService.onDidChangeScreenReaderOptimized,
+			() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
+		);
+		this.sentTelemetry = new Set<string>();
+		this.playingSounds = new Set<Sound>();
+		this._signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
+			sound: EnabledState;
+			announcement: EnabledState;
+		}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
+		this._signalEnabledState = new CachedFunction(
+			{ getCacheKey: getStructuralKey },
+			(arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessibilityModality | undefined }) => {
+				return derived(reader => {
+					/** @description sound enabled */
+					const setting = this._signalConfigValue.get(arg.signal).read(reader);
+
+					if (arg.modality === 'sound' || arg.modality === undefined) {
+						if (arg.signal.managesOwnEnablement || checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+							return true;
+						}
+					}
+					if (arg.modality === 'announcement' || arg.modality === undefined) {
+						if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+							return true;
+						}
+					}
+					return false;
+				}).recomputeInitiallyAndOnChange(this._store);
+			}
+		);
 	}
 
 	public getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
@@ -87,7 +121,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
 		const shouldPlayAnnouncement = options.modality === 'announcement' || options.modality === undefined;
-		const announcementMessage = signal.announcementMessage;
+		const announcementMessage = options.customAlertMessage ?? signal.announcementMessage;
 		if (shouldPlayAnnouncement && this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
 			this.accessibilityService.status(announcementMessage);
 		}
@@ -153,7 +187,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		return Math.max(Math.min(volume, 100), 0);
 	}
 
-	private readonly playingSounds = new Set<Sound>();
+	private readonly playingSounds;
 
 	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
 		if (!allowManyInParallel && this.playingSounds.has(sound)) {
@@ -199,32 +233,9 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		return toDisposable(() => playing = false);
 	}
 
-	private readonly _signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
-		sound: EnabledState;
-		announcement: EnabledState;
-	}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
+	private readonly _signalConfigValue;
 
-	private readonly _signalEnabledState = new CachedFunction(
-		{ getCacheKey: getStructuralKey },
-		(arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessibilityModality | undefined }) => {
-			return derived(reader => {
-				/** @description sound enabled */
-				const setting = this._signalConfigValue.get(arg.signal).read(reader);
-
-				if (arg.modality === 'sound' || arg.modality === undefined) {
-					if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return true;
-					}
-				}
-				if (arg.modality === 'announcement' || arg.modality === undefined) {
-					if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return true;
-					}
-				}
-				return false;
-			}).recomputeInitiallyAndOnChange(this._store);
-		}
-	);
+	private readonly _signalEnabledState;
 
 	public isAnnouncementEnabled(signal: AccessibilitySignal, userGesture?: boolean): boolean {
 		if (!signal.announcementMessage) {
@@ -305,17 +316,25 @@ export class Sound {
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
-	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
-	public static readonly chatResponseReceived1 = Sound.register({ fileName: 'chatResponseReceived1.mp3' });
-	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
-	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
-	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
+	public static readonly requestSent = Sound.register({ fileName: 'requestSent.mp3' });
+	public static readonly responseReceived1 = Sound.register({ fileName: 'responseReceived1.mp3' });
+	public static readonly responseReceived2 = Sound.register({ fileName: 'responseReceived2.mp3' });
+	public static readonly responseReceived3 = Sound.register({ fileName: 'responseReceived3.mp3' });
+	public static readonly responseReceived4 = Sound.register({ fileName: 'responseReceived4.mp3' });
 	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
+	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
+	public static readonly editsKept = Sound.register({ fileName: 'editsKept.mp3' });
+	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
+	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
+	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
+	public static readonly chatUserActionRequired = Sound.register({ fileName: 'chatUserActionRequired.mp3' });
+	public static readonly codeActionTriggered = Sound.register({ fileName: 'codeActionTriggered.mp3' });
+	public static readonly codeActionApplied = Sound.register({ fileName: 'codeActionApplied.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -342,7 +361,8 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined
+		public readonly announcementMessage: string | undefined,
+		public readonly managesOwnEnablement: boolean = false
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -360,6 +380,7 @@ export class AccessibilitySignal {
 		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
 		delaySettingsKey?: string;
+		managesOwnEnablement?: boolean;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -369,6 +390,7 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
+			options.managesOwnEnablement
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;
@@ -432,7 +454,13 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.lineHasInlineSuggestion',
 		settingsKey: 'accessibility.signals.lineHasInlineSuggestion',
 	});
-
+	public static readonly nextEditSuggestion = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next Edit Suggestion on Line'),
+		sound: Sound.nextEditSuggestion,
+		legacySoundSettingsKey: 'audioCues.nextEditSuggestion',
+		settingsKey: 'accessibility.signals.nextEditSuggestion',
+		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next Edit Suggestion'),
+	});
 	public static readonly terminalQuickFix = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
@@ -489,7 +517,7 @@ export class AccessibilitySignal {
 
 	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
-		sound: Sound.success,
+		sound: Sound.terminalCommandSucceeded,
 		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
 		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
@@ -542,9 +570,16 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.diffLineModified',
 	});
 
+	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
+		sound: Sound.chatEditModifiedFile,
+		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
+		settingsKey: 'accessibility.signals.chatEditModifiedFile',
+	});
+
 	public static readonly chatRequestSent = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
-		sound: Sound.chatRequestSent,
+		sound: Sound.requestSent,
 		legacySoundSettingsKey: 'audioCues.chatRequestSent',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.chatRequestSent',
 		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
@@ -556,14 +591,31 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.chatResponseReceived',
 		sound: {
 			randomOneOf: [
-				Sound.chatResponseReceived1,
-				Sound.chatResponseReceived2,
-				Sound.chatResponseReceived3,
-				Sound.chatResponseReceived4
+				Sound.responseReceived1,
+				Sound.responseReceived2,
+				Sound.responseReceived3,
+				Sound.responseReceived4
 			]
 		},
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
+
+	public static readonly codeActionTriggered = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		sound: Sound.codeActionTriggered,
+		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
+		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
+		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		settingsKey: 'accessibility.signals.codeActionTriggered',
+	});
+
+	public static readonly codeActionApplied = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
+		legacySoundSettingsKey: 'audioCues.codeActionApplied',
+		sound: Sound.codeActionApplied,
+		settingsKey: 'accessibility.signals.codeActionApplied'
+	});
+
 
 	public static readonly progress = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.progress', 'Progress'),
@@ -614,5 +666,26 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
-}
 
+	public static readonly editsKept = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsKept', 'Edits Kept'),
+		sound: Sound.editsKept,
+		announcementMessage: localize('accessibility.signals.editsKept', 'Edits Kept'),
+		settingsKey: 'accessibility.signals.editsKept',
+	});
+
+	public static readonly editsUndone = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsUndone', 'Undo Edits'),
+		sound: Sound.editsUndone,
+		announcementMessage: localize('accessibility.signals.editsUndone', 'Edits Undone'),
+		settingsKey: 'accessibility.signals.editsUndone',
+	});
+
+	public static readonly chatUserActionRequired = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
+		sound: Sound.chatUserActionRequired,
+		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
+		settingsKey: 'accessibility.signals.chatUserActionRequired',
+		managesOwnEnablement: true
+	});
+}

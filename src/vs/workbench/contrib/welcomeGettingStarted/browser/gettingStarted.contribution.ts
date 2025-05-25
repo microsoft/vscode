@@ -57,22 +57,30 @@ registerAction2(class extends Action2 {
 	public run(
 		accessor: ServicesAccessor,
 		walkthroughID: string | { category: string; step: string } | undefined,
-		toSide: boolean | undefined
+		optionsOrToSide: { toSide?: boolean; inactive?: boolean } | boolean | undefined
 	) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 
+		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
+		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
+
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.category + '#' + walkthroughID.step;
+			let selectedStep: string | undefined;
+			if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
+				selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
+			} else {
+				selectedStep = undefined;
+			}
 
 			// We're trying to open the welcome page from the Help menu
 			if (!selectedCategory && !selectedStep) {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false }
+					options: { preserveFocus: toSide ?? false, inactive, forceReload: true }
 				}, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
@@ -80,6 +88,12 @@ registerAction2(class extends Action2 {
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
+					const activeEditor = group.activeEditor as GettingStartedInput;
+					activeEditor.showWelcome = false;
+					if (activeEditor.selectedCategory && activeEditor.selectedStep) {
+						// currently in a walkthrough.
+						return;
+					}
 					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 					return;
 				}
@@ -93,7 +107,8 @@ registerAction2(class extends Action2 {
 					if (!editor.selectedCategory && group) {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
-						group.openEditor(editor, { revealIfOpened: true });
+						editor.showWelcome = false;
+						group.openEditor(editor, { revealIfOpened: true, inactive });
 						return;
 					}
 				}
@@ -102,6 +117,7 @@ registerAction2(class extends Action2 {
 			const activeEditor = editorService.activeEditor;
 			// If the walkthrough is already open just reveal the step
 			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				activeEditor.showWelcome = false;
 				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
 				return;
 			}
@@ -111,11 +127,11 @@ registerAction2(class extends Action2 {
 				const activeGroup = editorGroupsService.activeGroup;
 				activeGroup.replaceEditors([{
 					editor: activeEditor,
-					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
+					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false })
 				}]);
 			} else {
 				// else open respecting toSide
-				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false };
+				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options
@@ -127,7 +143,7 @@ registerAction2(class extends Action2 {
 		} else {
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false }
+				options: { preserveFocus: toSide ?? false, inactive }
 			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
@@ -224,6 +240,11 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 3,
+			},
 		});
 	}
 
@@ -266,11 +287,40 @@ registerAction2(class extends Action2 {
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		await extensionService.whenInstalledExtensionsRegistered();
-		gettingStartedService.onDidAddWalkthrough(async () => {
+		disposables.add(gettingStartedService.onDidAddWalkthrough(async () => {
 			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
-		});
+		}));
 		quickPick.show();
 		quickPick.busy = false;
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showNewWelcome',
+			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
+
+		editorService.openEditor({
+			resource: GettingStartedInput.RESOURCE,
+			options
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'welcome.newWorkspaceChat',
+	handler: (accessor, stepID: string) => {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
 	}
 });
 

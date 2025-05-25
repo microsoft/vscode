@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import { StringDecoder } from 'string_decoder';
-import * as which from 'which';
+import which from 'which';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';

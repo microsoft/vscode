@@ -60,7 +60,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 		const itemToPin = quickPick.items.find(item => itemsMatch(item, itemToFind));
 		if (itemToPin) {
 			const pinnedItemId = getItemIdentifier(itemToPin);
-			const pinnedItem: IQuickPickItem = Object.assign({} as IQuickPickItem, itemToPin);
+			const pinnedItem: IQuickPickItem = { ...(itemToPin as IQuickPickItem) };
 			if (!filterDuplicates || !pinnedIds.has(pinnedItemId)) {
 				pinnedIds.add(pinnedItemId);
 				updateButtons(pinnedItem, false);

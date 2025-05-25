@@ -27,7 +27,7 @@ export class CommandCenterControl {
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _onDidChangeVisibility = new Emitter<void>();
+	private readonly _onDidChangeVisibility = this._disposables.add(new Emitter<void>());
 	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	readonly element: HTMLElement = document.createElement('div');
@@ -57,7 +57,7 @@ export class CommandCenterControl {
 		});
 
 		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
-		this._disposables.add(Event.filter(quickInputService.onHide, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, true)));
+		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
 		this._disposables.add(titleToolbar);
 	}
 

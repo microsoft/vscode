@@ -5,17 +5,17 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker.js';
-import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
+import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
+import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
-import { NotebookEditorSimpleWorker } from '../../common/services/notebookSimpleWorker.js';
+import { NotebookWorker } from '../../common/services/notebookWebWorker.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
@@ -65,6 +65,7 @@ class WorkerManager extends Disposable {
 		// this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
 			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, this._modelService);
+			this._register(this._editorWorkerClient);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -75,7 +76,7 @@ class NotebookEditorModelManager extends Disposable {
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(
-		private readonly _proxy: Proxied<NotebookEditorSimpleWorker>,
+		private readonly _proxy: Proxied<NotebookWorker>,
 		private readonly _notebookService: INotebookService,
 		private readonly _modelService: IModelService,
 	) {
@@ -106,6 +107,7 @@ class NotebookEditorModelManager extends Disposable {
 		this._proxy.$acceptNewModel(
 			model.uri.toString(),
 			model.metadata,
+			model.transientOptions.transientDocumentMetadata,
 			model.cells.map(cell => ({
 				handle: cell.handle,
 				url: cell.uri.toString(),
@@ -140,10 +142,12 @@ class NotebookEditorModelManager extends Disposable {
 
 		const cellHandlers = new Set<NotebookCellTextModel>();
 		const addCellContentChangeHandler = (cell: NotebookCellTextModel) => {
-			if (!cellHandlers.has(cell) && cell.textModel) {
-				cellHandlers.add(cell);
-				toDispose.add(cell.textModel.onDidChangeContent((e) => this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e)));
-			}
+			cellHandlers.add(cell);
+			toDispose.add(cell.onDidChangeContent((e) => {
+				if (typeof e === 'object' && e.type === 'model') {
+					this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e.event);
+				}
+			}));
 		};
 
 		model.cells.forEach(cell => addCellContentChangeHandler(cell));
@@ -176,6 +180,12 @@ class NotebookEditorModelManager extends Disposable {
 								kind: e.kind,
 								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
 							});
+
+							for (const change of e.changes) {
+								for (const cell of change[2]) {
+									addCellContentChangeHandler(cell as NotebookCellTextModel);
+								}
+							}
 							break;
 						}
 						case NotebookCellsChangeType.Move: {
@@ -191,6 +201,11 @@ class NotebookEditorModelManager extends Disposable {
 						case NotebookCellsChangeType.ChangeCellContent:
 							// Changes to cell content are handled by the cell model change listener.
 							break;
+						case NotebookCellsChangeType.ChangeDocumentMetadata:
+							dto.push({
+								kind: e.kind,
+								metadata: e.metadata
+							});
 						default:
 							dto.push(e);
 					}
@@ -221,7 +236,7 @@ class NotebookEditorModelManager extends Disposable {
 }
 
 class NotebookWorkerClient extends Disposable {
-	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<NotebookWorker> | null;
 	private _modelManager: NotebookEditorModelManager | null;
 
 
@@ -242,29 +257,27 @@ class NotebookWorkerClient extends Disposable {
 		return proxy.$canPromptRecommendation(modelUri.toString());
 	}
 
-	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
+	private _getOrCreateModelManager(proxy: Proxied<NotebookWorker>): NotebookEditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService, this._modelService));
 		}
 		return this._modelManager;
 	}
 
-	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookEditorSimpleWorker> {
+	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookWorker> {
 		const proxy = this._getOrCreateWorker().proxy;
 		this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 		return proxy;
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<NotebookWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
-					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
+				this._worker = this._register(createWebWorker<NotebookWorker>(
+					FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
 					'NotebookEditorWorker'
 				));
 			} catch (err) {
-				// logOnceWebWorkerWarning(err);
-				// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 				throw (err);
 			}
 		}

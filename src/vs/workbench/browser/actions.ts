@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../base/common/life
 import { Emitter, Event } from '../../base/common/event.js';
 import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 
 class MenuActions extends Disposable {
 
@@ -41,9 +41,9 @@ class MenuActions extends Disposable {
 
 	private updateActions(): void {
 		this.disposables.clear();
-		this._primaryActions = [];
-		this._secondaryActions = [];
-		createAndFillInActionBarActions(this.menu, this.options, { primary: this._primaryActions, secondary: this._secondaryActions });
+		const newActions = getActionBarActions(this.menu.getActions(this.options));
+		this._primaryActions = newActions.primary;
+		this._secondaryActions = newActions.secondary;
 		this.disposables.add(this.updateSubmenus([...this._primaryActions, ...this._secondaryActions], {}));
 		this._onDidChange.fire();
 	}
@@ -93,13 +93,11 @@ export class CompositeMenuActions extends Disposable {
 	}
 
 	getContextMenuActions(): IAction[] {
-		const actions: IAction[] = [];
-
 		if (this.contextMenuId) {
 			const menu = this.menuService.getMenuActions(this.contextMenuId, this.contextKeyService, this.options);
-			createAndFillInActionBarActions(menu, { primary: [], secondary: actions });
+			return getActionBarActions(menu).secondary;
 		}
 
-		return actions;
+		return [];
 	}
 }

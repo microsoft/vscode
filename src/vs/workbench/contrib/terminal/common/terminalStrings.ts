@@ -36,9 +36,9 @@ export const terminalStrings = {
 	rename: localize2('workbench.action.terminal.rename', "Rename..."),
 	toggleSizeToContentWidth: localize2('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
 	focusHover: localize2('workbench.action.terminal.focusHover', "Focus Hover"),
-	sendSequence: localize2('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+	sendSequence: localize2('workbench.action.terminal.sendSequence', "Send Custom Sequence to Terminal"),
 	newWithCwd: localize2('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
 	renameWithArgs: localize2('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
-	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
-	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command")
+	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll to Previous Command"),
+	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command")
 };

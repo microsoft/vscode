@@ -77,7 +77,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder: QueryBuilder;
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -86,13 +86,14 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+		this._fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {

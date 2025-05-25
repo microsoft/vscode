@@ -18,12 +18,6 @@ export function createUpdateURL(platform: string, quality: string, productServic
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
 }
 
-export type UpdateNotAvailableClassification = {
-	owner: 'joaomoreno';
-	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
-	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
-};
-
 export type UpdateErrorClassification = {
 	owner: 'joaomoreno';
 	messageHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the error message.' };
@@ -237,5 +231,5 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
-	protected abstract doCheckForUpdates(context: any): void;
+	protected abstract doCheckForUpdates(explicit: boolean): void;
 }

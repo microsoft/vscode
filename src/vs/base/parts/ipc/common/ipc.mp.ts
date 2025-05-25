@@ -41,15 +41,15 @@ export interface MessagePort {
  */
 export class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
-		if (e.data) {
-			return VSBuffer.wrap(e.data);
-		}
-		return VSBuffer.alloc(0);
-	});
+	readonly onMessage;
 
 	constructor(private port: MessagePort) {
-
+		this.onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+			if (e.data) {
+				return VSBuffer.wrap(e.data);
+			}
+			return VSBuffer.alloc(0);
+		});
 		// we must call start() to ensure messages are flowing
 		port.start();
 	}

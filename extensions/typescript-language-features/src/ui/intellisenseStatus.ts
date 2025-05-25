@@ -182,8 +182,8 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.command = {
 						command: this.createOrOpenConfigCommandId,
 						title: this._state.projectType === ProjectType.TypeScript
-							? vscode.l10n.t("Configure tsconfig")
-							: vscode.l10n.t("Configure jsconfig"),
+							? vscode.l10n.t("Configure TSConfig")
+							: vscode.l10n.t("Configure JSConfig"),
 						arguments: [rootPath, this._state.projectType] satisfies CreateOrOpenConfigCommandArgs,
 					};
 				} else {
@@ -191,7 +191,7 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.detail = undefined;
 					statusItem.command = {
 						command: this.openOpenConfigCommandId,
-						title: vscode.l10n.t("Open config file"),
+						title: vscode.l10n.t("Open Config File"),
 						arguments: [rootPath, this._state.projectType] satisfies CreateOrOpenConfigCommandArgs,
 					};
 				}
@@ -200,8 +200,8 @@ export class IntellisenseStatus extends Disposable {
 			case IntellisenseState.Type.SyntaxOnly: {
 				const statusItem = this.ensureStatusItem();
 				statusItem.severity = vscode.LanguageStatusSeverity.Warning;
-				statusItem.text = vscode.l10n.t("Partial Mode");
-				statusItem.detail = vscode.l10n.t("Project Wide IntelliSense not available");
+				statusItem.text = vscode.l10n.t("Partial mode");
+				statusItem.detail = vscode.l10n.t("Project wide IntelliSense not available");
 				statusItem.busy = false;
 				statusItem.command = {
 					title: vscode.l10n.t("Learn More"),

@@ -7,7 +7,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Client as TelemetryClient } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { ILogService, ILoggerService } from '../../log/common/log.js';
+import { ILoggerService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from '../common/telemetry.js';
 import { TelemetryAppenderClient } from '../common/telemetryIpc.js';
@@ -22,7 +22,6 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService
@@ -43,7 +42,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 					env: {
 						ELECTRON_RUN_AS_NODE: 1,
 						VSCODE_PIPE_LOGGING: 'true',
-						VSCODE_AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
+						VSCODE_ESM_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
 					}
 				}
 			);
@@ -51,7 +50,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			const channel = client.getChannel('telemetryAppender');
 			const appenders = [
 				new TelemetryAppenderClient(channel),
-				new TelemetryLogAppender(this.logService, this.loggerService, this.environmentService, this.productService, `[${endpoint.id}] `),
+				new TelemetryLogAppender(`[${endpoint.id}] `, false, this.loggerService, this.environmentService, this.productService),
 			];
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({

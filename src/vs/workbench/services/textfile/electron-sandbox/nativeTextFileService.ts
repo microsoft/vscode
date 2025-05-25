@@ -10,7 +10,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileReadLimits } from '../../../../platform/files/common/files.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
+import { IUntitledTextEditorModelManager, IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -33,7 +33,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorModelManager,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,

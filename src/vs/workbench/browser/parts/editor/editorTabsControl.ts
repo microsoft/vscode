@@ -5,8 +5,8 @@
 
 import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
-import { applyDragImage, DataTransfers } from '../../../../base/browser/dnd.js';
-import { Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { $, Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
@@ -20,7 +20,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
@@ -44,9 +43,10 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from '../../../services/editor/c
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -125,8 +125,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
-	private readonly tabsHoverDelegate: IHoverDelegate;
-
 	constructor(
 		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
@@ -145,7 +143,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	) {
 		super(themeService);
 
-		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this.renderDropdownAsChildElement = false;
+
+		const container = this.create(parent);
+
+		// Context Keys
+		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
 		)));
@@ -162,16 +165,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
-
-		this.renderDropdownAsChildElement = false;
-
-		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
-
-		this.create(parent);
 	}
 
-	protected create(parent: HTMLElement): void {
+	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		return parent;
 	}
 
 	private get editorActionsEnabled(): boolean {
@@ -179,7 +177,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
-		this.editorActionsToolbarContainer = document.createElement('div');
+		this.editorActionsToolbarContainer = $('div');
 		this.editorActionsToolbarContainer.classList.add(...classes);
 		parent.appendChild(this.editorActionsToolbarContainer);
 
@@ -319,7 +317,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
 			}
 
-			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+			applyDragImage(e, element, label);
 		}
 
 		return isNewWindowOperation;
@@ -452,12 +450,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
 	}
 
-	protected getHoverTitle(editor: EditorInput): string {
-		return editor.getTitle(Verbosity.LONG);
-	}
-
-	protected getHoverDelegate(): IHoverDelegate {
-		return this.tabsHoverDelegate;
+	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
+		const title = editor.getTitle(Verbosity.LONG);
+		if (!this.tabsModel.isPinned(editor)) {
+			return {
+				markdown: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).
+					appendText(title).
+					appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
+				markdownNotSupportedFallback: title + ' (preview)'
+			};
+		}
+		return title;
 	}
 
 	protected updateTabHeight(): void {

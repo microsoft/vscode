@@ -24,7 +24,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, fillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -49,6 +49,7 @@ import { TestingContextKeys } from '../../common/testingContextKeys.js';
 import { cmpPriority } from '../../common/testingStates.js';
 import { TestUriType, buildTestUri } from '../../common/testingUri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { TestId } from '../../common/testId.js';
 
 
 interface ITreeElement {
@@ -79,9 +80,9 @@ class TestResultElement implements ITreeElement {
 	public readonly changeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'result';
-	public readonly context = this.value.id;
-	public readonly id = this.value.id;
-	public readonly label = this.value.name;
+	public readonly context: string;
+	public readonly id: string;
+	public readonly label: string;
 
 	public get icon() {
 		return icons.testingStatesToIcons.get(
@@ -91,7 +92,11 @@ class TestResultElement implements ITreeElement {
 		);
 	}
 
-	constructor(public readonly value: ITestResult) { }
+	constructor(public readonly value: ITestResult) {
+		this.id = value.id;
+		this.context = value.id;
+		this.label = value.name;
+	}
 }
 
 const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
@@ -100,7 +105,7 @@ const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
 class CoverageElement implements ITreeElement {
 	public readonly type = 'coverage';
 	public readonly context: undefined;
-	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
+	public readonly id: string;
 	public readonly onDidChange: Event<void>;
 
 	public get label() {
@@ -116,10 +121,11 @@ class CoverageElement implements ITreeElement {
 	}
 
 	constructor(
-		private readonly results: ITestResult,
+		results: ITestResult,
 		public readonly task: ITestRunTaskResults,
 		private readonly coverageService: ITestCoverageService,
 	) {
+		this.id = `coverage-${results.id}/${task.id}`;
 		this.onDidChange = Event.fromObservableLight(coverageService.selected);
 	}
 }
@@ -127,23 +133,23 @@ class CoverageElement implements ITreeElement {
 class OlderResultsElement implements ITreeElement {
 	public readonly type = 'older';
 	public readonly context: undefined;
-	public readonly id = `older-${this.n}`;
+	public readonly id: string;
 	public readonly onDidChange = Event.None;
 	public readonly label: string;
 
 	constructor(private readonly n: number) {
-		this.label = localize('nOlderResults', '{0} older results', n);
+		this.label = n === 1
+			? localize('oneOlderResult', '1 older result')
+			: localize('nOlderResults', '{0} older results', n);
+		this.id = `older-${this.n}`;
 
 	}
 }
 
 class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
-	public readonly context: ITestItemContext = {
-		$mid: MarshalledId.TestItemContext,
-		tests: [InternalTestItem.serialize(this.test)],
-	};
-	public readonly id = `${this.results.id}/${this.test.item.extId}`;
+	public readonly context: ITestItemContext;
+	public readonly id: string;
 	public readonly description?: string;
 
 	public get onDidChange() {
@@ -179,7 +185,29 @@ class TestCaseElement implements ITreeElement {
 		public readonly results: ITestResult,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) { }
+	) {
+		this.id = `${results.id}/${test.item.extId}`;
+
+		const parentId = TestId.fromString(test.item.extId).parentId;
+		if (parentId) {
+			this.description = '';
+			for (const part of parentId.idsToRoot()) {
+				if (part.isRoot) { break; }
+				const test = results.getStateById(part.toString());
+				if (!test) { break; }
+				if (this.description.length) {
+					this.description += ' \u2039 ';
+				}
+
+				this.description += test.item.label;
+			}
+		}
+
+		this.context = {
+			$mid: MarshalledId.TestItemContext,
+			tests: [InternalTestItem.serialize(test)],
+		};
+	}
 }
 
 class TaskElement implements ITreeElement {
@@ -305,6 +333,7 @@ export class OutputPeekTree extends Disposable {
 				compressionEnabled: true,
 				hideTwistiesOfChildlessElements: true,
 				identityProvider: diffIdentityProvider,
+				alwaysConsumeMouseWheel: false,
 				sorter: {
 					compare(a, b) {
 						if (a instanceof TestCaseElement && b instanceof TestCaseElement) {
@@ -565,8 +594,28 @@ export class OutputPeekTree extends Disposable {
 		this._register(this.tree.onDidChangeSelection(evt => {
 			for (const element of evt.elements) {
 				if (element && 'test' in element) {
-					explorerFilter.reveal.value = element.test.item.extId;
+					explorerFilter.reveal.set(element.test.item.extId, undefined);
 					break;
+				}
+			}
+		}));
+
+		this._register(explorerFilter.onDidSelectTestInExplorer(testId => {
+			if (this.tree.getSelection().some(e => e && 'test' in e && e.test.item.extId === testId)) {
+				return;
+			}
+
+			for (const node of this.tree.getNode(null).children) {
+				if (node.element instanceof TaskElement) {
+					for (const testNode of node.children) {
+						if (testNode.element instanceof TestCaseElement && testNode.element.test.item.extId === testId) {
+							this.tree.setSelection([testNode.element]);
+							if (this.tree.getRelativeTop(testNode.element) === null) {
+								this.tree.reveal(testNode.element, 0.5);
+							}
+							break;
+						}
+					}
 				}
 			}
 		}));
@@ -648,11 +697,11 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	/** @inheritdoc */
 	public renderTemplate(container: HTMLElement): TemplateData {
 		const templateDisposable = new DisposableStore();
-		const wrapper = dom.append(container, dom.$('.test-peek-item'));
-		const icon = dom.append(wrapper, dom.$('.state'));
-		const label = dom.append(wrapper, dom.$('.name'));
+		container.classList.add('testing-stdtree-container');
+		const icon = dom.append(container, dom.$('.state'));
+		const label = dom.append(container, dom.$('.label'));
 
-		const actionBar = new ActionBar(wrapper, {
+		const actionBar = new ActionBar(container, {
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
@@ -755,6 +804,21 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand(TestCommandId.CancelTestRunAction, element.results.id, element.task.id),
 				));
+			} else {
+				primary.push(new Action(
+					'testing.outputPeek.rerun',
+					localize('testing.reRunLastRun', 'Rerun Last Run'),
+					ThemeIcon.asClassName(icons.testingRerunIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.ReRunLastRun, element.results.id),
+				));
+				primary.push(new Action(
+					'testing.outputPeek.debug',
+					localize('testing.debugLastRun', 'Debug Last Run'),
+					ThemeIcon.asClassName(icons.testingDebugIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.DebugLastRun, element.results.id),
+				));
 			}
 		}
 
@@ -772,7 +836,7 @@ class TreeActionsProvider {
 
 			primary.push(new Action(
 				'testing.outputPeek.reRunLastRun',
-				localize('testing.reRunLastRun', "Rerun Test Run"),
+				localize('testing.reRunTest', "Rerun Test"),
 				ThemeIcon.asClassName(icons.testingRunIcon),
 				undefined,
 				() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
@@ -781,7 +845,7 @@ class TreeActionsProvider {
 			if (capabilities & TestRunProfileBitset.Debug) {
 				primary.push(new Action(
 					'testing.outputPeek.debugLastRun',
-					localize('testing.debugLastRun', "Debug Test Run"),
+					localize('testing.debugTest', "Debug Test"),
 					ThemeIcon.asClassName(icons.testingDebugIcon),
 					undefined,
 					() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
@@ -795,6 +859,14 @@ class TreeActionsProvider {
 				[TestingContextKeys.testResultState.key, testResultStateToContextValues[element.test.ownComputedState]],
 				...getTestItemContextOverlay(element.test, capabilities),
 			);
+
+			primary.push(new Action(
+				'testing.outputPeek.goToTest',
+				localize('testing.goToTest', "Go to Test"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
+			));
 
 			const extId = element.test.item.extId;
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
@@ -841,19 +913,11 @@ class TreeActionsProvider {
 			id = MenuId.TestMessageContext;
 			contextKeys.push([TestingContextKeys.testMessageContext.key, element.contextValue]);
 
-			primary.push(new Action(
-				'testing.outputPeek.goToTest',
-				localize('testing.goToTest', "Go to Test"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
-			));
-
 			if (this.showRevealLocationOnMessages && element.location) {
 				primary.push(new Action(
 					'testing.outputPeek.goToError',
 					localize('testing.goToError', "Go to Error"),
-					ThemeIcon.asClassName(Codicon.goToFile),
+					ThemeIcon.asClassName(Codicon.debugStackframe),
 					undefined,
 					() => this.editorService.openEditor({
 						resource: element.location!.uri,
@@ -870,7 +934,7 @@ class TreeActionsProvider {
 		const contextOverlay = this.contextKeyService.createOverlay(contextKeys);
 		const result = { primary, secondary };
 		const menu = this.menuService.getMenuActions(id, contextOverlay, { arg: element.context });
-		createAndFillInActionBarActions(menu, result, 'inline');
+		fillInActionBarActions(menu, result, 'inline');
 		return result;
 	}
 }

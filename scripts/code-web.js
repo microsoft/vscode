@@ -14,7 +14,7 @@ const cp = require('child_process');
 const minimist = require('minimist');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
-const opn = require('opn');
+const open = require('open');
 const https = require('https');
 
 const APP_ROOT = path.join(__dirname, '..');
@@ -74,17 +74,13 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
-	if (!fs.existsSync(path.join(APP_ROOT, 'src2')) && !fs.existsSync(path.join(APP_ROOT, 'out-build', 'amd'))) {
-		serverArgs.push('--esm');
-	}
-
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
 	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));
 
 	startServer(serverArgs);
 	if (openSystemBrowser) {
-		opn(`http://${HOST}:${PORT}/`);
+		open(`http://${HOST}:${PORT}/`);
 	}
 }
 

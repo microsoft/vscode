@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
-import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from './constants.js';
+import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId, SearchConfiguration } from './constants.js';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from './searchEditorModel.js';
 import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfiguration } from './searchEditorSerialization.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -35,25 +35,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-
-export type SearchConfiguration = {
-	query: string;
-	filesToInclude: string;
-	filesToExclude: string;
-	contextLines: number;
-	matchWholeWord: boolean;
-	isCaseSensitive: boolean;
-	isRegexp: boolean;
-	useExcludeSettingsAndIgnoreFiles: boolean;
-	showIncludesExcludes: boolean;
-	onlyOpenEditors: boolean;
-	notebookSearchConfig: {
-		includeMarkupInput: boolean;
-		includeMarkupPreview: boolean;
-		includeCodeInput: boolean;
-		includeOutput: boolean;
-	};
-};
 
 export const SEARCH_EDITOR_EXT = '.code-search';
 

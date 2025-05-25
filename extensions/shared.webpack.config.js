@@ -32,7 +32,11 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		resolve: {
 			conditionNames: ['import', 'require', 'node-addons', 'node'],
 			mainFields: ['module', 'main'],
-			extensions: ['.ts', '.js'] // support ts-files and js-files
+			extensions: ['.ts', '.js'], // support ts-files and js-files
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			}
 		},
 		module: {
 			rules: [{
@@ -52,6 +56,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 			}]
 		},
 		externals: {
+			'electron': 'commonjs electron', // ignored to avoid bundling from node_modules
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
 			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
@@ -110,7 +115,11 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 				'path': require.resolve('path-browserify'),
 				'os': require.resolve('os-browserify'),
 				'util': require.resolve('util')
-			}
+			},
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			},
 		},
 		module: {
 			rules: [{
@@ -123,7 +132,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						loader: 'ts-loader',
 						options: {
 							...tsLoaderOptions,
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
+							//							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
 						}
 					},
 					{
@@ -196,4 +205,3 @@ module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
 module.exports.nodePlugins = nodePlugins;
 module.exports.browserPlugins = browserPlugins;
-

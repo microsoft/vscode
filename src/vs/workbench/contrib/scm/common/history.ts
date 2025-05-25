@@ -15,15 +15,16 @@ export interface ISCMHistoryProviderMenus {
 }
 
 export interface ISCMHistoryProvider {
-	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
+	readonly historyItemRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
 
-	readonly currentHistoryItemRef: IObservable<ISCMHistoryItemRef | undefined>;
-	readonly currentHistoryItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
-	readonly currentHistoryItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
 
-	provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined>;
+	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined>;
 	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 
@@ -31,14 +32,6 @@ export interface ISCMHistoryOptions {
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemRefs?: readonly string[];
-}
-
-export interface ISCMHistoryItemGroup {
-	readonly id: string;
-	readonly name: string;
-	readonly revision?: string;
-	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
-	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
 export interface ISCMHistoryItemStatistics {
@@ -57,6 +50,13 @@ export interface ISCMHistoryItemRef {
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 }
 
+export interface ISCMHistoryItemRefsChangeEvent {
+	readonly added: readonly ISCMHistoryItemRef[];
+	readonly removed: readonly ISCMHistoryItemRef[];
+	readonly modified: readonly ISCMHistoryItemRef[];
+	readonly silent: boolean;
+}
+
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
@@ -64,6 +64,8 @@ export interface ISCMHistoryItem {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorEmail?: string;
+	readonly authorIcon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
@@ -76,6 +78,7 @@ export interface ISCMHistoryItemGraphNode {
 
 export interface ISCMHistoryItemViewModel {
 	readonly historyItem: ISCMHistoryItem;
+	readonly isCurrent: boolean;
 	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
 }
@@ -84,6 +87,14 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly repository: ISCMRepository;
 	readonly historyItemViewModel: ISCMHistoryItemViewModel;
 	readonly type: 'historyItemViewModel';
+}
+
+export interface SCMHistoryItemChangeViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
+	readonly historyItemChange: ISCMHistoryItemChange;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
+	readonly type: 'historyItemChangeViewModel';
 }
 
 export interface SCMHistoryItemLoadMoreTreeElement {
@@ -96,5 +107,4 @@ export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
-	readonly renameUri?: URI;
 }

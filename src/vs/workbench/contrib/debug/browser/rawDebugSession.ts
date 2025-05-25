@@ -589,7 +589,7 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<void> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
@@ -616,7 +616,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private async stopAdapter(error?: Error): Promise<any> {
+	private async stopAdapter(error?: Error): Promise<void> {
 		try {
 			if (this.debugAdapter) {
 				const da = this.debugAdapter;

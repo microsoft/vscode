@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -225,6 +226,7 @@ const psStdOut =
 0 S node      1058  1056  0  80   0 -   770 pipe_w   888   9 14:43 ?        00:00:00 grep root`;
 
 suite('ExtHostTunnelService', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('getSockets', function () {
 		const result = getSockets(procSockets);
 		assert.strictEqual(Object.keys(result).length, 75);

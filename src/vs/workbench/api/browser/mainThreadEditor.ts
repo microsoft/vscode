@@ -14,7 +14,7 @@ import { ITextModel, ITextModelUpdateOptions } from '../../../editor/common/mode
 import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { SnippetController2 } from '../../../editor/contrib/snippet/browser/snippetController2.js';
-import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from '../common/extHost.protocol.js';
+import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ISnippetOptions, ITextEditorConfigurationUpdate, TextEditorRevealType } from '../common/extHost.protocol.js';
 import { IEditorPane } from '../../common/editor.js';
 import { equals } from '../../../base/common/arrays.js';
 import { CodeEditorStateFlag, EditorState } from '../../../editor/contrib/editorState/browser/editorState.js';
@@ -509,7 +509,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	async insertSnippet(modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(modelVersionId: number, template: string, ranges: readonly IRange[], opts: ISnippetOptions) {
 
 		if (!this._codeEditor || !this._codeEditor.hasModel()) {
 			return false;
@@ -542,6 +542,7 @@ export class MainThreadTextEditor {
 		snippetController.apply(edits, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
+			adjustWhitespace: !opts.keepWhitespace,
 			clipboardText
 		});
 

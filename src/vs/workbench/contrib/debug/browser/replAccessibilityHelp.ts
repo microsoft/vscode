@@ -5,7 +5,7 @@
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getReplView, Repl } from './repl.js';
@@ -13,7 +13,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { localize } from '../../../../nls.js';
 
-export class ReplAccessibilityHelp implements IAccessibleViewImplentation {
+export class ReplAccessibilityHelp implements IAccessibleViewImplementation {
 	priority = 120;
 	name = 'replHelp';
 	when = ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view');

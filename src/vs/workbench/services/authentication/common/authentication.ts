@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -32,6 +35,7 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
+	issuerGlobs?: ReadonlyArray<string>;
 }
 
 export interface IAuthenticationCreateSessionOptions {
@@ -41,6 +45,11 @@ export interface IAuthenticationCreateSessionOptions {
 	 * attempt to return the sessions that are only related to this account.
 	 */
 	account?: AuthenticationSessionAccount;
+	/**
+	 * The issuer URI to use for this creation request. If passed in, first we validate that
+	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 */
+	issuer?: URI;
 }
 
 export interface AllowedExtension {
@@ -55,6 +64,12 @@ export interface AllowedExtension {
 	lastUsed?: number;
 	// If true, this comes from the product.json
 	trusted?: boolean;
+}
+
+export interface IAuthenticationProviderHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
+	create(serverMetadata: IAuthorizationServerMetadata): Promise<void>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -138,11 +153,14 @@ export interface IAuthenticationService {
 
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
+	 * TODO:@TylerLeonhardt Refactor this to use an options bag for account and issuer
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session
+	 * @param account The account for the session
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
+	 * @param issuer The issuer for the session
 	 */
-	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean, issuer?: URI): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -158,6 +176,53 @@ export interface IAuthenticationService {
 	 * @param sessionId The id of the session to remove
 	 */
 	removeSession(providerId: string, sessionId: string): Promise<void>;
+
+	/**
+	 * Gets a provider id for a specified issuer
+	 * @param issuer The issuer url that this provider is responsible for
+	 */
+	getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined>;
+
+	/**
+	 * Allows the ability register a delegate that will be used to start authentication providers
+	 * @param delegate The delegate to register
+	 */
+	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable;
+
+	/**
+	 * Creates a dynamic authentication provider for the given server metadata
+	 * @param serverMetadata The metadata for the server that is being authenticated against
+	 */
+	createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata): Promise<IAuthenticationProvider | undefined>;
+}
+
+export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
+	if (typeof thing !== 'object' || !thing) {
+		return false;
+	}
+	const maybe = thing as AuthenticationSession;
+	if (typeof maybe.id !== 'string') {
+		return false;
+	}
+	if (typeof maybe.accessToken !== 'string') {
+		return false;
+	}
+	if (typeof maybe.account !== 'object' || !maybe.account) {
+		return false;
+	}
+	if (typeof maybe.account.label !== 'string') {
+		return false;
+	}
+	if (typeof maybe.account.id !== 'string') {
+		return false;
+	}
+	if (!Array.isArray(maybe.scopes)) {
+		return false;
+	}
+	if (maybe.idToken && typeof maybe.idToken !== 'string') {
+		return false;
+	}
+	return true;
 }
 
 // TODO: Move this into MainThreadAuthentication
@@ -165,8 +230,53 @@ export const IAuthenticationExtensionsService = createDecorator<IAuthenticationE
 export interface IAuthenticationExtensionsService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Fires when an account preference for a specific provider has changed for the specified extensions. Does not fire when:
+	 * * An account preference is removed
+	 * * A session preference is changed (because it's deprecated)
+	 * * A session preference is removed (because it's deprecated)
+	 */
+	onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
+	/**
+	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationAccessService` to get the account preference
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to get the preference for
+	 * @returns The accountName of the preference, or undefined if there is no preference set
+	 */
+	getAccountPreference(extensionId: string, providerId: string): string | undefined;
+	/**
+	 * Sets the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to set the preference for
+	 * @param account The account to set the preference to
+	 */
+	updateAccountPreference(extensionId: string, providerId: string, account: AuthenticationSessionAccount): void;
+	/**
+	 * Removes the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to remove the preference for
+	 */
+	removeAccountPreference(extensionId: string, providerId: string): void;
+	/**
+	 * @deprecated Sets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param session
+	 */
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
+	/**
+	 * @deprecated Gets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
+	/**
+	 * @deprecated Removes the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
@@ -179,6 +289,11 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return the sessions that are only related to this account.
 	 */
 	account?: AuthenticationSessionAccount;
+	/**
+	 * The issuer that is being asked about. If this is passed in, the provider should
+	 * attempt to return sessions that are only related to this issuer.
+	 */
+	issuer?: URI;
 }
 
 /**
@@ -194,6 +309,11 @@ export interface IAuthenticationProvider {
 	 * The display label of the authentication provider.
 	 */
 	readonly label: string;
+
+	/**
+	 * The resolved issuers. These can still contain globs, but should be concrete URIs
+	 */
+	readonly issuers?: ReadonlyArray<URI>;
 
 	/**
 	 * Indicates whether the authentication provider supports multiple accounts.

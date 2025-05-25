@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatWidgetService, IChatWidget, ChatTreeItem } from './chat.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../common/chatContextKeys.js';
-import { ChatWelcomeMessageModel } from '../common/chatModel.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = CONTEXT_IN_CHAT_SESSION;
+	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
@@ -33,7 +33,6 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 
 		const verifiedWidget: IChatWidget = widget;
 		const focusedItem = verifiedWidget.getFocus();
-
 		if (!focusedItem) {
 			return;
 		}
@@ -53,7 +52,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		this._focusedItem = item;
 	}
 
-	readonly id = AccessibleViewProviderId.Chat;
+	readonly id = AccessibleViewProviderId.PanelChat;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
 	readonly options = { type: AccessibleViewType.View };
 
@@ -62,21 +61,44 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	}
 
 	private _getContent(item: ChatTreeItem): string {
-		const isWelcome = item instanceof ChatWelcomeMessageModel;
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
-		if (isWelcome) {
-			const welcomeReplyContents = [];
-			for (const content of item.content) {
-				if (Array.isArray(content)) {
-					welcomeReplyContents.push(...content.map(m => m.message));
-				} else {
-					welcomeReplyContents.push((content as IMarkdownString).value);
-				}
-			}
-			responseContent = welcomeReplyContents.join('\n');
-		}
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
+		}
+		if (isResponseVM(item)) {
+
+			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			for (const toolInvocation of toolInvocations) {
+				if (toolInvocation.confirmationMessages) {
+					const title = toolInvocation.confirmationMessages.title;
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderMarkdownAsPlaintext(toolInvocation.confirmationMessages.message));
+					let input = '';
+					if (toolInvocation.toolSpecificData) {
+						input = toolInvocation.toolSpecificData?.kind === 'terminal'
+							? toolInvocation.toolSpecificData.command
+							: input = toolInvocation.toolSpecificData?.kind === 'extensions'
+								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
+								: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+					}
+					responseContent += `${title}`;
+					if (input) {
+						responseContent += `: ${input}`;
+					}
+					responseContent += `\n${message}\n`;
+				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
+					responseContent += toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderMarkdownAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				}
+			}
+
+			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			for (const pastConfirmation of pastConfirmations) {
+				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+					if (pastConfirmation.pastTenseMessage) {
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderMarkdownAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+					}
+				}
+			}
 		}
 		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
 	}
@@ -108,4 +130,3 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return;
 	}
 }
-

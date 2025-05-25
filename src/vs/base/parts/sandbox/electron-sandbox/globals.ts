@@ -77,7 +77,7 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * - `process.env`: this is the actual environment of the process before this method
 	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
 	 *                  variables to get the same experience as if the program was started from
-	 *                  a terminal (Linux, macOS)
+	 *                  a terminal
 	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
 	 *                  from a terminal and changed certain variables
 	 *
@@ -122,6 +122,19 @@ export const webFrame: WebFrame = vscodeGlobal.webFrame;
 export const process: ISandboxNodeProcess = vscodeGlobal.process;
 export const context: ISandboxContext = vscodeGlobal.context;
 export const webUtils: WebUtils = vscodeGlobal.webUtils;
+
+/**
+ * A set of globals only available to main windows that depend
+ * on `preload.js`.
+ */
+export interface IMainWindowSandboxGlobals {
+	readonly ipcRenderer: IpcRenderer;
+	readonly ipcMessagePort: IpcMessagePort;
+	readonly webFrame: WebFrame;
+	readonly process: ISandboxNodeProcess;
+	readonly context: ISandboxContext;
+	readonly webUtils: WebUtils;
+}
 
 /**
  * A set of globals that are available in all windows that either

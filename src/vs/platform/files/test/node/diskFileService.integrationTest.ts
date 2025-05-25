@@ -20,7 +20,6 @@ import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOp
 import { FileService } from '../../common/fileService.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { isESM } from '../../../../base/common/amd.js';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -132,7 +131,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
-(!isESM ? suite.skip : flakySuite /* somehow fails in AMD with ENOENT for fixtures dir */)('Disk File Service', function () {
+flakySuite('Disk File Service', function () {
 
 	const testSchema = 'test';
 
@@ -2405,6 +2404,46 @@ DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests 
 		}
 
 		assert.ok(!error);
+	});
+
+	test('writeFile - no error when writing to file where content is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content; // same content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
+	test('writeFile - error when writing to file where content is the same length but different', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content.split('').reverse().join(''); // reverse content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('writeFile - no error when writing to same nonexistent folder multiple times different new files', async () => {

@@ -16,7 +16,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ITerminalInstanceService } from '../browser/terminal.js';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from '../common/terminal.js';
+import { ITerminalProfileResolverService } from '../common/terminal.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { LocalPty } from './localPty.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
@@ -38,6 +38,7 @@ import { memoize } from '../../../../base/common/decorators.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -49,7 +50,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
+		terminalInstanceService.didRegisterBackend(backend);
 	}
 }
 
@@ -60,6 +61,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	private _directProxyClientEventually: DeferredPromise<MessagePortClient> | undefined;
 	private _directProxy: IPtyService | undefined;
+	private readonly _directProxyDisposables = this._register(new MutableDisposable());
+
 	/**
 	 * Communicate to the direct proxy (renderer<->ptyhost) if it's available, otherwise use the
 	 * indirect proxy (renderer<->main<->ptyhost). The latter may not need to actually launch the
@@ -117,6 +120,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this._directProxyClientEventually = directProxyClientEventually;
 		const directProxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._directProxyClientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
 		this._directProxy = directProxy;
+		this._directProxyDisposables.clear();
 
 		// The pty host should not get launched until at least the window restored phase
 		// if remote auth exists, don't await
@@ -129,52 +133,32 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult').then(port => {
 			mark('code/terminal/didConnectPtyHost');
 			this._logService.trace('Renderer->PtyHost#connect: connection established');
+
+			const store = new DisposableStore();
+			this._directProxyDisposables.value = store;
+
 			// There are two connections to the pty host; one to the regular shared process
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
-			const client = new MessagePortClient(port, `window:${this._nativeHostService.windowId}`);
+			const client = store.add(new MessagePortClient(port, `window:${this._nativeHostService.windowId}`));
 			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
-			directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-			directProxy.onProcessExit(e => {
+			store.add(directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event)));
+			store.add(directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property)));
+			store.add(directProxy.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
 					this._ptys.delete(e.id);
 				}
-			});
-			directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-
-			// Listen for config changes
-			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			for (const match of Object.keys(initialConfig.autoReplies)) {
-				// Ensure the reply is value
-				const reply = initialConfig.autoReplies[match] as string | null;
-				if (reply) {
-					directProxy.installAutoReply(match, reply);
-				}
-			}
-			// TODO: Could simplify update to a single call
-			this._register(this._configurationService.onDidChangeConfiguration(async e => {
-				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-					directProxy.uninstallAllAutoReplies();
-					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-					for (const match of Object.keys(config.autoReplies)) {
-						// Ensure the reply is value
-						const reply = config.autoReplies[match] as string | null;
-						if (reply) {
-							this._proxy.installAutoReply(match, reply);
-						}
-					}
-				}
 			}));
+			store.add(directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event)));
+			store.add(directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event)));
+			store.add(directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion()));
+			store.add(directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
 			// Eagerly fetch the backend's environment for memoization
 			this.getEnvironment();
@@ -384,4 +368,15 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies();
+	}
+
+	// #endregion
 }

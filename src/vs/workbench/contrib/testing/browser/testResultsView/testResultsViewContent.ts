@@ -14,7 +14,6 @@ import { Emitter, Event, Relay } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
-import './testResultsViewContent.css';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
@@ -28,12 +27,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { CustomStackFrame } from '../../../debug/browser/callStackWidget.js';
-import * as icons from '../icons.js';
-import { TestResultStackWidget } from './testMessageStack.js';
-import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from './testResultsOutput.js';
-import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from './testResultsSubject.js';
-import { OutputPeekTree } from './testResultsTree.js';
+import { AnyStackFrame, CallStackFrame, CallStackWidget, CustomStackFrame } from '../../../debug/browser/callStackWidget.js';
 import { TestCommandId } from '../../common/constants.js';
 import { IObservableValue } from '../../common/observableValue.js';
 import { capabilityContextKeys, ITestProfileService } from '../../common/testProfileService.js';
@@ -41,6 +35,11 @@ import { LiveTestResult } from '../../common/testResult.js';
 import { ITestFollowup, ITestService } from '../../common/testService.js';
 import { ITestMessageStackFrame, TestRunProfileBitset } from '../../common/testTypes.js';
 import { TestingContextKeys } from '../../common/testingContextKeys.js';
+import * as icons from '../icons.js';
+import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from './testResultsOutput.js';
+import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from './testResultsSubject.js';
+import { OutputPeekTree } from './testResultsTree.js';
+import './testResultsViewContent.css';
 
 const enum SubView {
 	Diff = 0,
@@ -183,7 +182,7 @@ export class TestResultsViewContent extends Disposable {
 	private contextKeyTestMessage!: IContextKey<string>;
 	private contextKeyResultOutdated!: IContextKey<boolean>;
 	private stackContainer!: HTMLElement;
-	private callStackWidget!: TestResultStackWidget;
+	private callStackWidget!: CallStackWidget;
 	private currentTopFrame?: MessageStackFrame;
 	private isDoingLayoutUpdate?: boolean;
 
@@ -207,6 +206,14 @@ export class TestResultsViewContent extends Disposable {
 				(_, i) => this.splitView.getViewSize(i)
 			),
 		};
+	}
+
+	public get onDidChangeContentHeight() {
+		return this.callStackWidget.onDidChangeContentHeight;
+	}
+
+	public get contentHeight() {
+		return this.callStackWidget?.contentHeight || 0;
 	}
 
 	constructor(
@@ -233,7 +240,7 @@ export class TestResultsViewContent extends Disposable {
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
 		this.stackContainer = dom.append(containerElement, dom.$('.test-output-call-stack-container'));
-		this.callStackWidget = this._register(this.instantiationService.createInstance(TestResultStackWidget, this.stackContainer, this.editor));
+		this.callStackWidget = this._register(this.instantiationService.createInstance(CallStackWidget, this.stackContainer, this.editor));
 		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, this.editor));
 		this.onCloseEmitter.input = this.followupWidget.onClose;
 
@@ -248,7 +255,7 @@ export class TestResultsViewContent extends Disposable {
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
 		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
 
-		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
+		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree.testing-stdtree'));
 		const tree = this._register(this.instantiationService.createInstance(
 			OutputPeekTree,
 			treeContainer,
@@ -315,11 +322,20 @@ export class TestResultsViewContent extends Disposable {
 			this.currentSubjectStore.clear();
 			const callFrames = this.getCallFrames(opts.subject) || [];
 			const topFrame = await this.prepareTopFrame(opts.subject, callFrames);
-			this.callStackWidget.update(topFrame, callFrames);
+			this.setCallStackFrames(topFrame, callFrames);
 
 			this.followupWidget.show(opts.subject);
 			this.populateFloatingClick(opts.subject);
 		});
+	}
+
+	private setCallStackFrames(messageFrame: AnyStackFrame, stack: ITestMessageStackFrame[]) {
+		this.callStackWidget.setFrames([messageFrame, ...stack.map(frame => new CallStackFrame(
+			frame.label,
+			frame.uri,
+			frame.position?.lineNumber,
+			frame.position?.column,
+		))]);
 	}
 
 	/**
@@ -364,9 +380,17 @@ export class TestResultsViewContent extends Disposable {
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
-			if (this.dimension) {
-				topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
+			const width = this.splitView.getViewSize(SubView.Diff);
+			if (width !== -1 && this.dimension) {
+				topFrame.height.set(provider.layout({ width, height: this.dimension?.height }, hasMultipleFrames)!, undefined);
 			}
+
+			if (provider.onScrolled) {
+				this.currentSubjectStore.add(this.callStackWidget.onDidScroll(evt => {
+					provider.onScrolled!(evt);
+				}));
+			}
+
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
 					if (this.dimension && !this.isDoingLayoutUpdate) {

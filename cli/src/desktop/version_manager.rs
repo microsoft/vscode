@@ -41,13 +41,13 @@ impl RequestedVersion {
 	pub fn get_command(&self) -> String {
 		match self {
 			RequestedVersion::Default => {
-				format!("code version use {}", QUALITY)
+				format!("code version use {QUALITY}")
 			}
 			RequestedVersion::Commit(commit) => {
-				format!("code version use {}/{}", QUALITY, commit)
+				format!("code version use {QUALITY}/{commit}")
 			}
 			RequestedVersion::Path(path) => {
-				format!("code version use {}", path)
+				format!("code version use {path}")
 			}
 		}
 	}
@@ -57,12 +57,12 @@ impl std::fmt::Display for RequestedVersion {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
 			RequestedVersion::Default => {
-				write!(f, "{}", QUALITY)
+				write!(f, "{QUALITY}")
 			}
 			RequestedVersion::Commit(commit) => {
-				write!(f, "{}/{}", QUALITY, commit)
+				write!(f, "{QUALITY}/{commit}")
 			}
-			RequestedVersion::Path(path) => write!(f, "{}", path),
+			RequestedVersion::Path(path) => write!(f, "{path}"),
 		}
 	}
 }
@@ -222,17 +222,14 @@ impl CodeVersionManager {
 /// Shows a nice UI prompt to users asking them if they want to install the
 /// requested version.
 pub fn prompt_to_install(version: &RequestedVersion) {
-	println!(
-		"No installation of {} {} was found.",
-		QUALITYLESS_PRODUCT_NAME, version
-	);
+	println!("No installation of {QUALITYLESS_PRODUCT_NAME} {version} was found.");
 
 	if let RequestedVersion::Default = version {
 		if let Some(uri) = PRODUCT_DOWNLOAD_URL {
 			// todo: on some platforms, we may be able to help automate installation. For example,
 			// we can unzip the app ourselves on macOS and on windows we can download and spawn the GUI installer
 			#[cfg(target_os = "linux")]
-			println!("Install it from your system's package manager or {}, restart your shell, and try again.", uri);
+			println!("Install it from your system's package manager or {uri}, restart your shell, and try again.");
 			#[cfg(target_os = "macos")]
 			println!("Download and unzip it from {} and try again.", uri);
 			#[cfg(target_os = "windows")]
@@ -447,7 +444,7 @@ mod tests {
 		// developers can run this test and debug output manually; VS Code will not
 		// be installed in CI, so the test only makes sure it doesn't error out
 		let result = detect_installed_program(&log::Logger::test());
-		println!("result: {:?}", result);
+		println!("result: {result:?}");
 		assert!(result.is_ok());
 	}
 

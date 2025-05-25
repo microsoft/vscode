@@ -18,6 +18,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { IDebugService, IViewModel } from '../../common/debug.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
 const $ = dom.$;
 
 function assertWatchVariable(disposables: Pick<DisposableStore, "add">, watchExpressionsRenderer: WatchExpressionsRenderer, displayType: boolean) {
@@ -80,9 +81,13 @@ suite('Debug - Watch Debug View', () => {
 	let watchExpressionsRenderer: WatchExpressionsRenderer;
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let expressionRenderer: DebugExpressionRenderer;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
+		configurationService = instantiationService.createInstance(TestConfigurationService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 		const debugService = new MockDebugService();
 		instantiationService.stub(IHoverService, NullHoverService);
 		debugService.getViewModel = () => <IViewModel>{ focusedStackFrame: undefined, getSelectedExpression: () => undefined };
@@ -91,24 +96,16 @@ suite('Debug - Watch Debug View', () => {
 	});
 
 	test('watch expressions with display type', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: true
-			}
-		});
+		configurationService.setUserConfiguration('debug', { showVariableTypes: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, null as any);
+		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, expressionRenderer);
 		assertWatchVariable(disposables, watchExpressionsRenderer, true);
 	});
 
 	test('watch expressions', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: false
-			}
-		});
+		configurationService.setUserConfiguration('debug', { showVariableTypes: false });
 		instantiationService.stub(IConfigurationService, configurationService);
-		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, null as any);
+		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, expressionRenderer);
 		assertWatchVariable(disposables, watchExpressionsRenderer, false);
 	});
 });

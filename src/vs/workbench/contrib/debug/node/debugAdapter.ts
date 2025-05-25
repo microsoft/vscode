@@ -114,6 +114,11 @@ export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 			});
 
 			this.socket.on('error', error => {
+				// On ipv6 posix this can be an AggregateError which lacks a message. Use the first.
+				if (error instanceof AggregateError) {
+					error = error.errors[0];
+				}
+
 				if (connected) {
 					this._onError.fire(error);
 				} else {

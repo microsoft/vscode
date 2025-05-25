@@ -9,8 +9,8 @@ const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 20) {
-		console.error('\x1b[1;31m*** Please use latest Node.js v20 LTS for development.\x1b[0;0m');
+	if (majorNodeVersion < 20 || (majorNodeVersion === 20 && minorNodeVersion < 18) || (majorNodeVersion === 20 && minorNodeVersion === 18 && patchNodeVersion < 1)) {
+		console.error('\x1b[1;31m*** Please use Node.js v20.18.1 or later for development.\x1b[0;0m');
 		throw new Error();
 	}
 }
@@ -23,6 +23,7 @@ if (process.env['npm_execpath'].includes('yarn')) {
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
+const os = require('os');
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
@@ -30,6 +31,11 @@ if (process.platform === 'win32') {
 		throw new Error();
 	}
 	installHeaders();
+}
+
+if (process.arch !== os.arch()) {
+	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
+	console.error(`\x1b[1;31m*** This can greatly increase the build time of vs code. ***\x1b[0;0m`);
 }
 
 function hasSupportedVisualStudioVersion() {

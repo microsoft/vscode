@@ -60,8 +60,9 @@ function npmInstall(dir, opts) {
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		run(npm, [command], opts);
+		run(npm, command.split(' '), opts);
 	}
+	removeParcelWatcherPrebuild(dir);
 }
 
 function setNpmrcConfig(dir, env) {
@@ -76,17 +77,47 @@ function setNpmrcConfig(dir, env) {
 		}
 	}
 
+	// Force node-gyp to use process.config on macOS
+	// which defines clang variable as expected. Otherwise we
+	// run into compilation errors due to incorrect compiler
+	// configuration.
+	// NOTE: This means the process.config should contain
+	// the correct clang variable. So keep the version check
+	// in preinstall sync with this logic.
+	// Change was first introduced in https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f
+	if ((dir === 'remote' || dir === 'build') && process.platform === 'darwin') {
+		env['npm_config_force_process_config'] = 'true';
+	} else {
+		delete env['npm_config_force_process_config'];
+	}
+
 	if (dir === 'build') {
 		env['npm_config_target'] = process.versions.node;
 		env['npm_config_arch'] = process.arch;
 	}
 }
 
+function removeParcelWatcherPrebuild(dir) {
+	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
+	if (!fs.existsSync(parcelModuleFolder)) {
+		return;
+	}
+
+	const parcelModules = fs.readdirSync(parcelModuleFolder);
+	for (const moduleName of parcelModules) {
+		if (moduleName.startsWith('watcher-')) {
+			const modulePath = path.join(parcelModuleFolder, moduleName);
+			fs.rmSync(modulePath, { recursive: true, force: true });
+			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
+		}
+	}
+}
+
 for (let dir of dirs) {
 
 	if (dir === '') {
-		// already executed in root
-		continue;
+		removeParcelWatcherPrebuild(dir);
+		continue; // already executed in root
 	}
 
 	let opts;
@@ -132,6 +163,8 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
 		setNpmrcConfig('remote', opts.env);
+		npmInstall(dir, opts);
+		continue;
 	}
 
 	npmInstall(dir, opts);

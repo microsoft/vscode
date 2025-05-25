@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -15,7 +15,7 @@ import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browse
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
-import { hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { hasNativeContextMenu, MenuSettings } from '../../../../platform/window/common/window.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from '../../../../platform/contextview/browser/contextMenuService.js';
@@ -26,13 +26,14 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export class ContextMenuService implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private impl: HTMLContextMenuService | NativeContextMenuService;
+	private listener?: IDisposable;
 
 	get onDidShowContextMenu(): Event<void> { return this.impl.onDidShowContextMenu; }
 	get onDidHideContextMenu(): Event<void> { return this.impl.onDidHideContextMenu; }
@@ -46,19 +47,38 @@ export class ContextMenuService implements IContextMenuService {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-
-		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
-			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
+		function createContextMenuService(native: boolean) {
+			return native ?
+				new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService)
+				: new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
-		// Native context menu: otherwise
-		else {
-			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService);
+		// set initial context menu service
+		let isNativeContextMenu = hasNativeContextMenu(configurationService);
+		this.impl = createContextMenuService(isNativeContextMenu);
+
+		// MacOS does not need a restart when the menu style changes
+		// It should update the context menu style on menu style configuration change
+		if (isMacintosh) {
+			this.listener = configurationService.onDidChangeConfiguration(e => {
+				if (!e.affectsConfiguration(MenuSettings.MenuStyle)) {
+					return;
+				}
+
+				const newIsNativeContextMenu = hasNativeContextMenu(configurationService);
+				if (newIsNativeContextMenu === isNativeContextMenu) {
+					return;
+				}
+
+				this.impl.dispose();
+				this.impl = createContextMenuService(newIsNativeContextMenu);
+				isNativeContextMenu = newIsNativeContextMenu;
+			});
 		}
 	}
 
 	dispose(): void {
+		this.listener?.dispose();
 		this.impl.dispose();
 	}
 
@@ -179,11 +199,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	}
 
 	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
-		const actionRunner = delegate.actionRunner || new ActionRunner();
-		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
+		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, onHide, submenuIds)));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, actionRunner: IActionRunner, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
 		// Separator
 		if (entry instanceof Separator) {
 			return { type: 'separator' };
@@ -226,7 +245,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					onHide();
 
 					// Run action which will close the menu
-					this.runAction(actionRunner, entry, delegate, event);
+					this.runAction(entry, delegate, event);
 				}
 			};
 
@@ -247,16 +266,19 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
+	private async runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
 		if (!delegate.skipTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 		}
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
-		const runnable = actionRunner.run(actionToRun, context);
 		try {
-			await runnable;
+			if (delegate.actionRunner) {
+				await delegate.actionRunner.run(actionToRun, context);
+			} else if (actionToRun.enabled) {
+				await actionToRun.run(context);
+			}
 		} catch (error) {
 			this.notificationService.error(error);
 		}

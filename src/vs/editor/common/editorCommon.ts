@@ -9,7 +9,7 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { ThemeColor } from '../../base/common/themables.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
 import { IEditorOptions } from './config/editorOptions.js';
-import { IDimension } from './core/dimension.js';
+import { IDimension } from './core/2d/dimension.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';
@@ -145,6 +145,15 @@ export interface IContentSizeChangedEvent {
 
 	readonly contentWidthChanged: boolean;
 	readonly contentHeightChanged: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface ITriggerEditorOperationEvent {
+	source: string | null | undefined;
+	handlerId: string;
+	payload: any;
 }
 
 export interface INewScrollPosition {
@@ -625,6 +634,7 @@ export interface IThemeDecorationRenderOptions {
 	fontStyle?: string;
 	fontWeight?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -770,4 +780,3 @@ export interface CompositionTypePayload {
 	replaceNextCharCnt: number;
 	positionDelta: number;
 }
-

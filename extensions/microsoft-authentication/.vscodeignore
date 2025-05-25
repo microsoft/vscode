@@ -12,3 +12,4 @@ vsc-extension-quickstart.md
 **/tslint.json
 **/*.map
 **/*.ts
+packageMocks/

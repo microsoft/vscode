@@ -1,6 +1,7 @@
 name: CI
 
 on: workflow_dispatch
+permissions: {}
 
 # on:
 #   push:
@@ -18,10 +19,11 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     env:
-      CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -29,7 +31,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "2.x"
+          python-version: "3.x"
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -57,6 +59,7 @@ jobs:
       - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
+          npm_config_foreground_scripts: "true"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: npm ci
@@ -82,7 +85,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: npm run test-browser-no-install --browser chromium
+        run: npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
@@ -103,12 +106,14 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
       - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxkbfile-dev pkg-config libkrb5-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo apt-get install -y libxkbfile-dev pkg-config libkrb5-dev libxss1 xvfb libgtk-3-0 libgbm1
           sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
@@ -162,7 +167,7 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -185,6 +190,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -238,7 +245,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
@@ -258,6 +265,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -298,6 +307,9 @@ jobs:
 
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
+
+      - name: Run Define Class Fields Checks
+        run: npm run define-class-fields-check
 
       - name: Compile /build/
         run: npm run compile

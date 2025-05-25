@@ -14,8 +14,8 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
 import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { IRecursiveWatcherOptions } from '../common/watcher.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IRecursiveWatcherOptions } from '../common/watcher.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -272,15 +272,17 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	// This is important because we want to ensure that we only
 	// forward events from the watched paths for this session and
 	// not other clients that asked to watch other paths.
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: { recursive: this.getRecursiveWatcherOptions(this.environmentService) } }));
+	private readonly fileWatcher: DiskFileSystemProvider;
 
 	constructor(
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
-		private readonly logService: ILogService,
+		logService: ILogService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
+
+		this.fileWatcher = this._register(new DiskFileSystemProvider(logService));
 
 		this.registerListeners(sessionEmitter);
 	}

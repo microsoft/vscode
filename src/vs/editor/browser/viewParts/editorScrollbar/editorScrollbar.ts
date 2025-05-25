@@ -16,6 +16,10 @@ import { getThemeTypeSelector } from '../../../../platform/theme/common/themeSer
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 
+/**
+ * The editor scrollbar built on VS Code's scrollable element that sits beside
+ * the minimap.
+ */
 export class EditorScrollbar extends ViewPart {
 
 	private readonly scrollbar: SmoothScrollableElement;

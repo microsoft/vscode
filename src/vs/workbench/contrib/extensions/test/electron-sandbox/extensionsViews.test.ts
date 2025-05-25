@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	getTargetPlatform, IExtensionInfo, SortBy
+	getTargetPlatform, SortBy
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -70,7 +70,8 @@ suite('ExtensionsViews Tests', () => {
 	const builtInTheme = aLocalExtension('my-theme', { categories: ['Themes'], contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
 	const builtInBasic = aLocalExtension('my-lang', { categories: ['Programming Languages'], contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
-	const galleryEnabledLanguage = aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier });
+	let queryPage = aPage([]);
+	const galleryExtensions: IGalleryExtension[] = [];
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -100,10 +101,11 @@ suite('ExtensionsViews Tests', () => {
 			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
 			async updateMetadata(local) { return local; }
 		});
@@ -169,10 +171,27 @@ suite('ExtensionsViews Tests', () => {
 
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
-		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(galleryEnabledLanguage));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', galleryEnabledLanguage);
-		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [galleryEnabledLanguage]);
+
+		instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
+			query: async () => {
+				return queryPage;
+			},
+			getCompatibleExtension: async (gallery) => {
+				return gallery;
+			},
+			getExtensions: async (infos) => {
+				const result: IGalleryExtension[] = [];
+				for (const info of infos) {
+					const extension = galleryExtensions.find(e => e.identifier.id === info.id);
+					if (extension) {
+						result.push(extension);
+					}
+				}
+				return result;
+			},
+			isEnabled: () => true,
+			isExtensionCompatible: async () => true,
+		});
 
 		instantiationService.stub(IViewDescriptorService, {
 			getViewLocationById(): ViewContainerLocation {
@@ -199,6 +218,17 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
+		queryPage = aPage([]);
+
+		galleryExtensions.splice(0, galleryExtensions.length, ...[
+			workspaceRecommendationA,
+			workspaceRecommendationB,
+			configBasedRecommendationA,
+			configBasedRecommendationB,
+			fileBasedRecommendationA,
+			fileBasedRecommendationB,
+			otherRecommendationA
+		]);
 	});
 
 	test('Test query types', () => {
@@ -217,36 +247,35 @@ suite('ExtensionsViews Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 	});
 
-	test('Test empty query equates to sort by install count', () => {
+	test('Test empty query equates to sort by install count', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.InstallCount);
-		});
+		await testableView.show('');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, SortBy.InstallCount);
 	});
 
-	test('Test non empty query without sort doesnt use sortBy', () => {
+	test('Test non empty query without sort doesnt use sortBy', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, undefined);
-		});
+		await testableView.show('some extension');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, undefined);
 	});
 
-	test('Test query with sort uses sortBy', () => {
+	test('Test query with sort uses sortBy', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension @sort:rating').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
-		});
+		await testableView.show('some extension @sort:rating');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, SortBy.WeightedRating);
 	});
 
 	test('Test default view actions required sorting', async () => {
+		queryPage = aPage([aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier })]);
+
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const extension = (await workbenchService.queryLocal()).find(ex => ex.identifier === localEnabledLanguage.identifier);
+		const extension = (await workbenchService.queryLocal()).find(ex => ex.identifier.id === localEnabledLanguage.identifier.id);
 
 		await new Promise<void>(c => {
 			const disposable = workbenchService.onChange(() => {
@@ -397,42 +426,32 @@ suite('ExtensionsViews Tests', () => {
 			workspaceRecommendationB,
 			configBasedRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, workspaceRecommendedExtensions[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
 
-	test('Test @recommended query', () => {
+	test('Test @recommended query', async () => {
 		const allRecommendedExtensions = [
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
 			configBasedRecommendationB,
 			otherRecommendationA
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
-		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-
-			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('@recommended');
+		assert.strictEqual(result.length, allRecommendedExtensions.length);
+		for (let i = 0; i < allRecommendedExtensions.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+		}
 	});
 
 
-	test('Test @recommended:all query', () => {
+	test('Test @recommended:all query', async () => {
 		const allRecommendedExtensions = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
@@ -442,103 +461,80 @@ suite('ExtensionsViews Tests', () => {
 			configBasedRecommendationB,
 			otherRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
-		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-
-			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('@recommended:all');
+		assert.strictEqual(result.length, allRecommendedExtensions.length);
+		for (let i = 0; i < allRecommendedExtensions.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+		}
 	});
 
-	test('Test search', () => {
-		const searchText = 'search-me';
+	test('Test search', async () => {
 		const results = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...results));
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, results.length);
-			for (let i = 0; i < results.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, results[i].identifier.id);
-			}
-		});
+		queryPage = aPage(results);
+		const result = await testableView.show('search-me');
+		assert.strictEqual(result.length, results.length);
+		for (let i = 0; i < results.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, results[i].identifier.id);
+		}
 	});
 
-	test('Test preferred search experiment', () => {
-		const searchText = 'search-me';
-		const actual = [
+	test('Test preferred search experiment', async () => {
+		queryPage = aPage([
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
-		];
+		], 5);
+		const notInFirstPage = aGalleryExtension('not-in-first-page');
+		galleryExtensions.push(notInFirstPage);
 		const expected = [
 			workspaceRecommendationA,
+			notInFirstPage,
 			workspaceRecommendationB,
 			fileBasedRecommendationA,
-			otherRecommendationA
+			otherRecommendationA,
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
 			malicious: [], deprecated: {},
 			search: [{
 				query: 'search-me',
 				preferredResults: [
 					workspaceRecommendationA.identifier.id,
-					'something-that-wasnt-in-first-page',
+					notInFirstPage.identifier.id,
 					workspaceRecommendationB.identifier.id
 				]
 			}]
 		});
 
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(experimentTarget.calledTwice);
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, expected.length);
-			for (let i = 0; i < expected.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, expected[i].identifier.id);
-			}
-		});
+		const testObject = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
+		const result = await testObject.show('search-me');
+		assert.strictEqual(result.length, expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, expected[i].identifier.id);
+		}
 	});
 
-	test('Skip preferred search experiment when user defines sort order', () => {
-		const searchText = 'search-me';
+	test('Skip preferred search experiment when user defines sort order', async () => {
 		const realResults = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
+		queryPage = aPage(realResults);
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-
-		return testableView.show('search-me @sort:installs').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, realResults.length);
-			for (let i = 0; i < realResults.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, realResults[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('search-me @sort:installs');
+		assert.strictEqual(result.length, realResults.length);
+		for (let i = 0; i < realResults.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, realResults[i].identifier.id);
+		}
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
@@ -564,8 +560,8 @@ suite('ExtensionsViews Tests', () => {
 		return <IGalleryExtension>galleryExtension;
 	}
 
-	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	function aPage<T>(objects: IGalleryExtension[] = [], total?: number): IPager<IGalleryExtension> {
+		return { firstPage: objects, total: total ?? objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
 });

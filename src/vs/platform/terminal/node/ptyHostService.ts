@@ -63,8 +63,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
-	private _heartbeatFirstTimeout?: NodeJS.Timeout;
-	private _heartbeatSecondTimeout?: NodeJS.Timeout;
+	private _heartbeatFirstTimeout?: Timeout;
+	private _heartbeatSecondTimeout?: Timeout;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<number>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
@@ -290,9 +290,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	uninstallAllAutoReplies(): Promise<void> {
 		return this._proxy.uninstallAllAutoReplies();
-	}
-	uninstallAutoReply(match: string): Promise<void> {
-		return this._proxy.uninstallAutoReply(match);
 	}
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {

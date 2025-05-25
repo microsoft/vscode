@@ -298,7 +298,7 @@ export class ScopedProgressIndicator extends Disposable implements IProgressIndi
 
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressIndicatorState.Type.While) {
-			promise = Promise.all([promise, this.progressState.whilePromise]);
+			promise = Promise.allSettled([promise, this.progressState.whilePromise]);
 		}
 
 		// Keep Promise in State

@@ -16,13 +16,14 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { Memento } from '../../../common/memento.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
-import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
-import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
@@ -65,10 +66,25 @@ export class ChatEditor extends EditorPane {
 				ChatWidget,
 				ChatAgentLocation.Panel,
 				undefined,
-				{ supportsFileReferences: true },
+				{
+					autoScroll: mode => mode !== ChatMode.Ask,
+					renderFollowups: true,
+					supportsFileReferences: true,
+					rendererOptions: {
+						renderTextEditsAsSummary: (uri) => {
+							return true;
+						},
+						referencesExpandedWhenEmptyResponse: false,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
+					},
+					enableImplicitContext: true,
+					enableWorkingSet: 'explicit',
+					supportsChangingModes: true,
+				},
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
@@ -120,9 +136,16 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
+
+			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.inputState = widgetViewState.inputState;
 			this._memento.saveMemento();
 		}
+	}
+
+	override getViewState(): object | undefined {
+		return { ...this._viewState };
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {

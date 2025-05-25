@@ -307,18 +307,26 @@ export class BulkFileOperations {
 		return result;
 	}
 
-	getFileEdits(uri: URI): ISingleEditOperation[] {
+	private async getFileEditOperation(edit: ResourceFileEdit): Promise<ISingleEditOperation | undefined> {
+		const content = await edit.options.contents;
+		if (!content) { return undefined; }
+		return EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString());
+	}
+
+	async getFileEdits(uri: URI): Promise<ISingleEditOperation[]> {
 
 		for (const file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
 
-				const result: ISingleEditOperation[] = [];
+				const result: Promise<ISingleEditOperation | undefined>[] = [];
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
-					if (edit instanceof ResourceTextEdit) {
+					if (edit instanceof ResourceFileEdit) {
+						result.push(this.getFileEditOperation(edit));
+					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
+							result.push(Promise.resolve(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text))));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {
@@ -331,7 +339,7 @@ export class BulkFileOperations {
 					return [];
 				}
 
-				return result.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+				return (await Promise.all(result)).filter(r => r !== undefined).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			}
 		}
 		return [];
@@ -402,7 +410,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 			model.applyEdits(undoEdits);
 		}
 		// apply new edits and keep (future) undo edits
-		const newEdits = this._operations.getFileEdits(uri);
+		const newEdits = await this._operations.getFileEdits(uri);
 		const newUndoEdits = model.applyEdits(newEdits, true);
 		this._modelPreviewEdits.set(model.id, newUndoEdits);
 	}

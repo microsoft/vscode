@@ -130,7 +130,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 			let altAction: SymbolNavigationAction | null | undefined;
 			if (references.referenceAt(model.uri, position)) {
 				const altActionId = this._getAlternativeCommand(editor);
-				if (!SymbolNavigationAction._activeAlternativeCommands.has(altActionId) && SymbolNavigationAction._allSymbolNavigationCommands.has(altActionId)) {
+				if (altActionId !== undefined && !SymbolNavigationAction._activeAlternativeCommands.has(altActionId) && SymbolNavigationAction._allSymbolNavigationCommands.has(altActionId)) {
 					altAction = SymbolNavigationAction._allSymbolNavigationCommands.get(altActionId)!;
 				}
 			}
@@ -170,7 +170,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 
 	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
-	protected abstract _getAlternativeCommand(editor: IActiveCodeEditor): string;
+	protected abstract _getAlternativeCommand(editor: IActiveCodeEditor): string | undefined;
 
 	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
 
@@ -761,7 +761,9 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
 	}
 
-	protected _getAlternativeCommand() { return ''; }
+	protected _getAlternativeCommand(): undefined {
+		return undefined;
+	}
 }
 
 CommandsRegistry.registerCommand({

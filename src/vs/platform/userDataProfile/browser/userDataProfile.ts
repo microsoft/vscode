@@ -88,17 +88,10 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
-		const migrateKey = 'profileAssociationsMigration';
 		try {
 			const value = localStorage.getItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY);
 			if (value) {
-				let associations: StoredProfileAssociations = JSON.parse(value);
-				if (!localStorage.getItem(migrateKey)) {
-					associations = this.migrateStoredProfileAssociations(associations);
-					this.saveStoredProfileAssociations(associations);
-					localStorage.setItem(migrateKey, 'true');
-				}
-				return associations;
+				return JSON.parse(value);
 			}
 		} catch (error) {
 			/* ignore */

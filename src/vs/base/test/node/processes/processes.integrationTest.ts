@@ -13,7 +13,7 @@ import * as processes from '../../../node/processes.js';
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
 		env: objects.mixin(objects.deepClone(process.env), {
-			VSCODE_AMD_ENTRYPOINT: id,
+			VSCODE_ESM_ENTRYPOINT: id,
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: true
 		})

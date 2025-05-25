@@ -21,7 +21,6 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from './comments.js';
 import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from './commentsViewActions.js';
@@ -37,6 +36,9 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import type { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -145,11 +147,10 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -162,7 +163,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				text: viewState['filter'] || '',
 				focusContextKey: CommentsViewFilterFocusContextKey.key
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.hasCommentsContextKey = CONTEXT_KEY_HAS_COMMENTS.bindTo(contextKeyService);
 		this.someCommentsExpandedContextKey = CONTEXT_KEY_SOME_COMMENTS_EXPANDED.bindTo(contextKeyService);
 		this.commentsFocusedContextKey = CONTEXT_KEY_COMMENT_FOCUSED.bindTo(contextKeyService);
@@ -335,54 +336,67 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.messageBoxContainer.classList.toggle('hidden', this.commentService.commentsModel.hasCommentThreads());
 	}
 
+	private makeCommentLocationLabel(file: URI, range?: IRange) {
+		const fileLabel = basename(file);
+		if (!range) {
+			return nls.localize('fileCommentLabel', "in {0}", fileLabel);
+		}
+		if (range.startLineNumber === range.endLineNumber) {
+			return nls.localize('oneLineCommentLabel', "at line {0} column {1} in {2}", range.startLineNumber, range.startColumn, fileLabel);
+		} else {
+			return nls.localize('multiLineCommentLabel', "from line {0} to line {1} in {2}", range.startLineNumber, range.endLineNumber, fileLabel);
+		}
+	}
+
+	private makeScreenReaderLabelInfo(element: CommentNode, forAriaLabel?: boolean) {
+		const userName = element.comment.userName;
+		const locationLabel = this.makeCommentLocationLabel(element.resource, element.range);
+		const replyCountLabel = this.getReplyCountAsString(element, forAriaLabel);
+		const bodyLabel = (typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value;
+
+		return { userName, locationLabel, replyCountLabel, bodyLabel };
+	}
+
 	private getScreenReaderInfoForNode(element: CommentNode, forAriaLabel?: boolean): string {
 		let accessibleViewHint = '';
 		if (forAriaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
-			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
+			accessibleViewHint = kbLabel ? nls.localize('accessibleViewHint', "\nInspect this in the accessible view ({0}).", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "\nInspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
 		}
-		const replyCount = this.getReplyCountAsString(element, forAriaLabel);
 		const replies = this.getRepliesAsString(element, forAriaLabel);
-		if (element.range) {
-			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from {0} at line {1} column {2} in {3},{4} comment: {5}",
-					element.comment.userName,
-					element.range.startLineNumber,
-					element.range.startColumn,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
-			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"{0} at line {1} column {2} in {3},{4} comment: {5}",
-					element.comment.userName,
-					element.range.startLineNumber,
-					element.range.startColumn,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
-				) + replies;
+		const editor = this.editorService.findEditors(element.resource);
+		const codeEditor = this.editorService.activeEditorPane?.getControl();
+		let relevantLines;
+		if (element.range && editor?.length && isCodeEditor(codeEditor)) {
+			relevantLines = codeEditor.getModel()?.getValueInRange(element.range);
+			if (relevantLines) {
+				relevantLines = '\nCorresponding code: \n' + relevantLines;
 			}
+		}
+		if (!relevantLines) {
+			relevantLines = '';
+		}
+
+		const labelInfo = this.makeScreenReaderLabelInfo(element, forAriaLabel);
+
+		if (element.threadRelevance === CommentThreadApplicability.Outdated) {
+			return nls.localize('resourceWithCommentLabelOutdated',
+				"Outdated from {0}: {1}\n{2}\n{3}\n{4}",
+				labelInfo.userName,
+				labelInfo.bodyLabel,
+				labelInfo.locationLabel,
+				labelInfo.replyCountLabel,
+				relevantLines
+			) + replies + accessibleViewHint;
 		} else {
-			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1},{2} comment: {3}",
-					element.comment.userName,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
-			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1},{2} comment: {3}",
-					element.comment.userName,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
-			}
+			return nls.localize('resourceWithCommentLabel',
+				"{0}: {1}\n{2}\n{3}\n{4}",
+				labelInfo.userName,
+				labelInfo.bodyLabel,
+				labelInfo.locationLabel,
+				labelInfo.replyCountLabel,
+				relevantLines
+			) + replies + accessibleViewHint;
 		}
 	}
 

@@ -20,3 +20,21 @@ export const OpenEditorCommandId = 'search.action.openEditor';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
 
 export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+export type SearchConfiguration = {
+	query: string;
+	filesToInclude: string;
+	filesToExclude: string;
+	contextLines: number;
+	matchWholeWord: boolean;
+	isCaseSensitive: boolean;
+	isRegexp: boolean;
+	useExcludeSettingsAndIgnoreFiles: boolean;
+	showIncludesExcludes: boolean;
+	onlyOpenEditors: boolean;
+	notebookSearchConfig: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
+};
