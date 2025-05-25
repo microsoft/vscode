@@ -47,7 +47,7 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 				severities.add(marker.severity);
 
 				items.push({
-					label: marker.message,
+					label: marker.message.toString(),
 					description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
 					asAttachment() {
 						return IDiagnosticVariableEntryFilterData.toEntry(IDiagnosticVariableEntryFilterData.fromMarker(marker));

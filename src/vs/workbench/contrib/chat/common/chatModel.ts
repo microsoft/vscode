@@ -150,7 +150,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 		return {
 			filterUri: marker.resource,
 			owner: marker.owner,
-			problemMessage: marker.message,
+			problemMessage: marker.message.toString(),
 			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
 		};
 	}
