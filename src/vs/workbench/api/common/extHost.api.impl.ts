@@ -366,7 +366,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
-			}
+			},
+			conditionallyExecuteCommand<T>(when: string, id: string, ...args: any[]): Thenable<{ executed: boolean; result: T | undefined }> {
+				checkProposedApiEnabled(extension, 'conditionallyExecuteCommand');
+				return extHostCommands.conditionallyExecuteCommand<T>(when, id, ...args);
+			},
 		};
 
 		// namespace: env

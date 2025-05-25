@@ -10,6 +10,7 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 suite('MainThreadCommands', function () {
 
@@ -17,7 +18,7 @@ suite('MainThreadCommands', function () {
 
 	test('dispose on unregister', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { }, new class extends mock<IContextKeyService>() { });
 		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 
 		// register
@@ -34,7 +35,7 @@ suite('MainThreadCommands', function () {
 
 	test('unregister all on dispose', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { }, new class extends mock<IContextKeyService>() { });
 		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 
 		commands.$registerCommand('foo');
@@ -67,7 +68,8 @@ suite('MainThreadCommands', function () {
 					activations.push(id);
 					return Promise.resolve();
 				}
-			}
+			},
+			new class extends mock<IContextKeyService>() { }
 		);
 
 		// case 1: arguments and retry
