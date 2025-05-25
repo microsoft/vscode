@@ -50,8 +50,8 @@ _This is italic text_
 				code: '',
 				message,
 				range: new vscode.Range(
-					new vscode.Position(8, 4),
-					new vscode.Position(8, 10)
+					new vscode.Position(8, 1),
+					new vscode.Position(8, 7)
 				),
 				severity: vscode.DiagnosticSeverity.Error,
 				source: '',
