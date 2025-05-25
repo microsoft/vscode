@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { Event } from '../common/event.js';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -26,8 +26,8 @@ import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
-export interface MarkedOptions extends marked.MarkedOptions {
-	baseUrl?: never;
+export interface MarkedOptions extends Readonly<Omit<marked.MarkedOptions, 'extensions' | 'baseUrl'>> {
+	readonly markedExtensions?: marked.MarkedExtension[];
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
@@ -99,13 +99,14 @@ const defaultMarkedRenderers = Object.freeze({
  * **Note** that for most cases you should be using {@link import('../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js').MarkdownRenderer MarkdownRenderer}
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: Readonly<MarkedOptions> = {}): { element: HTMLElement; dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
 	const element = createElement(options);
 
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(options, markdown);
+	const markedInstance = new marked.Marked(...(markedOptions.markedExtensions ?? []));
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
@@ -116,11 +117,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			...markedOptions,
 			renderer
 		};
-		const tokens = marked.lexer(value, opts);
+		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
-		renderedMarkdown = marked.parser(newTokens, opts);
+		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = marked.parse(value, { ...markedOptions, renderer, async: false });
+		renderedMarkdown = markedInstance.parse(value, { ...markedOptions, renderer, async: false });
 	}
 
 	// Rewrite theme icons
@@ -243,7 +244,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 	}
 }
 
-function createMarkdownRenderer(options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer();
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
@@ -527,6 +528,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
+		Schemas.vscodeNotebookCell
 	];
 
 	if (options.isTrusted) {
@@ -552,7 +554,7 @@ function getSanitizerOptions(options: IInternalSanitizerOptions): { config: domp
  * `# Header` would be output as `Header`. If it's not, the string is returned.
  */
 export function renderStringAsPlaintext(string: IMarkdownString | string) {
-	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
+	return isMarkdownString(string) ? renderMarkdownAsPlaintext(string) : string;
 }
 
 /**
@@ -585,7 +587,7 @@ const unescapeInfo = new Map<string, string>([
 	['&gt;', '>'],
 ]);
 
-function createRenderer(): marked.Renderer {
+function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
@@ -647,10 +649,10 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createRenderer);
+const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createRenderer();
+	const renderer = createPlainTextRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
 		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};
@@ -772,9 +774,25 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 		codespan
 	*/
 
+	const listEndsInHeading = (list: marked.Tokens.List): boolean => {
+		// A list item can be rendered as a heading for some reason when it has a subitem where we haven't rendered the text yet like this:
+		// 1. list item
+		//    -
+		const lastItem = list.items.at(-1);
+		const lastToken = lastItem?.tokens.at(-1);
+		return lastToken?.type === 'heading' || lastToken?.type === 'list' && listEndsInHeading(lastToken as marked.Tokens.List);
+	};
+
 	let newToken: marked.Token | undefined;
 	if (lastListSubToken?.type === 'text' && !('inRawBlock' in lastListItem)) { // Why does Tag have a type of 'text'
 		newToken = completeSingleLinePattern(lastListSubToken as marked.Tokens.Text);
+	} else if (listEndsInHeading(list)) {
+		const newList = marked.lexer(list.raw.trim() + ' &nbsp;')[0] as marked.Tokens.List;
+		if (newList.type !== 'list') {
+			// Something went wrong
+			return;
+		}
+		return newList;
 	}
 
 	if (!newToken || newToken.type !== 'paragraph') { // 'text' item inside the list item turns into paragraph

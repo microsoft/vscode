@@ -39,8 +39,10 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				{ label: localize('accept', "Accept"), data: confirmation.data },
 				{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 			];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, buttons));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, undefined, confirmation.message, buttons, context.container));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
+
+		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
@@ -51,7 +53,9 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.agentId = element.agent?.id;
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = e.label;
-				options.userSelectedModelId = chatWidgetService.getWidgetBySessionId(element.sessionId)?.input.currentLanguageModel;
+				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				options.mode = widget?.input.currentMode;
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);

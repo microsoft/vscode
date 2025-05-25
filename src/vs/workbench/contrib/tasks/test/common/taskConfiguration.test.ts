@@ -20,6 +20,7 @@ import { IContext } from '../../../../../platform/contextkey/common/contextkey.j
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITaskDefinitionRegistry } from '../../common/taskDefinitionRegistry.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -598,6 +599,8 @@ function assertProblemPattern(actual: IProblemPattern, expected: IProblemPattern
 }
 
 suite('Tasks version 0.1.0', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('tasks: all default', () => {
 		const builder = new ConfigurationBuilder();
 		builder.task('tsc', 'tsc').
@@ -1497,6 +1500,8 @@ suite('Tasks version 0.1.0', () => {
 });
 
 suite('Tasks version 2.0.0', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test.skip('Build workspace task', () => {
 		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
@@ -1677,6 +1682,8 @@ suite('Tasks version 2.0.0', () => {
 });
 
 suite('Bugs / regression tests', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
 		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -1784,6 +1791,8 @@ class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
 }
 
 suite('Task configuration conversions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const globals = {} as IGlobals;
 	const taskConfigSource = {} as TaskConfigSource;
 	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();

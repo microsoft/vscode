@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode, EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode, EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT, IAllowedExtensionsService, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -55,7 +55,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 
 	override async installFromGallery(extension: IGalleryExtension, installOptions: InstallOptions = {}): Promise<ILocalExtension> {
 		if (isUndefined(installOptions.donotVerifySignature)) {
-			const value = this.configurationService.getValue('extensions.verifySignature');
+			const value = this.configurationService.getValue(VerifyExtensionSignatureConfigKey);
 			installOptions.donotVerifySignature = isBoolean(value) ? !value : undefined;
 		}
 		const local = await this.doInstallFromGallery(extension, installOptions);
@@ -64,7 +64,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 	}
 
 	private async doInstallFromGallery(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
-		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
+		if (installOptions.downloadExtensionsLocally || this.configurationService.getValue('remote.downloadExtensionsLocally')) {
 			return this.downloadAndInstall(extension, installOptions);
 		}
 		try {

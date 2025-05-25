@@ -5,7 +5,7 @@
 
 import { IIdentityProvider } from '../list/list.js';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree.js';
-import { splice, tail2 } from '../../../common/arrays.js';
+import { splice, tail } from '../../../common/arrays.js';
 import { Delayer } from '../../../common/async.js';
 import { MicrotaskDelay } from '../../../common/symbols.js';
 import { LcsDiff } from '../../../common/diff/diff.js';
@@ -27,8 +27,8 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	lastDiffIds?: string[];
 }
 
-export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
-	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+export function isFilterResult<T>(obj: unknown): obj is ITreeFilterDataResult<T> {
+	return !!obj && (<ITreeFilterDataResult<T>>obj).visibility !== undefined;
 }
 
 export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
@@ -762,7 +762,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		} else if (location.length === 1) {
 			return [];
 		} else {
-			return tail2(location)[0];
+			return tail(location)[0];
 		}
 	}
 

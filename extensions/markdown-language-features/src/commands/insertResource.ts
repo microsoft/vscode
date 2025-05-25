@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
-import { createUriListSnippet, linkEditKind, mediaFileExtensions } from '../languageFeatures/copyFiles/shared';
+import { createUriListSnippet, linkEditKind } from '../languageFeatures/copyFiles/shared';
+import { mediaFileExtensions } from '../util/mimes';
 import { coalesce } from '../util/arrays';
 import { getParentDocumentUri } from '../util/document';
 import { Schemes } from '../util/schemes';

@@ -15,7 +15,7 @@ import { conditionalRegistration, requireGlobalConfiguration } from './util/depe
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FileConfigurationManager
+		private readonly fileConfigurationManager: FileConfigurationManager
 	) { }
 
 	public async provideDocumentRangeFormattingEdits(
@@ -29,7 +29,7 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fileConfigurationManager.ensureConfigurationOptions(document, options, token);
 
 		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
 		const response = await this.client.execute('format', args, token);
@@ -52,7 +52,7 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 			return [];
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fileConfigurationManager.ensureConfigurationOptions(document, options, token);
 
 		const args: Proto.FormatOnKeyRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),

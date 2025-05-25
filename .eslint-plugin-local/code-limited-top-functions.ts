@@ -14,13 +14,13 @@ export = new class implements eslint.Rule.RuleModule {
 			layerbreaker: 'You are only allowed to define limited top level functions.'
 		},
 		schema: {
-			type: "array",
+			type: 'array',
 			items: {
-				type: "object",
+				type: 'object',
 				additionalProperties: {
-					type: "array",
+					type: 'array',
 					items: {
-						type: "string"
+						type: 'string'
 					}
 				}
 			}
@@ -65,6 +65,6 @@ export = new class implements eslint.Rule.RuleModule {
 					}
 				}
 			}
-		}
+		};
 	}
 };

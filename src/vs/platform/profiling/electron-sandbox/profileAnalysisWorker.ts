@@ -6,20 +6,16 @@
 import { basename } from '../../../base/common/path.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
-import { IRequestHandler, IWorkerServer } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { IV8Profile, Utils } from '../common/profiling.js';
 import { IProfileModel, BottomUpSample, buildModel, BottomUpNode, processNode, CdpCallFrame } from '../common/profilingModel.js';
 import { BottomUpAnalysis, IProfileAnalysisWorker, ProfilingOutput } from './profileAnalysisWorkerService.js';
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(workerServer: IWorkerServer): IRequestHandler {
+export function create(): IWebWorkerServerRequestHandler {
 	return new ProfileAnalysisWorker();
 }
 
-class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
+class ProfileAnalysisWorker implements IWebWorkerServerRequestHandler, IProfileAnalysisWorker {
 
 	_requestHandlerBrand: any;
 

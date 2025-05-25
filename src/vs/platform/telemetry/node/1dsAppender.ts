@@ -105,7 +105,7 @@ export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
-			sendPOST: (payload: IPayloadData, oncomplete) => {
+			sendPOST: (payload: IPayloadData, oncomplete: OnCompleteFunc) => {
 				// Fire off the async request without awaiting it
 				sendPostAsync(requestService, payload, oncomplete);
 			}

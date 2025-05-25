@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -94,7 +94,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		if (!hoverParts.length) {
 			return new RenderedHoverParts([]);
 		}
-		const disposables = new DisposableStore();
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
 			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
@@ -102,8 +101,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			renderedHoverParts.push(renderedMarkerHover);
 		});
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return new RenderedHoverParts(renderedHoverParts);
+		const disposables = this._renderMarkerStatusbar(context, markerHoverForStatusbar);
+		return new RenderedHoverParts(renderedHoverParts, disposables);
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
@@ -184,7 +183,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return renderedHoverPart;
 	}
 
-	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
+	private _renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover): IDisposable {
+		const disposables = new DisposableStore();
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			const markerController = MarkerController.get(this._editor);
 			if (markerController) {
@@ -269,6 +269,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 			}, onUnexpectedError);
 		}
+		return disposables;
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {

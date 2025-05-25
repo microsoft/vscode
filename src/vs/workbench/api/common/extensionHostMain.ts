@@ -11,7 +11,7 @@ import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
 import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
 import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { RPCProtocol } from '../../services/extensions/common/rpcProtocol.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionError, ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { getSingletonServiceDescriptors } from '../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
@@ -119,15 +119,24 @@ export abstract class ErrorHandler {
 			logService.error(err);
 
 			const errorData = errors.transformErrorForSerialization(err);
-			const stackData = extensionErrors.get(err);
-			if (!stackData?.extensionIdentifier) {
-				mainThreadErrors.$onUnexpectedError(errorData);
-				return;
+
+			let extension: ExtensionIdentifier | undefined;
+			if (err instanceof ExtensionError) {
+				extension = err.extension;
+			} else {
+				const stackData = extensionErrors.get(err);
+				extension = stackData?.extensionIdentifier;
 			}
 
-			mainThreadExtensions.$onExtensionRuntimeError(stackData.extensionIdentifier, errorData);
-			const reported = extensionTelemetry.onExtensionError(stackData.extensionIdentifier, err);
-			logService.trace('forwarded error to extension?', reported, stackData);
+			if (extension) {
+				mainThreadExtensions.$onExtensionRuntimeError(extension, errorData);
+				const reported = extensionTelemetry.onExtensionError(extension, err);
+				logService.trace('forwarded error to extension?', reported, extension);
+			}
+		});
+
+		errors.errorHandler.addListener(err => {
+			mainThreadErrors.$onUnexpectedError(err);
 		});
 	}
 }
@@ -205,7 +214,6 @@ export class ExtensionHostMain {
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.environment.workspaceStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.workspaceStorageHome));
-		initData.environment.extensionTelemetryLogResource = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTelemetryLogResource));
 		initData.nlsBaseUrl = URI.revive(rpcProtocol.transformIncomingURIs(initData.nlsBaseUrl));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);

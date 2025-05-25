@@ -21,7 +21,7 @@ import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from '../../
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorServiceImpl } from '../../../browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { coalesce, remove } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from '../../../../base/browser/dom.js';
@@ -60,7 +60,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
 
-	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
+	private readonly editorHelper: EditorHelper;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -76,6 +76,21 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.editorHelper = this.instantiationService.createInstance(EditorHelper);
+
+		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
+
+		this.canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+
+		this.canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+
+		this.canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 		this.registerListeners();
 
@@ -302,18 +317,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region History Context Keys
 
-	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardContextKey: IContextKey<boolean>;
 
-	private readonly canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackInNavigationsContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardInNavigationsContextKey: IContextKey<boolean>;
+	private readonly canNavigateToLastNavigationLocationContextKey: IContextKey<boolean>;
 
-	private readonly canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackInEditsContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardInEditsContextKey: IContextKey<boolean>;
+	private readonly canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
 
-	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
+	private readonly canReopenClosedEditorContextKey: IContextKey<boolean>;
 
 	updateContextKeys(): void {
 		this.contextKeyService.bufferChangeEvents(() => {
@@ -1257,27 +1272,35 @@ interface IEditorNavigationStacks extends IDisposable {
 
 class EditorNavigationStacks extends Disposable implements IEditorNavigationStacks {
 
-	private readonly selectionsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE, this.scope));
-	private readonly editsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.EDITS, this.scope));
-	private readonly navigationsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NAVIGATION, this.scope));
+	private readonly selectionsStack: EditorNavigationStack;
+	private readonly editsStack: EditorNavigationStack;
+	private readonly navigationsStack: EditorNavigationStack;
 
-	private readonly stacks: EditorNavigationStack[] = [
-		this.selectionsStack,
-		this.editsStack,
-		this.navigationsStack
-	];
+	private readonly stacks: EditorNavigationStack[];
 
-	readonly onDidChange = Event.any(
-		this.selectionsStack.onDidChange,
-		this.editsStack.onDidChange,
-		this.navigationsStack.onDidChange
-	);
+	readonly onDidChange: Event<void>;
 
 	constructor(
 		private readonly scope: GoScope,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		this.selectionsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE, this.scope));
+		this.editsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.EDITS, this.scope));
+		this.navigationsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NAVIGATION, this.scope));
+
+		this.stacks = [
+			this.selectionsStack,
+			this.editsStack,
+			this.navigationsStack
+		];
+
+		this.onDidChange = Event.any(
+			this.selectionsStack.onDidChange,
+			this.editsStack.onDidChange,
+			this.navigationsStack.onDidChange
+		);
 	}
 
 	canGoForward(filter?: GoFilter): boolean {
@@ -1414,7 +1437,7 @@ export class EditorNavigationStack extends Disposable {
 	private readonly mapEditorToDisposable = new Map<EditorInput, DisposableStore>();
 	private readonly mapGroupToDisposable = new Map<GroupIdentifier, IDisposable>();
 
-	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
+	private readonly editorHelper: EditorHelper;
 
 	private stack: IEditorNavigationStackEntry[] = [];
 
@@ -1438,12 +1461,14 @@ export class EditorNavigationStack extends Disposable {
 	constructor(
 		private readonly filter: GoFilter,
 		private readonly scope: GoScope,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.editorHelper = instantiationService.createInstance(EditorHelper);
 
 		this.registerListeners();
 	}
