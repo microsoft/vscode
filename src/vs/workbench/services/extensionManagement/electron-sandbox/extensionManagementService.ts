@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ILocalExtension, IExtensionGalleryService, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IExtensionGalleryService, InstallOptions, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ExtensionManagementService as BaseExtensionManagementService } from '../common/extensionManagementService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -26,6 +26,7 @@ import { IUserDataProfileService } from '../../userDataProfile/common/userDataPr
 import { IExtensionsScannerService } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -46,6 +47,8 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionsScannerService extensionsScannerService: IExtensionsScannerService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(
@@ -64,6 +67,8 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 			logService,
 			instantiationService,
 			extensionsScannerService,
+			allowedExtensionsService,
+			storageService,
 			telemetryService
 		);
 	}

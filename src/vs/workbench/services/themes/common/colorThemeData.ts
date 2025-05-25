@@ -6,7 +6,7 @@
 import { basename } from '../../../../base/common/path.js';
 import * as Json from '../../../../base/common/json.js';
 import { Color } from '../../../../base/common/color.js';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from './workbenchThemeService.js';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD } from './workbenchThemeService.js';
 import { convertSettings } from './themeCompatibility.js';
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
@@ -23,7 +23,7 @@ import { IExtensionResourceLoaderService } from '../../../../platform/extensionR
 import { CharCode } from '../../../../base/common/charCode.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeConfiguration } from './themeConfiguration.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { ColorId, FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
 import { toStandardTokenType } from '../../../../editor/common/languages/supports/tokenization.js';
 
@@ -584,8 +584,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
-	get baseTheme(): string {
-		return this.classNames[0];
+	get themeTypeSelector(): ThemeTypeSelector {
+		return this.classNames[0] as ThemeTypeSelector;
 	}
 
 	get classNames(): string[] {
@@ -593,10 +593,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	get type(): ColorScheme {
-		switch (this.baseTheme) {
-			case VS_LIGHT_THEME: return ColorScheme.LIGHT;
-			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST_DARK;
-			case VS_HC_LIGHT_THEME: return ColorScheme.HIGH_CONTRAST_LIGHT;
+		switch (this.themeTypeSelector) {
+			case ThemeTypeSelector.VS: return ColorScheme.LIGHT;
+			case ThemeTypeSelector.HC_BLACK: return ColorScheme.HIGH_CONTRAST_DARK;
+			case ThemeTypeSelector.HC_LIGHT: return ColorScheme.HIGH_CONTRAST_LIGHT;
 			default: return ColorScheme.DARK;
 		}
 	}
@@ -821,13 +821,11 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 		return -1;
 	}
 
-	let lastIndex = 0;
 	let score: number | undefined = undefined;
-	const every = identifiers.every((identifier, identifierIndex) => {
-		for (let i = lastIndex; i < scopes.length; i++) {
+	const every = identifiers.every((identifier) => {
+		for (let i = scopes.length - 1; i >= 0; i--) {
 			if (scopesAreMatching(scopes[i], identifier)) {
-				score = (identifierIndex + 1) * 0x10000 + identifier.length;
-				lastIndex = i + 1;
+				score = (i + 1) * 0x10000 + identifier.length;
 				return true;
 			}
 		}
@@ -891,7 +889,7 @@ function isSemanticTokenColorizationSetting(style: any): style is ISemanticToken
 		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
-export function findMetadata(colorThemeData: ColorThemeData, captureNames: string[], languageId: number): number {
+export function findMetadata(colorThemeData: ColorThemeData, captureNames: string[], languageId: number, bracket: boolean): number {
 	let metadata = 0;
 
 	metadata |= (languageId << MetadataConsts.LANGUAGEID_OFFSET);
@@ -904,23 +902,27 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
 
-	switch (definitions.foreground?.settings.fontStyle) {
-		case 'italic':
-			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
-			break;
-		case 'bold':
-			metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
-			break;
-		case 'underline':
-			metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
-			break;
-		case 'strikethrough':
-			metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
-			break;
+	const fontStyle = definitions.foreground?.settings.fontStyle || definitions.bold?.settings.fontStyle;
+	if (fontStyle?.includes('italic')) {
+		metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
 	}
+	if (fontStyle?.includes('bold')) {
+		metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
+	}
+	if (fontStyle?.includes('underline')) {
+		metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
+	}
+	if (fontStyle?.includes('strikethrough')) {
+		metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
+	}
+
 	const foreground = tokenStyle?.foreground;
 	const tokenStyleForeground = (foreground !== undefined) ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
 	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
+
+	if (bracket) {
+		metadata |= MetadataConsts.BALANCED_BRACKETS_MASK;
+	}
 
 	return metadata;
 }

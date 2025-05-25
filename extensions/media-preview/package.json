@@ -50,7 +50,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,svg}"
           }
         ]
       },
@@ -90,6 +90,18 @@
         "command": "imagePreview.copyImage",
         "title": "%command.copyImage%",
         "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.reopenAsPreview",
+        "title": "%command.reopenAsPreview%",
+        "category": "Image Preview",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "imagePreview.reopenAsText",
+        "title": "%command.reopenAsText%",
+        "category": "Image Preview",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -107,12 +119,34 @@
         {
           "command": "imagePreview.copyImage",
           "when": "false"
+        },
+        {
+          "command": "imagePreview.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceExtname == '.svg'",
+          "group": "navigation"
+        },
+        {
+          "command": "imagePreview.reopenAsText",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor' && resourceExtname == '.svg'",
+          "group": "navigation"
         }
       ],
       "webview/context": [
         {
           "command": "imagePreview.copyImage",
           "when": "webviewId == 'imagePreview.previewEditor'"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "imagePreview.reopenAsPreview",
+          "when": "editorFocus && resourceExtname == '.svg'",
+          "group": "navigation"
+        },
+        {
+          "command": "imagePreview.reopenAsText",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor' && resourceExtname == '.svg'",
+          "group": "navigation"
         }
       ]
     }
@@ -126,7 +160,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-uri": "^3.0.6"
   },
   "repository": {

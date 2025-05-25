@@ -8,7 +8,7 @@ import { CancellationToken } from '../common/cancellation.js';
 import { basename, dirname, join, normalize, sep } from '../common/path.js';
 import { isLinux } from '../common/platform.js';
 import { rtrim } from '../common/strings.js';
-import { Promises, readdirSync } from './pfs.js';
+import { Promises } from './pfs.js';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
@@ -17,48 +17,8 @@ import { Promises, readdirSync } from './pfs.js';
  * On a case insensitive file system, the returned path might differ from the original path by character casing.
  * On a case sensitive file system, the returned path will always be identical to the original path.
  * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
- * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ * realcase does not handle '..' or '.' path segments and it does not take the locale into account.
  */
-export function realcaseSync(path: string): string | null {
-	if (isLinux) {
-		// This method is unsupported on OS that have case sensitive
-		// file system where the same path can exist in different forms
-		// (see also https://github.com/microsoft/vscode/issues/139709)
-		return path;
-	}
-
-	const dir = dirname(path);
-	if (path === dir) {	// end recursion
-		return path;
-	}
-
-	const name = (basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
-	try {
-		const entries = readdirSync(dir);
-		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
-		if (found.length === 1) {
-			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
-			const prefix = realcaseSync(dir);   // recurse
-			if (prefix) {
-				return join(prefix, found[0]);
-			}
-		} else if (found.length > 1) {
-			// must be a case sensitive $filesystem
-			const ix = found.indexOf(name);
-			if (ix >= 0) {	// case sensitive
-				const prefix = realcaseSync(dir);   // recurse
-				if (prefix) {
-					return join(prefix, found[ix]);
-				}
-			}
-		}
-	} catch (error) {
-		// silently ignore error
-	}
-
-	return null;
-}
-
 export async function realcase(path: string, token?: CancellationToken): Promise<string | null> {
 	if (isLinux) {
 		// This method is unsupported on OS that have case sensitive

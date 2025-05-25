@@ -82,14 +82,6 @@ export class IgnoredExtensionsManagementService implements IIgnoredExtensionsMan
 	}
 
 	private getConfiguredIgnoredExtensions(): ReadonlyArray<string> {
-		let userValue = this.configurationService.inspect<string[]>('settingsSync.ignoredExtensions').userValue;
-		if (userValue !== undefined) {
-			return userValue;
-		}
-		userValue = this.configurationService.inspect<string[]>('sync.ignoredExtensions').userValue;
-		if (userValue !== undefined) {
-			return userValue;
-		}
 		return (this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions') || []).map(id => id.toLowerCase());
 	}
 }

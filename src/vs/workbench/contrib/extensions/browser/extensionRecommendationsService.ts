@@ -30,13 +30,6 @@ import { IRemoteExtensionsScannerService } from '../../../../platform/remote/com
 import { IUserDataInitializationService } from '../../../services/userData/browser/userDataInit.js';
 import { isString } from '../../../../base/common/types.js';
 
-type IgnoreRecommendationClassification = {
-	owner: 'sandy081';
-	comment: 'Report when a recommendation is ignored';
-	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Reason why extension is recommended' };
-	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Id of the extension recommendation that is being ignored' };
-};
-
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -115,14 +108,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		]);
 
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
-		this._register(this.extensionRecommendationsManagementService.onDidChangeGlobalIgnoredRecommendation(({ extensionId, isRecommended }) => {
-			if (!isRecommended) {
-				const reason = this.getAllRecommendationsWithReason()[extensionId];
-				if (reason && reason.reasonId) {
-					this.telemetryService.publicLog2<{ extensionId: string; recommendationReason: ExtensionRecommendationReason }, IgnoreRecommendationClassification>('extensionsRecommendations:ignoreRecommendation', { extensionId, recommendationReason: reason.reasonId });
-				}
-			}
-		}));
 
 		this.promptWorkspaceRecommendations();
 	}

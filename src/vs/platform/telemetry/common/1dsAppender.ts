@@ -57,7 +57,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	appInsightsCore.addTelemetryInitializer((envelope) => {
+	appInsightsCore.addTelemetryInitializer((envelope: any) => {
 		// Opt the user out of 1DS data sharing
 		envelope['ext'] = envelope['ext'] ?? {};
 		envelope['ext']['web'] = envelope['ext']['web'] ?? {};

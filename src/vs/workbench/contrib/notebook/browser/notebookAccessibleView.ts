@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -13,7 +13,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { getAllOutputsText } from './viewModel/cellOutputTextHelper.js';
 
-export class NotebookAccessibleView implements IAccessibleViewImplentation {
+export class NotebookAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'notebook';
 	readonly type = AccessibleViewType.View;

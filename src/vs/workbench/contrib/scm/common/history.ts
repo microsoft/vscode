@@ -24,6 +24,7 @@ export interface ISCMHistoryProvider {
 	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined>;
 	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 
@@ -63,6 +64,8 @@ export interface ISCMHistoryItem {
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
+	readonly authorEmail?: string;
+	readonly authorIcon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
@@ -86,6 +89,14 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly type: 'historyItemViewModel';
 }
 
+export interface SCMHistoryItemChangeViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
+	readonly historyItemChange: ISCMHistoryItemChange;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
+	readonly type: 'historyItemChangeViewModel';
+}
+
 export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly repository: ISCMRepository;
 	readonly graphColumns: ISCMHistoryItemGraphNode[];
@@ -96,5 +107,4 @@ export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
-	readonly renameUri?: URI;
 }

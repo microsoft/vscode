@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../common/async.js';
-import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, encodeBase64, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from '../../common/buffer.js';
+import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, decodeBase64, decodeHex, encodeBase64, encodeHex, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from '../../common/buffer.js';
 import { peekStream } from '../../common/stream.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -429,10 +429,109 @@ suite('Buffer', () => {
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('ccc')), 15);
 
 		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('cccb')), -1);
-
 	});
 
-	suite('base64', () => {
+	test('wrap', () => {
+		const actual = new Uint8Array([1, 2, 3]);
+		const wrapped = VSBuffer.wrap(actual);
+		assert.strictEqual(wrapped.byteLength, 3);
+		assert.deepStrictEqual(Array.from(wrapped.buffer), [1, 2, 3]);
+	});
+
+	test('fromString', () => {
+		const value = 'Hello World';
+		const buff = VSBuffer.fromString(value);
+		assert.strictEqual(buff.toString(), value);
+	});
+
+	test('fromByteArray', () => {
+		const array = [1, 2, 3, 4, 5];
+		const buff = VSBuffer.fromByteArray(array);
+		assert.strictEqual(buff.byteLength, array.length);
+		assert.deepStrictEqual(Array.from(buff.buffer), array);
+	});
+
+	test('concat', () => {
+		const chunks = [
+			VSBuffer.fromString('abc'),
+			VSBuffer.fromString('def'),
+			VSBuffer.fromString('ghi')
+		];
+
+		// Test without total length
+		const result1 = VSBuffer.concat(chunks);
+		assert.strictEqual(result1.toString(), 'abcdefghi');
+
+		// Test with total length
+		const result2 = VSBuffer.concat(chunks, 9);
+		assert.strictEqual(result2.toString(), 'abcdefghi');
+	});
+
+	test('clone', () => {
+		const original = VSBuffer.fromString('test');
+		const clone = original.clone();
+
+		assert.notStrictEqual(original.buffer, clone.buffer);
+		assert.deepStrictEqual(Array.from(original.buffer), Array.from(clone.buffer));
+	});
+
+	test('slice', () => {
+		const buff = VSBuffer.fromString('Hello World');
+
+		const slice1 = buff.slice(0, 5);
+		assert.strictEqual(slice1.toString(), 'Hello');
+
+		const slice2 = buff.slice(6);
+		assert.strictEqual(slice2.toString(), 'World');
+	});
+
+	test('set', () => {
+		const buff = VSBuffer.alloc(5);
+
+		// Test setting from VSBuffer
+		buff.set(VSBuffer.fromString('ab'), 0);
+		assert.strictEqual(buff.toString().substring(0, 2), 'ab');
+
+		// Test setting from Uint8Array
+		buff.set(new Uint8Array([99, 100]), 2); // 'cd'
+		assert.strictEqual(buff.toString().substring(2, 4), 'cd');
+
+		// Test invalid input
+		assert.throws(() => {
+			buff.set({} as any);
+		});
+	});
+
+	test('equals', () => {
+		const buff1 = VSBuffer.fromString('test');
+		const buff2 = VSBuffer.fromString('test');
+		const buff3 = VSBuffer.fromString('different');
+		const buff4 = VSBuffer.fromString('tes1');
+
+		assert.strictEqual(buff1.equals(buff1), true);
+		assert.strictEqual(buff1.equals(buff2), true);
+		assert.strictEqual(buff1.equals(buff3), false);
+		assert.strictEqual(buff1.equals(buff4), false);
+	});
+
+	test('read/write methods', () => {
+		const buff = VSBuffer.alloc(8);
+
+		// Test UInt32BE
+		buff.writeUInt32BE(0x12345678, 0);
+		assert.strictEqual(buff.readUInt32BE(0), 0x12345678);
+
+		// Test UInt32LE
+		buff.writeUInt32LE(0x12345678, 4);
+		assert.strictEqual(buff.readUInt32LE(4), 0x12345678);
+
+		// Test UInt8
+		const buff2 = VSBuffer.alloc(1);
+		buff2.writeUInt8(123, 0);
+		assert.strictEqual(buff2.readUInt8(0), 123);
+	});
+
+	suite('encoding', () => {
 		/*
 		Generated with:
 
@@ -445,39 +544,52 @@ suite('Buffer', () => {
 
 		*/
 
-		const testCases: [Uint8Array, string][] = [
-			[new Uint8Array([]), ''],
-			[new Uint8Array([56]), 'OA=='],
-			[new Uint8Array([209, 4]), '0QQ='],
-			[new Uint8Array([19, 57, 119]), 'Ezl3'],
-			[new Uint8Array([199, 237, 207, 112]), 'x+3PcA=='],
-			[new Uint8Array([59, 193, 173, 26, 242]), 'O8GtGvI='],
-			[new Uint8Array([81, 226, 95, 231, 116, 126]), 'UeJf53R+'],
-			[new Uint8Array([11, 164, 253, 85, 8, 6, 56]), 'C6T9VQgGOA=='],
-			[new Uint8Array([164, 16, 88, 88, 224, 173, 144, 114]), 'pBBYWOCtkHI='],
-			[new Uint8Array([0, 196, 99, 12, 21, 229, 78, 101, 13]), 'AMRjDBXlTmUN'],
-			[new Uint8Array([167, 114, 225, 116, 226, 83, 51, 48, 88, 114]), 'p3LhdOJTMzBYcg=='],
-			[new Uint8Array([75, 33, 118, 10, 77, 5, 168, 194, 59, 47, 59]), 'SyF2Ck0FqMI7Lzs='],
-			[new Uint8Array([203, 182, 165, 51, 208, 27, 123, 223, 112, 198, 127, 147]), 'y7alM9Abe99wxn+T'],
-			[new Uint8Array([154, 93, 222, 41, 117, 234, 250, 85, 95, 144, 16, 94, 18]), 'ml3eKXXq+lVfkBBeEg=='],
-			[new Uint8Array([246, 186, 88, 105, 192, 57, 25, 168, 183, 164, 103, 162, 243, 56]), '9rpYacA5Gai3pGei8zg='],
-			[new Uint8Array([149, 240, 155, 96, 30, 55, 162, 172, 191, 187, 33, 124, 169, 183, 254]), 'lfCbYB43oqy/uyF8qbf+'],
+		const testCases: [Uint8Array, base64: string, hex: string][] = [
+			[new Uint8Array([]), '', ''],
+			[new Uint8Array([77]), 'TQ==', '4d'],
+			[new Uint8Array([230, 138]), '5oo=', 'e68a'],
+			[new Uint8Array([104, 98, 82]), 'aGJS', '686252'],
+			[new Uint8Array([92, 114, 57, 209]), 'XHI50Q==', '5c7239d1'],
+			[new Uint8Array([238, 51, 1, 240, 124]), '7jMB8Hw=', 'ee3301f07c'],
+			[new Uint8Array([96, 54, 130, 79, 47, 179]), 'YDaCTy+z', '6036824f2fb3'],
+			[new Uint8Array([91, 22, 68, 217, 68, 117, 116]), 'WxZE2UR1dA==', '5b1644d9447574'],
+			[new Uint8Array([184, 227, 214, 171, 244, 175, 141, 53]), 'uOPWq/SvjTU=', 'b8e3d6abf4af8d35'],
+			[new Uint8Array([53, 98, 93, 130, 71, 117, 191, 137, 156]), 'NWJdgkd1v4mc', '35625d824775bf899c'],
+			[new Uint8Array([154, 156, 60, 102, 232, 197, 92, 25, 124, 98]), 'mpw8ZujFXBl8Yg==', '9a9c3c66e8c55c197c62'],
+			[new Uint8Array([152, 131, 106, 234, 17, 183, 164, 245, 252, 67, 26]), 'mINq6hG3pPX8Qxo=', '98836aea11b7a4f5fc431a'],
+			[new Uint8Array([232, 254, 194, 234, 16, 42, 86, 135, 117, 61, 179, 4]), '6P7C6hAqVod1PbME', 'e8fec2ea102a5687753db304'],
+			[new Uint8Array([4, 199, 85, 172, 125, 171, 172, 219, 61, 47, 78, 155, 127]), 'BMdVrH2rrNs9L06bfw==', '04c755ac7dabacdb3d2f4e9b7f'],
+			[new Uint8Array([189, 67, 62, 189, 87, 171, 27, 164, 87, 142, 126, 113, 23, 182]), 'vUM+vVerG6RXjn5xF7Y=', 'bd433ebd57ab1ba4578e7e7117b6'],
+			[new Uint8Array([153, 156, 145, 240, 228, 200, 199, 158, 40, 167, 97, 52, 217, 148, 43]), 'mZyR8OTIx54op2E02ZQr', '999c91f0e4c8c79e28a76134d9942b'],
 		];
 
-		test('encodes', () => {
+		test('encodes base64', () => {
 			for (const [bytes, expected] of testCases) {
 				assert.strictEqual(encodeBase64(VSBuffer.wrap(bytes)), expected);
 			}
 		});
 
-		test('decodes', () => {
+		test('decodes, base64', () => {
 			for (const [expected, encoded] of testCases) {
 				assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), expected);
 			}
 		});
 
+		test('encodes hex', () => {
+			for (const [bytes, , expected] of testCases) {
+				assert.strictEqual(encodeHex(VSBuffer.wrap(bytes)), expected);
+			}
+		});
+
+		test('decodes, hex', () => {
+			for (const [expected, , encoded] of testCases) {
+				assert.deepStrictEqual(new Uint8Array(decodeHex(encoded).buffer), expected);
+			}
+		});
+
 		test('throws error on invalid encoding', () => {
 			assert.throws(() => decodeBase64('invalid!'));
+			assert.throws(() => decodeHex('invalid!'));
 		});
 	});
 });

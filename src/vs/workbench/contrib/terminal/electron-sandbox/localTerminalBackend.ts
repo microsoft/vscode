@@ -38,6 +38,7 @@ import { memoize } from '../../../../base/common/decorators.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -60,6 +61,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	private _directProxyClientEventually: DeferredPromise<MessagePortClient> | undefined;
 	private _directProxy: IPtyService | undefined;
+	private readonly _directProxyDisposables = this._register(new MutableDisposable());
+
 	/**
 	 * Communicate to the direct proxy (renderer<->ptyhost) if it's available, otherwise use the
 	 * indirect proxy (renderer<->main<->ptyhost). The latter may not need to actually launch the
@@ -117,6 +120,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this._directProxyClientEventually = directProxyClientEventually;
 		const directProxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._directProxyClientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
 		this._directProxy = directProxy;
+		this._directProxyDisposables.clear();
 
 		// The pty host should not get launched until at least the window restored phase
 		// if remote auth exists, don't await
@@ -129,28 +133,32 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult').then(port => {
 			mark('code/terminal/didConnectPtyHost');
 			this._logService.trace('Renderer->PtyHost#connect: connection established');
+
+			const store = new DisposableStore();
+			this._directProxyDisposables.value = store;
+
 			// There are two connections to the pty host; one to the regular shared process
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
-			const client = new MessagePortClient(port, `window:${this._nativeHostService.windowId}`);
+			const client = store.add(new MessagePortClient(port, `window:${this._nativeHostService.windowId}`));
 			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
-			directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-			directProxy.onProcessExit(e => {
+			store.add(directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event)));
+			store.add(directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property)));
+			store.add(directProxy.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
 					this._ptys.delete(e.id);
 				}
-			});
-			directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+			}));
+			store.add(directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event)));
+			store.add(directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event)));
+			store.add(directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion()));
+			store.add(directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
 			// Eagerly fetch the backend's environment for memoization
 			this.getEnvironment();

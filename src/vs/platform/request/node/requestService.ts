@@ -21,12 +21,6 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
-interface IHTTPConfiguration {
-	proxy?: string;
-	proxyStrictSSL?: boolean;
-	proxyAuthorization?: string;
-}
-
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
 }
@@ -52,6 +46,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
+		private readonly machine: 'local' | 'remote',
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService,
@@ -66,11 +61,9 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	private configure() {
-		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
-
-		this.proxyUrl = config?.proxy;
-		this.strictSSL = !!config?.proxyStrictSSL;
-		this.authorization = config?.proxyAuthorization;
+		this.proxyUrl = this.getConfigValue<string>('http.proxy');
+		this.strictSSL = !!this.getConfigValue<boolean>('http.proxyStrictSSL');
+		this.authorization = this.getConfigValue<string>('http.proxyAuthorization');
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -115,7 +108,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
 		try {
-			const spnConfig = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal');
+			const spnConfig = this.getConfigValue<string>('http.proxyKerberosServicePrincipal');
 			const response = await lookupKerberosAuthorization(urlStr, spnConfig, this.logService, 'RequestService#lookupKerberosAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
@@ -127,6 +120,14 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({ log: this.logService });
+	}
+
+	private getConfigValue<T>(key: string): T | undefined {
+		if (this.machine === 'remote') {
+			return this.configurationService.getValue<T>(key);
+		}
+		const values = this.configurationService.inspect<T>(key);
+		return values.userLocalValue || values.defaultValue;
 	}
 }
 
@@ -155,7 +156,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -168,6 +169,10 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
+		}
+
+		if (options.disableCache) {
+			opts.cache = 'no-store';
 		}
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
@@ -196,8 +201,23 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.on('error', reject);
 
+		// Handle timeout
 		if (options.timeout) {
-			req.setTimeout(options.timeout);
+			// Chromium network requests do not support the `timeout` option
+			if (options.isChromiumNetwork) {
+				// Use Node's setTimeout for Chromium network requests
+				const timeout = setTimeout(() => {
+					req.abort();
+					reject(new Error(`Request timeout after ${options.timeout}ms`));
+				}, options.timeout);
+
+				// Clear timeout when request completes
+				req.on('response', () => clearTimeout(timeout));
+				req.on('error', () => clearTimeout(timeout));
+				req.on('abort', () => clearTimeout(timeout));
+			} else {
+				req.setTimeout(options.timeout);
+			}
 		}
 
 		// Chromium will abort the request if forbidden headers are set.

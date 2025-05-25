@@ -70,9 +70,11 @@ export class Link implements ILink {
 
 export class LinksList {
 
+	static readonly Empty = new LinksList([]);
+
 	readonly links: Link[];
 
-	private readonly _disposables = new DisposableStore();
+	private readonly _disposables: DisposableStore | undefined = new DisposableStore();
 
 	constructor(tuples: [ILinksList, LinkProvider][]) {
 
@@ -83,6 +85,7 @@ export class LinksList {
 			links = LinksList._union(links, newLinks);
 			// register disposables
 			if (isDisposable(list)) {
+				this._disposables ??= new DisposableStore();
 				this._disposables.add(list);
 			}
 		}
@@ -90,7 +93,7 @@ export class LinksList {
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposables?.dispose();
 		this.links.length = 0;
 	}
 
@@ -137,27 +140,31 @@ export class LinksList {
 
 }
 
-export function getLinks(providers: LanguageFeatureRegistry<LinkProvider>, model: ITextModel, token: CancellationToken): Promise<LinksList> {
-
+export async function getLinks(providers: LanguageFeatureRegistry<LinkProvider>, model: ITextModel, token: CancellationToken): Promise<LinksList> {
 	const lists: [ILinksList, LinkProvider][] = [];
 
 	// ask all providers for links in parallel
-	const promises = providers.ordered(model).reverse().map((provider, i) => {
-		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
+	const promises = providers.ordered(model).reverse().map(async (provider, i) => {
+		try {
+			const result = await provider.provideLinks(model, token);
 			if (result) {
 				lists[i] = [result, provider];
 			}
-		}, onUnexpectedExternalError);
+		} catch (err) {
+			onUnexpectedExternalError(err);
+		}
 	});
 
-	return Promise.all(promises).then(() => {
-		const result = new LinksList(coalesce(lists));
-		if (!token.isCancellationRequested) {
-			return result;
-		}
-		result.dispose();
-		return new LinksList([]);
-	});
+	await Promise.all(promises);
+
+	let res = new LinksList(coalesce(lists));
+
+	if (token.isCancellationRequested) {
+		res.dispose();
+		res = LinksList.Empty;
+	}
+
+	return res;
 }
 
 

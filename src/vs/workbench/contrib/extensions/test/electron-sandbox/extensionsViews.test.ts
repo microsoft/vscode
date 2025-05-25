@@ -101,6 +101,7 @@ suite('ExtensionsViews Tests', () => {
 			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
 			async canInstall() { return true; },

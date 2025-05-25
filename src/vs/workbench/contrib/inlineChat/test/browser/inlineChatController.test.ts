@@ -31,11 +31,10 @@ import { IView, IViewDescriptorService } from '../../../../common/views.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
-import { InlineChatController, State } from '../../browser/inlineChatController.js';
-import { Session } from '../../browser/inlineChatSession.js';
-import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
+import { InlineChatController1, State } from '../../browser/inlineChatController.js';
+import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
@@ -61,7 +60,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
@@ -70,6 +68,13 @@ import { IChatEditingService, IChatEditingSession } from '../../../chat/common/c
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { IPromptsService } from '../../../chat/common/promptSyntax/service/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 
 suite('InlineChatController', function () {
 
@@ -82,12 +87,13 @@ suite('InlineChatController', function () {
 		name: 'testEditorAgent',
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
+		modes: [ChatMode.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
 	};
 
-	class TestController extends InlineChatController {
+	class TestController extends InlineChatController1 {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
 		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.SHOW_REQUEST, State.WAIT_FOR_INPUT];
@@ -162,12 +168,7 @@ suite('InlineChatController', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
-			}],
-			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
-				override markChanged(session: Session): void {
-					// noop
-				}
+				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
@@ -197,13 +198,20 @@ suite('InlineChatController', function () {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
+			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
+			[IPromptsService, new class extends mock<IPromptsService>() {
+				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly URI[]> {
+					return [];
+				}
+			}],
+			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }]
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
 
 		configurationService = instaService.get(IConfigurationService) as TestConfigurationService;
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
-		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+
 		configurationService.setUserConfiguration('editor', {});
 
 		contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
@@ -222,14 +230,14 @@ suite('InlineChatController', function () {
 
 		store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
 			async invoke(request, progress, history, token) {
-				progress({
+				progress([{
 					kind: 'textEdit',
 					uri: model.uri,
 					edits: [{
 						range: new Range(1, 1, 1, 1),
 						text: request.message
 					}]
-				});
+				}]);
 				return {};
 			},
 		}));
@@ -290,7 +298,7 @@ suite('InlineChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 10 /* line length */));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11 /* line length */));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
@@ -308,14 +316,14 @@ suite('InlineChatController', function () {
 			...agentData
 		}, {
 			async invoke(request, progress, history, token) {
-				progress({
+				progress([{
 					kind: 'textEdit',
 					uri: editor.getModel().uri,
 					edits: [{
 						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
 						text: `${request.message}\n${request.message}`
 					}]
-				});
+				}]);
 
 				return {};
 			},
@@ -333,7 +341,7 @@ suite('InlineChatController', function () {
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
 		ctrl.chatWidget.setInput('GENGEN');
-		ctrl.acceptInput();
+		ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]), undefined);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 3));
@@ -373,9 +381,9 @@ suite('InlineChatController', function () {
 		}, {
 			async invoke(request, progress, history, token) {
 
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'hEllo1\n' }] });
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(2, 1, 2, 1), text: 'hEllo2\n' }] });
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1000, 1), text: 'Hello1\nHello2\n' }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'hEllo1\n' }] }]);
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(2, 1, 2, 1), text: 'hEllo2\n' }] }]);
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1000, 1), text: 'Hello1\nHello2\n' }] }]);
 
 				return {};
 			},
@@ -400,7 +408,6 @@ suite('InlineChatController', function () {
 
 	test.skip('UI is streaming edits minutes after the response is finished #3345', async function () {
 
-		configurationService.setUserConfiguration(InlineChatConfigKeys.Mode, EditMode.Live);
 
 		return runWithFakedTimers({ maxTaskCount: Number.MAX_SAFE_INTEGER }, async () => {
 
@@ -413,10 +420,10 @@ suite('InlineChatController', function () {
 					const text = '${CSI}#a\n${CSI}#b\n${CSI}#c\n';
 
 					await timeout(10);
-					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text }] });
+					progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text }] }]);
 
 					await timeout(10);
-					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.repeat(1000) + 'DONE' }] });
+					progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.repeat(1000) + 'DONE' }] }]);
 
 					throw new Error('Too long');
 				},
@@ -455,7 +462,6 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p, undefined);
 
 		assert.ok(model.getValue().includes('GENERATED'));
-		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
 		ctrl.cancelSession();
 		await r;
 		assert.ok(!model.getValue().includes('GENERATED'));
@@ -473,9 +479,8 @@ suite('InlineChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 
 		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
-		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), true);
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
@@ -491,7 +496,7 @@ suite('InlineChatController', function () {
 			...agentData
 		}, {
 			async invoke(request, progress, history, token) {
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] }]);
 				return {};
 			},
 		}));
@@ -514,7 +519,7 @@ suite('InlineChatController', function () {
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'PROMPT_2');
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 	});
 
@@ -531,7 +536,7 @@ suite('InlineChatController', function () {
 			...agentData
 		}, {
 			async invoke(request, progress, history, token) {
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] }]);
 				return {};
 			},
 		}));
@@ -551,7 +556,7 @@ suite('InlineChatController', function () {
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
 		ctrl.chatWidget.setInput('1');
-		await ctrl.acceptInput();
+		await ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei-eins-');
@@ -563,7 +568,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'drei-eins-');
 
-		ctrl.finishExistingSession();
+		ctrl.acceptSession();
 		await r;
 
 	});
@@ -579,7 +584,7 @@ suite('InlineChatController', function () {
 			...agentData
 		}, {
 			async invoke(request, progress, history, token) {
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] }]);
 				return {};
 			},
 		}));
@@ -619,7 +624,7 @@ suite('InlineChatController', function () {
 			...agentData
 		}, {
 			async invoke(request, progress, history, token) {
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] }]);
 				return {};
 			},
 		}));
@@ -635,7 +640,7 @@ suite('InlineChatController', function () {
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
 		ctrl.chatWidget.setInput('1');
-		await ctrl.acceptInput();
+		await ctrl.chatWidget.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
@@ -674,7 +679,7 @@ suite('InlineChatController', function () {
 			async invoke(request, progress, history, token) {
 				queueMicrotask(() => onDidInvoke.fire());
 				commandDetection.push(request.enableCommandDetection);
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] }]);
 
 				if (count === 1) {
 					// FIRST call waits for cancellation
@@ -724,7 +729,7 @@ suite('InlineChatController', function () {
 		}, {
 			async invoke(request, progress, history, token) {
 				commandDetection.push(request.enableCommandDetection);
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] }]);
 				return {};
 			},
 		}));
@@ -764,7 +769,7 @@ suite('InlineChatController', function () {
 
 				attempts.push(request.attempt);
 
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: `TRY:${request.attempt}\n` }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: `TRY:${request.attempt}\n` }] }]);
 				await raceCancellation(deferred.p, token);
 				deferred.complete();
 				await timeout(10);
@@ -798,7 +803,7 @@ suite('InlineChatController', function () {
 		model.setValue('World');
 
 		const deferred = new DeferredPromise<void>();
-		let progress: ((part: IChatProgress) => void) | undefined;
+		let progress: ((parts: IChatProgress[]) => void) | undefined;
 
 		store.add(chatAgentService.registerDynamicAgent({
 			id: 'testEditorAgent2',
@@ -824,7 +829,7 @@ suite('InlineChatController', function () {
 
 		const modelChange = new Promise<void>(resolve => model.onDidChangeContent(() => resolve()));
 
-		progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] });
+		progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] }]);
 
 		await modelChange;
 		assert.strictEqual(model.getValue(), 'HelloWorld'); // first word has been streamed
@@ -841,11 +846,10 @@ suite('InlineChatController', function () {
 
 		model.setValue('');
 
-		const newSession = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor });
-
+		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor }))?.responseCreatedPromise;
 
 		assert.strictEqual(newSession.chatModel.requestInProgress, true);
 
@@ -882,14 +886,14 @@ suite('InlineChatController', function () {
 			store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
 				async invoke(request, progress, history, token) {
 
-					progress({
+					progress([{
 						kind: 'textEdit',
 						uri: model.uri,
 						edits: [{
 							range: new Range(1, 1, 1, 1),
 							text: request.message
 						}]
-					});
+					}]);
 
 					if (request.message === 'two') {
 						await timeout(100); // give edit a chance
@@ -936,7 +940,7 @@ suite('InlineChatController', function () {
 		}, {
 			async invoke(request, progress, history, token) {
 
-				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] });
+				progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] }]);
 				await deferred.p;
 				return {};
 			},
@@ -973,11 +977,11 @@ suite('InlineChatController', function () {
 			}, {
 				async invoke(request, progress, history, token) {
 
-					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello1' }] });
+					progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello1' }] }]);
 					await timeout(100);
-					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello2' }] });
+					progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello2' }] }]);
 					await timeout(100);
-					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello3' }] });
+					progress([{ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello3' }] }]);
 					await timeout(100);
 
 					return {

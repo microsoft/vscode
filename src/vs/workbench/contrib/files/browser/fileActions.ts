@@ -93,7 +93,7 @@ async function refreshIfSeparator(value: string, explorerService: IExplorerServi
 	}
 }
 
-async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
+async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, filesConfigurationService: IFilesConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -109,7 +109,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			dirtyWorkingCopies.add(dirtyWorkingCopy);
 		}
 	}
-	let confirmed = true;
+
 	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
@@ -132,18 +132,40 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		});
 
 		if (!response.confirmed) {
-			confirmed = false;
+			return;
 		} else {
 			skipConfirm = true;
 		}
 	}
 
-	// Check if file is dirty in editor and save it to avoid data loss
-	if (!confirmed) {
-		return;
+	// Handle readonly
+	if (!skipConfirm) {
+		const readonlyResources = distinctElements.filter(e => filesConfigurationService.isReadonly(e.resource));
+		if (readonlyResources.length) {
+			let message: string;
+			if (readonlyResources.length > 1) {
+				message = nls.localize('readonlyMessageFilesDelete', "You are deleting files that are configured to be read-only. Do you want to continue?");
+			} else if (readonlyResources[0].isDirectory) {
+				message = nls.localize('readonlyMessageFolderOneDelete', "You are deleting a folder {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			} else {
+				message = nls.localize('readonlyMessageFolderDelete', "You are deleting a file {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
+			}
+
+			const response = await dialogService.confirm({
+				type: 'warning',
+				message,
+				detail: nls.localize('continueDetail', "The read-only protection will be overridden if you continue."),
+				primaryButton: nls.localize('continueButtonLabel', "Continue")
+			});
+
+			if (!response.confirmed) {
+				return;
+			}
+		}
 	}
 
 	let confirmation: IConfirmationResult;
+
 	// We do not support undo of folders, so in that case the delete action is irreversible
 	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
 		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
@@ -234,7 +256,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			skipConfirm = true;
 			ignoreIfNotExists = true;
 
-			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
+			return deleteFiles(explorerService, workingCopyFileService, dialogService, configurationService, filesConfigurationService, elements, useTrash, skipConfirm, ignoreIfNotExists);
 		}
 	}
 }
@@ -1020,7 +1042,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, true);
 	}
 };
 
@@ -1029,7 +1051,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFilesConfigurationService), stats, false);
 	}
 };
 

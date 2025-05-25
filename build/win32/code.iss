@@ -916,7 +916,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.plist\OpenWithProgid
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.plist\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.plist"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist"; ValueType: string; ValueName: ""; ValueData: "{cm:SourceFile,Properties file}"; Flags: uninsdeletekey; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\resources\app\resources\win32\plist.ico"; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.plist\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
 
@@ -1119,14 +1119,6 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svg";
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svg\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svg\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svg\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
-
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.svgz\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.svgz\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.svgz"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svgz"; ValueType: string; ValueName: ""; ValueData: "{cm:SourceFile,SVGZ}"; Flags: uninsdeletekey; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svgz"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svgz\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svgz\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
-Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.svgz\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.t\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.t\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.t"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles

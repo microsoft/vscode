@@ -56,7 +56,7 @@ Next: **[Try it out!](#try-it)**
 
 You may see improved VNC responsiveness when accessing a codespace from VS Code client since you can use a [VNC Viewer][def]. Here's how to do it.
 
-1. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the the [GitHub Codespaces extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces).
+1. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [GitHub Codespaces extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces).
 
     > **Note:** The GitHub Codespaces extension requires the Visual Studio Code distribution of Code - OSS.
 
