@@ -407,16 +407,10 @@ registerAction2(class extends MarkersViewAction {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-<<<<<<< HEAD
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message.toString());
-=======
 
 		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
-			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
->>>>>>> origin/main
+			await clipboardService.writeText(markers.map(m => m.marker.message.toString()).join('\n'));
 		}
 	}
 });
