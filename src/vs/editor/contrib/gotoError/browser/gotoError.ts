@@ -128,40 +128,46 @@ export class MarkerController implements IEditorContribution {
 	}
 
 	showAtMarker(marker: IMarker): void {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(this._editor.getModel().uri);
-			model.resetIndex();
-			model.move(true, this._editor.getModel(), new Position(marker.startLineNumber, marker.startColumn));
-			if (model.selected) {
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
-			}
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const textModel = this._editor.getModel();
+		const model = this._getOrCreateModel(textModel.uri);
+		model.resetIndex();
+		model.move(true, textModel, new Position(marker.startLineNumber, marker.startColumn));
+		if (model.selected) {
+			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
 	}
 
-	async nagivate(next: boolean, multiFile: boolean) {
-		if (this._editor.hasModel()) {
-			const model = this._getOrCreateModel(multiFile ? undefined : this._editor.getModel().uri);
-			model.move(next, this._editor.getModel(), this._editor.getPosition());
-			if (!model.selected) {
-				return;
-			}
-			if (model.selected.marker.resource.toString() !== this._editor.getModel().uri.toString()) {
-				// show in different editor
-				this._cleanUp();
-				const otherEditor = await this._editorService.openCodeEditor({
-					resource: model.selected.marker.resource,
-					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
-				}, this._editor);
+	async navigate(next: boolean, multiFile: boolean) {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
-				if (otherEditor) {
-					MarkerController.get(otherEditor)?.close();
-					MarkerController.get(otherEditor)?.nagivate(next, multiFile);
-				}
+		const textModel = this._editor.getModel();
+		const model = this._getOrCreateModel(multiFile ? undefined : textModel.uri);
+		model.move(next, textModel, this._editor.getPosition());
+		if (!model.selected) {
+			return;
+		}
+		if (model.selected.marker.resource.toString() !== textModel.uri.toString()) {
+			// show in different editor
+			this._cleanUp();
+			const otherEditor = await this._editorService.openCodeEditor({
+				resource: model.selected.marker.resource,
+				options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
+			}, this._editor);
 
-			} else {
-				// show in this editor
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			if (otherEditor) {
+				MarkerController.get(otherEditor)?.close();
+				MarkerController.get(otherEditor)?.navigate(next, multiFile);
 			}
+
+		} else {
+			// show in this editor
+			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
 	}
 }
@@ -178,7 +184,7 @@ class MarkerNavigationAction extends EditorAction {
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
-			MarkerController.get(editor)?.nagivate(this._next, this._multiFile);
+			await MarkerController.get(editor)?.navigate(this._next, this._multiFile);
 		}
 	}
 }

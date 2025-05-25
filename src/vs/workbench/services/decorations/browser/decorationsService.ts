@@ -143,7 +143,7 @@ class DecorationRule {
 			font-size: 16px;
 			margin-right: 14px;
 			font-weight: normal;
-			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite; font-style: normal !important;' : ''};
 			`,
 			element
 		);

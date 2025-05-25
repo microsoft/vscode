@@ -21,6 +21,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { InteractiveWindowOpen, MOST_RECENT_REPL_EDITOR } from '../../common/notebookContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -57,7 +58,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 					return;
 				}
 
-				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditorInput(e.editor) ? e.editor.editorInputs : []);
+				const inputs = e.editor instanceof NotebookEditorInput || e.editor instanceof NotebookDiffEditorInput
+					? [e.editor]
+					: (isCompositeNotebookEditorInput(e.editor) ? e.editor.editorInputs : []);
 				inputs.forEach(input => {
 					const widgets = widgetMap.get(input.resource);
 					const index = widgets?.findIndex(widget => widget.editorType === input.typeId);
@@ -207,7 +210,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return ret;
 	}
 
-	retrieveWidget(accessor: ServicesAccessor, groupId: number, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension, codeWindow?: CodeWindow): IBorrowValue<NotebookEditorWidget> {
+	retrieveWidget(accessor: ServicesAccessor, groupId: number, input: { resource: URI; typeId: string }, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension, codeWindow?: CodeWindow): IBorrowValue<NotebookEditorWidget> {
 
 		let value = this._borrowableEditors.get(groupId)?.get(input.resource)?.find(widget => widget.editorType === input.typeId);
 

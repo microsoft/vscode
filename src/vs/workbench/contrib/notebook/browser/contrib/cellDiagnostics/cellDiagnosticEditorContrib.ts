@@ -11,10 +11,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
 import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-import { Iterable } from '../../../../../../base/common/iterator.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
@@ -43,12 +44,17 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		}));
 	}
 
+	private hasNotebookAgent(): boolean {
+		const agents = this.chatAgentService.getAgents();
+		return !!agents.find(agent => agent.locations.includes(ChatAgentLocation.Notebook));
+	}
+
 	private updateEnabled() {
 		const settingEnabled = this.configurationService.getValue(NotebookSetting.cellFailureDiagnostics);
-		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.chatAgentService.getAgents()))) {
+		if (this.enabled && (!settingEnabled || !this.hasNotebookAgent())) {
 			this.enabled = false;
 			this.clearAll();
-		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.chatAgentService.getAgents())) {
+		} else if (!this.enabled && settingEnabled && this.hasNotebookAgent()) {
 			this.enabled = true;
 			if (!this.listening) {
 				this.listening = true;
@@ -116,6 +122,11 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
 			cell.executionErrorDiagnostic.set(metadata.error, undefined);
 			disposables.push(toDisposable(() => cell.executionErrorDiagnostic.set(undefined, undefined)));
+			disposables.push(autorun((r) => {
+				if (!cell.executionErrorDiagnostic.read(r)) {
+					this.clear(cellHandle);
+				}
+			}));
 			disposables.push(cell.model.onDidChangeOutputs(() => {
 				if (cell.model.outputs.length === 0) {
 					this.clear(cellHandle);

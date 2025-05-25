@@ -9,7 +9,7 @@ import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { Event } from '../../base/common/event.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
-import { IDimension } from '../common/core/dimension.js';
+import { IDimension } from '../common/core/2d/dimension.js';
 import { IPosition, Position } from '../common/core/position.js';
 import { IRange, Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -19,7 +19,7 @@ import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesD
 import * as editorCommon from '../common/editorCommon.js';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
 import { InjectedText } from '../common/modelLineProjectionData.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
@@ -695,6 +695,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidType: Event<string>;
 	/**
+	 * Boolean indicating whether input is in composition
+	 */
+	readonly inComposition: boolean;
+	/**
 	 * An event emitted after composition has started.
 	 */
 	readonly onDidCompositionStart: Event<void>;
@@ -888,6 +892,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**
+	 * An event emitted when line heights from decorations change
+	 * @internal
+	 * @event
+	 */
+	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+
+	/**
 	 * Get value of the current model attached to this editor.
 	 * @see {@link ITextModel.getValue}
 	 */
@@ -1015,7 +1026,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): readonly string[];
 
 	/**
 	 * @internal
@@ -1063,6 +1074,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 	 */
 	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the line height for the line number.
+	 */
+	getLineHeightForPosition(position: IPosition): number;
 
 	/**
 	 * Set the model ranges that will be hidden in the view.

@@ -6,17 +6,10 @@
 import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from '../../../platform/progress/common/progress.js';
 import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { Action } from '../../../base/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { localize } from '../../../nls.js';
-
-class ManageExtensionAction extends Action {
-	constructor(extensionId: string, label: string, commandService: ICommandService) {
-		super(extensionId, label, undefined, true, () => {
-			return commandService.executeCommand('_extensions.manage', extensionId);
-		});
-	}
-}
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { toAction } from '../../../base/common/actions.js';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
@@ -46,13 +39,23 @@ export class MainThreadProgress implements MainThreadProgressShape {
 			const notificationOptions: IProgressNotificationOptions = {
 				...options,
 				location: ProgressLocation.Notification,
-				secondaryActions: [new ManageExtensionAction(extensionId, localize('manageExtension', "Manage Extension"), this._commandService)]
+				secondaryActions: [toAction({
+					id: extensionId,
+					label: localize('manageExtension', "Manage Extension"),
+					run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
+				})]
 			};
 
 			options = notificationOptions;
 		}
 
-		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		try {
+			this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		} catch (err) {
+			// the withProgress-method will throw synchronously when invoked with bad options
+			// which is then an enternal/extension error
+			onUnexpectedExternalError(err);
+		}
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {

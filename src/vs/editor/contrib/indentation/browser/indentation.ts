@@ -386,7 +386,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel.clear();
 
 		// we are disabled
-		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
+		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || !this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 

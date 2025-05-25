@@ -173,7 +173,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
-		this._serverRootPath = getServerRootPath(product, serverBasePath);
+		this._serverRootPath = paths.posix.join(serverBasePath ?? '/', getServerProductSegment(product));
 	}
 
 	getServerRootPath(): string {
@@ -228,8 +228,8 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
-export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
-	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+export function getServerProductSegment(product: { quality?: string; commit?: string }) {
+	return `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`;
 }
 
 /**
@@ -333,7 +333,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
@@ -351,12 +351,19 @@ class FileAccessImpl {
 			return URI.file(modulePath);
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		throw new Error('Cannot determine URI for module id!');
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
 
+export const CacheControlheaders: Record<string, string> = Object.freeze({
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
+});
 
 export namespace COI {
 

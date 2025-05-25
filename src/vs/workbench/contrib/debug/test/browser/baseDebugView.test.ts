@@ -106,7 +106,7 @@ suite('Debug - Base Debug View', () => {
 		const container = $('.container');
 		const treeContainer = renderViewTree(container);
 
-		assert.strictEqual(treeContainer.className, 'debug-view-content');
+		assert.strictEqual(treeContainer.className, 'debug-view-content file-icon-themable-tree');
 		assert.strictEqual(container.childElementCount, 1);
 		assert.strictEqual(container.firstChild, treeContainer);
 		assert.strictEqual(dom.isHTMLDivElement(treeContainer), true);

@@ -56,6 +56,10 @@ export interface IExtensionFeatureMarkdownAndTableRenderer extends IExtensionFea
 export interface IExtensionFeatureDescriptor {
 	readonly id: string;
 	readonly label: string;
+	// label of the access data, if different from the feature title.
+	// This is useful when the feature is a part of a larger feature and the access data is not about the larger feature.
+	// This is shown in the access chart like "There were ${accessCount} ${accessLabel} requests from this extension".
+	readonly accessDataLabel?: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
 	readonly access: {

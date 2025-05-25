@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import { TypeConstraint, validateConstraints } from '../../../base/common/types.js';
 import { ILocalizedString } from '../../action/common/action.js';
@@ -121,7 +121,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		// tell the world about this command
 		this._onDidRegisterCommand.fire(id);
 
-		return ret;
+		return markAsSingleton(ret);
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {

@@ -33,6 +33,7 @@ const SHELL_EXECUTABLES = [
 	'sles-12.exe',
 	'julia.exe',
 	'nu.exe',
+	'node.exe',
 ];
 
 const SHELL_EXECUTABLE_REGEXES = [
@@ -157,6 +158,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return WindowsShellType.GitBash;
 			case 'julia.exe':
 				return GeneralShellType.Julia;
+			case 'node.exe':
+				return GeneralShellType.Node;
 			case 'nu.exe':
 				return GeneralShellType.NuShell;
 			case 'wsl.exe':

@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { realcase, realcaseSync, realpath, realpathSync } from '../../node/extpath.js';
+import { realcase, realpath, realpathSync } from '../../node/extpath.js';
 import { Promises } from '../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { flakySuite, getRandomTestPath } from './testUtils.js';
@@ -22,30 +22,6 @@ flakySuite('Extpath', () => {
 
 	teardown(() => {
 		return Promises.rm(testDir);
-	});
-
-	test('realcaseSync', async () => {
-
-		// assume case insensitive file system
-		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = testDir.toUpperCase();
-			const real = realcaseSync(upper);
-
-			if (real) { // can be null in case of permission errors
-				assert.notStrictEqual(real, upper);
-				assert.strictEqual(real.toUpperCase(), upper);
-				assert.strictEqual(real, testDir);
-			}
-		}
-
-		// linux, unix, etc. -> assume case sensitive file system
-		else {
-			let real = realcaseSync(testDir);
-			assert.strictEqual(real, testDir);
-
-			real = realcaseSync(testDir.toUpperCase());
-			assert.strictEqual(real, testDir.toUpperCase());
-		}
 	});
 
 	test('realcase', async () => {

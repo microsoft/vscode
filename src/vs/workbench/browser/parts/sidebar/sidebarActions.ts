@@ -13,6 +13,24 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
+import { SideBarVisibleContext } from '../../../common/contextkeys.js';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.closeSidebar',
+			title: localize2('closeSidebar', 'Close Primary Side Bar'),
+			category: Categories.View,
+			f1: true,
+			precondition: SideBarVisibleContext
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
+	}
+});
 
 export class FocusSideBarAction extends Action2 {
 

@@ -24,12 +24,12 @@ function makeCompileBuildTask(disableMangle) {
 	);
 }
 
-// Full compile, including nls and inline sources in sourcemaps, mangling, minification, for build
-const compileBuildTask = task.define('compile-build', makeCompileBuildTask(false));
-gulp.task(compileBuildTask);
-exports.compileBuildTask = compileBuildTask;
+// Local/PR compile, including nls and inline sources in sourcemaps, minification, no mangling
+const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', makeCompileBuildTask(true));
+gulp.task(compileBuildWithoutManglingTask);
+exports.compileBuildWithoutManglingTask = compileBuildWithoutManglingTask;
 
-// Full compile for PR ci, e.g no mangling
-const compileBuildTaskPullRequest = task.define('compile-build-pr', makeCompileBuildTask(true));
-gulp.task(compileBuildTaskPullRequest);
-exports.compileBuildTaskPullRequest = compileBuildTaskPullRequest;
+// CI compile, including nls and inline sources in sourcemaps, mangling, minification, for build
+const compileBuildWithManglingTask = task.define('compile-build-with-mangling', makeCompileBuildTask(false));
+gulp.task(compileBuildWithManglingTask);
+exports.compileBuildWithManglingTask = compileBuildWithManglingTask;
