@@ -27,7 +27,7 @@ import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/marke
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { MarkdownHover, renderMarkdownInContainer } from './markdownHoverParticipant.js';
+import { MarkdownHover, renderMarkdown } from './markdownHoverParticipant.js';
 import { ILanguageService } from '../../../common/languages/language.js';
 
 
@@ -124,7 +124,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			const renderedMarkdownPart = renderMarkdownInContainer(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged);
+			const renderedMarkdownPart = renderMarkdown(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged);
 			disposables.add(renderedMarkdownPart);
 			const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
 			messageElement.append(renderedMarkdownElement);
