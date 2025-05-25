@@ -52,8 +52,9 @@ class SplitPaneContainer extends Disposable {
 	}
 
 	private _createSplitView(): void {
-		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitViewDisposables.clear();
+		this._splitView = new SplitView(this._container, { orientation: this.orientation });
+		this._splitViewDisposables.add(this._splitView);
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
@@ -180,8 +181,6 @@ class SplitPaneContainer extends Disposable {
 		while (this._container.children.length > 0) {
 			this._container.children[0].remove();
 		}
-		this._splitViewDisposables.clear();
-		this._splitView.dispose();
 
 		// Create new split view with updated orientation
 		this._createSplitView();
@@ -323,6 +322,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	override dispose(): void {
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
+		this._splitPaneContainer?.dispose();
 		super.dispose();
 	}
 

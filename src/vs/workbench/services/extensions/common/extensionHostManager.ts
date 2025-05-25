@@ -552,8 +552,7 @@ type RPCTelemetryDataClassification = {
 class TelemetryRPCLogger implements IRPCProtocolLogger {
 
 	static isEnabled(): boolean {
-		// this will be a very high frequency event, so we only log a small percentage of them
-		return Math.trunc(Math.random() * 1000) < 0.5;
+		return Math.random() < 0.0001; // 0.01% of users
 	}
 
 	private readonly _pendingRequests = new Map<number, string>();

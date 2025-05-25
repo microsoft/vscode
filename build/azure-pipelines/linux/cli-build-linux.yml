@@ -72,6 +72,8 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - script: |

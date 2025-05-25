@@ -17,7 +17,7 @@ import { ITelemetryData } from '../../../../platform/telemetry/common/telemetry.
 import { Event } from '../../../../base/common/event.js';
 import * as paths from '../../../../base/common/path.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes.js';
+import { AISearchKeyword, GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes.js';
 import { isThenable } from '../../../../base/common/async.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
@@ -263,6 +263,7 @@ export interface ISearchCompleteStats {
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
 	exit?: SearchCompletionExitCode;
+	aiKeywords?: AISearchKeyword[];
 }
 
 export const enum SearchCompletionExitCode {
@@ -415,6 +416,12 @@ export const enum SearchSortOrder {
 	CountAscending = 'countAscending'
 }
 
+export const enum SemanticSearchBehavior {
+	Auto = 'auto',
+	Manual = 'manual',
+	RunOnEmpty = 'runOnEmpty',
+}
+
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
@@ -459,6 +466,10 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+	};
+	searchView: {
+		semanticSearchBehavior: string;
+		keywordSuggestions: boolean;
 	};
 }
 

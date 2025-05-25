@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IExtensionRecommendations } from '../../../../base/common/product.js';
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -43,12 +43,15 @@ export interface IPreferencesSearchService {
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
+	searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null>;
 }
 
 export interface IRemoteSearchProvider extends ISearchProvider {
 	setFilter(filter: string): void;
 }
+
+export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
+export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
@@ -109,12 +112,20 @@ export type ExtensionToggleData = {
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
 
-export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+export async function getExperimentalExtensionToggleData(
+	contextKeyService: IContextKeyService,
+	extensionGalleryService: IExtensionGalleryService,
+	productService: IProductService,
+): Promise<ExtensionToggleData | undefined> {
 	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
 		return undefined;
 	}
 
 	if (!extensionGalleryService.isEnabled()) {
+		return undefined;
+	}
+
+	if (contextKeyService.getContextKeyValue<boolean>('chatSetupHidden')) {
 		return undefined;
 	}
 
@@ -137,7 +148,9 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 			// Recommend prerelease if not on Stable.
 			const isStable = productService.quality === 'stable';
 			try {
-				const extensions = await raceTimeout(extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None), EXTENSION_FETCH_TIMEOUT_MS);
+				const extensions = await raceTimeout(
+					extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None),
+					EXTENSION_FETCH_TIMEOUT_MS);
 				if (extensions?.length === 1) {
 					recommendedExtensionsGalleryInfo[key] = extensions[0];
 				} else {
@@ -176,5 +189,46 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 	}
 }
 
-export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "This setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
-export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "This setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");
+export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "Preview setting: this setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
+export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "Experimental setting: this setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");
+
+export const knownAcronyms = new Set<string>();
+[
+	'css',
+	'html',
+	'scss',
+	'less',
+	'json',
+	'js',
+	'ts',
+	'ie',
+	'id',
+	'php',
+	'scm',
+].forEach(str => knownAcronyms.add(str));
+
+export const knownTermMappings = new Map<string, string>();
+knownTermMappings.set('power shell', 'PowerShell');
+knownTermMappings.set('powershell', 'PowerShell');
+knownTermMappings.set('javascript', 'JavaScript');
+knownTermMappings.set('typescript', 'TypeScript');
+knownTermMappings.set('github', 'GitHub');
+
+export function wordifyKey(key: string): string {
+	key = key
+		.replace(/\.([a-z0-9])/g, (_, p1) => ` \u203A ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
+		.replace(/([A-Z]{1,})([A-Z][a-z])/g, '$1 $2') // Split consecutive capitals letters, AISearch => AI Search
+		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
+		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
+			return knownAcronyms.has(match.toLowerCase()) ?
+				match.toUpperCase() :
+				match;
+		});
+
+	for (const [k, v] of knownTermMappings) {
+		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
+	}
+
+	return key;
+}

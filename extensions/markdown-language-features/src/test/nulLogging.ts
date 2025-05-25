@@ -6,7 +6,7 @@
 import { ILogger } from '../logging';
 
 export const nulLogger = new class implements ILogger {
-	verbose(): void {
+	trace(): void {
 		// noop
 	}
 };

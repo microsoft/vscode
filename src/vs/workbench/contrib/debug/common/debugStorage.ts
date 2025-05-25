@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,11 +28,11 @@ export interface IChosenEnvironment {
 }
 
 export class DebugStorage extends Disposable {
-	public readonly breakpoints = observableValue(this, this.loadBreakpoints());
-	public readonly functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
-	public readonly exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
-	public readonly dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
-	public readonly watchExpressions = observableValue(this, this.loadWatchExpressions());
+	public readonly breakpoints: ISettableObservable<Breakpoint[]>;
+	public readonly functionBreakpoints: ISettableObservable<FunctionBreakpoint[]>;
+	public readonly exceptionBreakpoints: ISettableObservable<ExceptionBreakpoint[]>;
+	public readonly dataBreakpoints: ISettableObservable<DataBreakpoint[]>;
+	public readonly watchExpressions: ISettableObservable<Expression[]>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -41,6 +41,11 @@ export class DebugStorage extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.breakpoints = observableValue(this, this.loadBreakpoints());
+		this.functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
+		this.exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
+		this.dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
+		this.watchExpressions = observableValue(this, this.loadWatchExpressions());
 
 		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this._store)(e => {
 			if (e.external) {

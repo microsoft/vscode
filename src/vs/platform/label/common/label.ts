@@ -20,8 +20,9 @@ export interface ILabelService {
 	 * If `relative` is passed returns a label relative to the workspace root that the uri belongs to.
 	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
 	 * If `separator` is passed, will use that over the defined path separator of the formatter.
+	 * If `appendWorkspaceSuffix` is passed, will append the name of the workspace to the label.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean }): string;
 	getUriBasenameLabel(resource: URI): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
 	getHostLabel(scheme: string, authority?: string): string;

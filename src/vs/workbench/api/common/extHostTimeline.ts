@@ -16,6 +16,7 @@ import { MarkdownString } from './extHostTypeConverters.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isString } from '../../../base/common/types.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -42,7 +43,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		commands.registerArgumentProcessor({
 			processArgument: (arg, extension) => {
 				if (arg && arg.$mid === MarshalledId.TimelineActionContext) {
-					if (this._providers.get(arg.source) && ExtensionIdentifier.equals(extension, this._providers.get(arg.source)?.extension)) {
+					if (this._providers.get(arg.source) && extension && isProposedApiEnabled(extension, 'timeline')) {
 						const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
 						return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
 					} else {

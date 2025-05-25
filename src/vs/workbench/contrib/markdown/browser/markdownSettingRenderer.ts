@@ -121,7 +121,7 @@ export class SimpleSettingRenderer {
 	private render(settingId: string, newValue: string): string | undefined {
 		const setting = this.getSetting(settingId);
 		if (!setting) {
-			return '';
+			return `<code>${settingId}</code>`;
 		}
 
 		return this.renderSetting(setting, newValue);
@@ -299,7 +299,7 @@ export class SimpleSettingRenderer {
 		if (uri.scheme === Schemas.codeSetting) {
 			type ReleaseNotesSettingUsedClassification = {
 				owner: 'alexr00';
-				comment: 'Used to understand if the the action to update settings from the release notes is used.';
+				comment: 'Used to understand if the action to update settings from the release notes is used.';
 				settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked on in the release notes' };
 			};
 			type ReleaseNotesSettingUsed = {

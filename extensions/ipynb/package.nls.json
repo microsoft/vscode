@@ -8,6 +8,7 @@
 	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",
 	"cleanInvalidImageAttachment.title": "Clean Invalid Image Attachment Reference",
 	"copyCellOutput.title": "Copy Cell Output",
+	"addCellOutputToChat.title": "Add Cell Output to Chat",
 	"openCellOutput.title": "Open Cell Output in Text Editor",
 	"markdownAttachmentRenderer.displayName": {
 		"message": "Markdown-It ipynb Cell Attachment renderer",

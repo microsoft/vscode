@@ -133,14 +133,19 @@ export class CellEditorOptions extends CellContentPart implements ITextModelUpda
 				break;
 		}
 
+		const overrides: Partial<IEditorOptions> = {};
 		if (value.lineNumbers !== cellRenderLineNumber) {
-			return {
-				...value,
-				...{ lineNumbers: cellRenderLineNumber }
-			};
-		} else {
-			return Object.assign({}, value);
+			overrides.lineNumbers = cellRenderLineNumber;
 		}
+
+		if (this.notebookOptions.getLayoutConfiguration().disableRulers) {
+			overrides.rulers = [];
+		}
+
+		return {
+			...value,
+			...overrides,
+		};
 	}
 
 	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {

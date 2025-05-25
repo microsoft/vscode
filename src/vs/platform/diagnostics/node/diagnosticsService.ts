@@ -46,6 +46,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'eslint.json', filePattern: /^eslint\.json$/i },
 		{ tag: 'tasks.json', filePattern: /^tasks\.json$/i },
 		{ tag: 'launch.json', filePattern: /^launch\.json$/i },
+		{ tag: 'mcp.json', filePattern: /^mcp\.json$/i },
 		{ tag: 'settings.json', filePattern: /^settings\.json$/i },
 		{ tag: 'webpack.config.js', filePattern: /^webpack\.config\.js$/i },
 		{ tag: 'project.json', filePattern: /^project\.json$/i },
@@ -485,7 +486,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
-			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
+			name = item.pid === mainPid ? this.productService.applicationName : 'remote-server';
 		} else {
 			if (mapProcessToName.has(item.pid)) {
 				name = mapProcessToName.get(item.pid)!;

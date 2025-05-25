@@ -228,6 +228,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },

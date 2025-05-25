@@ -7,13 +7,13 @@ import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatController } from './terminalChatController.js';
-import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from './terminalChat.js';
 import { IAction } from '../../../../../base/common/actions.js';
 
-export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
+export class TerminalInlineChatAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'terminalInlineChat';
 	readonly type = AccessibleViewType.View;

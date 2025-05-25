@@ -28,6 +28,7 @@ import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispat
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InputMode } from '../../../common/inputMode.js';
 
 // --------- utils
 
@@ -6446,6 +6447,186 @@ suite('Undo stops', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+		});
+
+		model.dispose();
+	});
+});
+
+suite('Overtype Mode', () => {
+
+	setup(() => {
+		InputMode.setInputMode('overtype');
+	});
+
+	teardown(() => {
+		InputMode.setInputMode('insert');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('simple type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('a', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'12a456789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.setSelections('test', [new Selection(1, 9, 1, 9)]);
+			viewModel.type('bbb', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'12a45678bbb',
+				'123456789',
+			].join('\n'), 'assert2');
+		});
+
+		model.dispose();
+	});
+
+	test('multi-line selection type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
+			viewModel.type('cc', 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('simple paste', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste('cc', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste('dddddddd', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234dddddddd',
+				'123456789',
+			].join('\n'), 'assert2');
+		});
+
+		model.dispose();
+	});
+
+	test('multi-line selection paste', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
+			viewModel.paste('cc', false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234cc456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('paste multi-line text', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.paste([
+				'aaaaaaa',
+				'bbbbbbb'
+			].join('\n'), false);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234aaaaaaa',
+				'bbbbbbb',
+				'123456789',
+			].join('\n'), 'assert1');
+		});
+
+		model.dispose();
+	});
+
+	test('composition type', () => {
+		const model = createTextModel(
+			[
+				'123456789',
+				'123456789',
+			].join('\n'),
+			undefined,
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.startComposition();
+			viewModel.compositionType('セ', 0, 0, 0, 'keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234セ56789',
+				'123456789',
+			].join('\n'), 'assert1');
+
+			viewModel.endComposition('keyboard');
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
+				'1234セ6789',
+				'123456789',
+			].join('\n'), 'assert1');
 		});
 
 		model.dispose();

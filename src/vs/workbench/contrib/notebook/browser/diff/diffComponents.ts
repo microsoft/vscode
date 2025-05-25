@@ -847,7 +847,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					return;
 				}
 
-				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata, this.cell.modified?.metadata || {}, this.cell.modified?.language);
+				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata, this.cell.modified?.metadata || {}, this.cell.modified?.language, true);
 				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
 			}));
 
@@ -869,7 +869,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
-					: this.cell.original!.metadata || {});
+					: this.cell.original!.metadata || {}, undefined, true);
 			const uri = this.cell.type === 'insert'
 				? this.cell.modified!.uri
 				: this.cell.original!.uri;

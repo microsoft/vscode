@@ -49,6 +49,7 @@
 		"out-vscode-reh/**": true,
 		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
+		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true
@@ -156,6 +157,7 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
+	"terminal.integrated.suggest.enabled": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",
@@ -166,9 +168,18 @@
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
+	"inlineChat.enableV2": true,
 	"css.format.spaceAroundSelectorSeparator": true,
-	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
+	// "editor.experimental.preferTreeSitter.typescript": true,
+	// "editor.experimental.preferTreeSitter.regex": true,
+	// "editor.experimental.preferTreeSitter.css": true,
 	"typescript.experimental.expandableHover": true,
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.diagnosticsCommitHook.sources": {
+		"*": "error",
+		"ts": "warning",
+		"eslint": "warning"
+	}
 }

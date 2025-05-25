@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { GettingStartedPage, inWelcomeContext } from './gettingStarted.js';
@@ -22,7 +22,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
-export class GettingStartedAccessibleView implements IAccessibleViewImplentation {
+export class GettingStartedAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 110;
 	readonly name = 'walkthroughs';
