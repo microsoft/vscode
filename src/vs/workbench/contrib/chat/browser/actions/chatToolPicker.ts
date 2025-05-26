@@ -88,7 +88,7 @@ export async function showToolsPicker(
 	const userBucket: BucketPick = {
 		type: 'item',
 		children: [],
-		label: localize('userBucket', "User Defined"),
+		label: localize('userBucket', "User Defined Tool Sets"),
 		ordinal: BucketOrdinal.User,
 		alwaysShow: true,
 		picked: false,
@@ -154,8 +154,6 @@ export async function showToolsPicker(
 					action: () => mcpServer.showOutput(),
 				});
 			}
-
-			description = localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label);
 
 		} else if (toolSetOrTool.source.type === 'extension') {
 			const key = ToolDataSource.toKey(toolSetOrTool.source);
