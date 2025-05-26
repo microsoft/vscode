@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 

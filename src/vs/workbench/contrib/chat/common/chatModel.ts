@@ -19,11 +19,12 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
+import { Location, SymbolKind, TextEdit, isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -69,6 +70,11 @@ export const enum OmittedState {
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
+}
+
+export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'toolset';
+	readonly value: undefined;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -205,14 +211,31 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'scmHistoryItem';
-	readonly title: string;
 	readonly value: URI;
+	readonly historyItem: ISCMHistoryItem;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
-	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry | IChatRequestToolEntry
+	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
+	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+
+
+export namespace IChatRequestVariableEntry {
+
+	/**
+	 * Returns URI of the passed variant entry. Return undefined if not found.
+	 */
+	export function toUri(entry: IChatRequestVariableEntry): URI | undefined {
+		return URI.isUri(entry.value)
+			? entry.value
+			: isLocation(entry.value)
+				? entry.value.uri
+				: undefined;
+	}
+}
+
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -624,7 +647,14 @@ class ResponseView extends AbstractResponse {
 		_response: IResponse,
 		public readonly undoStop: string,
 	) {
-		const idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
+		let idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
+		// Undo stops are inserted before `codeblockUri`'s, which are preceeded by a
+		// markdownContent containing the opening code fence. Adjust the index
+		// backwards to avoid a buggy response if it looked like this happened.
+		if (_response.value[idx + 1]?.kind === 'codeblockUri' && _response.value[idx - 1]?.kind === 'markdownContent') {
+			idx--;
+		}
+
 		super(idx === -1 ? _response.value.slice() : _response.value.slice(0, idx));
 	}
 }
@@ -654,7 +684,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
@@ -1705,8 +1735,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.applyCodeCitation(progress);
 		} else if (progress.kind === 'move') {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
-		} else if (progress.kind === 'undoStop') {
-			request.response.addUndoStop(progress);
+		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
+			request.response.addUndoStop({ id: generateUuid(), kind: 'undoStop' });
+			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);

@@ -23,7 +23,7 @@ import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor } from '../theme.js';
-import { mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordReplacementView extends Disposable implements IInlineEditsView {
 
@@ -113,7 +113,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					return [];
 				}
 
-				const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 				const borderWidth = 1;
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
@@ -123,10 +122,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							top: 0,
-							left: contentLeft,
-							width: this._editor.contentWidth,
-							height: this._editor.editor.getContentHeight(),
+							...rectToProps((r) => getEditorValidOverlayRect(this._editor).read(r)),
 							overflow: 'hidden',
 							pointerEvents: 'none',
 						}

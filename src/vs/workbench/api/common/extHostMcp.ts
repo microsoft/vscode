@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 
@@ -183,13 +183,7 @@ class McpHTTPHandle extends Disposable {
 	private _mode: HttpModeT = { value: HttpMode.Unknown };
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
-	private _authMetadata?: {
-		issuer: string;
-		authorizationEndpoint: string;
-		tokenEndpoint: string;
-		registrationEndpoint: string;
-		scopesSupported: string[];
-	};
+	private _authMetadata?: IAuthorizationServerMetadata;
 
 	constructor(
 		private readonly _id: number,
@@ -245,7 +239,6 @@ class McpHTTPHandle extends Disposable {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
 			} catch (e) {
-				// TODO log?
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 			}
 		}
@@ -270,7 +263,7 @@ class McpHTTPHandle extends Disposable {
 						headers['Authorization'] = `Bearer ${token}`;
 						res = await doFetch();
 					} catch (e) {
-						// TODO log?
+						this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 					}
 				}
 			}
@@ -357,16 +350,14 @@ class McpHTTPHandle extends Disposable {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
 			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
+				...serverMetadataWithDefaults,
 				// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
 				// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
 				// literally... it contains `{tenant}`... instead of `organizations`. This may change our
 				// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
 				// as the isser.
 				issuer: serverMetadataUrl,
-				authorizationEndpoint: serverMetadataWithDefaults.authorization_endpoint,
-				tokenEndpoint: serverMetadataWithDefaults.token_endpoint,
-				registrationEndpoint: serverMetadataWithDefaults.registration_endpoint,
-				scopesSupported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported ?? [],
+				scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
 			};
 			return;
 		} catch (e) {
@@ -375,13 +366,8 @@ class McpHTTPHandle extends Disposable {
 
 		// If there's no well-known server metadata, then use the default values based off of the url.
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
-		this._authMetadata = {
-			issuer: defaultMetadata.issuer,
-			authorizationEndpoint: defaultMetadata.authorization_endpoint,
-			tokenEndpoint: defaultMetadata.token_endpoint,
-			registrationEndpoint: defaultMetadata.registration_endpoint,
-			scopesSupported: scopesSupported ?? defaultMetadata.scopes_supported ?? []
-		};
+		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
+		this._authMetadata = defaultMetadata;
 	}
 
 	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
@@ -415,8 +401,13 @@ class McpHTTPHandle extends Disposable {
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
-		const issuer = URI.parse(authorizationServer);
-		let authServerMetadataResponse = await fetch(URI.joinPath(issuer, '.well-known', 'oauth-authorization-server').toString(), {
+		// For the oauth server metadata discovery path, we _INSERT_
+		// the well known path after the origin and before the path.
+		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+		const issuer = new URL(authorizationServer);
+		const extraPath = issuer.pathname === '/' ? '' : issuer.pathname;
+		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+		let authServerMetadataResponse = await fetch(pathToFetch, {
 			method: 'GET',
 			signal: this._abortCtrl.signal,
 			headers: {
@@ -426,9 +417,11 @@ class McpHTTPHandle extends Disposable {
 			}
 		});
 		if (authServerMetadataResponse.status !== 200) {
-			// Try fetching the other discovery URL
+			// Try fetching the other discovery URL. For the openid metadata discovery
+			// path, we _ADD_ the well known path after the existing path.
+			// https://datatracker.ietf.org/doc/html/rfc8414#section-3
 			authServerMetadataResponse = await fetch(
-				URI.joinPath(issuer, '.well-known', 'openid-configuration').toString(true),
+				URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
 				{
 					method: 'GET',
 					signal: this._abortCtrl.signal,
@@ -548,16 +541,27 @@ class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachSSE(): Promise<string | undefined> {
 		const postEndpoint = new DeferredPromise<string>();
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			'Accept': 'text/event-stream',
+		};
+		if (this._authMetadata) {
+			try {
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+				}
+			} catch (e) {
+				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
+			}
+		}
 
 		let res: Response;
 		try {
 			res = await fetch(this._launch.uri.toString(true), {
 				method: 'GET',
 				signal: this._abortCtrl.signal,
-				headers: {
-					...Object.fromEntries(this._launch.headers),
-					'Accept': 'text/event-stream',
-				},
+				headers,
 			});
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
@@ -590,14 +594,25 @@ class McpHTTPHandle extends Disposable {
 	 */
 	private async _sendLegacySSE(url: string, message: string) {
 		const asBytes = new TextEncoder().encode(message);
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			'Content-Type': 'application/json',
+			'Content-Length': String(asBytes.length),
+		};
+		if (this._authMetadata) {
+			try {
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+				}
+			} catch (e) {
+				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
+			}
+		}
 		const res = await fetch(url, {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
-			headers: {
-				...Object.fromEntries(this._launch.headers),
-				'Content-Type': 'application/json',
-				'Content-Length': String(asBytes.length),
-			},
+			headers,
 			body: asBytes,
 		});
 

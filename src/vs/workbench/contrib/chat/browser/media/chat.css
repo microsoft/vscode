@@ -191,7 +191,6 @@
 		display: block;
 		opacity: 0;
 		visibility: hidden;
-		transition: opacity 0.2s ease, visibility 0.2s ease;
 		padding-top: 6px;
 		height: 22px;
 }
@@ -1340,6 +1339,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	cursor: pointer;
+	border-style: solid;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
@@ -1695,17 +1700,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 6px;
 }
 
-.interactive-item-container .chat-command-button .monaco-button,
-.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button:not(.monaco-dropdown-button) {
-	text-align: left;
-	width: initial;
-	padding: 4px 8px;
-}
-
-.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button.monaco-dropdown-button {
-	padding: 0 3px;
-}
-
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
 .interactive-item-container .chat-confirmation-widget .chat-attached-context {
 	margin-bottom: 8px;
@@ -1881,4 +1875,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
 	display: none;
+}
+
+.chat-buttons-container {
+	display: flex;
+	gap: 8px;
+	margin-top: 0px;
+	flex-wrap: wrap;
+	flex-basis: 100%;
+	padding: 0 8px;
+	margin: 8px 0;
+
+	& .monaco-button.monaco-dropdown-button {
+		padding: 0 3px;
+	}
+}
+
+.interactive-item-container .chat-command-button .monaco-button,
+.chat-buttons-container .monaco-button:not(.monaco-dropdown-button) {
+	text-align: left;
+	width: initial;
+	padding: 4px 8px;
 }

@@ -11,7 +11,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
 import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeMenu, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
 import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -352,7 +352,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 
 	// Hide custom title bar when native title bar enabled and custom title bar is empty
-	if (nativeTitleBarEnabled) {
+	if (hasNativeMenu(configurationService)) {
 		return false;
 	}
 

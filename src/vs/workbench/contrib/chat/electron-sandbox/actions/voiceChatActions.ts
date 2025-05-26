@@ -1282,10 +1282,14 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
 			const { confirmed } = await dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSetupError', "An error occurred while setting up voice chat. Would you like to try again?"),
-				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+				detail: toErrorMessage(error),
 				primaryButton: localize('retry', "Retry")
 			});
 			if (confirmed) {

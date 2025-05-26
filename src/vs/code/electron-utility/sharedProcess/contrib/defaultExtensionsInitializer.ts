@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
+import { dirname, join } from '../../../../base/common/path.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';

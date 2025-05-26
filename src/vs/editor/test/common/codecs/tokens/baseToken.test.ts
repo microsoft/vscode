@@ -8,6 +8,7 @@ import { Range } from '../../../../common/core/range.js';
 import { randomInt } from '../../../../../base/common/numbers.js';
 import { BaseToken } from '../../../../common/codecs/baseToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
 import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
 import { randomRange, randomRangeNotEqualTo } from '../testUtils/randomRange.js';
 import { CarriageReturn } from '../../../../common/codecs/linesCodec/tokens/carriageReturn.js';
@@ -46,8 +47,8 @@ suite('BaseToken', () => {
 
 	suite('• render()', () => {
 		/**
-		 * Note! Range of tokens is ignored by the render method, hence
-		 *       we generate random ranges for each token in this test.
+		 * Note! Range of tokens is ignored by the render method, that's
+		 *       why we generate random ranges for each token in this test.
 		 */
 		test('• a list of tokens', () => {
 			const tests: readonly [string, BaseToken[]][] = [
@@ -89,6 +90,40 @@ suite('BaseToken', () => {
 				assert.strictEqual(
 					expectedText,
 					BaseToken.render(tokens),
+					'Must correctly render tokens.',
+				);
+			}
+		});
+
+		test('• accepts tokens delimiter', () => {
+			// couple of different delimiters to try
+			const delimiter = (randomBoolean())
+				? ', '
+				: ' | ';
+
+			const tests: readonly [string, BaseToken[]][] = [
+				[`/${delimiter}textoftheword${delimiter}$${delimiter}#`, [
+					new Slash(randomRange()),
+					new Word(randomRange(), 'textoftheword'),
+					new DollarSign(randomRange()),
+					new Hash(randomRange()),
+				]],
+				[`<${delimiter}:${delimiter}👋helou👋${delimiter}:${delimiter}>`, [
+					new LeftAngleBracket(randomRange()),
+					new Colon(randomRange()),
+					new Word(randomRange(), '👋helou👋'),
+					new Colon(randomRange()),
+					new RightAngleBracket(randomRange()),
+				]],
+			];
+
+			for (const test of tests) {
+				const [expectedText, tokens] = test;
+
+				assert.strictEqual(
+					expectedText,
+					BaseToken.render(tokens, delimiter),
+					'Must correctly render tokens with a custom delimiter.',
 				);
 			}
 		});
@@ -114,7 +149,8 @@ suite('BaseToken', () => {
 				assert.throws(() => {
 					const lastToken = randomSimpleToken();
 
-					// generate a first token with starting line number that is
+					// generate a first token
+					//  starting line number that is
 					// greater than the start line number of the last token
 					const startLineNumber = lastToken.range.startLineNumber + randomInt(10, 1);
 					const firstToken = new Colon(
@@ -196,6 +232,66 @@ suite('BaseToken', () => {
 			assert(
 				token.range.equalsRange(rangeAfter),
 				`Token range must be to the new '${rangeAfter}' one.`,
+			);
+		});
+	});
+
+	suite('• collapseRangeToStart()', () => {
+		test('• collapses token range to the start position', () => {
+			class TestToken extends BaseToken {
+				public override get text(): string {
+					throw new Error('Method not implemented.');
+				}
+				public override toString(): string {
+					throw new Error('Method not implemented.');
+				}
+			}
+
+			const startLineNumber = randomInt(10, 1);
+			const startColumnNumber = randomInt(10, 1);
+			const range = new Range(
+				startLineNumber,
+				startColumnNumber,
+				startLineNumber + randomInt(10, 1),
+				startColumnNumber + randomInt(10, 1),
+			);
+
+			const token = new TestToken(range);
+
+			assert(
+				token.range.isEmpty() === false,
+				'Token range must not be empty before collapsing.',
+			);
+
+			token.collapseRangeToStart();
+
+			assert(
+				token.range.isEmpty(),
+				'Token range must be empty after collapsing.',
+			);
+
+			assert.strictEqual(
+				token.range.startLineNumber,
+				startLineNumber,
+				'Token range start line number must not change.',
+			);
+
+			assert.strictEqual(
+				token.range.startColumn,
+				startColumnNumber,
+				'Token range start column number must not change.',
+			);
+
+			assert.strictEqual(
+				token.range.endLineNumber,
+				startLineNumber,
+				'Token range end line number must be equal to line start number.',
+			);
+
+			assert.strictEqual(
+				token.range.endColumn,
+				startColumnNumber,
+				'Token range end column number must be equal to column start number.',
 			);
 		});
 	});
@@ -415,66 +511,6 @@ suite('BaseToken', () => {
 					`Token of type '${token2.constructor.name}' must not be equal to token of type '${token1.constructor.name}'.`,
 				);
 			});
-		});
-	});
-
-	suite('• collapseRangeToStart()', () => {
-		test('• collapses token range to the start position', () => {
-			class TestToken extends BaseToken {
-				public override get text(): string {
-					throw new Error('Method not implemented.');
-				}
-				public override toString(): string {
-					throw new Error('Method not implemented.');
-				}
-			}
-
-			const startLineNumber = randomInt(10, 1);
-			const startColumnNumber = randomInt(10, 1);
-			const range = new Range(
-				startLineNumber,
-				startColumnNumber,
-				startLineNumber + randomInt(10, 1),
-				startColumnNumber + randomInt(10, 1),
-			);
-
-			const token = new TestToken(range);
-
-			assert(
-				token.range.isEmpty() === false,
-				'Token range must not be empty before collapsing.',
-			);
-
-			token.collapseRangeToStart();
-
-			assert(
-				token.range.isEmpty(),
-				'Token range must be empty after collapsing.',
-			);
-
-			assert.strictEqual(
-				token.range.startLineNumber,
-				startLineNumber,
-				'Token range start line number must not change.',
-			);
-
-			assert.strictEqual(
-				token.range.startColumn,
-				startColumnNumber,
-				'Token range start column number must not change.',
-			);
-
-			assert.strictEqual(
-				token.range.endLineNumber,
-				startLineNumber,
-				'Token range end line number must be equal to line start number.',
-			);
-
-			assert.strictEqual(
-				token.range.endColumn,
-				startColumnNumber,
-				'Token range end column number must be equal to column start number.',
-			);
 		});
 	});
 });

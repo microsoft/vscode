@@ -28,10 +28,9 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -40,15 +39,17 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
-import { IMcpPrompt, IMcpPromptMessage, IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPick.js';
+import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -229,7 +230,7 @@ class SlashCommandCompletions extends Disposable {
 							command: {
 								id: StartParameterizedPromptAction.ID,
 								title: prompt.name,
-								arguments: [model, prompt, `${label} `],
+								arguments: [model, server, prompt, `${label} `],
 							},
 							insertText: `${label} `,
 							range,
@@ -311,7 +312,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel || widget.input.currentMode !== ChatMode.Ask) {
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -326,7 +327,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location));
+					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentMode));
 
 				// When the input is only `/`, items are sorted by sortText.
 				// When typing, filterText is used to score and sort.
@@ -401,7 +402,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel || widget.input.currentMode !== ChatMode.Ask) {
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -416,7 +417,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location));
+					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentMode));
 
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
@@ -539,12 +540,12 @@ class StartParameterizedPromptAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, model: ITextModel, prompt: IMcpPrompt, textToReplace: string) {
+	async run(accessor: ServicesAccessor, model: ITextModel, server: IMcpServer, prompt: IMcpPrompt, textToReplace: string) {
 		if (!model || !prompt) {
 			return;
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const notificationService = accessor.get(INotificationService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const fileService = accessor.get(IFileService);
@@ -563,62 +564,35 @@ class StartParameterizedPromptAction extends Action2 {
 		};
 
 		const store = new DisposableStore();
-		const quickInput = store.add(quickInputService.createInputBox());
+		const pick = store.add(instantiationService.createInstance(McpPromptArgumentPick, prompt));
 
 		try {
-			// remove fake /command if hidden before accepting
-			store.add(quickInput.onDidHide(() => replaceTextWith('')));
-
-			quickInput.totalSteps = prompt.arguments.length;
-			quickInput.step = 0;
-			quickInput.ignoreFocusOut = true;
-
-			const args: Record<string, string> = {};
-			for (const arg of prompt.arguments) {
-				quickInput.step++;
-				quickInput.placeholder = arg.name;
-				quickInput.description = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-				quickInput.value = '';
-
-				const value = await new Promise<string | undefined>(resolve => {
-					store.add(quickInput.onDidAccept(() => {
-						resolve(quickInput.value);
-					}));
-					store.add(quickInput.onDidHide(() => {
-						resolve(undefined);
-						store.dispose();
-					}));
-					quickInput.show();
-				});
-
-				if (value === undefined || (value === '' && arg.required)) {
-					store.dispose();
-					return;
-				}
-
-				args[arg.name] = value;
+			const args = await pick.createArgs();
+			if (!args) {
+				replaceTextWith('');
+				return;
 			}
-
-			quickInput.value = '';
-			quickInput.placeholder = localize('loading', 'Loading...');
-			quickInput.busy = true;
 
 			let messages: IMcpPromptMessage[];
 			try {
 				messages = await prompt.resolve(args);
 			} catch (e) {
 				notificationService.error(localize('mcp.prompt.error', "Error resolving prompt: {0}", String(e)));
+				replaceTextWith('');
 				return;
 			}
 
 			const toAttach: IChatRequestVariableEntry[] = [];
 			const attachBlob = async (mimeType: string | undefined, contents: string, uriStr?: string, isText = false) => {
 				let validURI: URI | undefined;
-				try {
-					const uri = uriStr && URI.parse(uriStr);
-					validURI = uri && await fileService.exists(uri) ? uri : undefined;
-				} catch {
-					// ignored
+				if (uriStr) {
+					for (const uri of [URI.parse(uriStr), McpResourceURI.fromServer(server.definition, uriStr)]) {
+						try {
+							validURI ||= await fileService.exists(uri) ? uri : undefined;
+						} catch {
+							// ignored
+						}
+					}
 				}
 
 				if (isText) {
@@ -632,14 +606,12 @@ class StartParameterizedPromptAction extends Action2 {
 					} else {
 						toAttach.push({
 							id: generateUuid(),
-							kind: 'generic', // TODO: once we support proper MCP resources, use that
+							kind: 'generic',
 							value: contents,
 							name: localize('mcp.prompt.resource', 'Prompt Resource'),
 						});
 					}
-				}
-
-				if (mimeType && getAttachableImageExtension(mimeType)) {
+				} else if (mimeType && getAttachableImageExtension(mimeType)) {
 					chatWidget.attachmentModel.addContext({
 						id: generateUuid(),
 						name: localize('mcp.prompt.image', 'Prompt Image'),
@@ -656,8 +628,7 @@ class StartParameterizedPromptAction extends Action2 {
 						name: basename(validURI),
 					});
 				} else {
-					// todo: generic binary data attachment?
-					// or just reference the MCP resource once we support them
+					// not a valid resource/resource URI
 				}
 			};
 
@@ -1101,35 +1072,50 @@ class ToolCompletions extends Disposable {
 					return null;
 				}
 
-				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
-				const usedToolNames = new Set(usedTools.map(v => v.toolName));
-				const toolItems: CompletionItem[] = [];
-				toolItems.push(...widget.input.selectedToolsModel.tools.get()
-					.filter(t => t.canBeReferencedInPrompt)
-					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
-					.map((t): CompletionItem => {
-						const source = t.source;
-						const detail = source.type === 'mcp'
-							? localize('desc', "MCP Server: {0}", source.label)
-							: source.type === 'extension'
-								? source.label
-								: undefined;
 
-						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
-						return {
-							label: withLeader,
-							range,
-							detail,
-							insertText: withLeader + ' ',
-							documentation: t.userDescription ?? t.modelDescription,
-							kind: CompletionItemKind.Text,
-							sortText: 'z'
-						};
-					}));
+				const usedNames = new Set<string>();
+				for (const part of widget.parsedInput.parts) {
+					if (part instanceof ChatRequestToolPart) {
+						usedNames.add(part.toolName);
+					} else if (part instanceof ChatRequestToolSetPart) {
+						usedNames.add(part.name);
+					}
+				}
 
-				return {
-					suggestions: toolItems
-				};
+				const suggestions: CompletionItem[] = [];
+
+
+				const iter = widget.input.selectedToolsModel.entries.get();
+
+				for (const item of iter) {
+
+					if (usedNames.has(item.toolReferenceName ?? '')) {
+						continue;
+					}
+
+					let detail: string | undefined;
+
+					if (item instanceof ToolSet) {
+						detail = item.description;
+
+					} else {
+						const source = item.source;
+						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
+					}
+
+					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;
+					suggestions.push({
+						label: withLeader,
+						range,
+						detail,
+						insertText: withLeader + ' ',
+						kind: CompletionItemKind.Text,
+						sortText: 'z',
+					});
+
+				}
+
+				return { suggestions };
 			}
 		}));
 	}

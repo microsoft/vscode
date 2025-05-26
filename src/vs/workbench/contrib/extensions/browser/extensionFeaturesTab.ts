@@ -534,7 +534,7 @@ class ExtensionFeatureItemRenderer implements IListRenderer<IExtensionFeatureDes
 		}));
 	}
 
-	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData, height: number | undefined): void {
+	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData): void {
 		templateData.disposables.dispose();
 	}
 

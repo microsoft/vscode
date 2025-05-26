@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../../base/common/assert.js';
+
 /**
  * Type for a generic tree node.
  */
@@ -13,8 +15,8 @@ export type TTree<TTreenNode> = { children?: readonly TTree<TTreenNode>[] } & TT
  */
 export const flatten = <TTreeNode>(
 	treeRoot: TTree<TTreeNode>,
-): Omit<TTreeNode, 'children'>[] => {
-	const result: Omit<TTreeNode, 'children'>[] = [];
+): TTreeNode[] => {
+	const result: TTreeNode[] = [];
 
 	result.push(treeRoot);
 
@@ -122,6 +124,141 @@ export const map = <
 
 	return newNode;
 };
+
+/**
+ * Type for a generic comparable object - the one that implements
+ * the `equals` method that allows to compare it with similar objects.
+ */
+type TComparable<T> = T & { equals: (other: T) => boolean };
+
+/**
+ * Type for a diff object that represents a difference between
+ * a pair of objects. See {@link difference} utility and related
+ * {@link TDifference} for more info.
+ */
+type TDiff<TObject1, TObject2> = {
+	/**
+	 * Reference to the first object that was used during
+	 * comparison. Equal to an object of the first tree
+	 * parameter passed to {@link difference}. When set to
+	 * `null`, then the object was missing in the first tree,
+	 * was but present in the second tree.
+	 */
+	readonly object1: TObject1;
+
+	/**
+	 * Reference to the second object that was used during
+	 * comparison. Equal to an object of the second tree
+	 * parameter passed to {@link difference}. When set to
+	 * `null`, then the object was missing in the second tree,
+	 * was but present in the first tree.
+	 */
+	readonly object2: TObject2;
+};
+
+/**
+ * Type for a diff object that represents a difference between
+ * a pair of objects of the same type.
+ * See {@link difference} utility for more info.
+ *
+ * The type is on-purpose constrained as only one of the object
+ * references can have the `null` reference but never both of
+ * them at the same time. This is due to the fact that two `null`
+ * values would indicate that both objects were missing during
+ * comparison, which does not make sense in this context.
+ */
+type TDifference<T> = TDiff<T, T | null> | TDiff<T | null, T>;
+
+/**
+ * Type for a tree of differences between two trees.
+ * See {@link difference} utility for more info.
+ */
+type TDiffTree<T> = TTree<TDifference<T> & {
+	/**
+	 * Index inside the parent's tree node 'children' array
+	 * reflecting the position of the object pair that was
+	 * compared. Always equal to `0` for a difference at
+	 * the root node level of a tree.
+	 */
+	readonly index: number;
+}>;
+
+/**
+ * Utility to find a difference between two provided trees
+ * of the same type. The result is another tree of difference
+ * nodes that represent difference between tree node pairs.
+ */
+export function difference<T extends NonNullable<unknown>>(
+	tree1: TTree<TComparable<T>>,
+	tree2: TTree<TComparable<T>>,
+): TDiffTree<T> | null {
+	const tree1Children = tree1.children ?? [];
+	const tree2Children = tree2.children ?? [];
+
+	// if there are no children in the both trees left anymore,
+	// compare the nodes directly themselves and return the result
+	if (tree1Children.length === 0 && tree2Children.length === 0) {
+		if (tree1.equals(tree2)) {
+			return null;
+		}
+
+		return {
+			index: 0,
+			object1: tree1,
+			object2: tree2,
+		};
+	}
+
+	// with children present, iterate over them to find difference for each pair
+	const maxChildren = Math.max(tree1Children.length, tree2Children.length);
+	const children: TDiffTree<T>[] = [];
+	for (let i = 0; i < maxChildren; i++) {
+		const child1 = tree1Children[i];
+		const child2 = tree2Children[i];
+
+		// sanity check to ensure that at least one of the children is defined
+		// as otherwise this case most likely indicates a logic error or a bug
+		assert(
+			(child1 !== undefined) || (child2 !== undefined),
+			'At least one of the children must be defined.',
+		);
+
+		// if one of the children is missing, report it as a difference
+		if ((child1 === undefined) || (child2 === undefined)) {
+			children.push({
+				index: i,
+				object1: child1 ?? null,
+				object2: child2 ?? null,
+			});
+
+			continue;
+		}
+
+		const diff = difference(child1, child2);
+		if (diff === null) {
+			continue;
+		}
+
+		children.push({
+			...diff,
+			index: i,
+		});
+	}
+
+	// if there some children that are different, report them
+	if (children.length !== 0) {
+		return {
+			index: 0,
+			object1: tree1,
+			object2: tree2,
+			children,
+		};
+	}
+
+	// there is no children difference, nor differences in the nodes
+	// themselves, hence return explicit `null` value to indicate that
+	return null;
+}
 
 /**
  * Type for a rest parameters of function, excluding

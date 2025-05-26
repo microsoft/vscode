@@ -571,6 +571,7 @@
 		"--vscode-pickerGroup-border",
 		"--vscode-pickerGroup-foreground",
 		"--vscode-ports-iconRunningProcessForeground",
+		"--vscode-preferences-sashBorder",
 		"--vscode-problemsErrorIcon-foreground",
 		"--vscode-problemsInfoIcon-foreground",
 		"--vscode-problemsWarningIcon-foreground",
@@ -955,6 +956,7 @@
 		"--text-link-decoration",
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
-		"--animation-opacity"
+		"--animation-opacity",
+		"--chat-setup-dialog-glow-progress"
 	]
 }

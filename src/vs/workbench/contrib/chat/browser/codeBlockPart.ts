@@ -412,8 +412,13 @@ export class CodeBlockPart extends Disposable {
 
 		this.editor.updateOptions({
 			...this.getEditorOptionsFromConfig(),
-			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
 		});
+		if (!this.editor.getOption(EditorOption.ariaLabel)) {
+			// Don't override the ariaLabel if it was set by the editor options
+			this.editor.updateOptions({
+				ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
+			});
+		}
 		this.layout(width);
 		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
 		if (data.renderOptions?.hideToolbar) {
