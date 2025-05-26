@@ -7,7 +7,7 @@
 
 @property --chat-setup-dialog-glow-progress {
 	syntax: '<percentage>';
-	initial-value: 0%;
+	initial-value: 100%;
 	inherits: false;
 }
 
