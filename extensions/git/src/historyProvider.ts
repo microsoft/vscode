@@ -478,9 +478,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true }, token)
 		]);
 
-		console.log(`authorResults: ${authorResults.length}`);
-		console.log(`grepResults: ${grepResults.length}`);
-
 		for (const commit of [...authorResults, ...grepResults]) {
 			if (!commits.has(commit.hash)) {
 				commits.set(commit.hash, commit);
