@@ -350,6 +350,10 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
+	/**
+	 * Whether this line has variable fonts or not.
+	 */
+	public readonly hasVariableFonts: boolean;
 
 	constructor(
 		minColumn: number,
@@ -362,6 +366,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -375,6 +380,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.hasVariableFonts = hasVariableFonts;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {

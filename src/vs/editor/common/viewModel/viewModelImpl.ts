@@ -35,7 +35,7 @@ import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
-import { ViewModelDecorations } from './viewModelDecorations.js';
+import { LineInlineDecorations, ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -813,7 +813,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
+		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).lineInlineDecorations;
 		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
@@ -823,19 +823,19 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[]): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, lineInlineDecorations: LineInlineDecorations): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
 
+		const inlineDecorations: InlineDecoration[] = lineInlineDecorations.inlineDecorations;
 		if (lineData.inlineDecorations) {
-			inlineDecorations = [
-				...inlineDecorations,
+			inlineDecorations.push(
 				...lineData.inlineDecorations.map(d =>
 					d.toInlineDecoration(lineNumber)
 				)
-			];
+			);
 		}
 
 		return new ViewLineRenderingData(
@@ -848,7 +848,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			lineData.tokens,
 			inlineDecorations,
 			tabSize,
-			lineData.startVisibleColumn
+			lineData.startVisibleColumn,
+			lineInlineDecorations.hasVariableFonts
 		);
 	}
 

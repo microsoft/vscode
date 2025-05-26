@@ -59,6 +59,7 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { GeneralLineBreaksComputerFactory } from '../../../common/viewModel/generalLineBreaksComputer.js';
+import { getWindow } from '../../../../base/browser/dom.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1682,7 +1683,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			new GeneralLineBreaksComputerFactory(this._domElement, this._configuration.options),
+			new GeneralLineBreaksComputerFactory(getWindow(this._domElement), this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
 			this._themeService,

@@ -15,13 +15,11 @@ import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, 
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { EditorFontLigatures, EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { Range } from '../../../common/core/range.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -57,7 +55,7 @@ export class ViewLine implements IVisibleLine {
 	private _isMaybeInvalid: boolean;
 	private _renderedViewLine: IRenderedViewLine | null;
 
-	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, private readonly _viewContext: ViewContext, options: ViewLineOptions) {
+	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, options: ViewLineOptions) {
 		this._options = options;
 		this._isMaybeInvalid = true;
 		this._renderedViewLine = null;
@@ -93,7 +91,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (isHighContrast(this._options.themeType) || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(this._options.themeType) || this._options.effectiveRenderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -120,7 +118,7 @@ export class ViewLine implements IVisibleLine {
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
-		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(options.themeType) || this._options.effectiveRenderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -136,7 +134,7 @@ export class ViewLine implements IVisibleLine {
 					if (isHighContrast(options.themeType)) {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					}
-					if (this._options.renderWhitespace === 'selection') {
+					if (this._options.effectiveRenderWhitespace === 'selection') {
 						if (!selectionsOnLine) {
 							selectionsOnLine = [];
 						}
@@ -146,12 +144,7 @@ export class ViewLine implements IVisibleLine {
 				}
 			}
 		}
-		const viewModel = this._viewContext.viewModel;
-		const model = viewModel.model;
-		const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(new Range(lineNumber, lineData.minColumn, lineNumber, lineData.maxColumn));
-		const fontDecorations = model.getFontDecorations(modelRange);
-		const fontDecorationsExistOnLine = fontDecorations.length > 0;
-		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
+		const renderWhitespace = lineData.hasVariableFonts ? options.renderWhitespace : options.effectiveRenderWhitespace;
 
 		const renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
@@ -195,7 +188,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		if (!lineData.hasVariableFonts && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,

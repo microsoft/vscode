@@ -29,7 +29,8 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow));
 	}
 
-	constructor(private targetWindow: WeakRef<Window>) { }
+	constructor(private targetWindow: WeakRef<Window>) {
+	}
 
 	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
 		const requests: string[] = [];

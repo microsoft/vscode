@@ -8,7 +8,6 @@ import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionDat
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { DOMLineBreaksComputerFactory } from '../../browser/view/domLineBreaksComputer.js';
 import { MonospaceLineBreaksComputerFactory } from './monospaceLineBreaksComputer.js';
-import { getWindow } from '../../../base/browser/dom.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InlineDecoration } from '../viewModel.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
@@ -16,10 +15,10 @@ import { IViewLineTokens } from '../tokens/lineTokens.js';
 export class GeneralLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 
-	constructor(private readonly domElement: HTMLElement, private readonly options: IComputedEditorOptions) { }
+	constructor(private readonly targetWindow: Window, private readonly options: IComputedEditorOptions) { }
 
 	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
-		return new GeneralLineBreaksComputer(this.domElement, config, this.options, tabSize);
+		return new GeneralLineBreaksComputer(this.targetWindow, config, this.options, tabSize);
 	}
 }
 
@@ -29,17 +28,17 @@ export class GeneralLineBreaksComputer implements ILineBreaksComputer {
 	private readonly _monospaceLineBreaksComputer: ILineBreaksComputer;
 	private readonly _lineNumbers: number[] = [];
 
-	constructor(domElement: HTMLElement, private readonly editorConfig: IEditorConfiguration, computedEditorOptions: IComputedEditorOptions, tabSize: number) {
-		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getWindow(domElement));
-		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(editorConfig, tabSize);
+	constructor(targetWindow: Window, private readonly config: IEditorConfiguration, options: IComputedEditorOptions, tabSize: number) {
+		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(targetWindow);
+		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(config, tabSize);
 
-		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(computedEditorOptions);
-		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(editorConfig, tabSize);
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(options);
+		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(config, tabSize);
 	}
 
 	addRequest(lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null, hasFontDecorations: boolean = false): void {
 		this._lineNumbers.push(lineNumber);
-		const wrappingStrategy = this.editorConfig.options.get(EditorOption.wrappingStrategy);
+		const wrappingStrategy = this.config.options.get(EditorOption.wrappingStrategy);
 		if (wrappingStrategy === 'advanced' || hasFontDecorations) {
 			this._domLineBreaksComputer.addRequest(lineNumber, lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData, hasFontDecorations);
 		} else {
