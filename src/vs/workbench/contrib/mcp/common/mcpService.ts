@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -89,7 +89,7 @@ export class McpService extends Disposable implements IMcpService {
 		await Promise.all(todo);
 	}
 
-	private _syncTools(server: McpServer, toolSet: ToolSet, store: DisposableStore) {
+	private _syncTools(server: McpServer, store: DisposableStore) {
 		const tools = new Map</* tool ID */string, ISyncedToolData>();
 
 		store.add(autorun(reader => {
@@ -115,7 +115,6 @@ export class McpService extends Disposable implements IMcpService {
 				const registerTool = (store: DisposableStore) => {
 					store.add(this._toolsService.registerToolData(toolData));
 					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
-					store.add(toolSet.addTool(toolData));
 				};
 
 				if (existing) {
@@ -194,13 +193,9 @@ export class McpService extends Disposable implements IMcpService {
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
 			);
-			const toolSet = this._toolsService.createToolSet(
-				{ type: 'mcp', label: def.serverDefinition.label, collectionId: def.collectionDefinition.id, definitionId: def.serverDefinition.id },
-				def.serverDefinition.id, def.serverDefinition.label,
-				{ icon: Codicon.mcp }
-			);
+
 			store.add(object);
-			this._syncTools(object, toolSet, store);
+			this._syncTools(object, store);
 
 			nextServers.push({ object, dispose: () => store.dispose() });
 		}

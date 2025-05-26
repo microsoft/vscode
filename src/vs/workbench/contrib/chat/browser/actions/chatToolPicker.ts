@@ -23,7 +23,7 @@ import { IToolData, ToolSet, ToolDataSource, ILanguageModelToolsService } from '
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 
-const enum BucketOrdinal { User, Mcp, Extension, BuiltIn }
+const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
 type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
 type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
@@ -76,19 +76,10 @@ export async function showToolsPicker(
 		picked: false,
 	};
 
-	const mcpBucket: BucketPick = {
-		type: 'item',
-		children: [],
-		label: localize('mcp', "MCP Servers"),
-		ordinal: BucketOrdinal.Mcp,
-		alwaysShow: true,
-		picked: false,
-	};
-
 	const userBucket: BucketPick = {
 		type: 'item',
 		children: [],
-		label: localize('userBucket', "User Defined"),
+		label: localize('userBucket', "User Defined Tool Sets"),
 		ordinal: BucketOrdinal.User,
 		alwaysShow: true,
 		picked: false,
@@ -130,12 +121,23 @@ export async function showToolsPicker(
 		const buttons: ActionableButton[] = [];
 
 		if (toolSetOrTool.source.type === 'mcp') {
+			const key = ToolDataSource.toKey(toolSetOrTool.source);
+
 			const { definitionId } = toolSetOrTool.source;
 			const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
 			if (!mcpServer) {
 				continue;
 			}
-			bucket = mcpBucket;
+
+			bucket = toolBuckets.get(key) ?? {
+				type: 'item',
+				label: localize('mcplabel', "MCP Server: {0}", toolSetOrTool.source.label),
+				ordinal: BucketOrdinal.Mcp,
+				picked: false,
+				alwaysShow: true,
+				children: []
+			};
+			toolBuckets.set(key, bucket);
 
 			const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
 			if (collection?.presentation?.origin) {
@@ -154,8 +156,6 @@ export async function showToolsPicker(
 					action: () => mcpServer.showOutput(),
 				});
 			}
-
-			description = localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label);
 
 		} else if (toolSetOrTool.source.type === 'extension') {
 			const key = ToolDataSource.toKey(toolSetOrTool.source);
@@ -213,7 +213,7 @@ export async function showToolsPicker(
 		}
 	}
 
-	for (const bucket of [builtinBucket, mcpBucket, userBucket]) {
+	for (const bucket of [builtinBucket, userBucket]) {
 		if (bucket.children.length > 0) {
 			toolBuckets.set(generateUuid(), bucket);
 		}
