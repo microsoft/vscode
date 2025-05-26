@@ -20,6 +20,7 @@ import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
+import { LineInlineDecorations } from './viewModelDecorations.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -29,7 +30,6 @@ export interface IViewModelLines extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
-	getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[];
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
@@ -136,11 +136,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
-			const inlineDecorations = this.getInlineDecorationsOnModelLine(lineNumber);
+			const lineInlineDecorations = this._getLineInlineDecorations(lineNumber);
 			this.model.tokenization.forceTokenization(lineNumber);
-			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			const isVariableFontSize = this.model.getFontDecorations(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber))).length > 0;
-			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null, isVariableFontSize);
+			const tokens = this.model.tokenization.getLineTokens(lineNumber);
+			lineBreaksComputer.addRequest(lineNumber, linesContent[i], lineInjectedText, lineInlineDecorations.inlineDecorations, tokens, previousLineBreaks ? previousLineBreaks[i] : null, lineInlineDecorations.hasVariableFonts);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -172,35 +171,25 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
-	public getInlineDecorationsOnModelLine(modelLineNumber: number): InlineDecoration[] {
-		const modelDecorations = this.model.getLineDecorations(modelLineNumber, this._editorId, filterValidationDecorations(this.config.options));
-		const inlineDecorations: InlineDecoration[] = [];
+	private _getLineInlineDecorations(lineNumber: number): LineInlineDecorations {
+		const modelDecorations = this.model.getLineDecorations(lineNumber, this._editorId, filterValidationDecorations(this.config.options));
+		const lineInlineDecorations = new LineInlineDecorations();
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
 			const modelRange = modelDecoration.range;
 			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(modelRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
-				inlineDecorations.push(inlineDecoration);
+				const inlineDecorationType = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.inlineClassName, inlineDecorationType);
 			}
 			if (decorationOptions.beforeContentClassName) {
-				const inlineDecoration = new InlineDecoration(
-					modelRange,
-					decorationOptions.beforeContentClassName,
-					InlineDecorationType.Before
-				);
-				inlineDecorations.push(inlineDecoration);
+				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.beforeContentClassName, InlineDecorationType.Before);
 			}
 			if (decorationOptions.afterContentClassName) {
-				const inlineDecoration = new InlineDecoration(
-					modelRange,
-					decorationOptions.afterContentClassName,
-					InlineDecorationType.After
-				);
-				inlineDecorations.push(inlineDecoration);
+				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.afterContentClassName, InlineDecorationType.After);
 			}
 		}
-		return inlineDecorations;
+		return lineInlineDecorations;
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -1156,14 +1145,6 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return new IdentityCoordinatesConverter(this);
-	}
-
-	public getInlineDecorationsOnModelLine(lineNumber: number, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): InlineDecoration[] {
-		return [];
-	}
-
-	public getInlineDecorationsInModelRange(modelRange: Range): InlineDecoration[] {
-		return [];
 	}
 
 	public getHiddenAreas(): Range[] {

@@ -177,13 +177,12 @@ export class DiffEditorViewZones extends Disposable {
 								return { orig: origViewZones, mod: modViewZones };
 							}
 							const originalEditor = this._editors.original;
-							const viewModel = originalEditor._getViewModel()!;
-							const inlineDecorations = viewModel.getInlineDecorations(i);
-							viewModel.model.tokenization.forceTokenization(i);
-							const lineTokens = viewModel.model.tokenization.getLineTokens(i);
-							const range = new Range(i, 1, i, originalModel.getLineMaxColumn(i));
-							const isVariableFontSize = viewModel.model.getFontDecorations(range).length > 0;
-							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), null, inlineDecorations, lineTokens, null, isVariableFontSize);
+							const viewModel = originalEditor._getViewModel();
+							if (!viewModel) {
+								continue;
+							}
+							const viewLinerenderingData = viewModel.getViewLineRenderingData(i);
+							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), null, viewLinerenderingData.inlineDecorations, viewLinerenderingData.tokens, null, viewLinerenderingData.hasVariableFonts);
 						}
 					}
 				}
