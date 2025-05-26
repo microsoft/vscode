@@ -26,6 +26,7 @@
 }
 
 .chat-setup-dialog.chat-setup-glow {
+	--chat-setup-dialog-glow-progress: 0%;
 	border: 2px solid !important;
 	border-image: linear-gradient(45deg, var(--vscode-button-background) var(--chat-setup-dialog-glow-progress), var(--vscode-editorGutter-addedBackground)) 1 !important;
 	animation: 3s chat-setup-dialog-glow-progress-animation linear infinite;
