@@ -260,8 +260,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 
 			const commits = typeof options.filterText === 'string' && options.filterText !== ''
-				? await this._searchHistoryItems(options.filterText.trim(), logOptions)
+				? await this._searchHistoryItems(options.filterText.trim(), logOptions, token)
 				: await this.repository.log({ ...logOptions, silent: true }, token);
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
 
 			// Avatars
 			const avatarQuery = {
@@ -461,19 +465,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 	}
 
-	private async _searchHistoryItems(filterText: string, options: LogOptions): Promise<Commit[]> {
-		const commits = new Map<string, Commit>();
+	private async _searchHistoryItems(filterText: string, options: LogOptions, token: CancellationToken): Promise<Commit[]> {
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
-		// If the filter text contains any spaces, convert it into a
-		// regular expression to search for all words in the commit message
-		// const grep = filterText.indexOf(' ') !== -1
-		// 	? [filterText, ...filterText.split(' ')]
-		// 	: [filterText];
+		const commits = new Map<string, Commit>();
 
 		// Search by author and commit message in parallel
 		const [authorResults, grepResults] = await Promise.all([
-			this.repository.log({ ...options, refNames: undefined, author: filterText, silent: true }),
-			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true })
+			this.repository.log({ ...options, refNames: undefined, author: filterText, silent: true }, token),
+			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true }, token)
 		]);
 
 		console.log(`authorResults: ${authorResults.length}`);
@@ -485,7 +487,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
-		return Array.from(commits.values());
+		return Array.from(commits.values()).slice(0, options.maxEntries ?? 50);
 	}
 
 	private toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
