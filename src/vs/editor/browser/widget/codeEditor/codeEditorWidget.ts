@@ -262,7 +262,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -1691,8 +1691,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 						this._endUpdate();
 					}
 				},
-			},
-			this.accessibilityService
+			}
 		);
 
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model

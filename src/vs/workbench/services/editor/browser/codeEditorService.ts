@@ -15,17 +15,15 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { isEqual } from '../../../../base/common/resources.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export class CodeEditorService extends AbstractCodeEditorService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(themeService, accessibilityService);
+		super(themeService);
 
 		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditor.bind(this)));
 		this._register(this.registerCodeEditorOpenHandler(this.doOpenCodeEditorFromDiff.bind(this)));

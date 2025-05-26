@@ -41,7 +41,6 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -72,8 +71,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
-		private readonly _transactionalTarget: IBatchableTarget,
-		private readonly accessibilityService: IAccessibilityService,
+		private readonly _transactionalTarget: IBatchableTarget
 	) {
 		super();
 

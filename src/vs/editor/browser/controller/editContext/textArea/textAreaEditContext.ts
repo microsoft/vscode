@@ -743,7 +743,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 				// Try to render the textarea with the color/font style to match the text under it
 				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
-				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
+				const viewModel = this._context.viewModel;
+				const fontSize = this._getFontSizeAtPosition(this._primaryCursorPosition);
+				const viewLineData = viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
@@ -754,7 +756,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 				this.textArea.domNode.scrollTop = lineCount * lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
-				console.log('lineHeight : ', lineHeight);
 				this._doRender({
 					lastRenderPosition: null,
 					top: top,
@@ -766,7 +767,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 					italic: presentation.italic,
 					bold: presentation.bold,
 					underline: presentation.underline,
-					strikethrough: presentation.strikethrough
+					strikethrough: presentation.strikethrough,
+					fontSize
 				});
 			}
 			return;
@@ -799,7 +801,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			const lineNumber = this._primaryCursorPosition.lineNumber;
 			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
-			console.log('lineHeight : ', lineHeight);
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
@@ -845,8 +846,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		console.log('renderData.height : ', renderData.height);
 		applyFontInfo(ta, this._fontInfo);
+		// TODO: Maybe should remove font size when using text area?
+		if (renderData.fontSize) {
+			ta.setFontSize(renderData.fontSize);
+		}
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
@@ -859,17 +863,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
 			ta.setFontWeight('bold');
 		}
-		const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(this._primaryCursorPosition);
-		let fontSize = this._fontInfo.fontSize;
-		const fontDecorations = this._context.viewModel.model.getFontDecorations(Range.fromPositions(modelPosition));
-		for (const fontDecoration of fontDecorations) {
-			if (fontDecoration.options.fontSize) {
-				fontSize = fontDecoration.options.fontSize;
-				break;
-			}
-		}
-		console.log('fontSize', fontSize);
-		ta.setFontSize(fontSize);
 		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 
 		tac.setTop(renderData.useCover ? renderData.top : 0);
@@ -889,6 +882,20 @@ export class TextAreaEditContext extends AbstractEditContext {
 			}
 		}
 	}
+
+	private _getFontSizeAtPosition(position: Position): number {
+		const viewModel = this._context.viewModel;
+		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
+		const fontDecorations = viewModel.model.getFontDecorations(Range.fromPositions(modelPosition));
+		let fontSize = this._fontInfo.fontSize;
+		for (const fontDecoration of fontDecorations) {
+			if (fontDecoration.options.fontSize) {
+				fontSize = fontDecoration.options.fontSize;
+				break;
+			}
+		}
+		return fontSize;
+	}
 }
 
 interface IRenderData {
@@ -902,6 +909,7 @@ interface IRenderData {
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
+	fontSize?: number;
 	underline?: boolean;
 	strikethrough?: boolean;
 }

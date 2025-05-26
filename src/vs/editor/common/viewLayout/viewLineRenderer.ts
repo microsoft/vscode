@@ -476,6 +476,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 				containsForeignElements |= ForeignElementType.After;
 			}
 		}
+		// apply inline decorations
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
 	if (!input.containsRTL) {

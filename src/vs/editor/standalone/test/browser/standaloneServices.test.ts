@@ -16,7 +16,6 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('StandaloneKeybindingService', () => {
 
@@ -32,14 +31,13 @@ suite('StandaloneKeybindingService', () => {
 
 		const disposables = new DisposableStore();
 		const serviceCollection = new ServiceCollection();
-		const accessibilityService = new TestAccessibilityService();
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		const configurationService = new StandaloneConfigurationService(new NullLogService());
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const commandService = new StandaloneCommandService(instantiationService);
 		const notificationService = new StandaloneNotificationService();
 		const standaloneThemeService = disposables.add(new StandaloneThemeService());
-		const codeEditorService = disposables.add(new StandaloneCodeEditorService(contextKeyService, standaloneThemeService, accessibilityService));
+		const codeEditorService = disposables.add(new StandaloneCodeEditorService(contextKeyService, standaloneThemeService));
 		const keybindingService = disposables.add(new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), codeEditorService));
 
 		let commandInvoked = false;
