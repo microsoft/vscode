@@ -18,11 +18,15 @@ export interface IListVirtualDelegate<T> {
 	setDynamicHeight?(element: T, height: number): void;
 }
 
+export interface IListElementRenderDetails {
+	readonly height?: number;
+}
+
 export interface IListRenderer<T, TTemplateData> {
 	readonly templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
+	renderElement(element: T, index: number, templateData: TTemplateData, details?: IListElementRenderDetails): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData, details?: IListElementRenderDetails): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 

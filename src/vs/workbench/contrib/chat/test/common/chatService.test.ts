@@ -55,7 +55,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({
+		progress([{
 			documents: [
 				{
 					uri: URI.file('/test/path/to/file'),
@@ -66,7 +66,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 				}
 			],
 			kind: 'usedContext'
-		});
+		}]);
 
 		return { metadata: { metadataKey: 'value' } };
 	},
@@ -89,7 +89,7 @@ const chatAgentWithMarkdown: IChatAgent = {
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		progress([{ kind: 'markdownContent', content: new MarkdownString('test') }]);
 		return { metadata: { metadataKey: 'value' } };
 	},
 	async provideFollowups(sessionId, token) {

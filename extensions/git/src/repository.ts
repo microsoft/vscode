@@ -1100,14 +1100,14 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('unset', 'local', key));
 	}
 
-	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
+	log(options?: LogOptions & { silent?: boolean }, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const showProgress = !options || options.silent !== true;
-		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
+		return this.run(Operation.Log(showProgress), () => this.repository.log(options, cancellationToken));
 	}
 
-	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		// TODO: This probably needs per-uri granularity
-		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options, cancellationToken));
 	}
 
 	@throttle
@@ -1703,6 +1703,10 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async showCommit(ref: string): Promise<string> {
+		return await this.run(Operation.Show, () => this.repository.showCommit(ref));
 	}
 
 	async getEmptyTree(): Promise<string> {

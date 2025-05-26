@@ -20,7 +20,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -52,7 +52,7 @@ export class McpService extends Disposable implements IMcpService {
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
 
-		const updateThrottle = this._store.add(new RunOnceScheduler(() => this._updateCollectedServers(), 500));
+		const updateThrottle = this._store.add(new RunOnceScheduler(() => this.updateCollectedServers(), 500));
 
 		// Throttle changes so that if a collection is changed, or a server is
 		// unregistered/registered, we don't stop servers unnecessarily.
@@ -73,14 +73,14 @@ export class McpService extends Disposable implements IMcpService {
 		const collections = await this._mcpRegistry.discoverCollections();
 		const collectionIds = new Set(collections.map(c => c.id));
 
-		this._updateCollectedServers();
+		this.updateCollectedServers();
 
 		// Discover any newly-collected servers with unknown tools
 		const todo: Promise<unknown>[] = [];
 		for (const { object: server } of this._servers.get()) {
 			if (collectionIds.has(server.collection.id)) {
-				const state = server.toolsState.get();
-				if (state === McpServerToolsState.Unknown) {
+				const state = server.cacheState.get();
+				if (state === McpServerCacheState.Unknown) {
 					todo.push(server.start());
 				}
 			}
@@ -117,7 +117,6 @@ export class McpService extends Disposable implements IMcpService {
 					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
 				};
 
-
 				if (existing) {
 					if (!equals(existing.toolData, toolData)) {
 						existing.toolData = toolData;
@@ -132,6 +131,7 @@ export class McpService extends Disposable implements IMcpService {
 					registerTool(store);
 					tools.set(tool.id, { toolData, store });
 				}
+
 			}
 
 			for (const id of toDelete) {
@@ -150,7 +150,7 @@ export class McpService extends Disposable implements IMcpService {
 		}));
 	}
 
-	private _updateCollectedServers() {
+	public updateCollectedServers() {
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
 			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
 				serverDefinition,
@@ -193,6 +193,7 @@ export class McpService extends Disposable implements IMcpService {
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
 			);
+
 			store.add(object);
 			this._syncTools(object, store);
 
@@ -238,7 +239,7 @@ class McpToolImplementation implements IToolImpl {
 
 		return {
 			confirmationMessages: needsConfirmation ? {
-				title: localize('msg.title', "Run {0}", title),
+				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
 				allowAutoConfirm: true,
 			} : undefined,

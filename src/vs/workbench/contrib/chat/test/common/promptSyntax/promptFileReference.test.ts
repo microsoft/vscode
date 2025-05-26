@@ -24,12 +24,11 @@ import { waitRandom, randomBoolean } from '../../../../../../base/test/common/te
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { IPromptParserOptions, TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileType } from '../../../../../../platform/prompts/common/prompts.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
@@ -237,15 +236,7 @@ suite('PromptFileReference', function () {
 		instantiationService.stub(IModelService, { getModel() { return null; } });
 		instantiationService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
-				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
-					return PROMPT_LANGUAGE_ID;
-				}
-
-				if (uri.path.endsWith(INSTRUCTION_FILE_EXTENSION)) {
-					return INSTRUCTIONS_LANGUAGE_ID;
-				}
-
-				return null;
+				return getPromptFileType(uri) ?? null;
 			}
 		});
 	});

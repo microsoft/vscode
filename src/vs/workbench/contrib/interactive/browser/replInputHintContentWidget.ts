@@ -12,6 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -77,7 +78,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}));
 
 			this.editor.applyFontInfo(this.domNode);
-			const lineHeight = this.editor.getLineHeightForLineNumber(1);
+			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
 			this.domNode.style.lineHeight = lineHeight + 'px';
 		}
 
