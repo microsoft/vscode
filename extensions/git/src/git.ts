@@ -1309,7 +1309,13 @@ export class Repository {
 		}
 
 		if (options?.author) {
-			args.push(`--author="${options.author}"`);
+			args.push(`--author=${options.author}`);
+		}
+
+		if (options?.grep) {
+			args.push(`--grep=${options.grep}`);
+			args.push('--extended-regexp');
+			args.push('--regexp-ignore-case');
 		}
 
 		if (typeof options?.maxParents === 'number') {
