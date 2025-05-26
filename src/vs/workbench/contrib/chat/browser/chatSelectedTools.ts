@@ -145,9 +145,6 @@ export class ChatSelectedTools extends Disposable {
 		const result = new Map<IToolData, boolean>();
 
 		const _set = (tool: IToolData, enabled: boolean) => {
-			if (!tool.canBeReferencedInPrompt) {
-				return;
-			}
 			// ONLY disable a tool that isn't enabled yet
 			const enabledNow = result.get(tool);
 			if (enabled || !enabledNow) {
@@ -161,7 +158,9 @@ export class ChatSelectedTools extends Disposable {
 					_set(tool, enabled);
 				}
 			} else {
-				_set(item, enabled);
+				if (item.canBeReferencedInPrompt) {
+					_set(item, enabled);
+				}
 			}
 		}
 		return result;
