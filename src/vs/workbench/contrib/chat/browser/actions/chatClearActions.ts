@@ -13,7 +13,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, IsAuxiliaryTitleBarContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { ChatMode } from '../../common/constants.js';
@@ -50,21 +50,12 @@ export function registerNewChatActions() {
 				icon: Codicon.plus,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
-				menu: [{
-					id: MenuId.EditorTitle,
+				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+					id,
 					group: 'navigation',
-					order: 0,
 					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				},
-				{
-					id: MenuId.LayoutControlMenu,
-					when: ContextKeyExpr.and(
-						ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-						IsAuxiliaryTitleBarContext,
-						IsCompactTitleBarContext
-					),
-					order: -1
-				}]
+					order: 1
+				}))
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {

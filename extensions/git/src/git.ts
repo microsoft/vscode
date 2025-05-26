@@ -16,6 +16,7 @@ import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutp
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
+import { sequentialize } from './decorators';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -1239,6 +1240,7 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
+	@sequentialize
 	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
 		const args = ['config', `--${command}`];
 
@@ -1342,7 +1344,7 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
-	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.maxEntries && !options?.reverse) {
@@ -1373,7 +1375,7 @@ export class Repository {
 		args.push('--', uri.fsPath);
 
 		try {
-			const result = await this.exec(args);
+			const result = await this.exec(args, { cancellationToken });
 			if (result.exitCode) {
 				// No file history, e.g. a new file or untracked
 				return [];
@@ -2925,6 +2927,19 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async showCommit(ref: string): Promise<string> {
+		try {
+			const result = await this.exec(['show', ref]);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
 	}
 
 	async revList(ref1: string, ref2: string): Promise<string[]> {

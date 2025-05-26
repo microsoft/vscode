@@ -36,6 +36,10 @@
 	object-fit: contain;
 }
 
+.extension-editor > .header > .icon-container > .codicon {
+	font-size: 128px !important;
+}
+
 .extension-editor > .header > .icon-container .extension-remote-badge {
 	position: absolute;
 	right: 0px;

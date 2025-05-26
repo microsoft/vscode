@@ -15,6 +15,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelProvider.js';
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
+import { Position } from '../../../common/core/position.js';
 
 export class StickyLineCandidate {
 	constructor(
@@ -175,7 +176,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = childRange.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					const lineHeight = this._editor.getLineHeightForLineNumber(childStartLine);
+					const lineHeight = this._editor.getLineHeightForPosition(new Position(childStartLine, 1));
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, top, lineHeight));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, top + lineHeight, childStartLine);
 				}

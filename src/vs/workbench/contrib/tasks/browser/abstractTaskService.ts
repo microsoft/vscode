@@ -684,7 +684,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							? `\`${message}\``
 							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
 						actions.push({
-							label: nls.localize('troubleshootWithChat', "Troubleshoot with Chat"),
+							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
 							run: async () => {
 								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
 									mode: ChatMode.Agent,
@@ -700,8 +700,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this._outputService.showChannel(this._outputChannel.id, true);
 					}
 				});
-				if (chatEnabled) {
-					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to resolve them or view the output for details.'), actions);
+				if (chatEnabled && actions.length > 1) {
+					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to fix them or view the output for details.'), actions);
 				} else {
 					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
 				}
@@ -2116,7 +2116,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							this._showOutput(error.message);
 						} else {
 							this._log('Unknown error received while collecting tasks from providers.');
-							this._showOutput(undefined, undefined, 'Unknown error received while collecting tasks from providers.');
+							this._showOutput();
 						}
 					}
 				} finally {
@@ -2141,7 +2141,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								if (task.type !== this._providerTypes.get(handle)) {
 									this._log(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
-										this._showOutput(undefined, undefined, nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+										this._showOutput();
 									}
 									break;
 								}

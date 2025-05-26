@@ -11,10 +11,10 @@ import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ObjectStream } from '../../../../../../editor/common/codecs/utils/objectStream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
+import { objectStreamFromTextModel } from '../../../../../../editor/common/codecs/utils/objectStreamFromTextModel.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -63,7 +63,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<ReadableStream<VSBuffer>> {
-		return ObjectStream.fromTextModel(this.model, cancellationToken);
+		return objectStreamFromTextModel(this.model, cancellationToken);
 	}
 
 	public override createNew(
