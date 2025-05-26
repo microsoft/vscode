@@ -318,9 +318,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
 		const equalWordBreak = (this.wordBreak === wordBreak);
-		// if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
-		// 	return false;
-		// }
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
+			return false;
+		}
 
 		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
 
@@ -344,12 +344,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
-		const lineBreaksComputerFactory = this._generalLineBreaksComputerFactory;
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize);
+		return this._generalLineBreaksComputerFactory.createLineBreaksComputer(this.config, this.tabSize);
 	}
 
 	public onModelFlushed(): void {
-		console.log('onModelFlushed');
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
 
@@ -1148,11 +1146,9 @@ const enum IndentGuideRepeatOption {
 
 export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public readonly model: ITextModel;
-	public readonly defaultFontInfo: FontInfo;
 
-	constructor(model: ITextModel, defaultFontInfo: FontInfo) {
+	constructor(model: ITextModel) {
 		this.model = model;
-		this.defaultFontInfo = defaultFontInfo;
 	}
 
 	public dispose(): void {

@@ -20,7 +20,6 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
 	public readonly useGpu: boolean;
-	public readonly allowVariableFonts: boolean;
 
 	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
@@ -46,7 +45,6 @@ export class ViewLineOptions {
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
 		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
-		this.allowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -63,7 +61,6 @@ export class ViewLineOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
 			&& this.useGpu === other.useGpu
-			&& this.allowVariableFonts === other.allowVariableFonts
 		);
 	}
 }

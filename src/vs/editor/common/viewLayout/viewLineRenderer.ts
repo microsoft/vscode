@@ -41,9 +41,6 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
-	public readonly fontSize: number;
-	public readonly fontFamily: string;
-	public readonly allowVariableFonts: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -66,9 +63,6 @@ export class RenderLineInput {
 		spaceWidth: number,
 		middotWidth: number,
 		wsmiddotWidth: number,
-		fontSize: number,
-		fontFamily: string,
-		allowVariableFonts: boolean,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
@@ -87,9 +81,6 @@ export class RenderLineInput {
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
-		this.fontSize = fontSize;
-		this.fontFamily = fontFamily;
-		this.allowVariableFonts = allowVariableFonts;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = (
 			renderWhitespace === 'all'
@@ -160,9 +151,6 @@ export class RenderLineInput {
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
-			&& this.fontSize === other.fontSize
-			&& this.fontFamily === other.fontFamily
-			&& this.allowVariableFonts === other.allowVariableFonts
 		);
 	}
 }
@@ -425,9 +413,6 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
-		public readonly fontSize: number,
-		public readonly fontFamily: string,
-		public readonly allowVariableFonts: boolean
 	) {
 		//
 	}
@@ -499,10 +484,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters,
-		input.fontSize,
-		input.fontFamily,
-		input.allowVariableFonts
+		input.renderControlCharacters
 	);
 }
 

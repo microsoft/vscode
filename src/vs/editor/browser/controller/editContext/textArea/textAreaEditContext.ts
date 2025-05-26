@@ -848,6 +848,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 		applyFontInfo(ta, this._fontInfo);
 		// TODO: Maybe should remove font size when using text area?
+		// TODO: Decide how to handle this in the text area case
 		if (renderData.fontSize) {
 			ta.setFontSize(renderData.fontSize);
 		}

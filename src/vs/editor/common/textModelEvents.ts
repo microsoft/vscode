@@ -209,23 +209,6 @@ export class LineInjectedText {
 }
 
 /**
- * Represents a custom font
- * @internal
- */
-export class FontDecoration {
-	constructor(
-		public readonly lineNumber: number,
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly lineHeight: number | undefined,
-		public readonly fontFamily: string | undefined,
-		public readonly fontSize: number | undefined,
-		public readonly fontWeight: string | undefined,
-		public readonly fontStyle: string | undefined,
-	) { }
-}
-
-/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -303,17 +286,12 @@ export class ModelFontChanged {
 	 * The line that has changed.
 	 */
 	public readonly lineNumber: number;
-	/**
-	 * The start column of the range.
-	 */
-	public readonly fontDecoration: FontDecoration | null;
 
-	constructor(ownerId: number, versionId: number, decorationId: string, lineNumber: number, fontDecoration: FontDecoration | null) {
+	constructor(ownerId: number, versionId: number, decorationId: string, lineNumber: number) {
 		this.ownerId = ownerId;
 		this.versionId = versionId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
-		this.fontDecoration = fontDecoration;
 	}
 }
 

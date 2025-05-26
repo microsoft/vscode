@@ -20,7 +20,6 @@ import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { Position } from '../../../common/core/position.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { Range } from '../../../common/core/range.js';
 
@@ -101,7 +100,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder, allowVariableLinesAndFonts: boolean): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -147,12 +146,12 @@ export class ViewLine implements IVisibleLine {
 				}
 			}
 		}
-		const modelLineNumber = this._viewContext.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
-		const model = this._viewContext.viewModel.model;
-		const fontDecorationsOnLine = model.getFontDecorations(new Range(modelLineNumber, 1, modelLineNumber, model.getLineMaxColumn(modelLineNumber)));
-		const fontDecorationsExistOnLine = fontDecorationsOnLine.length > 0;
+		const viewModel = this._viewContext.viewModel;
+		const model = viewModel.model;
+		const modelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(new Range(lineNumber, lineData.minColumn, lineNumber, lineData.maxColumn));
+		const fontDecorations = model.getFontDecorations(modelRange);
+		const fontDecorationsExistOnLine = fontDecorations.length > 0;
 		const renderWhitespace = fontDecorationsExistOnLine ? this._viewContext.configuration.options.get(EditorOption.renderWhitespace) : options.renderWhitespace;
-		const fontInfo = this._viewContext.configuration.options.get(EditorOption.fontInfo);
 
 		const renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
@@ -169,9 +168,6 @@ export class ViewLine implements IVisibleLine {
 			options.spaceWidth,
 			options.middotWidth,
 			options.wsmiddotWidth,
-			fontInfo.fontSize,
-			fontInfo.fontFamily,
-			options.allowVariableFonts,
 			options.stopRenderingLineAfter,
 			renderWhitespace,
 			options.renderControlCharacters,

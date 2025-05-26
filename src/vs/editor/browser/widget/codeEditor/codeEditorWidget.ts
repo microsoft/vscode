@@ -1296,7 +1296,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return null;
 		}
 		const options = this._configuration.options;
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), options.get(EditorOption.allowVariableLineHeights));
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
 	}
 
 	public getDecorationsInRange(range: Range): IModelDecoration[] | null {
@@ -1304,7 +1304,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return null;
 		}
 		const options = this._configuration.options;
-		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), options.get(EditorOption.allowVariableLineHeights));
+		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
 	}
 
 	/**

@@ -88,7 +88,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new ViewModelLinesFromModelAsIs(this.model, this._configuration.options.get(EditorOption.fontInfo));
+			this._lines = new ViewModelLinesFromModelAsIs(this.model);
 
 		} else {
 			const options = this._configuration.options;
@@ -352,7 +352,6 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
-							console.log('Flush');
 							this._lines.onModelFlushed();
 							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 							this._decorations.reset();

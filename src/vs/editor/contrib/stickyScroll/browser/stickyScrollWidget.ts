@@ -318,14 +318,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const lineHeight = this._editor.getLineHeightForPosition(new Position(line, 1));
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, fontInfo.fontSize, fontInfo.fontFamily, true, 500, 'none', true, true, null
+			1, 1, 1, 500, 'none', true, true, null
 		);
 
 		const sb = new StringBuilder(2000);
