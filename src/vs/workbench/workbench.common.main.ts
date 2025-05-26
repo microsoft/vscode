@@ -112,6 +112,7 @@ import './services/authentication/browser/authenticationAccessService.js';
 import './services/authentication/browser/authenticationMcpUsageService.js';
 import './services/authentication/browser/authenticationMcpAccessService.js';
 import './services/authentication/browser/authenticationMcpService.js';
+import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/accounts/common/defaultAccount.js';
 import '../editor/browser/services/hoverService/hoverService.js';
 import './services/assignment/common/assignmentService.js';

@@ -77,7 +77,7 @@ export async function getOctokitGraphql(): Promise<graphql> {
 			})
 			.then(null, async err => {
 				_octokitGraphql = undefined;
-				throw err;
+				throw new AuthenticationError(err.message);
 			});
 	}
 
