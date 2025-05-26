@@ -27,8 +27,6 @@ const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider extends Disposable {
 
-	// TEST CODE
-
 	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
 	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
 	private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50 });

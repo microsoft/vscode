@@ -118,6 +118,7 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
 		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
@@ -170,7 +171,7 @@ export class ViewLine implements IVisibleLine {
 			options.wsmiddotWidth,
 			fontInfo.fontSize,
 			fontInfo.fontFamily,
-			options.allowVariableLinesAndFonts,
+			options.allowVariableFonts,
 			options.stopRenderingLineAfter,
 			renderWhitespace,
 			options.renderControlCharacters,

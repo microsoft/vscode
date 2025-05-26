@@ -43,7 +43,7 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly fontSize: number;
 	public readonly fontFamily: string;
-	public readonly allowVariableLineAndFontSize: boolean;
+	public readonly allowVariableFonts: boolean;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -68,7 +68,7 @@ export class RenderLineInput {
 		wsmiddotWidth: number,
 		fontSize: number,
 		fontFamily: string,
-		allowVariableLineAndFontSize: boolean,
+		allowVariableFonts: boolean,
 		stopRenderingLineAfter: number,
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
@@ -89,7 +89,7 @@ export class RenderLineInput {
 		this.spaceWidth = spaceWidth;
 		this.fontSize = fontSize;
 		this.fontFamily = fontFamily;
-		this.allowVariableLineAndFontSize = allowVariableLineAndFontSize;
+		this.allowVariableFonts = allowVariableFonts;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = (
 			renderWhitespace === 'all'
@@ -162,7 +162,7 @@ export class RenderLineInput {
 			&& this.sameSelection(other.selectionsOnLine)
 			&& this.fontSize === other.fontSize
 			&& this.fontFamily === other.fontFamily
-			&& this.allowVariableLineAndFontSize === other.allowVariableLineAndFontSize
+			&& this.allowVariableFonts === other.allowVariableFonts
 		);
 	}
 }
@@ -427,7 +427,7 @@ class ResolvedRenderLineInput {
 		public readonly renderControlCharacters: boolean,
 		public readonly fontSize: number,
 		public readonly fontFamily: string,
-		public readonly allowVariableLineAndFontSize: boolean
+		public readonly allowVariableFonts: boolean
 	) {
 		//
 	}
@@ -502,7 +502,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderControlCharacters,
 		input.fontSize,
 		input.fontFamily,
-		input.allowVariableLineAndFontSize
+		input.allowVariableFonts
 	);
 }
 

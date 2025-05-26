@@ -20,7 +20,7 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
 	public readonly useGpu: boolean;
-	public readonly allowVariableLinesAndFonts: boolean;
+	public readonly allowVariableFonts: boolean;
 
 	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
@@ -37,7 +37,6 @@ export class ViewLineOptions {
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
 		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
-		this.allowVariableLinesAndFonts = options.get(EditorOption.allowVariableLineHeights);
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
@@ -47,6 +46,7 @@ export class ViewLineOptions {
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
 		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
+		this.allowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -63,7 +63,7 @@ export class ViewLineOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
 			&& this.useGpu === other.useGpu
-			&& this.allowVariableLinesAndFonts === other.allowVariableLinesAndFonts
+			&& this.allowVariableFonts === other.allowVariableFonts
 		);
 	}
 }

@@ -58,6 +58,14 @@ export interface IEditorOptions {
 	 */
 	allowVariableLineHeights?: boolean;
 	/**
+	 * This editor is allowed to use variable font-sizes and font-families
+	 */
+	allowVariableFonts?: boolean;
+	/**
+	 * This editor is allowed to use variable font-sizes and font-families in accessibility mode
+	 */
+	allowVariableFontsInAccessibilityMode?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -1952,6 +1960,26 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 }
 
 //#endregion
+
+//#region effectiveAllowVariableFonts
+
+class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effectiveAllowVariableFonts, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveAllowVariableFonts);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const accessibilitySupport = env.accessibilitySupport;
+		if (accessibilitySupport === AccessibilitySupport.Enabled) {
+			return options.get(EditorOption.allowVariableFonts);
+		} else {
+			return options.get(EditorOption.allowVariableFontsInAccessibilityMode);
+		}
+	}
+}
+
+//#engregion
 
 //#region fontSize
 
@@ -5454,6 +5482,8 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	allowVariableLineHeights,
+	allowVariableFonts,
+	allowVariableFontsInAccessibilityMode,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5607,7 +5637,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveExperimentalEditContextEnabled,
+	effectiveAllowVariableFonts
 }
 
 export const EditorOptions = {
@@ -5636,6 +5667,19 @@ export const EditorOptions = {
 		})),
 	allowVariableLineHeights: register(new EditorBooleanOption(
 		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+	)),
+	allowVariableFonts: register(new EditorBooleanOption(
+		EditorOption.allowVariableFonts, 'allowVariableFonts', true,
+		{
+			description: nls.localize('allowVariableFonts', "Controls whether to allow using variable font-sizes and font-families in the editor.")
+		}
+	)),
+	allowVariableFontsInAccessibilityMode: register(new EditorBooleanOption(
+		EditorOption.allowVariableFontsInAccessibilityMode, 'allowVariableFontsInAccessibilityMode', false,
+		{
+			description: nls.localize('allowVariableFontsInAccessibilityMode', "Controls whether to allow using variable font-sizes and font-families in the editor in the accessibility mode."),
+			tags: ['accessibility']
+		}
 	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -6440,7 +6484,8 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled()),
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
 };
 
 type EditorOptionsType = typeof EditorOptions;

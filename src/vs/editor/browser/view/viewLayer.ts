@@ -577,8 +577,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const allowVariableLinesAndFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableLineHeights);
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableLinesAndFonts);
+				const allowVariableFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableFonts);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableFonts);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -609,8 +609,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const allowVariableLinesAndFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableLineHeights);
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableLinesAndFonts);
+				const allowVariableFonts = this._viewContext.configuration.options.get(EditorOption.allowVariableFonts);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb, allowVariableFonts);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
