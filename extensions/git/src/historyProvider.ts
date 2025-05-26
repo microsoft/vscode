@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
@@ -234,7 +234,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return [...branches, ...remoteBranches, ...tags];
 	}
 
-	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemRef || !options.historyItemRefs) {
 			return [];
 		}
@@ -259,7 +259,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, skip: options.skip };
 			}
 
-			const commits = await this.repository.log({ ...logOptions, silent: true });
+			const commits = await this.repository.log({ ...logOptions, silent: true }, token);
 
 			// Avatars
 			const avatarQuery = {
