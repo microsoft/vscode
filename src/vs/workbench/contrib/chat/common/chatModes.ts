@@ -102,6 +102,19 @@ export class CustomChatMode implements IChatMode {
 	constructor(
 		private readonly customChatMode: ICustomChatMode
 	) { }
+
+	/**
+	 * Getters are not json-stringified
+	 */
+	toJSON(): IChatMode {
+		return {
+			id: this.id,
+			name: this.name,
+			description: this.description,
+			kind: this.kind,
+			customTools: this.customTools
+		};
+	}
 }
 
 export class BuiltinChatMode implements IChatMode {
@@ -117,6 +130,18 @@ export class BuiltinChatMode implements IChatMode {
 
 	get name(): string {
 		return modeToString(this.kind);
+	}
+
+	/**
+	 * Getters are not json-stringified
+	 */
+	toJSON(): IChatMode {
+		return {
+			id: this.id,
+			name: this.name,
+			description: this.description,
+			kind: this.kind
+		};
 	}
 }
 
