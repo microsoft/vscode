@@ -504,7 +504,6 @@ export class AttachContextAction extends Action2 {
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;
-		console.log('busy');
 		qp.show();
 
 		if (isThenable(pickerConfig.picks)) {
@@ -514,7 +513,6 @@ export class AttachContextAction extends Action2 {
 
 			qp.items = items;
 			qp.busy = false;
-			console.log('not busy');
 		} else {
 			const query = observableValue<string>('attachContext.query', qp.value);
 			store.add(qp.onDidChangeValue(() => query.set(qp.value, undefined)));
