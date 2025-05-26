@@ -15,15 +15,12 @@ import { LineInjectedText } from '../../common/textModelEvents.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
-import { InlineDecoration } from '../../common/viewModel.js';
 import { assertIsDefined } from '../../../base/common/types.js';
 import { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
-
-	private container: HTMLElement | undefined;
 
 	public static create(targetWindow: Window): DOMLineBreaksComputerFactory {
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow));
@@ -35,33 +32,23 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
-		const linesInlineDecorations: InlineDecoration[][] = [];
+		const linesDecorations: LineDecoration[][] = [];
 		const linesTokens: IViewLineTokens[] = [];
-		const lineNumbers: number[] = [];
-		const hasVariableDecorations: boolean[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null, hasFontDecorations: boolean = false) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
-				linesInlineDecorations.push(inlineDecorations);
-				lineNumbers.push(lineNumber);
+				linesDecorations.push(lineDecorations);
 				linesTokens.push(lineTokens);
-				hasVariableDecorations.push(hasFontDecorations);
 			},
 			finalize: () => {
-				this.container?.remove();
-				const res = createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), lineNumbers, requests, tabSize, injectedTexts, linesInlineDecorations, linesTokens, hasVariableDecorations);
-				this.container = res.containerDomNode;
-				return res.data;
-			},
-			finalizeToArray: () => {
-				return [];
+				return createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), requests, tabSize, injectedTexts, linesDecorations, linesTokens);
 			}
 		};
 	}
 }
 
-function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, lineNumbers: number[], requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecoration[][], linesTokens: IViewLineTokens[], hasVariableDecorations: boolean[]): { data: Map<number, ModelLineProjectionData | null>; containerDomNode: HTMLElement | undefined } {
+function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesDecorations: LineDecoration[][], linesTokens: IViewLineTokens[]): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -84,11 +71,11 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 	const wordBreak = options.get(EditorOption.wordBreak);
 
 	if (firstLineBreakColumn === -1) {
-		const result: Map<number, ModelLineProjectionData | null> = new Map();
+		const result: (ModelLineProjectionData | null)[] = [];
 		for (let i = 0, len = requests.length; i < len; i++) {
-			result.set(lineNumbers[i], createEmptyLineBreakWithPossiblyInjectedText(i));
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
 		}
-		return { data: result, containerDomNode: undefined };
+		return result;
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
@@ -143,21 +130,13 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
 		const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
-		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
-		const hasVariableDecoration = hasVariableDecorations[i];
-		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (experimentalWhitespaceRendering === 'off' || hasVariableDecoration) {
-			renderWhitespace = options.get(EditorOption.renderWhitespace);
-		} else {
-			renderWhitespace = 'none';
-		}
+		// Assume the largest case which is that the whitespaces are rendered
+		const renderWhitespace = options.get(EditorOption.renderWhitespace);
 		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		const fontLigatures = options.get(EditorOption.fontLigatures);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
-		const lineNumber = lineNumbers[i];
-		const inlineDecorations = linesInlineDecorations[i];
-		const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
 		const tokens = linesTokens[i];
+		const lineDecorations = linesDecorations[i];
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);
 		const containsRTL = strings.containsRTL(renderLineContent);
 		const renderLineInput = new RenderLineInput(
@@ -216,13 +195,13 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 	const range = document.createRange();
 	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
 
-	const result: Map<number, ModelLineProjectionData | null> = new Map();
+	const result: (ModelLineProjectionData | null)[] = [];
 	for (let i = 0; i < requests.length; i++) {
 		const lineDomNode = lineDomNodes[i];
 		const characterMapping = characterMappings[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], characterMapping);
 		if (breakOffsets === null) {
-			result.set(lineNumbers[i], createEmptyLineBreakWithPossiblyInjectedText(i));
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
 			continue;
 		}
 
@@ -252,10 +231,11 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, li
 			injectionOffsets = null;
 		}
 
-		result.set(lineNumbers[i], new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength));
+		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
-	return { data: result, containerDomNode };
+	containerDomNode.remove();
+	return result;
 }
 function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, characterMapping: CharacterMapping): number[] | null {
 	if (lineContent.length <= 1) {

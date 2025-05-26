@@ -31,6 +31,7 @@ import { IClipboardService } from '../../../../../../platform/clipboard/common/c
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
+import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -182,13 +183,16 @@ export class DiffEditorViewZones extends Disposable {
 								continue;
 							}
 							const viewLinerenderingData = viewModel.getViewLineRenderingData(i);
-							deletedCodeLineBreaksComputer?.addRequest(i, originalModel.getLineContent(i), null, viewLinerenderingData.inlineDecorations, viewLinerenderingData.tokens, null, viewLinerenderingData.hasVariableFonts);
+							const inlineDecorations = viewLinerenderingData.inlineDecorations;
+							const lineDecorations = LineDecoration.filter(inlineDecorations, i, 0, Infinity);
+							const lineTokens = viewLinerenderingData.tokens;
+							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, lineDecorations, lineTokens, null);
 						}
 					}
 				}
 			}
 
-			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? new Map();
+			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];
 			let lineBreakDataIdx = 0;
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);
@@ -215,7 +219,7 @@ export class DiffEditorViewZones extends Disposable {
 						}
 						const source = new LineSource(
 							a.originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
-							a.originalRange.mapToLineArray(_ => lineBreakData.get(lineBreakDataIdx++)),
+							a.originalRange.mapToLineArray(_ => lineBreakData[lineBreakDataIdx++]),
 							mightContainNonBasicASCII,
 							mightContainRTL,
 						);

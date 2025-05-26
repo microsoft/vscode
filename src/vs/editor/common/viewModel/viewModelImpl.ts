@@ -41,6 +41,7 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { LineDecoration } from '../viewLayout/lineDecorations.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -66,12 +67,12 @@ export class ViewModel extends Disposable implements IViewModel {
 		editorId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
-		generalLineBreaksComputer: ILineBreaksComputerFactory,
+		lineBreaksComputer: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
-		private readonly _transactionalTarget: IBatchableTarget
+		private readonly _transactionalTarget: IBatchableTarget,
 	) {
 		super();
 
@@ -101,7 +102,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				generalLineBreaksComputer,
+				lineBreaksComputer,
 				this._configuration,
 				fontInfo,
 				this.model.getOptions().tabSize,
@@ -324,7 +325,10 @@ export class ViewModel extends Disposable implements IViewModel {
 								}
 								const lineNumber = change.fromLineNumber + lineIdx;
 								const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-								lineBreaksComputer.addRequest(lineNumber, line, injectedText, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null, viewLineRenderingData.hasVariableFonts);
+								const lineTokens = viewLineRenderingData.tokens;
+								const inlineDecorations = viewLineRenderingData.inlineDecorations;
+								const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 1, Infinity);
+								lineBreaksComputer.addRequest(line, injectedText, lineDecorations, lineTokens, null);
 							}
 							break;
 						}
@@ -335,12 +339,15 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							const lineNumber = change.lineNumber;
 							const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-							lineBreaksComputer.addRequest(lineNumber, change.detail, injectedText, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null, viewLineRenderingData.hasVariableFonts);
+							const lineTokens = viewLineRenderingData.tokens;
+							const inlineDecorations = viewLineRenderingData.inlineDecorations;
+							const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 1, Infinity);
+							lineBreaksComputer.addRequest(change.detail, injectedText, lineDecorations, lineTokens, null);
 							break;
 						}
 					}
 				}
-				const lineBreaks = lineBreaksComputer.finalizeToArray();
+				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
 				for (const change of changes) {
@@ -442,18 +449,18 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 		this._register(this.model.onDidChangeFont((e) => {
 			try {
-				// TOOD: Is this correct?
+				// TODO: Is this correct?
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
 				for (const change of e.changes) {
 					const lineNumber = change.lineNumber;
 					const lineContent = this.model.getLineContent(lineNumber);
 					const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-					lineBreaksComputer.addRequest(lineNumber, lineContent, null, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null, viewLineRenderingData.hasVariableFonts);
+					const lineDecorations = LineDecoration.filter(viewLineRenderingData.inlineDecorations, lineNumber, 1, Infinity);
+					lineBreaksComputer.addRequest(lineContent, null, lineDecorations, viewLineRenderingData.tokens, null);
 				}
-				const lineBreaks = lineBreaksComputer.finalizeToArray();
+				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
-
 				for (const change of e.changes) {
 					const changedLineBreakData = lineBreakQueue.dequeue()!;
 					const [_lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
@@ -903,7 +910,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
 		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
-
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);

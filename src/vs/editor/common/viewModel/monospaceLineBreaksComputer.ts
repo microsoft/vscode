@@ -11,8 +11,8 @@ import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { InlineDecoration } from '../viewModel.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
+import { LineDecoration } from '../viewLayout/lineDecorations.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -32,13 +32,11 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
-		const lineNumbers: number[] = [];
 		return {
-			addRequest: (lineNumber: number, lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);
-				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
 				const options = config.options;
@@ -47,22 +45,19 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				const wrappingColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 				const wordBreak = options.get(EditorOption.wordBreak);
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
-				const result: Map<number, ModelLineProjectionData | null> = new Map();
+				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
-						result.set(lineNumbers[i], createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak));
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result.set(lineNumbers[i], createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak));
+						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					}
 				}
 				arrPool1.length = 0;
 				arrPool2.length = 0;
 				return result;
-			},
-			finalizeToArray: () => {
-				return [];
 			}
 		};
 	}
