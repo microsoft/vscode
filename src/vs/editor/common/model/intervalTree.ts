@@ -236,18 +236,18 @@ export class IntervalTree {
 		this.requestNormalizeDelta = false;
 	}
 
-	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, filterFontFamilyAndSize: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, filterFontFamilyAndSize, cachedVersionId, onlyMarginDecorations);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+	public search(filterOwnerId: number, filterOutValidation: boolean, filterFontFamilyAndSize: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		return search(this, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+		return search(this, filterOwnerId, filterOutValidation, filterFontFamilyAndSize, cachedVersionId, onlyMarginDecorations);
 	}
 
 	/**
@@ -319,7 +319,7 @@ export class IntervalTree {
 	}
 
 	public getAllInOrder(): IntervalNode[] {
-		return search(this, 0, false, 0, false);
+		return search(this, 0, false, false, 0, false);
 	}
 
 	private _normalizeDeltaIfNecessary(): void {
@@ -694,7 +694,7 @@ function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 	return result;
 }
 
-function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 	let node = T.root;
 	let delta = 0;
 	let nodeStart = 0;
@@ -732,6 +732,9 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 		if (filterOutValidation && getNodeIsForValidation(node)) {
 			include = false;
 		}
+		if (filterFontDecorations && (!!node.options.fontSize || !!node.options.fontFamily)) {
+			include = false;
+		}
 		if (onlyMarginDecorations && !getNodeIsInGlyphMargin(node)) {
 			include = false;
 		}
@@ -755,7 +758,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	return result;
 }
 
-function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
 	// Now, it is known that two intervals A and B overlap only when both
 	// A.low <= B.high and A.high >= B.low. When searching the trees for
@@ -819,6 +822,9 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 				include = false;
 			}
 			if (filterOutValidation && getNodeIsForValidation(node)) {
+				include = false;
+			}
+			if (filterFontDecorations && (!!node.options.fontSize || !!node.options.fontFamily)) {
 				include = false;
 			}
 			if (onlyMarginDecorations && !getNodeIsInGlyphMargin(node)) {

@@ -476,7 +476,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 				containsForeignElements |= ForeignElementType.After;
 			}
 		}
-		// apply inline decorations
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
 	if (!input.containsRTL) {
@@ -961,9 +960,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
-		if (!input.allowVariableLineAndFontSize) {
-			sb.appendString(` style="font-size:${input.fontSize}px; font-family:${input.fontFamily}"`);
-		}
 
 		if (partRendersWhitespace) {
 
