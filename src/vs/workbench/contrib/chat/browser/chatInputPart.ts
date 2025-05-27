@@ -659,6 +659,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachments = state.inputState?.chatContextAttachments ?? [];
 		this._attachmentModel.clearAndSetContext(...attachments);
 
+		this.selectedToolsModel.resetSessionEnablementState();
+
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
 		}
