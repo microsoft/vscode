@@ -56,10 +56,10 @@ function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<str
 	return undefined;
 }
 
-function createPath(colorIdentifier: string): SVGPathElement {
+function createPath(colorIdentifier: string, strokeWidth = 1): SVGPathElement {
 	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	path.setAttribute('fill', 'none');
-	path.setAttribute('stroke-width', '1px');
+	path.setAttribute('stroke-width', `${strokeWidth}px`);
 	path.setAttribute('stroke-linecap', 'round');
 	path.style.stroke = asCssVariable(colorIdentifier);
 
@@ -80,8 +80,8 @@ function drawCircle(index: number, radius: number, strokeWidth: number, colorIde
 	return circle;
 }
 
-function drawVerticalLine(x1: number, y1: number, y2: number, color: string): SVGPathElement {
-	const path = createPath(color);
+function drawVerticalLine(x1: number, y1: number, y2: number, color: string, strokeWidth = 1): SVGPathElement {
+	const path = createPath(color, strokeWidth);
 	path.setAttribute('d', `M ${x1} ${y1} V ${y2}`);
 
 	return path;
@@ -240,14 +240,15 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[]): HTMLElement {
+export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[], highlightIndex?: number): HTMLElement {
 	const elements = svgElem('svg', {
 		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
 	});
 
 	// Draw |
 	for (let index = 0; index < columns.length; index++) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color);
+		const strokeWidth = index === highlightIndex ? 3 : 1;
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color, strokeWidth);
 		elements.root.append(path);
 	}
 
@@ -354,18 +355,13 @@ export function toISCMHistoryItemViewModelArray(
 	return viewModels;
 }
 
-export function getHistoryItemColor(historyItemViewModel: ISCMHistoryItemViewModel): string {
+export function getHistoryItemIndex(historyItemViewModel: ISCMHistoryItemViewModel): number {
 	const historyItem = historyItemViewModel.historyItem;
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
-	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
 
 	// Find the history item in the input swimlanes
 	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
 
 	// Circle index - use the input swimlane index if present, otherwise add it to the end
-	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-
-	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
-	return circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
-		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemRefColor;
+	return inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
 }

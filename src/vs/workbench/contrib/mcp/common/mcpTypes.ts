@@ -28,6 +28,7 @@ import { IWorkspaceFolderData } from '../../../../platform/workspace/common/work
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
+import { UriTemplate } from './uriTemplate.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
 
@@ -261,6 +262,11 @@ export interface IMcpServer extends IDisposable {
 	 * Lists all resources on the server.
 	 */
 	resources(token?: CancellationToken): AsyncIterable<IMcpResource[]>;
+
+	/**
+	 * List resource templates on the server.
+	 */
+	resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]>;
 }
 
 /**
@@ -277,6 +283,26 @@ export interface IMcpResource {
 	readonly mimeType?: string;
 	readonly sizeInBytes?: number;
 }
+
+export interface IMcpResourceTemplate {
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly template: UriTemplate;
+
+	/** Gets string completions for the given template part. */
+	complete(templatePart: string, prefix: string, token: CancellationToken): Promise<string[]>;
+
+	/** Gets the resolved URI from template parts. */
+	resolveURI(vars: Record<string, unknown>): URI;
+}
+
+export const isMcpResourceTemplate = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResourceTemplate => {
+	return (obj as IMcpResourceTemplate).template !== undefined;
+};
+export const isMcpResource = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResource => {
+	return (obj as IMcpResource).mcpUri !== undefined;
+};
 
 export const enum McpServerCacheState {
 	/** Tools have not been read before */
@@ -299,7 +325,10 @@ export interface IMcpPrompt {
 	readonly description?: string;
 	readonly arguments: readonly MCP.PromptArgument[];
 
-	resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
+	/** Gets string completions for the given prompt part. */
+	complete(argument: string, prefix: string, token: CancellationToken): Promise<string[]>;
+
+	resolve(args: Record<string, string | undefined>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
 
 export interface IMcpPromptMessage extends MCP.PromptMessage { }

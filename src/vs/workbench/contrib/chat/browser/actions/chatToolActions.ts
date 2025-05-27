@@ -122,7 +122,7 @@ class ConfigureToolsAction extends Action2 {
 					}
 				}
 			}
-			widget.input.selectedToolsModel.update(disableToolSets, disableTools);
+			widget.input.selectedToolsModel.disable(disableToolSets, disableTools, false);
 		});
 
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
@@ -131,8 +131,6 @@ class ConfigureToolsAction extends Action2 {
 		});
 	}
 }
-
-
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);

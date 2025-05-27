@@ -31,6 +31,7 @@ import { KeybindingWeight } from '../../../../../../platform/keybinding/common/k
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -209,7 +210,7 @@ class RunSelectedPromptAction extends Action2 {
 		const pickers = instaService.createInstance(PromptFilePickers);
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles(PromptsType.prompt);
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const placeholder = localize(
 			'commands.prompt.select-dialog.placeholder',
 			'Select the prompt file to run (hold {0}-key to use in new chat)',

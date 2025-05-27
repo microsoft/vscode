@@ -16,11 +16,12 @@ import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IA
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { stringHash } from '../../../base/common/hash.js';
-import { DisposableStore, isDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { equals as arraysEqual } from '../../../base/common/arrays.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -111,9 +112,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			listener.dispose();
 			this._authenticationProviders.delete(id);
 			this._proxy.$unregisterAuthenticationProvider(id);
-			if (isDisposable(provider)) {
-				provider.dispose();
-			}
 		});
 	}
 
@@ -151,6 +149,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
 			this._onDidChangeSessions.fire({ provider: { id, label }, extensionIdFilter });
 		}
+		return Promise.resolve();
+	}
+
+	$onDidUnregisterAuthenticationProvider(id: string): Promise<void> {
+		const providerData = this._authenticationProviders.get(id);
+		if (providerData?.disposable) {
+			providerData.disposable.dispose();
+		}
+		this._authenticationProviders.delete(id);
 		return Promise.resolve();
 	}
 
@@ -227,8 +234,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				onDidChange: scopedEvent,
 				set: (tokens) => _proxy.$setSessionsForDynamicAuthProvider(this._serverMetadata.issuer, this.clientId, tokens),
 			},
-			initialTokens
+			initialTokens,
+			this._logger
 		));
+		this._disposable.add(this._tokenStore.onDidChangeSessions(e => this._onDidChangeSessions.fire(e)));
 		// Will be extended later to support other flows
 		this._createFlows = [scopes => this._createWithUrlHandler(scopes)];
 	}
@@ -273,17 +282,17 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 	}
 
-	async getSessions(scopes: readonly string[] | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+		this._logger.info(`Getting sessions for scopes: ${scopes?.join(' ') ?? 'all'}`);
 		if (!scopes) {
-			return this._tokenStore.sessions || [];
+			return this._tokenStore.sessions;
 		}
-		const sessions = this._tokenStore.sessions?.filter(session => session.scopes.join(' ') === scopes.join(' ')) || [];
+		let sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopes.join(' '));
+		this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopes.join(' ')}`);
 		if (sessions.length) {
 			const newTokens: IAuthorizationToken[] = [];
 			const removedTokens: IAuthorizationToken[] = [];
-			const newSessions: vscode.AuthenticationSession[] = [];
-			const removedSessions: vscode.AuthenticationSession[] = [];
-			const tokenMap = new Map<string, IAuthorizationToken>(this._tokenStore.tokens!.map(token => [token.access_token, token]));
+			const tokenMap = new Map<string, IAuthorizationToken>(this._tokenStore.tokens.map(token => [token.access_token, token]));
 			for (const session of sessions) {
 				const token = tokenMap.get(session.accessToken);
 				if (token && token.expires_in) {
@@ -291,16 +300,17 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 					const expiresInMS = token.expires_in * 1000;
 					// Check if the token is about to expire in 5 minutes or if it is expired
 					if (now > token.created_at + expiresInMS - (5 * 60 * 1000)) {
+						this._logger.info(`Token for session ${session.id} is about to expire, refreshing...`);
 						removedTokens.push(token);
-						removedSessions.push(session);
 						if (!token.refresh_token) {
 							// No refresh token available, cannot refresh
+							this._logger.warn(`No refresh token available for scopes ${session.scopes.join(' ')}. Throwing away token.`);
 							continue;
 						}
 						try {
 							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token);
+							this._logger.info(`Successfully created a new token for scopes ${session.scopes.join(' ')}.`);
 							newTokens.push(newToken);
-							newSessions.push(this._getSessionFromToken(newToken));
 						} catch (err) {
 							this._logger.error(`Failed to refresh token: ${err}`);
 						}
@@ -310,18 +320,18 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			}
 			if (newTokens.length || removedTokens.length) {
 				this._tokenStore.update({ added: newTokens, removed: removedTokens });
-				this._onDidChangeSessions.fire({
-					added: newSessions,
-					removed: removedSessions,
-					changed: []
-				});
+				// Since we updated the tokens, we need to re-filter the sessions
+				// to get the latest state
+				sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopes.join(' '));
 			}
+			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopes.join(' ')}`);
 			return sessions;
 		}
 		return [];
 	}
 
 	async createSession(scopes: string[], _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
+		this._logger.info(`Creating session for scopes: ${scopes.join(' ')}`);
 		let token: IAuthorizationTokenResponse | undefined;
 		for (const createFlow of this._createFlows) {
 			try {
@@ -339,27 +349,25 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		// Store session for later retrieval
 		this._tokenStore.update({ added: [{ ...token, created_at: Date.now() }], removed: [] });
-		const session = this._tokenStore.sessions?.find(t => t.accessToken === token.access_token)!;
-
-		// Notify that sessions have changed
-		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
-
+		const session = this._tokenStore.sessions.find(t => t.accessToken === token.access_token)!;
+		this._logger.info(`Created session for scopes: ${scopes.join(' ')}`);
 		return session;
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
-		const session = this._tokenStore.sessions?.find(session => session.id === sessionId);
+		this._logger.info(`Removing session with id: ${sessionId}`);
+		const session = this._tokenStore.sessions.find(session => session.id === sessionId);
 		if (!session) {
 			this._logger.error(`Session with id ${sessionId} not found`);
 			return;
 		}
-		const token = this._tokenStore.tokens?.find(token => token.access_token === session.accessToken);
+		const token = this._tokenStore.tokens.find(token => token.access_token === session.accessToken);
 		if (!token) {
 			this._logger.error(`Failed to retrieve token for removed session: ${session.id}`);
 			return;
 		}
 		this._tokenStore.update({ added: [], removed: [token] });
-		this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		this._logger.info(`Removed token for session: ${session.id} with scopes: ${session.scopes.join(' ')}`);
 	}
 
 	dispose(): void {
@@ -383,10 +391,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		// Prepare the authorization request URL
+		const scopeString = scopes.join(' ');
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
 		authorizationUrl.searchParams.append('client_id', this.clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
-		authorizationUrl.searchParams.append('scope', scopes.join(' '));
+		authorizationUrl.searchParams.append('scope', scopeString);
 		authorizationUrl.searchParams.append('state', state.toString());
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
@@ -398,10 +407,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		const promise = this.waitForAuthorizationCode(callbackUri);
 
 		// Open the browser for user authorization
+		this._logger.info(`Opening authorization URL for scopes: ${scopeString}`);
+		this._logger.trace(`Authorization URL: ${authorizationUrl.toString()}`);
 		await this._extHostWindow.openUri(authorizationUrl.toString(), {});
 
 		// Wait for the authorization code via a redirect
 		const { code } = await promise;
+		this._logger.info(`Authorization code received for scopes: ${scopeString}`);
 
 		if (!code) {
 			throw new Error('Authentication failed: No authorization code received');
@@ -511,39 +523,6 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 		throw new Error(`Invalid authorization token response: ${JSON.stringify(result)}`);
 	}
-
-	private _getSessionFromToken(token: IAuthorizationTokenResponse): vscode.AuthenticationSession {
-		let claims: IAuthorizationJWTClaims | undefined;
-		if (token.id_token) {
-			try {
-				claims = getClaimsFromJWT(token.id_token);
-			} catch (e) {
-				// log
-			}
-		}
-		if (!claims) {
-			try {
-				claims = getClaimsFromJWT(token.access_token);
-			} catch (e) {
-				// log
-			}
-		}
-		const scopes = token.scope
-			? token.scope.split(' ')
-			: claims?.scope
-				? claims.scope.split(' ')
-				: [];
-		return {
-			id: stringHash(token.access_token, 0).toString(),
-			accessToken: token.access_token,
-			account: {
-				id: claims?.sub || 'unknown',
-				label: claims?.preferred_username || claims?.name || claims?.email || 'Account',
-			},
-			scopes: scopes,
-			idToken: token.id_token
-		};
-	}
 }
 
 type IAuthorizationToken = IAuthorizationTokenResponse & {
@@ -557,15 +536,23 @@ class TokenStore implements Disposable {
 	private readonly _tokensObservable: ISettableObservable<IAuthorizationToken[]>;
 	private readonly _sessionsObservable: IObservable<vscode.AuthenticationSession[]>;
 
+	private readonly _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
+
 	private readonly _disposable: DisposableStore;
 
 	constructor(
 		private readonly _persistence: { onDidChange: Event<IAuthorizationToken[]>; set: (tokens: IAuthorizationToken[]) => void },
-		initialTokens: IAuthorizationToken[]
+		initialTokens: IAuthorizationToken[],
+		private readonly _logger: ILogger
 	) {
 		this._disposable = new DisposableStore();
 		this._tokensObservable = observableValue<IAuthorizationToken[]>('tokens', initialTokens);
-		this._sessionsObservable = derived((reader) => this._tokensObservable.read(reader).map(t => this._getSessionFromToken(t)));
+		this._sessionsObservable = derivedOpts(
+			{ equalsFn: (a, b) => arraysEqual(a, b, (a, b) => a.accessToken === b.accessToken) },
+			(reader) => this._tokensObservable.read(reader).map(t => this._getSessionFromToken(t))
+		);
+		this._disposable.add(this._registerChangeEventAutorun());
 		this._disposable.add(this._persistence.onDidChange((tokens) => this._tokensObservable.set(tokens, undefined)));
 	}
 
@@ -582,32 +569,81 @@ class TokenStore implements Disposable {
 	}
 
 	update({ added, removed }: { added: IAuthorizationToken[]; removed: IAuthorizationToken[] }): void {
-		const currentTokens = this._tokensObservable.get() || [];
-		if (removed) {
-			// remove from the array
-			for (const token of removed) {
-				const index = currentTokens.findIndex(t => t.access_token === token.access_token);
-				if (index !== -1) {
-					currentTokens.splice(index, 1);
-				}
+		this._logger.trace(`Updating tokens: added ${added.length}, removed ${removed.length}`);
+		const currentTokens = [...this._tokensObservable.get()];
+		for (const token of removed) {
+			const index = currentTokens.findIndex(t => t.access_token === token.access_token);
+			if (index !== -1) {
+				currentTokens.splice(index, 1);
 			}
 		}
-		if (added) {
-			// add to the array
-			for (const token of added) {
-				const index = currentTokens.findIndex(t => t.access_token === token.access_token);
-				if (index === -1) {
-					currentTokens.push(token);
-				} else {
-					currentTokens[index] = token;
-				}
+		for (const token of added) {
+			const index = currentTokens.findIndex(t => t.access_token === token.access_token);
+			if (index === -1) {
+				currentTokens.push(token);
+			} else {
+				currentTokens[index] = token;
 			}
 		}
-
-		if (added || removed) {
+		if (added.length || removed.length) {
 			this._tokensObservable.set(currentTokens, undefined);
 			void this._persistence.set(currentTokens);
 		}
+		this._logger.trace(`Tokens updated: ${currentTokens.length} tokens stored.`);
+	}
+
+	private _registerChangeEventAutorun(): IDisposable {
+		let previousSessions: vscode.AuthenticationSession[] = [];
+		return autorun((reader) => {
+			this._logger.trace('Checking for session changes...');
+			const currentSessions = this._sessionsObservable.read(reader);
+			if (previousSessions === currentSessions) {
+				this._logger.trace('No session changes detected.');
+				return;
+			}
+
+			if (!currentSessions || currentSessions.length === 0) {
+				// If currentSessions is undefined, all previous sessions are considered removed
+				this._logger.trace('All sessions removed.');
+				if (previousSessions.length > 0) {
+					this._onDidChangeSessions.fire({
+						added: [],
+						removed: previousSessions,
+						changed: []
+					});
+					previousSessions = [];
+				}
+				return;
+			}
+
+			const added: vscode.AuthenticationSession[] = [];
+			const removed: vscode.AuthenticationSession[] = [];
+
+			// Find added sessions
+			for (const current of currentSessions) {
+				const exists = previousSessions.some(prev => prev.accessToken === current.accessToken);
+				if (!exists) {
+					added.push(current);
+				}
+			}
+
+			// Find removed sessions
+			for (const prev of previousSessions) {
+				const exists = currentSessions.some(current => current.accessToken === prev.accessToken);
+				if (!exists) {
+					removed.push(prev);
+				}
+			}
+
+			// Fire the event if there are any changes
+			if (added.length > 0 || removed.length > 0) {
+				this._logger.trace(`Sessions changed: added ${added.length}, removed ${removed.length}`);
+				this._onDidChangeSessions.fire({ added, removed, changed: [] });
+			}
+
+			// Update previous sessions reference
+			previousSessions = currentSessions;
+		});
 	}
 
 	private _getSessionFromToken(token: IAuthorizationTokenResponse): vscode.AuthenticationSession {
@@ -636,7 +672,8 @@ class TokenStore implements Disposable {
 			accessToken: token.access_token,
 			account: {
 				id: claims?.sub || 'unknown',
-				label: claims?.preferred_username || claims?.name || claims?.email || 'Account',
+				// TODO: Don't say MCP...
+				label: claims?.preferred_username || claims?.name || claims?.email || 'MCP',
 			},
 			scopes: scopes,
 			idToken: token.id_token

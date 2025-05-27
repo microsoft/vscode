@@ -28,6 +28,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Provides prompt services.
@@ -111,13 +112,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]> {
-		const userLocations = [this.userDataService.currentProfile.promptsHome];
-
+	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(userLocations, type)
+			this.fileLocator.listFiles(type, 'user', token)
 				.then(withType('user', type)),
-			this.fileLocator.listFiles(type)
+			this.fileLocator.listFiles(type, 'local', token)
 				.then(withType('local', type)),
 		]);
 
@@ -160,7 +159,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return data.promptPath.uri;
 		}
 
-		const files = await this.listPromptFiles(PromptsType.prompt);
+		const files = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const command = data.command;
 		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
 		if (result) {
@@ -174,7 +173,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
-		const promptFiles = await this.listPromptFiles(PromptsType.prompt);
+		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		return promptFiles.map(promptPath => {
 			const command = getPromptCommandName(promptPath.uri.path);
 			return {
@@ -190,7 +189,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public readonly onDidChangeCustomChatModes: Event<void> = this._onDidChangeCustomChatModesEmitter.event;
 
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = await this.listPromptFiles(PromptsType.mode);
+		const modeFiles = await this.listPromptFiles(PromptsType.mode, CancellationToken.None);
 		const metaDatas = await this.getAllMetadata(modeFiles.map(promptPath => promptPath.uri));
 		return metaDatas.map(metadata => {
 			return {
@@ -206,7 +205,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
-		const instructionFiles = await this.listPromptFiles(PromptsType.instructions);
+		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		if (instructionFiles.length === 0) {
 			return [];
 		}

@@ -23,10 +23,9 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IURLService } from '../../../platform/url/common/url.js';
-import { DeferredPromise, Queue, raceTimeout } from '../../../base/common/async.js';
-import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
-import { IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -94,44 +93,33 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IURLService private readonly urlService: IURLService,
-		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
-		this._register(this.authenticationService.onDidChangeSessions(e => {
-			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
-		}));
+		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this._proxy.$onDidUnregisterAuthenticationProvider(e.id)));
 		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(e => {
 			const providerInfo = this.authenticationService.getProvider(e.providerId);
 			this._proxy.$onDidChangeAuthenticationSessions(providerInfo.id, providerInfo.label, e.extensionIds);
 		}));
+
+		// Listen for dynamic authentication provider token changes
+		this._register(this.dynamicAuthProviderStorageService.onDidChangeTokens(e => {
+			this._proxy.$onDidChangeDynamicAuthProviderTokens(e.authProviderId, e.clientId, e.tokens);
+		}));
+
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
 			create: async (serverMetadata) => {
-				const clientId = storageService.get(`dynamicAuthClientId/${serverMetadata.issuer}`, StorageScope.APPLICATION, undefined);
+				const clientId = this.dynamicAuthProviderStorageService.getClientId(serverMetadata.issuer);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
-					initialTokens = await this._getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
+					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
 				}
 				return this._proxy.$registerDynamicAuthProvider(serverMetadata, clientId, initialTokens);
-			}
-		}));
-		const queue = new Queue<void>();
-		this._register(this.secretStorageService.onDidChangeSecret(async key => {
-			let payload: { isDynamicAuthProvider: boolean; authProviderId: string; clientId: string } | undefined;
-			try {
-				payload = JSON.parse(key);
-			} catch (error) {
-				// Ignore errors... must not be a dynamic auth provider
-			}
-			if (payload?.isDynamicAuthProvider) {
-				void queue.queue(async () => {
-					const tokens = await this._getSessionsForDynamicAuthProvider(payload.authProviderId, payload.clientId);
-					this._proxy.$onDidChangeDynamicAuthProviderTokens(payload.authProviderId, payload.clientId, tokens);
-				});
 			}
 		}));
 	}
@@ -197,29 +185,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, false, [issuer]);
-		this.storageService.store(`dynamicAuthClientId/${id}`, clientId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-	}
-
-	private async _getSessionsForDynamicAuthProvider(authProviderId: string, clientId: string): Promise<(IAuthorizationTokenResponse & { created_at: number })[] | undefined> {
-		const key = JSON.stringify({ isDynamicAuthProvider: true, authProviderId, clientId });
-		const value = await this.secretStorageService.get(key);
-		if (value) {
-			const parsed = JSON.parse(value);
-			if (!Array.isArray(parsed) || !parsed.every((t) => typeof t.created_at === 'number' && isAuthorizationTokenResponse(t))) {
-				this.logService.error(`Invalid session data for ${authProviderId} (${clientId}) in secret storage:`, parsed);
-				this.secretStorageService.delete(key);
-				return undefined;
-			}
-			return parsed;
-		}
-		return undefined;
+		this.dynamicAuthProviderStorageService.storeClientId(id, clientId, label, URI.revive(issuer).toString());
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
-		const key = JSON.stringify({ isDynamicAuthProvider: true, authProviderId, clientId });
-		const value = JSON.stringify(sessions);
-		await this.secretStorageService.set(key, value);
-		this.logService.trace(`Set session data for ${authProviderId} (${clientId}) in secret storage:`, sessions);
+		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
 	}
 
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {

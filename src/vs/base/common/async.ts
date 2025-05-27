@@ -119,19 +119,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 /**
  * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
-export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
+export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromise<T> | Promise<T>)[]): CancelablePromise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	try {
-		const result = await Promise.race(promises);
-		return result;
-	} finally {
+	const promise = Promise.race(promises) as CancelablePromise<T>;
+	promise.cancel = () => {
 		cancellablePromises.forEach((cancellablePromise, index) => {
-			if (index !== resolvedPromiseIndex) {
-				cancellablePromise.cancel();
+			if (index !== resolvedPromiseIndex && (cancellablePromise as CancelablePromise<T>).cancel) {
+				(cancellablePromise as CancelablePromise<T>).cancel();
 			}
 		});
-	}
+	};
+	promise.finally(() => {
+		promise.cancel();
+	});
+	return promise;
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -927,6 +929,86 @@ export class ResourceQueue implements IDisposable {
 		this.releaseDrainers();
 
 		this.drainListeners?.dispose();
+	}
+}
+
+export type Task<T = void> = () => (Promise<T> | T);
+
+/**
+ * Processes tasks in the order they were scheduled.
+*/
+export class TaskQueue {
+	private _runningTask: Task<any> | undefined = undefined;
+	private _pendingTasks: { task: Task<any>; deferred: DeferredPromise<any>; setUndefinedWhenCleared: boolean }[] = [];
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is rejected with a CancellationError.
+	*/
+	public schedule<T>(task: Task<T>): Promise<T> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: false });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is resolved with undefined.
+	*/
+	public scheduleSkipIfCleared<T>(task: Task<T>): Promise<T | undefined> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: true });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	private _runIfNotRunning(): void {
+		if (this._runningTask === undefined) {
+			this._processQueue();
+		}
+	}
+
+	private async _processQueue(): Promise<void> {
+		if (this._pendingTasks.length === 0) {
+			return;
+		}
+
+		const next = this._pendingTasks.shift();
+		if (!next) {
+			return;
+		}
+
+		if (this._runningTask) {
+			throw new BugIndicatingError();
+		}
+
+		this._runningTask = next.task;
+
+		try {
+			const result = await next.task();
+			next.deferred.complete(result);
+		} catch (e) {
+			next.deferred.error(e);
+		} finally {
+			this._runningTask = undefined;
+			this._processQueue();
+		}
+	}
+
+	/**
+	 * Clears all pending tasks. Does not cancel the currently running task.
+	*/
+	public clearPending(): void {
+		const tasks = this._pendingTasks;
+		this._pendingTasks = [];
+		for (const task of tasks) {
+			if (task.setUndefinedWhenCleared) {
+				task.deferred.complete(undefined);
+			} else {
+				task.deferred.error(new CancellationError());
+			}
+		}
 	}
 }
 

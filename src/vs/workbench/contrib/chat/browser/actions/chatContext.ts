@@ -97,6 +97,9 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		items.sort((a, b) => {
 			let res = a.toolInfo.ordinal - b.toolInfo.ordinal;
 			if (res === 0) {
+				res = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			}
+			if (res === 0) {
 				res = a.label.localeCompare(b.label);
 			}
 			return res;
@@ -104,7 +107,6 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		let lastGroupLabel: string | undefined;
 		const picks: (IQuickPickSeparator | Pick)[] = [];
-
 
 		for (const item of items) {
 			if (lastGroupLabel !== item.toolInfo.label) {

@@ -455,11 +455,11 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.lineHasInlineSuggestion',
 	});
 	public static readonly nextEditSuggestion = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next edit suggestion on Line'),
+		name: localize('accessibilitySignals.nextEditSuggestion.name', 'Next Edit Suggestion on Line'),
 		sound: Sound.nextEditSuggestion,
 		legacySoundSettingsKey: 'audioCues.nextEditSuggestion',
 		settingsKey: 'accessibility.signals.nextEditSuggestion',
-		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next edit suggestion'),
+		announcementMessage: localize('accessibility.signals.nextEditSuggestion', 'Next Edit Suggestion'),
 	});
 	public static readonly terminalQuickFix = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
