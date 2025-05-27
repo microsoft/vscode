@@ -113,13 +113,18 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (serverMetadata) => {
+			create: async (serverMetadata, resource) => {
 				const clientId = this.dynamicAuthProviderStorageService.getClientId(serverMetadata.issuer);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
 				}
-				return this._proxy.$registerDynamicAuthProvider(serverMetadata, clientId, initialTokens);
+				return await this._proxy.$registerDynamicAuthProvider(
+					serverMetadata,
+					resource,
+					clientId,
+					initialTokens
+				);
 			}
 		}));
 	}
