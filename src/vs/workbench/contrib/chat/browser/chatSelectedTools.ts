@@ -53,14 +53,14 @@ export class ChatSelectedTools extends Disposable {
 
 	constructor(
 		mode: IObservable<ChatMode>,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
 		this._selectedTools = this._store.add(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, storageService));
 
-		this._allTools = observableFromEvent(toolsService.onDidChangeTools, () => Array.from(toolsService.getTools()));
+		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
 
 		const disabledDataObs = this._selectedTools.map(data => {
 			return (data.disabledToolSets?.length || data.disabledTools?.length)
@@ -82,12 +82,12 @@ export class ChatSelectedTools extends Disposable {
 				sourceByTool.set(tool, tool.source);
 			}
 
-			const toolSets = toolsService.toolSets.read(r);
+			const toolSets = _toolsService.toolSets.read(r);
 
 			for (const toolSet of toolSets) {
 
 				if (!toolSet.isHomogenous.read(r)) {
-					// only homogenous tool sets can shallow tools
+					// only homogenous tool sets can swallow tools
 					continue;
 				}
 
@@ -126,15 +126,17 @@ export class ChatSelectedTools extends Disposable {
 		}));
 	}
 
-	selectOnly(toolIds: readonly string[]): void {
-		const uniqueTools = new Set(toolIds);
+	enable(toolSets: readonly ToolSet[], tools: readonly IToolData[]): void {
+		const toolIds = new Set(tools.map(t => t.id));
+		const toolsetIds = new Set(toolSets.map(t => t.id));
 
-		const disabledTools = this._allTools.get().filter(tool => !uniqueTools.has(tool.id));
+		const disabledTools = this._allTools.get().filter(tool => !toolIds.has(tool.id));
+		const disabledToolSets = Array.from(this._toolsService.toolSets.get()).filter(toolset => !toolsetIds.has(toolset.id));
 
-		this.update([], disabledTools);
+		this.disable(disabledToolSets, disabledTools);
 	}
 
-	update(disabledToolSets: readonly ToolSet[], disableTools: readonly IToolData[]): void {
+	disable(disabledToolSets: readonly ToolSet[], disableTools: readonly IToolData[]): void {
 		this._selectedTools.set({
 			disabledToolSets: disabledToolSets.map(t => t.id),
 			disabledTools: disableTools.map(t => t.id)
