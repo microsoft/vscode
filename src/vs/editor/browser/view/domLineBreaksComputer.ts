@@ -20,6 +20,8 @@ import { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
+const LINE_HEIGHT = 300;
+
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	public static create(targetWindow: Window): DOMLineBreaksComputerFactory {
@@ -160,11 +162,10 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, re
 			fontLigatures !== EditorFontLigatures.OFF,
 			null
 		);
-		const lineHeight = 300;
 		sb.appendString('<div style="height:');
-		sb.appendString(String(lineHeight));
+		sb.appendString(String(LINE_HEIGHT));
 		sb.appendString('px;line-height:');
-		sb.appendString(String(lineHeight));
+		sb.appendString(String(LINE_HEIGHT));
 		sb.appendString('px;width:');
 		sb.appendString(String(width));
 		sb.appendString('px;">');
@@ -271,7 +272,7 @@ function discoverBreaks(range: Range, outerSpan: HTMLSpanElement, characterMappi
 	const highDomPosition2 = characterMapping.getDomPosition(high + 1);
 	highRects = highRects || readClientRect(range, outerSpan, highDomPosition1.charIndex, highDomPosition1.partIndex, highDomPosition2.charIndex, highDomPosition2.partIndex);
 
-	if (Math.abs(lowRects[0].top - highRects[0].top) <= 300 / 2) {
+	if (Math.abs(lowRects[0].top - highRects[0].top) <= LINE_HEIGHT / 2) {
 		// same line
 		return;
 	}
@@ -295,6 +296,5 @@ function readClientRect(range: Range, outerSpan: HTMLSpanElement, startCharacter
 	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(outerSpan.children, 0);
 	range.setStart(spans[startSpanOffset].firstChild!, startCharacterOffset);
 	range.setEnd(spans[endSpanOffset].firstChild!, endCharacterOffset);
-	const clientRects = range.getClientRects();
-	return clientRects;
+	return range.getClientRects();
 }

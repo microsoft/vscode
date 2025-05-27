@@ -84,7 +84,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private hiddenAreasDecorationIds!: string[];
 	private config: IEditorConfiguration;
-	// private coordinatesConverter: ICoordinatesConverter;
 
 	constructor(
 		editorId: number,
@@ -109,7 +108,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
-		// this.coordinatesConverter = new CoordinatesConverter(this);
+
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
 

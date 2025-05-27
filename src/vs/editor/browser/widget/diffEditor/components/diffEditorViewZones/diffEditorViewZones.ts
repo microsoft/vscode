@@ -183,10 +183,8 @@ export class DiffEditorViewZones extends Disposable {
 								continue;
 							}
 							const viewLinerenderingData = viewModel.getViewLineRenderingData(i);
-							const inlineDecorations = viewLinerenderingData.inlineDecorations;
-							const lineDecorations = LineDecoration.filter(inlineDecorations, i, 0, Infinity);
-							const lineTokens = viewLinerenderingData.tokens;
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, lineDecorations, lineTokens, null);
+							const lineDecorations = LineDecoration.filter(viewLinerenderingData.inlineDecorations, i, 0, Infinity);
+							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, lineDecorations, viewLinerenderingData.tokens, null);
 						}
 					}
 				}

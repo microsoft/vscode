@@ -10,7 +10,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 export class ViewLineOptions {
 	public readonly themeType: ColorScheme;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
-	public readonly effectiveRenderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	public readonly experimentalWhitespaceRendering: 'svg' | 'font' | 'off';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
@@ -27,13 +27,7 @@ export class ViewLineOptions {
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
-		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (experimentalWhitespaceRendering === 'off') {
-			this.effectiveRenderWhitespace = options.get(EditorOption.renderWhitespace);
-		} else {
-			// whitespace is rendered in a different layer
-			this.effectiveRenderWhitespace = 'none';
-		}
+		this.experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
@@ -52,7 +46,8 @@ export class ViewLineOptions {
 	public equals(other: ViewLineOptions): boolean {
 		return (
 			this.themeType === other.themeType
-			&& this.effectiveRenderWhitespace === other.effectiveRenderWhitespace
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.experimentalWhitespaceRendering === other.experimentalWhitespaceRendering
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
