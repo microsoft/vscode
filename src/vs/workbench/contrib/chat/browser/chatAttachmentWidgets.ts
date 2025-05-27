@@ -109,9 +109,6 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 				this._onDidDelete.fire(e.browserEvent);
 			}
 		}));
-		if (this.options.shouldFocusClearButton) {
-			clearButton.focus();
-		}
 	}
 
 	protected addResourceOpenHandlers(resource: URI, range: IRange | undefined): void {

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -88,6 +90,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
 			this.convertToRegularAttachment();
+		}));
+
+		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				this.convertToRegularAttachment();
+			}
 		}));
 
 		// Context menu
