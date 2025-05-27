@@ -31,6 +31,7 @@ import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -130,7 +131,7 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles(PromptsType.instructions);
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		const placeholder = localize(
 			'commands.instructions.select-dialog.placeholder',
 			'Select instructions files to attach',
@@ -202,7 +203,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	asPicker(): { readonly placeholder: string; readonly picks: Promise<ChatContextPick[]> } {
 
-		const picks = this.promptsService.listPromptFiles(PromptsType.instructions).then(value => {
+		const picks = this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None).then(value => {
 
 			const result: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
 
