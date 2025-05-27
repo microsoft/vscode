@@ -1399,7 +1399,20 @@ export class Repository implements Disposable {
 					if (discardUntrackedChangesToTrash) {
 						const limiter = new Limiter<void>(5);
 						await Promise.all(toClean.map(fsPath => limiter.queue(
-							async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+							async () => {
+								// Use fs path from the rootRealPath if it exists (for handling subst drive paths)
+								const realPath = this.rootRealPath && fsPath.startsWith(this.root)
+									? path.join(this.rootRealPath, fsPath.substring(this.root.length))
+									: fsPath;
+
+								try {
+									await workspace.fs.delete(Uri.file(realPath), { useTrash: true });
+								} catch (err) {
+									this.logger.warn(`[Repository][clean] Failed to delete file '${fsPath}' using realPath '${realPath}': ${err.message}`);
+									// Fall back to direct Git clean if file system delete fails
+									await this.repository.clean([fsPath]);
+								}
+							})));
 					} else {
 						await this.repository.clean(toClean);
 					}
