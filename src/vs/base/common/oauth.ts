@@ -21,6 +21,11 @@ export interface IAuthorizationProtectedResourceMetadata {
 	resource: string;
 
 	/**
+	 * OPTIONAL. Human-readable name of the protected resource intended for display to the end user.
+	 */
+	resource_name?: string;
+
+	/**
 	 * OPTIONAL. JSON array containing a list of OAuth authorization server issuer identifiers.
 	 */
 	authorization_servers?: string[];

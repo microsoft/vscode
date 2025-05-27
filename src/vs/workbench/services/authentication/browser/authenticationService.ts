@@ -20,7 +20,7 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -316,14 +316,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		await delegate.create(serverMetadata);
-		const providerId = serverMetadata.issuer;
+		const providerId = await delegate.create(serverMetadata, resource);
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
