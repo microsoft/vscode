@@ -440,8 +440,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
-		// const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
-		// templateData.header?.classList.toggle('hidden', !shouldShowHeader);
+		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
+		templateData.header?.classList.toggle('hidden', !shouldShowHeader);
 
 		// Do a progressive render if
 		// - This the last response in the list
