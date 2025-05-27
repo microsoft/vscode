@@ -52,6 +52,19 @@ export interface IAuthenticationCreateSessionOptions {
 	issuer?: URI;
 }
 
+export interface IAuthenticationGetSessionsOptions {
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
+	/**
+	 * The issuer URI to use for this request. If passed in, first we validate that
+	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 */
+	issuer?: URI;
+}
+
 export interface AllowedExtension {
 	id: string;
 	name: string;
@@ -153,14 +166,12 @@ export interface IAuthenticationService {
 
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
-	 * TODO:@TylerLeonhardt Refactor this to use an options bag for account and issuer
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session
-	 * @param account The account for the session
+	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
-	 * @param issuer The issuer for the session
 	 */
-	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean, issuer?: URI): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
