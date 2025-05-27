@@ -29,7 +29,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerCacheState, McpServerTransportType, McpCapability, IMcpResourceTemplate } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerDefinition, McpServerCacheState, McpServerTransportType, McpCapability, IMcpResourceTemplate, McpToolName } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -266,7 +266,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		const fromServer = this._tools.fromServerPromise.read(reader);
 		const connectionState = this.connectionState.read(reader);
-		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
+		const isIdle = McpConnectionState.canBeStarted(connectionState.state) || !fromServer;
 		if (isIdle) {
 			return stateWhenServingFromCache();
 		}
@@ -297,6 +297,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
+		toolPrefix: string,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -354,15 +355,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		// 3. Publish tools
-		const toolPrefix = this._mcpRegistry.collectionToolPrefix(this.collection);
 		this._tools = new CachedPrimitive<IMcpTool, IValidatedMcpTool>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.tools,
-			(entry, reader) => {
-				const prefix = toolPrefix.read(reader);
-				return entry.map(def => new McpTool(this, prefix, def)).sort((a, b) => a.compare(b));
-			},
+			(entry) => entry.map(def => new McpTool(this, toolPrefix, def)).sort((a, b) => a.compare(b)),
 		);
 
 		// 4. Publish promtps
@@ -708,7 +705,7 @@ export class McpTool implements IMcpTool {
 		idPrefix: string,
 		private readonly _definition: IValidatedMcpTool,
 	) {
-		this.id = (idPrefix + _definition.name).replaceAll('.', '_');
+		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
