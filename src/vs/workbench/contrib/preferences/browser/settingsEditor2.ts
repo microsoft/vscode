@@ -59,7 +59,7 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, ENABLE_SHOW_AI_RESULTS_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
 import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
@@ -630,7 +630,8 @@ export class SettingsEditor2 extends EditorPane {
 		));
 
 		const setupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
-		if (!setupHidden && ENABLE_SHOW_AI_RESULTS_FILTER) {
+		const showSuggestions = this.configurationService.getValue<boolean>('workbench.settings.showAISearchToggle');
+		if (!setupHidden && showSuggestions) {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
 				localize('showAiResults', "Show AI Results"), showAiResultActionClassNames.join(' ')
@@ -1747,13 +1748,16 @@ export class SettingsEditor2 extends EditorPane {
 			return this.searchDelayer.trigger(async () => {
 				// Use both embeddings and LLM results from the AI search.
 				const embeddingsResults = await this.doAiSearch(query, searchInProgress.token);
-				if (!this.searchResultModel) {
+				if (!this.searchResultModel || searchInProgress.token.isCancellationRequested) {
 					return;
 				}
 				this.searchResultModel.showAiResults = true;
 				if (embeddingsResults?.filterMatches.length) {
 					this.aiSearchDelayer.trigger(async () => {
 						await this.getLLMRankedResults(query, searchInProgress.token);
+						if (searchInProgress.token.isCancellationRequested) {
+							return;
+						}
 						this.onDidFinishSearch(expandResults);
 					});
 				} else {
@@ -1768,11 +1772,11 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 			const localResults = await this.doLocalSearch(query, searchInProgress.token);
-			if (!this.searchResultModel) {
+			if (!this.searchResultModel || searchInProgress.token.isCancellationRequested) {
 				return;
 			}
 			this.searchResultModel.showAiResults = false;
-			if ((!localResults || !localResults.exactMatch) && !searchInProgress.token.isCancellationRequested) {
+			if (!localResults || !localResults.exactMatch) {
 				await this.doRemoteSearch(query, searchInProgress.token);
 			}
 			if (searchInProgress.token.isCancellationRequested) {
