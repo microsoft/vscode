@@ -639,3 +639,9 @@ export const enum McpCapability {
 	Tools = 1 << 7,
 	ToolsListChanged = 1 << 8,
 }
+
+export const enum McpToolName {
+	Prefix = 'mcp_',
+	MaxPrefixLen = 18,
+	MaxLength = 64,
+}
