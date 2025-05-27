@@ -99,11 +99,13 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (repo) {
 			try {
 				quickpick.busy = true;
+				const fullName = `${owner}/${repo}`;
 				const result = await octokit.repos.get({ owner, repo: repo });
-				if (result['data']['name'] !== repo) { // happens when the repo was renamed
+				if (result.data.full_name.toLowerCase() !== fullName.toLowerCase()) {
+					// Repository has moved permanently due to it being renamed
 					break;
 				}
-				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
+				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${fullName}`, alwaysShow: true }];
 			} catch {
 				break;
 			} finally {
