@@ -215,7 +215,6 @@
     "util": "^0.12.4",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
-    "webpack-stream": "^7.0.0",
     "yaserver": "^0.4.0"
   },
   "overrides": {
