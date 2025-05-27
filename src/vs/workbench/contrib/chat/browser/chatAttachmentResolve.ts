@@ -26,11 +26,34 @@ import { getOutputViewModelFromId } from '../../notebook/browser/controller/cell
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
-import { resizeImage } from './imageUtils.js';
+import { resizeImage, chatImageUploader } from './imageUtils.js';
+import { getCurrentAuthenticationSessionInfo } from '../../../services/authentication/browser/authenticationService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatEntitlementRequests } from '../common/chatEntitlementService.js';
+import product from '../../../../platform/product/common/product.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 
 // --- EDITORS ---
 
-export async function resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, editorService: IEditorService, textModelService: ITextModelService, extensionService: IExtensionService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
+const defaultChat = {
+	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
+	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
+	providerId: product.defaultChatAgent?.providerId ?? '',
+	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
+	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
+	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	chatQuotaExceededContext: product.defaultChatAgent?.chatQuotaExceededContext ?? '',
+	completionsQuotaExceededContext: product.defaultChatAgent?.completionsQuotaExceededContext ?? ''
+};
+
+
+export async function resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, editorService: IEditorService, textModelService: ITextModelService, extensionService: IExtensionService, dialogService: IDialogService, authenticationService: IAuthenticationService, configurationService: IConfigurationService, authenticationExtensionsService: IAuthenticationExtensionsService, productService: IProductService, sharedWebContentExtractorService: ISharedWebContentExtractorService): Promise<IChatRequestVariableEntry | undefined> {
 	// untitled editor
 	if (isUntitledResourceEditorInput(editor)) {
 		return await resolveUntitledEditorAttachContext(editor, editorService, textModelService);
@@ -51,7 +74,21 @@ export async function resolveEditorAttachContext(editor: EditorInput | IDraggedR
 		return undefined;
 	}
 
-	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource);
+	let providerId: string | undefined = undefined;
+	if (configurationService.getValue<string | undefined>(`${defaultChat?.completionsAdvancedSetting}.authProvider`) === defaultChat?.enterpriseProviderId) {
+		providerId = defaultChat?.enterpriseProviderId;
+	} else {
+		providerId = defaultChat?.providerId;
+	}
+
+
+	const accountName = authenticationExtensionsService.getAccountPreference('github.copilot-chat', 'github');
+	const session = await authenticationService.getSessions('github');
+	const token = session?.find(s => s.account.label === 'justschen')?.accessToken;
+
+	// const currentSession = await getCurrentAuthenticationSessionInfo(secretStorageService, productService);
+	// const token = currentSession?.accessToken;
+	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource, token, undefined, undefined, sharedWebContentExtractorService);
 	if (imageContext) {
 		return extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 	}
@@ -113,10 +150,11 @@ export type ImageTransferData = {
 	id?: string;
 	mimeType?: string;
 	omittedState?: OmittedState;
+	token?: string;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
-export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
+export async function resolveImageEditorAttachContext(fileService: IFileService, dialogService: IDialogService, resource: URI, token?: string, data?: VSBuffer, mimeType?: string, sharedWebContentExtractorService?: ISharedWebContentExtractorService): Promise<IChatRequestVariableEntry | undefined> {
 	if (!resource) {
 		return undefined;
 	}
@@ -165,25 +203,30 @@ export async function resolveImageEditorAttachContext(fileService: IFileService,
 		icon: Codicon.fileMedia,
 		resource: resource,
 		mimeType: mimeType,
-		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
-	}]);
+		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted,
+		token
+	}], sharedWebContentExtractorService);
 
 	return imageFileContext[0];
 }
 
-export async function resolveImageAttachContext(images: ImageTransferData[]): Promise<IChatRequestVariableEntry[]> {
-	return Promise.all(images.map(async image => ({
-		id: image.id || await imageToHash(image.data),
-		name: image.name,
-		fullName: image.resource ? image.resource.path : undefined,
-		value: await resizeImage(image.data, image.mimeType),
-		icon: image.icon,
-		kind: 'image',
-		isFile: false,
-		isDirectory: false,
-		omittedState: image.omittedState || OmittedState.NotOmitted,
-		references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
-	})));
+export async function resolveImageAttachContext(images: ImageTransferData[], sharedWebContentExtractorService?: ISharedWebContentExtractorService): Promise<IChatRequestVariableEntry[]> {
+	return Promise.all(images.map(async image => {
+		const binaryData = await resizeImage(image.data, image.mimeType);
+		return {
+			id: image.id || await imageToHash(image.data),
+			name: image.name,
+			fullName: image.resource ? image.resource.path : undefined,
+			value: binaryData,
+			url: sharedWebContentExtractorService ? await sharedWebContentExtractorService.chatImageUploader(binaryData, image.name, image.mimeType, image.token) : undefined,
+			icon: image.icon,
+			kind: 'image',
+			isFile: false,
+			isDirectory: false,
+			omittedState: image.omittedState || OmittedState.NotOmitted,
+			references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
+		};
+	}));
 }
 
 const MIME_TYPES: Record<string, string> = {

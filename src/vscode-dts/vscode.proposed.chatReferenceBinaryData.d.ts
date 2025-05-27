@@ -20,9 +20,15 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
+		 * Note: base64 will only be used as a fallback if upload fails.
 		 * @returns A promise that resolves to the binary data as a Uint8Array.
 		 */
 		data(): Thenable<Uint8Array>;
+
+		/**
+		 * URL of image that was uploaded to GitHub
+		 */
+		url: string;
 
 		/**
 		 * Retrieves a URI reference to the binary data, if available.
@@ -33,6 +39,6 @@ declare module 'vscode' {
 		 * @param mimeType The MIME type of the binary data.
 		 * @param data The binary data of the reference.
 		 */
-		constructor(mimeType: string, data: () => Thenable<Uint8Array>);
+		constructor(mimeType: string, data: () => Thenable<Uint8Array>, url: string, reference?: Uri);
 	}
 }
