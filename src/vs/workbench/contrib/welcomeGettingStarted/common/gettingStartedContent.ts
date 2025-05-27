@@ -368,9 +368,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				// Copilot setup steps for Codespaces, using the same steps as non-web walkthroughs but with a Codespaces-specific when clause
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, "chatEntitlementSignedOut && env.remoteName == 'codespaces'", true),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, "chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited) && env.remoteName == 'codespaces'", false),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, "!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp) && env.remoteName == 'codespaces'", true),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, "chatEntitlementSignedOut && !!env.remoteName", true),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, "chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited) && !!env.remoteName", false),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, "!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp) && !!env.remoteName", true),
 				{
 					id: 'pickColorThemeWeb',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
