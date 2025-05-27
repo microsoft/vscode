@@ -129,13 +129,16 @@ export async function showToolsPicker(
 				continue;
 			}
 
+			const buttons: ActionableButton[] = [];
+
 			bucket = toolBuckets.get(key) ?? {
 				type: 'item',
 				label: localize('mcplabel', "MCP Server: {0}", toolSetOrTool.source.label),
 				ordinal: BucketOrdinal.Mcp,
 				picked: false,
 				alwaysShow: true,
-				children: []
+				children: [],
+				buttons
 			};
 			toolBuckets.set(key, bucket);
 
