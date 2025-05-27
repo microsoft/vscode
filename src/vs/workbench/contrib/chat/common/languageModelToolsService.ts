@@ -213,7 +213,7 @@ export class ToolSet {
 	}
 
 	addTool(data: IToolData, tx?: ITransaction): IDisposable {
-		this._tools.add(data);
+		this._tools.add(data, tx);
 		return toDisposable(() => {
 			this._tools.delete(data);
 		});
@@ -223,7 +223,7 @@ export class ToolSet {
 		if (toolSet === this) {
 			return Disposable.None;
 		}
-		this._toolSets.add(toolSet);
+		this._toolSets.add(toolSet, tx);
 		return toDisposable(() => {
 			this._toolSets.delete(toolSet);
 		});
