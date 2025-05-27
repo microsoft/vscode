@@ -361,7 +361,7 @@ const PyModulesToLookFor = [
 	'azure-mgmt-kubernetesconfiguration',
 	'a2a-sdk',
 	'adal',
-	'agents', 
+	'agents',
 	'pydocumentdb',
 	'botbuilder-core',
 	'botbuilder-schema',
