@@ -155,7 +155,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, undefined, true, issuer);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { issuer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {

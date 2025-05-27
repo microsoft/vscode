@@ -260,7 +260,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const issuer = URI.revive(options.issuer);
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true, issuer);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, { account: options.account, issuer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
