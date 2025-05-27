@@ -18,7 +18,7 @@ import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { stringHash } from '../../../base/common/hash.js';
-import { DisposableStore, IDisposable, isDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { equals as arraysEqual } from '../../../base/common/arrays.js';
@@ -112,9 +112,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			listener.dispose();
 			this._authenticationProviders.delete(id);
 			this._proxy.$unregisterAuthenticationProvider(id);
-			if (isDisposable(provider)) {
-				provider.dispose();
-			}
 		});
 	}
 
@@ -152,6 +149,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
 			this._onDidChangeSessions.fire({ provider: { id, label }, extensionIdFilter });
 		}
+		return Promise.resolve();
+	}
+
+	$onDidUnregisterAuthenticationProvider(id: string): Promise<void> {
+		const providerData = this._authenticationProviders.get(id);
+		if (providerData?.disposable) {
+			providerData.disposable.dispose();
+		}
+		this._authenticationProviders.delete(id);
 		return Promise.resolve();
 	}
 
