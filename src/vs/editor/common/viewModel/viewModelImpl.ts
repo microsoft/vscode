@@ -835,7 +835,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			lineData.tokens,
 			inlineDecorations,
 			tabSize,
-			lineData.startVisibleColumn,
+			lineData.startVisibleColumn
 		);
 	}
 

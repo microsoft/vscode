@@ -1749,6 +1749,22 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number | null;
 		/**
+		 * Font family
+		 */
+		fontFamily?: string | null;
+		/**
+		 * Font size
+		 */
+		fontSize?: number | null;
+		/**
+		 * Font weight
+		 */
+		fontWeight?: string | null;
+		/**
+		 * Font style
+		 */
+		fontStyle?: string | null;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;

@@ -114,7 +114,7 @@ export class ViewLine implements IVisibleLine {
 
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
-		const lineHasVariableFonts = lineData.inlineDecorations.hasVariableFonts;
+		const lineHasVariableFonts = lineData.inlineDecorations.affectsFonts;
 		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		if (lineHasVariableFonts || options.experimentalWhitespaceRendering === 'off') {
 			renderWhitespace = options.renderWhitespace;

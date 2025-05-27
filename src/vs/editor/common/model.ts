@@ -225,22 +225,18 @@ export interface IModelDecorationOptions {
 	lineHeight?: number | null;
 	/**
 	 * Font family
-	 * @internal
 	 */
 	fontFamily?: string | null;
 	/**
 	 * Font size
-	 * @internal
 	 */
 	fontSize?: number | null;
 	/**
 	 * Font weight
-	 * @internal
 	 */
 	fontWeight?: string | null;
 	/**
 	 * Font style
-	 * @internal
 	 */
 	fontStyle?: string | null;
 	/**
@@ -302,6 +298,12 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInStringTokens?: boolean | null;
+
+	/**
+	 * Affects the font family or font size
+	 * @internal
+	 */
+	affectsFont?: boolean | null;
 }
 
 /**

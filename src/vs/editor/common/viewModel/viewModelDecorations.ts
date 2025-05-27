@@ -10,8 +10,8 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, IModelDecorationOptions, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -28,25 +28,25 @@ export class InlineDecorations {
 
 	public readonly inlineDecorations: InlineDecoration[];
 
-	private _hasVariableFonts: boolean;
+	private _affectsFonts: boolean;
 
 	constructor(
 		inlineDecorations?: InlineDecoration[],
-		hasVariableFonts?: boolean
+		affectsFonts?: boolean
 	) {
 		this.inlineDecorations = inlineDecorations || [];
-		this._hasVariableFonts = hasVariableFonts || false;
+		this._affectsFonts = affectsFonts || false;
 	}
 
 	public add(range: Range, options: IModelDecorationOptions, inlineClassName: string, inlineDecorationType: InlineDecorationType): void {
 		this.inlineDecorations.push(new InlineDecoration(range, inlineClassName, inlineDecorationType));
-		if (!!options.fontSize || !!options.fontFamily) {
-			this._hasVariableFonts = true;
+		if (options.affectsFont) {
+			this._affectsFonts = true;
 		}
 	}
 
-	public get hasVariableFonts(): boolean {
-		return this._hasVariableFonts;
+	public get affectsFonts(): boolean {
+		return this._affectsFonts;
 	}
 }
 

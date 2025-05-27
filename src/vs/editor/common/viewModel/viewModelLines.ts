@@ -5,7 +5,7 @@
 
 import * as arrays from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { filterValidationDecorations, WrappingIndent } from '../config/editorOptions.js';
+import { EditorOption, filterValidationDecorations, WrappingIndent } from '../config/editorOptions.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
@@ -87,7 +87,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		lineBreaksComputerFactory: ILineBreaksComputerFactory,
 		config: IEditorConfiguration,
 		fontInfo: FontInfo,
 		tabSize: number,
@@ -99,7 +99,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
-		this._lineBreaksComputerFactory = domLineBreaksComputerFactory;
+		this._lineBreaksComputerFactory = lineBreaksComputerFactory;
 		this.config = config;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
@@ -135,10 +135,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
-			const lineInlineDecorations = this._getLineInlineDecorations(lineNumber);
+			// range looses relevance?
+			const inlineDecorations = this._getLineInlineDecorations(lineNumber);
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, lineInlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
+			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, inlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -171,24 +172,25 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _getLineInlineDecorations(lineNumber: number): InlineDecorations {
-		const modelDecorations = this.model.getLineDecorations(lineNumber, this._editorId, filterValidationDecorations(this.config.options));
-		const lineInlineDecorations = new InlineDecorations();
+		const options = this.config.options;
+		const modelDecorations = this.model.getLineDecorations(lineNumber, this._editorId, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
+		const inlineDecorations = new InlineDecorations();
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
 			const modelRange = modelDecoration.range;
 			if (decorationOptions.inlineClassName) {
 				const inlineDecorationType = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.inlineClassName, inlineDecorationType);
+				inlineDecorations.add(modelRange, decorationOptions, decorationOptions.inlineClassName, inlineDecorationType);
 			}
 			if (decorationOptions.beforeContentClassName) {
-				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.beforeContentClassName, InlineDecorationType.Before);
+				inlineDecorations.add(modelRange, decorationOptions, decorationOptions.beforeContentClassName, InlineDecorationType.Before);
 			}
 			if (decorationOptions.afterContentClassName) {
-				lineInlineDecorations.add(modelRange, decorationOptions, decorationOptions.afterContentClassName, InlineDecorationType.After);
+				inlineDecorations.add(modelRange, decorationOptions, decorationOptions.afterContentClassName, InlineDecorationType.After);
 			}
 		}
-		return lineInlineDecorations;
+		return inlineDecorations;
 	}
 
 	public getHiddenAreas(): Range[] {

@@ -47,7 +47,7 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 
 	addRequest(lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void {
 		const wrappingStrategy = this._config.options.get(EditorOption.wrappingStrategy);
-		if (wrappingStrategy === 'advanced') {
+		if (wrappingStrategy === 'advanced' || inlineDecorations.affectsFonts) {
 			this._domLineBreaksComputer.addRequest(lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData);
 			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Dom);
 		} else {

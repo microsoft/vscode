@@ -1491,7 +1491,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					0
 				);
 
-
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
@@ -1744,11 +1743,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getNodeRange(this, node);
 	}
 
-	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
+	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			return [];
 		}
-		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
+		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation, filterFontDecorations);
 	}
 
 	public getLinesDecorations(_startLineNumber: number, _endLineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecoration[] {
@@ -2420,6 +2419,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly before: ModelDecorationInjectedTextOptions | null;
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
+	readonly affectsFont: boolean | null;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -2427,11 +2427,12 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
-		if (!!options.fontSize) {
-			this.stickiness = model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-		} else {
-			this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
-		}
+		// if (!!options.fontSize) {
+		// 	this.stickiness = model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+		// } else {
+		// 	this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		// }
+		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
@@ -2461,6 +2462,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
+		this.affectsFont = !!options.fontSize || !!options.fontFamily;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
