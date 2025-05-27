@@ -67,6 +67,10 @@ fi
 # Set $REALHOME to the users real home directory
 REALHOME=$(getent passwd $UID | cut -d ':' -f 6)
 
+
+# Extra launch arguments
+declare -a launch_args
+
 # Set config folder to local path
 ensure_dir_exists "$SNAP_USER_DATA/.config"
 chmod 700 "$SNAP_USER_DATA/.config"
@@ -106,6 +110,7 @@ copy_env_variable GDK_BACKEND
 copy_env_variable GTK_PATH
 copy_env_variable GTK_EXE_PREFIX
 copy_env_variable GTK_IM_MODULE_FILE
+copy_env_variable LIBGL_DRIVERS_PATH
 
 # XDG Config
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
@@ -124,6 +129,11 @@ ensure_dir_exists "$XDG_DATA_HOME"
 #   https://bugzilla.gnome.org/show_bug.cgi?id=741335
 prepend_dir XDG_DATA_DIRS "$XDG_DATA_HOME"
 
+# Use the snap MESA drivers to launch the snap.
+# This is required by wayland, but electron will make better use under X11 too
+prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/dri"
+prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/$ARCH/dri"
+
 # Set cache folder to local path
 if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$SNAP_USER_COMMON/.cache" ]]; then
   # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
@@ -140,28 +150,22 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 
 # If detect wayland server socket, then set environment so applications prefer
 # wayland, and setup compat symlink (until we use user mounts. Remember,
-# XDG_RUNTIME_DIR is /run/user/<uid>/snap.$SNAP so look in the parent directory
-# for the socket. For details:
-# https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
+# XDG_RUNTIME_DIR is /run/user/<uid> for classic snaps.
 # Applications that don't support wayland natively may define DISABLE_WAYLAND
 # (to any non-empty value) to skip that logic entirely.
 wayland_available=false
-if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
+if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]] && \
+   [[ "$(snapctl get wayland-native)" == "true" ]]; then
     wdisplay="wayland-0"
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
     wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
+    if [ -S "$wayland_snappath" ]; then
         # if running under wayland, use it
         #export WAYLAND_DEBUG=1
         # shellcheck disable=SC2034
         wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
-        fi
     fi
 fi
 
@@ -249,6 +253,7 @@ fi
 # shellcheck disable=SC2154
 if [ "$wayland_available" = true ]; then
   export GDK_BACKEND="wayland"
+  launch_args+=(--enable-native-wayland-client)
 fi
 
 append_dir GTK_PATH "$SNAP/usr/lib/$ARCH/gtk-3.0"
@@ -276,4 +281,8 @@ fi
 
 wait_for_async_execs
 
-exec "$@"
+
+binary="$1"
+shift
+
+exec "$binary" "${launch_args[@]}" "$@"

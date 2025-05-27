@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -eu
+
+wayland_native="$(snapctl get wayland-native)"
+if [[ -z "$wayland_native" ]]; then
+    snapctl set wayland-native=false
+fi
