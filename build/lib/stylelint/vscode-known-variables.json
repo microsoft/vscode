@@ -957,6 +957,6 @@
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
 		"--animation-opacity",
-		"--chat-setup-dialog-glow-progress"
+		"--chat-setup-dialog-glow-angle"
 	]
 }
