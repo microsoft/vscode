@@ -22,7 +22,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
@@ -1397,9 +1397,29 @@ export class Repository implements Disposable {
 
 				if (toClean.length > 0) {
 					if (discardUntrackedChangesToTrash) {
-						const limiter = new Limiter<void>(5);
-						await Promise.all(toClean.map(fsPath => limiter.queue(
-							async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+						try {
+							// Attempt to move the first resource to the recycle bin/trash to check
+							// if it is supported. If it fails, we show a confirmation dialog and
+							// fall back to deletion.
+							await workspace.fs.delete(Uri.file(toClean[0]), { useTrash: true });
+
+							const limiter = new Limiter<void>(5);
+							await Promise.all(toClean.slice(1).map(fsPath => limiter.queue(
+								async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+						} catch {
+							const message = isWindows
+								? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
+								: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
+							const primaryAction = toClean.length === 1
+								? l10n.t('Delete File')
+								: l10n.t('Delete All {0} Files', resources.length);
+
+							const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
+							if (result === primaryAction) {
+								// Delete permanently
+								await this.repository.clean(toClean);
+							}
+						}
 					} else {
 						await this.repository.clean(toClean);
 					}
