@@ -164,7 +164,7 @@ export async function showToolsPicker(
 			const key = ToolDataSource.toKey(toolSetOrTool.source);
 			bucket = toolBuckets.get(key) ?? {
 				type: 'item',
-				label: toolSetOrTool.source.label,
+				label: localize('ext', 'Extension: {0}', toolSetOrTool.source.label),
 				ordinal: BucketOrdinal.Extension,
 				picked: false,
 				alwaysShow: true,
