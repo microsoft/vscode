@@ -91,7 +91,7 @@ class RefItem implements QuickPickItem {
 
 	get detail(): string | undefined {
 		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
-			return `${this.ref.commitDetails?.authorName}$(circle-small-filled)${this.ref.commitDetails?.message}`;
+			return `${this.ref.commitDetails.authorName}$(circle-small-filled)${this.shortCommit}$(circle-small-filled)${this.ref.commitDetails.message}`;
 		}
 
 		return undefined;
