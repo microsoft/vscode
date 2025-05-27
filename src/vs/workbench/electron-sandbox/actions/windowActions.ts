@@ -202,8 +202,39 @@ export class ZoomResetAction extends BaseZoomAction {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		// Always update window.zoomLevel configuration to 0 on reset
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue('window.zoomLevel', 0);
+
 		return super.setZoomLevel(accessor, true);
+	}
+}
+
+export class ZoomToAction extends BaseZoomAction {
+
+	static readonly ID = 'workbench.action.zoomTo';
+
+	constructor() {
+		super({
+			id: ZoomToAction.ID,
+			title: {
+				...localize2('zoomTo', "Zoom to Level"),
+				mnemonicTitle: localize({ key: 'miZoomTo', comment: ['&& denotes a mnemonic'] }, "Zoom to &&Level"),
+			},
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, zoomLevel?: number): Promise<void> {
+		if (typeof zoomLevel !== 'number') {
+			return;
+		}
+
+		// Update window.zoomLevel configuration value regardless of per-window setting
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue('window.zoomLevel', zoomLevel);
 	}
 }
 

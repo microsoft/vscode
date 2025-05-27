@@ -11,7 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+// import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import product from '../../../../platform/product/common/product.js';
 
@@ -312,6 +312,20 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
+					id: 'zoomLevel',
+					title: localize('gettingStarted.zoomLevel.title', "Adjust zoom level"),
+					description: localize('gettingStarted.zoomLevel.description.interpolated', "Change the size of text and UI elements to improve readability and comfort.\n{0}\n{1}",
+						Button(localize('setZoom', "Set Zoom to 0.5"), 'command:workbench.action.zoomTo?0.5'),
+						Button(localize('resetZoom', "Reset Zoom"), 'command:workbench.action.zoomReset')),
+					media: {
+						type: 'svg', altText: 'Zoom level controls shown changing text size', path: 'settings.svg'
+					},
+					completionEvents: [
+						'onCommand:workbench.action.zoomTo',
+						'onCommand:workbench.action.zoomReset'
+					]
+				},
+				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
@@ -447,7 +461,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		description: localize('gettingStarted.setupAccessibility.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
 		isFeatured: true,
 		icon: setupIcon,
-		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
+		// when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
 		next: 'Setup',
 		walkthroughPageTitle: localize('gettingStarted.setupAccessibility.walkthroughPageTitle', 'Setup VS Code Accessibility'),
 		content: {
