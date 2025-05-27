@@ -19,6 +19,7 @@ import * as Convert from './extHostTypeConverters.js';
 import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
+import { CancellationError } from '../../../base/common/errors.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -264,11 +265,7 @@ class McpHTTPHandle extends Disposable {
 
 		if (this._mode.value === HttpMode.Unknown && res.status >= 400 && res.status < 500) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
-			const endpoint = await this._attachSSE();
-			if (endpoint) {
-				this._mode = { value: HttpMode.SSE, endpoint };
-				await this._sendLegacySSE(endpoint, message);
-			}
+			this._sseFallbackWithMessage(message);
 			return;
 		}
 
@@ -294,7 +291,15 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		// Not awaited, we don't need to block the sequencer while we read the response
-		this._handleSuccessfulStreamableHttp(res);
+		this._handleSuccessfulStreamableHttp(res, message);
+	}
+
+	private async _sseFallbackWithMessage(message: string) {
+		const endpoint = await this._attachSSE();
+		if (endpoint) {
+			this._mode = { value: HttpMode.SSE, endpoint };
+			await this._sendLegacySSE(endpoint, message);
+		}
 	}
 
 	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
@@ -428,7 +433,7 @@ class McpHTTPHandle extends Disposable {
 		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
 	}
 
-	private async _handleSuccessfulStreamableHttp(res: Response) {
+	private async _handleSuccessfulStreamableHttp(res: Response, message: string) {
 		if (res.status === 202) {
 			return; // no body
 		}
@@ -438,6 +443,11 @@ class McpHTTPHandle extends Disposable {
 				const parser = new SSEParser(event => {
 					if (event.type === 'message') {
 						this._proxy.$onDidReceiveMessage(this._id, event.data);
+					} else if (event.type === 'endpoint') {
+						// An SSE server that didn't correctly return a 4xx status when we POSTed
+						this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
+						this._sseFallbackWithMessage(message);
+						throw new CancellationError(); // just to end the SSE stream
 					}
 				});
 
