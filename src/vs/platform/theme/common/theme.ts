@@ -20,6 +20,16 @@ export enum ThemeTypeSelector {
 	HC_LIGHT = 'hc-light'
 }
 
+/**
+ * Size scheme used by the OS and by size themes.
+ */
+export enum SizeScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+	HIGH_CONTRAST_DARK = 'hcDark',
+	HIGH_CONTRAST_LIGHT = 'hcLight'
+}
+
 
 export function isHighContrast(scheme: ColorScheme): boolean {
 	return scheme === ColorScheme.HIGH_CONTRAST_DARK || scheme === ColorScheme.HIGH_CONTRAST_LIGHT;

@@ -40,6 +40,7 @@ import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
+import { getSizeRegistry, sizeAsCssVariableName } from '../../../../platform/theme/common/sizeRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
@@ -479,7 +480,79 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}
 		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} }`);
 
+		this.updateDynamicSizeCSSRules(themeData, ruleCollector);
+
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+	}
+
+	private updateDynamicSizeCSSRules(themeData: any, ruleCollector: { addRule: (rule: string) => void }) {
+		const sizeVariables: string[] = [];
+		const sizeRegistry = getSizeRegistry();
+		
+		// Use the size registry to get all registered sizes
+		for (const item of sizeRegistry.getSizes()) {
+			// First try to get size from theme data if it supports it
+			let size = undefined;
+			if (themeData && typeof themeData.getSize === 'function') {
+				size = themeData.getSize(item.id, false); // Don't use defaults here
+			}
+			
+			// If we don't have a size, try to get the default value directly from the size contribution
+			if (!size && item.defaults) {
+				// Get the default size value for the current theme type (light, dark, etc.)
+				let defaultValue = null;
+				if (typeof item.defaults === 'object' && item.defaults !== null && 
+				    'light' in item.defaults && 'dark' in item.defaults) {
+					// If we have color-scheme-specific defaults, use the appropriate one
+					const scheme = themeData ? themeData.type : 'dark'; // Default to dark if no theme data
+					// Safe type assertion, checking properties above confirms this is a SizeDefaults
+					const defaults = item.defaults as { light: string | null; dark: string | null; hcDark: string | null; hcLight: string | null };
+					
+					switch (scheme) {
+						case 'light':
+							defaultValue = defaults.light;
+							break;
+						case 'dark':
+							defaultValue = defaults.dark;
+							break;
+						case 'hcDark':
+							defaultValue = defaults.hcDark;
+							break;
+						case 'hcLight':
+							defaultValue = defaults.hcLight;
+							break;
+						default:
+							defaultValue = defaults.dark || defaults.light; // Fallback to dark, then light
+							break;
+					}
+				} else {
+					// Otherwise, use the default directly
+					defaultValue = item.defaults;
+				}
+				
+				// If we have a default value that's a string (like '16px'), use it directly
+				if (typeof defaultValue === 'string') {
+					// For simple px values
+					if (defaultValue.endsWith('px')) {
+						const px = parseInt(defaultValue.replace('px', ''), 10);
+						size = { toString: () => defaultValue, width: px, height: px };
+					} else {
+						// For other values, just pass through
+						size = { toString: () => defaultValue };
+					}
+				}
+			}
+			
+			// If we have a size, add it to our CSS variables
+			if (size) {
+				sizeVariables.push(`${sizeAsCssVariableName(item.id)}: ${size.toString()};`);
+			}
+		}
+
+		// Add all size variables to the workbench CSS
+		if (sizeVariables.length > 0) {
+			ruleCollector.addRule(`.monaco-workbench { ${sizeVariables.join('\n')} }`);
+		}
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
