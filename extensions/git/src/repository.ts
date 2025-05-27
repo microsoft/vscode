@@ -7,7 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
@@ -1024,11 +1024,19 @@ export class Repository implements Disposable {
 		return l10n.t('Git Local Changes (Working Tree)');
 	}
 
-	provideOriginalResource(uri: Uri): Uri | undefined {
+	async provideOriginalResource(uri: Uri): Promise<Uri | undefined> {
 		this.logger.trace(`[Repository][provideOriginalResource] Resource: ${uri.toString()}`);
 
 		if (uri.scheme !== 'file') {
-			return;
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
+			return undefined;
+		}
+
+		// Ignore symbolic links
+		const stat = await workspace.fs.stat(uri);
+		if ((stat.type & FileType.SymbolicLink) !== 0) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
+			return undefined;
 		}
 
 		// Ignore path that is not inside the current repository
@@ -2836,8 +2844,20 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 		private readonly logger: LogOutputChannel
 	) { }
 
-	provideOriginalResource(uri: Uri): Uri | undefined {
+	async provideOriginalResource(uri: Uri): Promise<Uri | undefined> {
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
+
+		if (uri.scheme !== 'file') {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
+			return undefined;
+		}
+
+		// Ignore symbolic links
+		const stat = await workspace.fs.stat(uri);
+		if ((stat.type & FileType.SymbolicLink) !== 0) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
+			return undefined;
+		}
 
 		// Ignore resources that are not in the index group
 		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
