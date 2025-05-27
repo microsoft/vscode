@@ -369,7 +369,7 @@ const PyModulesToLookFor = [
 	'codegen',
 	'deepseek',
 	'fabric-data-agent-sdk',
-	'google-adk'
+	'google-adk',
 	'playwright',
 	'praisonai',
 	'pydantic-ai',
