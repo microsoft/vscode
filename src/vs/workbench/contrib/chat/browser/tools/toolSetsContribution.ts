@@ -178,6 +178,14 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 
 		const store = this._store.add(new DisposableStore());
 
+		const getFilesInFolder = async (folder: URI) => {
+			try {
+				return (await this._fileService.resolve(folder)).children ?? [];
+			} catch (err) {
+				return []; // folder does not exist or cannot be read
+			}
+		};
+
 		this._store.add(autorun(async r => {
 
 			store.clear();
@@ -190,14 +198,14 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			const cts = new CancellationTokenSource();
 			store.add(toDisposable(() => cts.dispose(true)));
 
-			const stat = await this._fileService.resolve(uri);
+			const entries = await getFilesInFolder(uri);
 
 			if (cts.token.isCancellationRequested) {
 				store.clear();
 				return;
 			}
 
-			for (const entry of stat.children ?? []) {
+			for (const entry of entries) {
 
 				if (!entry.isFile || !RawToolSetsShape.isToolSetFileName(entry.resource)) {
 					// not interesting

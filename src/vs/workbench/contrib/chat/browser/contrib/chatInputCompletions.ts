@@ -1109,7 +1109,7 @@ class ToolCompletions extends Disposable {
 						range,
 						detail,
 						insertText: withLeader + ' ',
-						kind: CompletionItemKind.Text,
+						kind: CompletionItemKind.Tool,
 						sortText: 'z',
 					});
 

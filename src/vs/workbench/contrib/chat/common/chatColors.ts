@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { localize } from '../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
@@ -53,3 +53,7 @@ export const chatEditedFileForeground = registerColor(
 	},
 	localize('chat.editedFileForeground', 'The foreground color of a chat edited file in the edited file list.')
 );
+
+export const chatRequestCodeBorder = registerColor('chat.requestCodeBorder', { dark: '#004972B8', light: '#0e639c40', hcDark: null, hcLight: null }, localize('chat.requestCodeBorder', 'Border color of code blocks within the chat request bubble.'), true);
+
+export const chatRequestBubbleBackground = registerColor('chat.requestBubbleBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('chat.requestBubbleBackground', "Background color of the chat request bubble."), true);

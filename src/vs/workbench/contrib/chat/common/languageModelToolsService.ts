@@ -21,6 +21,7 @@ import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsx
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { localize } from '../../../../nls.js';
 
 export interface IToolData {
 	id: string;
@@ -91,13 +92,13 @@ export namespace ToolDataSource {
 
 	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
 		if (source.type === 'internal') {
-			return { ordinal: 3, label: 'Built-In' };
+			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 1, label: 'MCP Servers' };
+			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
 		} else if (source.type === 'user') {
-			return { ordinal: 0, label: 'User Defined' };
+			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 2, label: 'Extensions' };
+			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
 		}
 	}
 }
@@ -213,7 +214,7 @@ export class ToolSet {
 	}
 
 	addTool(data: IToolData, tx?: ITransaction): IDisposable {
-		this._tools.add(data);
+		this._tools.add(data, tx);
 		return toDisposable(() => {
 			this._tools.delete(data);
 		});
@@ -223,7 +224,7 @@ export class ToolSet {
 		if (toolSet === this) {
 			return Disposable.None;
 		}
-		this._toolSets.add(toolSet);
+		this._toolSets.add(toolSet, tx);
 		return toDisposable(() => {
 			this._toolSets.delete(toolSet);
 		});

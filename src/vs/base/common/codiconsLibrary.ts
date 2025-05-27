@@ -598,4 +598,5 @@ export const codiconsLibrary = {
 	keyboardTabBelow: register('keyboard-tab-below', 0xec45),
 	gitPullRequestDone: register('git-pull-request-done', 0xec46),
 	mcp: register('mcp', 0xec47),
+	extensionLarge: register('extension-large', 0xec48),
 } as const;

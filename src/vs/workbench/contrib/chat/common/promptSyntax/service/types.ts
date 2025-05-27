@@ -13,6 +13,7 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Provides prompt services.
@@ -152,7 +153,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]>;
+	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.

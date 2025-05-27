@@ -180,7 +180,12 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: _keep
 					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace
+					: KeyMod.CtrlCmd | KeyCode.Backspace,
+				win: {
+					primary: _keep
+						? KeyMod.Alt | KeyCode.Enter
+						: KeyMod.Alt | KeyCode.Backspace
+				},
 			},
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
@@ -241,7 +246,12 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
+						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+					win: {
+						primary: _accept
+							? KeyMod.Alt | KeyMod.Shift | KeyCode.Enter
+							: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
+					}
 				},
 				menu: {
 					id: MenuId.ChatEditingEditorHunk,

@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -52,6 +52,8 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Location, SymbolKind } from '../../../../editor/common/languages.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -463,6 +465,54 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		this.attachClearButton();
 	}
+}
+
+export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IChatRequestToolSetEntry | IChatRequestToolEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+
+		const toolOrToolSet = Iterable.find(toolsService.getTools(), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
+
+		let name = attachment.name;
+		const icon = attachment.icon ?? Codicon.tools;
+
+		if (toolOrToolSet) {
+			name = toolOrToolSet.toolReferenceName ?? name;
+		}
+
+		this.label.setLabel(`$(${icon.id})\u00A0${name}`, undefined);
+
+		this.element.style.cursor = 'pointer';
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", name);
+
+		let hoverContent: string | undefined;
+
+		if (toolOrToolSet instanceof ToolSet) {
+			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.displayName, toolOrToolSet.source.label);
+		} else if (toolOrToolSet) {
+			hoverContent = localize('tool', "{0} - {1}", toolOrToolSet.userDescription ?? toolOrToolSet.modelDescription, toolOrToolSet.source.label);
+		}
+
+		if (hoverContent) {
+			this._register(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
+		}
+
+		this.attachClearButton();
+	}
+
+
 }
 
 export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachmentWidget {
