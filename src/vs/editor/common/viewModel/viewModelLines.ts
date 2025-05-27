@@ -19,8 +19,7 @@ import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaks
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ICoordinatesConverter, InlineDecorationType, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { LineInlineDecorations } from './viewModelDecorations.js';
-import { LineDecoration } from '../viewLayout/lineDecorations.js';
+import { InlineDecorations } from './viewModelDecorations.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
 
 export interface IViewModelLines extends IDisposable {
@@ -137,10 +136,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			const lineNumber = i + 1;
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === lineNumber);
 			const lineInlineDecorations = this._getLineInlineDecorations(lineNumber);
-			const lineDecorations = LineDecoration.filter(lineInlineDecorations.inlineDecorations, lineNumber, 0, Infinity);
 			this.model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, lineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
+			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, lineInlineDecorations, lineTokens, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -172,9 +170,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
-	private _getLineInlineDecorations(lineNumber: number): LineInlineDecorations {
+	private _getLineInlineDecorations(lineNumber: number): InlineDecorations {
 		const modelDecorations = this.model.getLineDecorations(lineNumber, this._editorId, filterValidationDecorations(this.config.options));
-		const lineInlineDecorations = new LineInlineDecorations();
+		const lineInlineDecorations = new InlineDecorations();
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
@@ -1167,7 +1165,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

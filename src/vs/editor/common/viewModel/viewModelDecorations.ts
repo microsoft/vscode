@@ -21,16 +21,22 @@ export interface IDecorationsViewportData {
 	/**
 	 * inline decorations grouped by each line in the viewport.
 	 */
-	readonly lineInlineDecorations: LineInlineDecorations[];
+	readonly inlineDecorations: InlineDecorations[];
 }
 
-export class LineInlineDecorations {
+export class InlineDecorations {
 
-	public readonly inlineDecorations: InlineDecoration[] = [];
+	public readonly inlineDecorations: InlineDecoration[];
 
-	private _hasVariableFonts: boolean = false;
+	private _hasVariableFonts: boolean;
 
-	constructor() { }
+	constructor(
+		inlineDecorations?: InlineDecoration[],
+		hasVariableFonts?: boolean
+	) {
+		this.inlineDecorations = inlineDecorations || [];
+		this._hasVariableFonts = hasVariableFonts || false;
+	}
 
 	public add(range: Range, options: IModelDecorationOptions, inlineClassName: string, inlineDecorationType: InlineDecorationType): void {
 		this.inlineDecorations.push(new InlineDecoration(range, inlineClassName, inlineDecorationType));
@@ -130,9 +136,9 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): LineInlineDecorations {
+	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecorations {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).lineInlineDecorations[0];
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
 	}
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
@@ -143,9 +149,9 @@ export class ViewModelDecorations implements IDisposable {
 
 		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
-		const inlineDecorations: LineInlineDecorations[] = [];
+		const inlineDecorations: InlineDecorations[] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
-			inlineDecorations[j - startLineNumber] = new LineInlineDecorations();
+			inlineDecorations[j - startLineNumber] = new InlineDecorations();
 		}
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
@@ -190,7 +196,7 @@ export class ViewModelDecorations implements IDisposable {
 
 		return {
 			decorations: decorationsInViewport,
-			lineInlineDecorations: inlineDecorations
+			inlineDecorations: inlineDecorations
 		};
 	}
 }

@@ -12,7 +12,7 @@ import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
-import { LineDecoration } from '../viewLayout/lineDecorations.js';
+import { InlineDecorations } from './viewModelDecorations.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -33,7 +33,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);

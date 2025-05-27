@@ -18,6 +18,7 @@ import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './text
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
+import { InlineDecorations } from './viewModel/viewModelDecorations.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -340,7 +341,7 @@ export class ViewLineRenderingData {
 	/**
 	 * Inline decorations at this view line.
 	 */
-	public readonly inlineDecorations: InlineDecoration[];
+	public readonly inlineDecorations: InlineDecorations;
 	/**
 	 * The tab size for this view model.
 	 */
@@ -349,10 +350,6 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
-	/**
-	 * Whether this line has variable fonts or not.
-	 */
-	public readonly hasVariableFonts: boolean;
 
 	constructor(
 		minColumn: number,
@@ -362,10 +359,9 @@ export class ViewLineRenderingData {
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
-		inlineDecorations: InlineDecoration[],
+		inlineDecorations: InlineDecorations,
 		tabSize: number,
-		startVisibleColumn: number,
-		hasVariableFonts: boolean
+		startVisibleColumn: number
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -379,7 +375,6 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
-		this.hasVariableFonts = hasVariableFonts;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {

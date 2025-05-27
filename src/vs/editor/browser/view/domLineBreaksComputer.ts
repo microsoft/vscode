@@ -14,9 +14,10 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionDat
 import { LineInjectedText } from '../../common/textModelEvents.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
-import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { assertIsDefined } from '../../../base/common/types.js';
 import { IViewLineTokens } from '../../common/tokens/lineTokens.js';
+import { InlineDecorations } from '../../common/viewModel/viewModelDecorations.js';
+import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -34,23 +35,23 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
-		const linesDecorations: LineDecoration[][] = [];
+		const linesInlineDecorations: InlineDecorations[] = [];
 		const linesTokens: IViewLineTokens[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, lineInlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
-				linesDecorations.push(lineDecorations);
+				linesInlineDecorations.push(lineInlineDecorations);
 				linesTokens.push(lineTokens);
 			},
 			finalize: () => {
-				return createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), requests, tabSize, injectedTexts, linesDecorations, linesTokens);
+				return createLineBreaks(config, assertIsDefined(this.targetWindow.deref()), requests, tabSize, injectedTexts, linesInlineDecorations, linesTokens);
 			}
 		};
 	}
 }
 
-function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesDecorations: LineDecoration[][], linesTokens: IViewLineTokens[]): (ModelLineProjectionData | null)[] {
+function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, requests: string[], tabSize: number, injectedTextsPerLine: (LineInjectedText[] | null)[], linesInlineDecorations: InlineDecorations[], linesTokens: IViewLineTokens[]): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -136,11 +137,12 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, re
 		const renderWhitespace = options.get(EditorOption.renderWhitespace);
 		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		const fontLigatures = options.get(EditorOption.fontLigatures);
+		const lineDecorations = LineDecoration.filter(linesInlineDecorations[i].inlineDecorations, i, 0, Infinity);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 		const tokens = linesTokens[i];
-		const lineDecorations = linesDecorations[i];
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);
 		const containsRTL = strings.containsRTL(renderLineContent);
+		const fontLigaturesEnabled = fontLigatures !== EditorFontLigatures.OFF;
 		const renderLineInput = new RenderLineInput(
 			useMonospaceOptimizations,
 			fontInfo.canUseHalfwidthRightwardsArrow,
@@ -159,7 +161,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, re
 			stopRenderingLineAfter,
 			renderWhitespace,
 			renderControlCharacters,
-			fontLigatures !== EditorFontLigatures.OFF,
+			fontLigaturesEnabled,
 			null
 		);
 		sb.appendString('<div style="height:');

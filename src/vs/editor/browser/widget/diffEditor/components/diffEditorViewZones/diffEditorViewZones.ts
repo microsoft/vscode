@@ -31,7 +31,6 @@ import { IClipboardService } from '../../../../../../platform/clipboard/common/c
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
-import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -167,24 +166,22 @@ export class DiffEditorViewZones extends Disposable {
 
 			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;
 			if (deletedCodeLineBreaksComputer) {
-				const originalModel = this._editors.original.getModel()!;
-				for (const a of alignmentsVal) {
-					if (a.diff) {
-						for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {
-							// `i` can be out of bound when the diff has not been updated yet.
-							// In this case, we do an early return.
-							// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
-							if (i > originalModel.getLineCount()) {
-								return { orig: origViewZones, mod: modViewZones };
+				const originalEditor = this._editors.original;
+				const originalModel = originalEditor.getModel()!;
+				const originalViewModel = originalEditor._getViewModel();
+				if (originalViewModel) {
+					for (const a of alignmentsVal) {
+						if (a.diff) {
+							for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {
+								// `i` can be out of bound when the diff has not been updated yet.
+								// In this case, we do an early return.
+								// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
+								if (i > originalModel.getLineCount()) {
+									return { orig: origViewZones, mod: modViewZones };
+								}
+								const viewLineRenderingData = originalViewModel.getViewLineRenderingData(i);
+								deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null);
 							}
-							const originalEditor = this._editors.original;
-							const viewModel = originalEditor._getViewModel();
-							if (!viewModel) {
-								continue;
-							}
-							const viewLinerenderingData = viewModel.getViewLineRenderingData(i);
-							const lineDecorations = LineDecoration.filter(viewLinerenderingData.inlineDecorations, i, 0, Infinity);
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, lineDecorations, viewLinerenderingData.tokens, null);
 						}
 					}
 				}

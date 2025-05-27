@@ -114,14 +114,14 @@ export class ViewLine implements IVisibleLine {
 
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
-		const lineHasVariableFonts = lineData.hasVariableFonts;
+		const lineHasVariableFonts = lineData.inlineDecorations.hasVariableFonts;
 		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		if (lineHasVariableFonts || options.experimentalWhitespaceRendering === 'off') {
 			renderWhitespace = options.renderWhitespace;
 		} else {
 			renderWhitespace = 'none';
 		}
-		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
@@ -354,6 +354,9 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		this._charWidth = renderLineInput.spaceWidth;
 	}
 
+	/**
+	 * The render whitespace setting for this line
+	 */
 	public getRenderWhitespace(): RenderWhitespace {
 		return this.input.renderWhitespace;
 	}

@@ -11,6 +11,7 @@ import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/mo
 import { TestConfiguration } from '../../browser/config/testConfiguration.js';
 import { LineTokens } from '../../../common/tokens/lineTokens.js';
 import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { InlineDecorations } from '../../../common/viewModel/viewModelDecorations.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -91,8 +92,9 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 	});
 	const lineBreaksComputer = factory.createLineBreaksComputer(configuration, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
+	const lineInlineDecorations = new InlineDecorations();
 	const lineTokens = new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
-	lineBreaksComputer.addRequest(text, null, [], lineTokens, previousLineBreakDataClone);
+	lineBreaksComputer.addRequest(text, null, lineInlineDecorations, lineTokens, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 

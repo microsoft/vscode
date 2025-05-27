@@ -34,14 +34,13 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
-import { LineInlineDecorations, ViewModelDecorations } from './viewModelDecorations.js';
+import { ICoordinatesConverter, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { InlineDecorations, ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
-import { LineDecoration } from '../viewLayout/lineDecorations.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -325,10 +324,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								}
 								const lineNumber = change.fromLineNumber + lineIdx;
 								const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-								const lineTokens = viewLineRenderingData.tokens;
-								const inlineDecorations = viewLineRenderingData.inlineDecorations;
-								const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 1, Infinity);
-								lineBreaksComputer.addRequest(line, injectedText, lineDecorations, lineTokens, null);
+								lineBreaksComputer.addRequest(line, injectedText, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null);
 							}
 							break;
 						}
@@ -339,10 +335,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							const lineNumber = change.lineNumber;
 							const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-							const lineTokens = viewLineRenderingData.tokens;
-							const inlineDecorations = viewLineRenderingData.inlineDecorations;
-							const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 1, Infinity);
-							lineBreaksComputer.addRequest(change.detail, injectedText, lineDecorations, lineTokens, null);
+							lineBreaksComputer.addRequest(change.detail, injectedText, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null);
 							break;
 						}
 					}
@@ -456,8 +449,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					const lineNumber = change.lineNumber;
 					const lineContent = this.model.getLineContent(lineNumber);
 					const viewLineRenderingData = this.getViewLineRenderingData(lineNumber);
-					const lineDecorations = LineDecoration.filter(viewLineRenderingData.inlineDecorations, lineNumber, 1, Infinity);
-					lineBreaksComputer.addRequest(lineContent, null, lineDecorations, viewLineRenderingData.tokens, null);
+					lineBreaksComputer.addRequest(lineContent, null, viewLineRenderingData.inlineDecorations, viewLineRenderingData.tokens, null);
 				}
 				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
@@ -811,7 +803,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).lineInlineDecorations;
+		const allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		const inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
@@ -821,19 +813,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._getViewLineRenderingData(lineNumber, inlineDecorations);
 	}
 
-	private _getViewLineRenderingData(lineNumber: number, lineInlineDecorations: LineInlineDecorations): ViewLineRenderingData {
+	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecorations): ViewLineRenderingData {
 		const mightContainRTL = this.model.mightContainRTL();
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
 
-		const inlineDecorations: InlineDecoration[] = lineInlineDecorations.inlineDecorations;
 		if (lineData.inlineDecorations) {
-			inlineDecorations.push(
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
-			);
+			for (const inlineDecoration of lineData.inlineDecorations) {
+				// inlineDecorations.add();
+			}
 		}
 
 		return new ViewLineRenderingData(
@@ -847,7 +836,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			inlineDecorations,
 			tabSize,
 			lineData.startVisibleColumn,
-			lineInlineDecorations.hasVariableFonts
 		);
 	}
 

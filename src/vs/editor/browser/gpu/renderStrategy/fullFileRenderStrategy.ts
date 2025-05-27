@@ -376,7 +376,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					decorationStyleSetOpacity = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
-					for (decoration of lineData.inlineDecorations) {
+					for (decoration of lineData.inlineDecorations.inlineDecorations) {
 						// This is Range.strictContainsPosition except it works at the cell level,
 						// it's also inlined to avoid overhead.
 						if (

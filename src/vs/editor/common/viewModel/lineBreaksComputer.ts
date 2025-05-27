@@ -8,7 +8,7 @@ import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionDat
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
-import { LineDecoration } from '../viewLayout/lineDecorations.js';
+import { InlineDecorations } from './viewModelDecorations.js';
 
 export class LineBreaksComputerFactory {
 
@@ -45,13 +45,13 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(config, tabSize);
 	}
 
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void {
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void {
 		const wrappingStrategy = this._config.options.get(EditorOption.wrappingStrategy);
 		if (wrappingStrategy === 'advanced') {
-			this._domLineBreaksComputer.addRequest(lineText, injectedText, lineDecorations, lineTokens, previousLineBreakData);
+			this._domLineBreaksComputer.addRequest(lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData);
 			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Dom);
 		} else {
-			this._monospaceLineBreaksComputer.addRequest(lineText, injectedText, lineDecorations, lineTokens, previousLineBreakData);
+			this._monospaceLineBreaksComputer.addRequest(lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData);
 			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Monospace);
 		}
 	}

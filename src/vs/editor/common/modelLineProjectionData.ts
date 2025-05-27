@@ -9,7 +9,7 @@ import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
-import { LineDecoration } from './viewLayout/lineDecorations.js';
+import { InlineDecorations } from './viewModel/viewModelDecorations.js';
 
 /**
  * *input*:
@@ -337,6 +337,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: LineDecoration[], lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, lineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }
