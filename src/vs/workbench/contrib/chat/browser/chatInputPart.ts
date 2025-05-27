@@ -87,7 +87,7 @@ import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/pro
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, SCMHistoryItemAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -1245,7 +1245,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true };
-			if (resource && isNotebookOutputVariableEntry(attachment)) {
+			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
+				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
