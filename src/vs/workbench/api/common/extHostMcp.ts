@@ -231,17 +231,7 @@ class McpHTTPHandle extends Disposable {
 		if (sessionId) {
 			headers['Mcp-Session-Id'] = sessionId;
 		}
-
-		if (this._authMetadata) {
-			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
-				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
-				}
-			} catch (e) {
-				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
-			}
-		}
+		await this._addAuthHeader(headers);
 
 		const doFetch = () => fetch(
 			this._launch.uri.toString(true),
@@ -257,14 +247,9 @@ class McpHTTPHandle extends Disposable {
 		if (res.status === 401) {
 			if (!this._authMetadata) {
 				await this._populateAuthMetadata(res);
-				if (this._authMetadata) {
-					try {
-						const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
-						headers['Authorization'] = `Bearer ${token}`;
-						res = await doFetch();
-					} catch (e) {
-						this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
-					}
+				await this._addAuthHeader(headers);
+				if (headers['Authorization']) {
+					res = await doFetch();
 				}
 			}
 		}
@@ -493,6 +478,7 @@ class McpHTTPHandle extends Disposable {
 					...Object.fromEntries(this._launch.headers),
 					'Accept': 'text/event-stream',
 				};
+				await this._addAuthHeader(headers);
 
 				if (this._mode.value === HttpMode.Http && this._mode.sessionId !== undefined) {
 					headers['Mcp-Session-Id'] = this._mode.sessionId;
@@ -545,16 +531,7 @@ class McpHTTPHandle extends Disposable {
 			...Object.fromEntries(this._launch.headers),
 			'Accept': 'text/event-stream',
 		};
-		if (this._authMetadata) {
-			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
-				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
-				}
-			} catch (e) {
-				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
-			}
-		}
+		await this._addAuthHeader(headers);
 
 		let res: Response;
 		try {
@@ -599,16 +576,7 @@ class McpHTTPHandle extends Disposable {
 			'Content-Type': 'application/json',
 			'Content-Length': String(asBytes.length),
 		};
-		if (this._authMetadata) {
-			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
-				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
-				}
-			} catch (e) {
-				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
-			}
-		}
+		await this._addAuthHeader(headers);
 		const res = await fetch(url, {
 			method: 'POST',
 			signal: this._abortCtrl.signal,
@@ -645,6 +613,20 @@ class McpHTTPHandle extends Disposable {
 				parser.feed(chunk.value);
 			}
 		} while (!chunk.done);
+	}
+
+	private async _addAuthHeader(headers: Record<string, string>) {
+		if (this._authMetadata) {
+			try {
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+				}
+			} catch (e) {
+				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
+			}
+		}
+		return headers;
 	}
 
 	private _log(level: LogLevel, message: string) {
