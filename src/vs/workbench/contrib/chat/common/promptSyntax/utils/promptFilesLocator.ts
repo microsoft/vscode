@@ -135,8 +135,7 @@ export class PromptFilesLocator {
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
-		for (let i = 0; i < absoluteLocations.length; i++) {
-			const absoluteLocation = absoluteLocations[i];
+		for (const absoluteLocation of absoluteLocations) {
 			assert(
 				isAbsolute(absoluteLocation.path),
 				`Provided location must be an absolute path, got '${absoluteLocation.path}'.`,
@@ -186,7 +185,7 @@ export class PromptFilesLocator {
 			} else {
 				for (const workspaceFolder of folders) {
 					const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
-					// a sanity check on the expected outcome of the `resolvePath()` call
+					// a sanity check on the expected outcome of the `joinPath()` call
 					assert(
 						isAbsolute(absolutePath.path),
 						`Provided location must be an absolute path, got '${absolutePath.path}'.`,
@@ -207,7 +206,6 @@ export class PromptFilesLocator {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
-		//const cacheKey = folder.toString() + (filePattern ? `:${filePattern}` : '');
 
 		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
 		const searchOptions: IFileQuery = {
@@ -318,7 +316,7 @@ export const isValidGlob = (pattern: string): boolean => {
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
  *
- * @throws if the provided location is not an `absolute path`.
+ * Asumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *
@@ -333,11 +331,6 @@ export const isValidGlob = (pattern: string): boolean => {
 const firstNonGlobParentAndPattern = (
 	location: URI
 ): { parent: URI; filePattern: string | undefined } => {
-	// sanity check of the provided location
-	assert(
-		isAbsolute(location.path),
-		`Provided location must be an absolute path, got '${location.path}'.`,
-	);
 	const segments = location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
