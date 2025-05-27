@@ -16,6 +16,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../../platform/act
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Action ID for the `Manage Custom Chat Mode` action.
@@ -51,7 +52,7 @@ class ManageModeAction extends Action2 {
 		const pickers = instaService.createInstance(PromptFilePickers);
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles(PromptsType.mode);
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.mode, CancellationToken.None);
 		const placeholder = localize(
 			'commands.mode.select-dialog.placeholder',
 			'Select the custom chat mode to edit'
