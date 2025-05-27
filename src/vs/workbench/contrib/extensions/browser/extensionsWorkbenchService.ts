@@ -665,8 +665,8 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, flagMissingFromGallery: boolean): Promise<void> {
-		const { extensions, missing } = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
+	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<void> {
+		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
 			if (extension.local && !extension.local.identifier.uuid) {
@@ -677,20 +677,28 @@ class Extensions extends Disposable {
 				this._onChange.fire({ extension });
 			}
 		}
-		if (flagMissingFromGallery) {
-			for (const extension of missing) {
+	}
+
+	async syncMissingFromGallery(galleryExtensions: IGalleryExtension[]): Promise<void> {
+		const extensions = this.local;
+		for (const extension of extensions) {
+			if (!extension.identifier.uuid) {
+				continue;
+			}
+			const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
+			if (!gallery) {
 				extension.missingFromGallery = true;
 				this._onChange.fire({ extension });
 			}
 		}
 	}
 
-	private async mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<{ extensions: [Extension, IGalleryExtension][]; missing: Extension[] }> {
+	private async mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<[Extension, IGalleryExtension][]> {
 		const mappedExtensions = this.mapInstalledExtensionWithGalleryExtension(galleryExtensions);
 		const targetPlatform = await this.server.extensionManagementService.getTargetPlatform();
 		const compatibleGalleryExtensions: IGalleryExtension[] = [];
 		const compatibleGalleryExtensionsToFetch: IExtensionInfo[] = [];
-		await Promise.allSettled(mappedExtensions.extensions.map(async ([extension, gallery]) => {
+		await Promise.allSettled(mappedExtensions.map(async ([extension, gallery]) => {
 			if (extension.local) {
 				if (await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
 					compatibleGalleryExtensions.push(gallery);
@@ -706,9 +714,8 @@ class Extensions extends Disposable {
 		return this.mapInstalledExtensionWithGalleryExtension(compatibleGalleryExtensions);
 	}
 
-	private mapInstalledExtensionWithGalleryExtension(galleryExtensions: IGalleryExtension[]): { extensions: [Extension, IGalleryExtension][]; missing: Extension[] } {
+	private mapInstalledExtensionWithGalleryExtension(galleryExtensions: IGalleryExtension[]): [Extension, IGalleryExtension][] {
 		const mappedExtensions: [Extension, IGalleryExtension][] = [];
-		const missing: Extension[] = [];
 		const byUUID = new Map<string, IGalleryExtension>(), byID = new Map<string, IGalleryExtension>();
 		for (const gallery of galleryExtensions) {
 			byUUID.set(gallery.identifier.uuid, gallery);
@@ -726,17 +733,10 @@ class Extensions extends Disposable {
 				const gallery = byID.get(installed.identifier.id.toLowerCase());
 				if (gallery) {
 					mappedExtensions.push([installed, gallery]);
-					continue;
 				}
 			}
-			if (installed.local?.source === 'gallery') {
-				missing.push(installed);
-			}
 		}
-		return {
-			extensions: mappedExtensions,
-			missing,
-		};
+		return mappedExtensions;
 	}
 
 	private async updateMetadata(localExtension: ILocalExtension, gallery: IGalleryExtension): Promise<ILocalExtension> {
@@ -1895,9 +1895,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.logService.trace(`Checking updates for extensions`, infos.map(e => e.id).join(', '));
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), updateCheck: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
-				await this.syncInstalledExtensionsAndFlagMissingFromGallery(galleryExtensions);
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
 			}
+			this.syncMissingFromGallery(extensions, galleryExtensions);
 		}
+	}
+
+	private async syncMissingFromGallery(extensions: Extensions[], galleryExtensions: IGalleryExtension[]): Promise<void> {
+		await Promise.allSettled(extensions.map(extension => extension.syncMissingFromGallery(galleryExtensions)));
 	}
 
 	async updateAll(): Promise<InstallExtensionResult[]> {
@@ -1968,11 +1973,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private async syncInstalledExtensionsAndFlagMissingFromGallery(gallery: IGalleryExtension[]): Promise<void> {
-		return this.syncInstalledExtensionsWithGallery(gallery, true);
-	}
-
-	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], flagMissingFromGallery: boolean = false): Promise<void> {
+	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -1986,7 +1987,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extensions.length) {
 			return;
 		}
-		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), flagMissingFromGallery)));
+		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion())));
 		if (this.outdated.length) {
 			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
