@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, ObservableMap, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, ObservableMap, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '../common/languageModelToolsService.js';
+
 
 /**
  * New tools and new tool sources that come in should generally be enabled until
@@ -18,8 +19,8 @@ import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '
  * also enabled.
  */
 type StoredData = {
-	disabledToolSets?: readonly string[];
-	disabledTools?: readonly string[];
+	readonly disabledToolSets?: readonly string[];
+	readonly disabledTools?: readonly string[];
 };
 
 const storedTools = observableMemento<StoredData>({
@@ -30,6 +31,8 @@ const storedTools = observableMemento<StoredData>({
 export class ChatSelectedTools extends Disposable {
 
 	private readonly _selectedTools: ObservableMemento<StoredData>;
+
+	private readonly _sessionSelectedTools = observableValue<StoredData>(this, {});
 
 	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
 
@@ -62,13 +65,30 @@ export class ChatSelectedTools extends Disposable {
 
 		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
 
-		const disabledDataObs = this._selectedTools.map(data => {
-			return (data.disabledToolSets?.length || data.disabledTools?.length)
-				? {
-					toolSetIds: new Set(data.disabledToolSets),
-					toolIds: new Set(data.disabledTools),
+		const disabledDataObs = derived(r => {
+			const globalData = this._selectedTools.read(r);
+			const sessionData = this._sessionSelectedTools.read(r);
+
+			const toolSetIds = new Set<string>();
+			const toolIds = new Set<string>();
+
+			for (const data of [globalData, sessionData]) {
+				if (data.disabledToolSets) {
+					for (const id of data.disabledToolSets) {
+						toolSetIds.add(id);
+					}
 				}
-				: undefined;
+				if (data.disabledTools) {
+					for (const id of data.disabledTools) {
+						toolIds.add(id);
+					}
+				}
+			}
+
+			if (toolSetIds.size === 0 && toolIds.size === 0) {
+				return undefined;
+			}
+			return { toolSetIds, toolIds };
 		});
 
 		this._store.add(autorun(r => {
@@ -126,18 +146,27 @@ export class ChatSelectedTools extends Disposable {
 		}));
 	}
 
-	enable(toolSets: readonly ToolSet[], tools: readonly IToolData[]): void {
+	resetSessionEnablementState() {
+		this._sessionSelectedTools.set({}, undefined);
+	}
+
+	enable(toolSets: readonly ToolSet[], tools: readonly IToolData[], sessionOnly: boolean): void {
 		const toolIds = new Set(tools.map(t => t.id));
 		const toolsetIds = new Set(toolSets.map(t => t.id));
 
 		const disabledTools = this._allTools.get().filter(tool => !toolIds.has(tool.id));
 		const disabledToolSets = Array.from(this._toolsService.toolSets.get()).filter(toolset => !toolsetIds.has(toolset.id));
 
-		this.disable(disabledToolSets, disabledTools);
+		this.disable(disabledToolSets, disabledTools, sessionOnly);
 	}
 
-	disable(disabledToolSets: readonly ToolSet[], disableTools: readonly IToolData[]): void {
-		this._selectedTools.set({
+	disable(disabledToolSets: readonly ToolSet[], disableTools: readonly IToolData[], sessionOnly: boolean): void {
+
+		const target = sessionOnly
+			? this._sessionSelectedTools
+			: this._selectedTools;
+
+		target.set({
 			disabledToolSets: disabledToolSets.map(t => t.id),
 			disabledTools: disableTools.map(t => t.id)
 		}, undefined);

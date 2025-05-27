@@ -287,7 +287,19 @@ export async function showToolsPicker(
 				}
 			}
 
-			onUpdate?.(result);
+			if (onUpdate) {
+				let didChange = toolsEntries.size !== result.size;
+				for (const [key, value] of toolsEntries) {
+					if (didChange) {
+						break;
+					}
+					didChange = result.get(key) !== value;
+				}
+
+				if (didChange) {
+					onUpdate(result);
+				}
+			}
 
 		} finally {
 			ignoreEvent = false;

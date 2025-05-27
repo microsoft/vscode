@@ -1583,7 +1583,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				continue;
 			}
 		}
-		this.inputPart.selectedToolsModel.enable(enabledToolSets, enabledTools);
+		this.inputPart.selectedToolsModel.enable(enabledToolSets, enabledTools, true);
 	}
 
 	/**
