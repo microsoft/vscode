@@ -64,7 +64,7 @@
 }
 
 .interactive-result-code-block {
-	box-shadow: 0px 2px 16px 0px var(--colors-Effects-Shadow, rgba(0, 0, 0, 0.10));
+	box-shadow: 0px 2px 16px 0px rgba(0, 0, 0, 0.10);
 }
 
 .interactive-session .interactive-request .interactive-result-code-block {
