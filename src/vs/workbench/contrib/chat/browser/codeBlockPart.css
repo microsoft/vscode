@@ -68,7 +68,7 @@
 }
 
 .interactive-session .interactive-request .interactive-result-code-block {
-	border: 1px solid var(--vscode-editor-wordHighlightStrongBackground);
+	border: 1px solid var(--vscode-chat-requestCodeBorder);
 }
 
 .interactive-session .interactive-response .interactive-result-code-block {
@@ -174,8 +174,6 @@
 }
 
 .interactive-session .interactive-request .value .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-request .value .monaco-editor,
-.interactive-session .interactive-response .value .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-response .value .monaco-editor {
+.interactive-session .interactive-request .value .monaco-editor {
 	width: 100% !important;
 }
