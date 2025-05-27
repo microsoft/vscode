@@ -172,8 +172,3 @@
 .interactive-result-code-block.compare.no-diff .interactive-result-editor {
 	display: none;
 }
-
-.interactive-session .interactive-request .value .interactive-result-code-block .monaco-editor .overflow-guard,
-.interactive-session .interactive-request .value .monaco-editor {
-	width: 100% !important;
-}
