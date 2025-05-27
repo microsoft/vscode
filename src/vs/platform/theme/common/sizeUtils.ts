@@ -44,14 +44,11 @@ export function sizeAsCssVariableWithDefault(size: SizeIdentifier, defaultCssVal
 
 
 export interface SizeDefaults {
-	light: SizeValue | null;
-	dark: SizeValue | null;
-	hcDark: SizeValue | null;
-	hcLight: SizeValue | null;
+	default: SizeValue | null;
 }
 
 export function isSizeDefaults(value: unknown): value is SizeDefaults {
-	return value !== null && typeof value === 'object' && 'light' in value && 'dark' in value;
+	return value !== null && typeof value === 'object' && 'default' in value;
 }
 
 /**
@@ -76,7 +73,7 @@ export interface ISizeRegistry {
 	 * @param defaults The default values
 	 * @description the description
 	 */
-	registerSize(id: string, defaults: SizeDefaults, description: string): SizeIdentifier;
+	registerSize(id: string, defaults: SizeDefaults | SizeValue | null, description: string): SizeIdentifier;
 
 	/**
 	 * Register a size to the registry.
@@ -179,7 +176,7 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 	public resolveDefaultSize(id: SizeIdentifier, theme: ISizeTheme): Size | undefined {
 		const sizeDesc = this.sizesById[id];
 		if (sizeDesc?.defaults) {
-			const sizeValue = isSizeDefaults(sizeDesc.defaults) ? sizeDesc.defaults[theme.type] : sizeDesc.defaults;
+			const sizeValue = isSizeDefaults(sizeDesc.defaults) ? sizeDesc.defaults.default : sizeDesc.defaults;
 			return resolveSizeValue(sizeValue, theme);
 		}
 		return undefined;
@@ -246,7 +243,10 @@ export function resolveSizeValue(sizeValue: SizeValue | null, theme: ISizeTheme)
 			}
 		}
 		// If it's a reference to another size identifier
-		return theme.getSize(sizeValue);
+		const referencedSize = theme.getSize(sizeValue);
+		if (referencedSize) {
+			return referencedSize;
+		}
 	}
 	return undefined;
 }

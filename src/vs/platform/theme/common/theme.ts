@@ -21,13 +21,10 @@ export enum ThemeTypeSelector {
 }
 
 /**
- * Size scheme used by the OS and by size themes.
+ * Size scheme used by size themes.
  */
 export enum SizeScheme {
-	DARK = 'dark',
-	LIGHT = 'light',
-	HIGH_CONTRAST_DARK = 'hcDark',
-	HIGH_CONTRAST_LIGHT = 'hcLight'
+	DEFAULT = 'default'
 }
 
 
