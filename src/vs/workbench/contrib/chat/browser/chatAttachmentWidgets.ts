@@ -151,7 +151,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
 			fromUserGesture: true,
-			editorOptions: openTextEditorOptions,
+			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
 		};
 		this.openerService.open(resource, options);
 	}
