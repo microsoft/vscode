@@ -726,19 +726,19 @@ registerAction2(class extends Action2 {
 		}
 
 		const currentTheme = themeService.getColorTheme();
-		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
+		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_COLOR_THEME;
 		switch (currentTheme.type) {
 			case ColorScheme.LIGHT:
-				newSettingsId = ThemeSettings.PREFERRED_DARK_THEME;
+				newSettingsId = ThemeSettings.PREFERRED_DARK_COLOR_THEME;
 				break;
 			case ColorScheme.DARK:
-				newSettingsId = ThemeSettings.PREFERRED_LIGHT_THEME;
+				newSettingsId = ThemeSettings.PREFERRED_LIGHT_COLOR_THEME;
 				break;
 			case ColorScheme.HIGH_CONTRAST_LIGHT:
-				newSettingsId = ThemeSettings.PREFERRED_HC_DARK_THEME;
+				newSettingsId = ThemeSettings.PREFERRED_HC_DARK_COLOR_THEME;
 				break;
 			case ColorScheme.HIGH_CONTRAST_DARK:
-				newSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_THEME;
+				newSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_COLOR_THEME;
 				break;
 		}
 

@@ -28,10 +28,11 @@ export enum ThemeSettings {
 	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
 	SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS = 'editor.semanticTokenColorCustomizations',
 
-	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
-	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
-	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
+	PREFERRED_DARK_COLOR_THEME = 'workbench.preferredDarkColorTheme',
+	PREFERRED_LIGHT_COLOR_THEME = 'workbench.preferredLightColorTheme',
+	PREFERRED_HC_DARK_COLOR_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
+	PREFERRED_HC_LIGHT_COLOR_THEME = 'workbench.preferredHighContrastLightColorTheme',
+
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast',
 

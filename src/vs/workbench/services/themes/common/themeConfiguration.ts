@@ -41,7 +41,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
-const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
+const preferredDarkColorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string', //
 	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when system color mode is dark and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_DARK,
@@ -51,7 +51,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
-const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
+const preferredLightColorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when system color mode is light and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_LIGHT,
@@ -61,7 +61,7 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
-const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
+const preferredHCDarkColorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredHCDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when in high contrast dark mode and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
 	default: ThemeSettingDefaults.COLOR_THEME_HC_DARK,
@@ -71,7 +71,7 @@ const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
-const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
+const preferredHCLightColorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredHCLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when in high contrast light mode and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
 	default: ThemeSettingDefaults.COLOR_THEME_HC_LIGHT,
@@ -81,23 +81,21 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
+
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
-	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
+	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_COLOR_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_COLOR_THEME)),
 	default: false,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
-
-const colorCustomizationsSchema: IConfigurationPropertySchema = {
-	type: 'object',
-	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	allOf: [{ $ref: workbenchColorsSchemaId }],
-	default: {},
-	defaultSnippets: [{
-		body: {
-		}
-	}]
+const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
+	type: 'boolean',
+	default: true,
+	markdownDescription: nls.localize({ key: 'autoDetectHighContrast', comment: ['{0} and {1} will become links to other settings.'] }, "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by {0} and {1}.", formatSettingAsLink(ThemeSettings.PREFERRED_HC_DARK_COLOR_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_HC_LIGHT_COLOR_THEME)),
+	scope: ConfigurationScope.APPLICATION,
+	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
+
 const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: ThemeSettingDefaults.FILE_ICON_THEME,
@@ -117,12 +115,15 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
 
-const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
-	type: 'boolean',
-	default: true,
-	markdownDescription: nls.localize({ key: 'autoDetectHighContrast', comment: ['{0} and {1} will become links to other settings.'] }, "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by {0} and {1}.", formatSettingAsLink(ThemeSettings.PREFERRED_HC_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_HC_LIGHT_THEME)),
-	scope: ConfigurationScope.APPLICATION,
-	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
+const colorCustomizationsSchema: IConfigurationPropertySchema = {
+	type: 'object',
+	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
+	allOf: [{ $ref: workbenchColorsSchemaId }],
+	default: {},
+	defaultSnippets: [{
+		body: {
+		}
+	}]
 };
 
 const themeSettingsConfiguration: IConfigurationNode = {
@@ -131,13 +132,13 @@ const themeSettingsConfiguration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		[ThemeSettings.COLOR_THEME]: colorThemeSettingSchema,
-		[ThemeSettings.PREFERRED_DARK_THEME]: preferredDarkThemeSettingSchema,
-		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
-		[ThemeSettings.PREFERRED_HC_DARK_THEME]: preferredHCDarkThemeSettingSchema,
-		[ThemeSettings.PREFERRED_HC_LIGHT_THEME]: preferredHCLightThemeSettingSchema,
+		[ThemeSettings.PREFERRED_DARK_COLOR_THEME]: preferredDarkColorThemeSettingSchema,
+		[ThemeSettings.PREFERRED_LIGHT_COLOR_THEME]: preferredLightColorThemeSettingSchema,
+		[ThemeSettings.PREFERRED_HC_DARK_COLOR_THEME]: preferredHCDarkColorThemeSettingSchema,
+		[ThemeSettings.PREFERRED_HC_LIGHT_COLOR_THEME]: preferredHCLightColorThemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
+		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
-		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
 };
 configurationRegistry.registerConfiguration(themeSettingsConfiguration);
@@ -275,10 +276,10 @@ export function updateProductIconThemeConfigurationSchemas(themes: IWorkbenchPro
 }
 
 const colorSchemeToPreferred = {
-	[ColorScheme.DARK]: ThemeSettings.PREFERRED_DARK_THEME,
-	[ColorScheme.LIGHT]: ThemeSettings.PREFERRED_LIGHT_THEME,
-	[ColorScheme.HIGH_CONTRAST_DARK]: ThemeSettings.PREFERRED_HC_DARK_THEME,
-	[ColorScheme.HIGH_CONTRAST_LIGHT]: ThemeSettings.PREFERRED_HC_LIGHT_THEME
+	[ColorScheme.DARK]: ThemeSettings.PREFERRED_DARK_COLOR_THEME,
+	[ColorScheme.LIGHT]: ThemeSettings.PREFERRED_LIGHT_COLOR_THEME,
+	[ColorScheme.HIGH_CONTRAST_DARK]: ThemeSettings.PREFERRED_HC_DARK_COLOR_THEME,
+	[ColorScheme.HIGH_CONTRAST_LIGHT]: ThemeSettings.PREFERRED_HC_LIGHT_COLOR_THEME
 };
 
 export class ThemeConfiguration {

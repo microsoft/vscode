@@ -245,10 +245,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private installConfigurationListener() {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)
-				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME)
-				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME)
-				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_THEME)
-				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_COLOR_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_COLOR_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_COLOR_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_COLOR_THEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
 				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
