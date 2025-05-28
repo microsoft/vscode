@@ -8,12 +8,12 @@ import { ProviderInstanceBase } from '../providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../../../editor/common/model.js';
 import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { toDisposable } from '../../../../../../../../../base/common/lifecycle.js';
-import { ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
+import { ProviderInstanceManagerBase, TProviderClass } from '../providerInstanceManagerBase.js';
 import { registerThemingParticipant } from '../../../../../../../../../platform/theme/common/themeService.js';
-import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
+import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
  * Prompt tokens that are decorated by this provider.
@@ -45,12 +45,12 @@ export class PromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
-	protected override async onPromptSettled(
+	protected override onPromptSettled(
 		_error?: Error,
-	): Promise<this> {
+	): this {
 		// by the time the promise above completes, either this object
 		// or the text model might be already has been disposed
-		if (this.disposed || this.model.isDisposed()) {
+		if (this.isDisposed || this.model.isDisposed()) {
 			return this;
 		}
 
@@ -167,7 +167,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	}
 
 	public override dispose(): void {
-		if (this.disposed) {
+		if (this.isDisposed) {
 			return;
 		}
 
@@ -178,7 +178,7 @@ export class PromptDecorator extends ProviderInstanceBase {
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `text-model-prompt-decorator:${this.model.uri.path}`;
 	}
 }
@@ -198,7 +198,7 @@ registerThemingParticipant((_theme, collector) => {
  * Provider for prompt syntax decorators on text models.
  */
 export class PromptDecorationsProviderInstanceManager extends ProviderInstanceManagerBase<PromptDecorator> {
-	protected override get InstanceClass() {
+	protected override get InstanceClass(): TProviderClass<PromptDecorator> {
 		return PromptDecorator;
 	}
 }

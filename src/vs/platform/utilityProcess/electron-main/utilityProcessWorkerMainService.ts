@@ -126,6 +126,7 @@ class UtilityProcessWorker extends Disposable {
 
 		return this.utilityProcess.start({
 			type: this.configuration.process.type,
+			name: this.configuration.process.name,
 			entryPoint: this.configuration.process.moduleId,
 			parentLifecycleBound: windowPid,
 			windowLifecycleBound: true,

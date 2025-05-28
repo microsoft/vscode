@@ -12,7 +12,7 @@ import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptReference } from '../../../common/promptSyntax/parsers/types.js';
+import { TPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
@@ -24,12 +24,11 @@ import { waitRandom, randomBoolean } from '../../../../../../base/test/common/te
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { IPromptParserOptions, TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileType } from '../../../../../../platform/prompts/common/prompts.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
@@ -77,7 +76,7 @@ class TestPromptFileReference extends Disposable {
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
 		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService private readonly initService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -93,7 +92,7 @@ class TestPromptFileReference extends Disposable {
 		options: Partial<IPromptParserOptions> = {},
 	): Promise<FilePromptParser> {
 		// create the files structure on the disk
-		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
+		await (this.instantiationService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
 		// randomly test with and without delay to ensure that the file
 		// reference resolution is not susceptible to race conditions
@@ -103,7 +102,7 @@ class TestPromptFileReference extends Disposable {
 
 		// start resolving references for the specified root file
 		const rootReference = this._register(
-			this.initService.createInstance(
+			this.instantiationService.createInstance(
 				FilePromptParser,
 				this.rootFileUri,
 				options,
@@ -114,7 +113,7 @@ class TestPromptFileReference extends Disposable {
 		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences: readonly (IPromptReference | undefined)[] = rootReference.allReferences;
+		const resolvedReferences: readonly (TPromptReference | undefined)[] = rootReference.allReferences;
 
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];
@@ -237,15 +236,7 @@ suite('PromptFileReference', function () {
 		instantiationService.stub(IModelService, { getModel() { return null; } });
 		instantiationService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
-				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
-					return PROMPT_LANGUAGE_ID;
-				}
-
-				if (uri.path.endsWith(INSTRUCTION_FILE_EXTENSION)) {
-					return INSTRUCTIONS_LANGUAGE_ID;
-				}
-
-				return null;
+				return getPromptFileType(uri) ?? null;
 			}
 		});
 	});

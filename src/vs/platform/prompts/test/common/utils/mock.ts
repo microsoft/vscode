@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertOneOf } from '../../../../../base/common/types.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { isOneOf } from '../../../../../base/common/types.js';
 
 /**
  * Mocks an `TObject` with the provided `overrides`.
@@ -11,34 +12,42 @@ import { assertOneOf } from '../../../../../base/common/types.js';
  * If you need to mock an `Service`, please use {@link mockService}
  * instead which provides better type safety guarantees for the case.
  *
- * @throws Reading non-overridden property or function
- * 		   on `TObject` throws an error.
+ * @throws Reading non-overridden property or function on `TObject` throws an error.
  */
-export function mockObject<TObject extends Object>(
+export function mockObject<TObject extends object>(
 	overrides: Partial<TObject>,
 ): TObject {
 	// ensure that the overrides object cannot be modified afterward
 	overrides = Object.freeze(overrides);
 
-	const keys = Object.keys(overrides) as (keyof (typeof overrides))[];
-	const service = new Proxy(
+	const keys: (keyof Partial<TObject>)[] = [];
+	for (const key in overrides) {
+		if (Object.hasOwn(overrides, key)) {
+			keys.push(key);
+		}
+	}
+
+	const mocked: object = new Proxy(
 		{},
 		{
-			get: (_target, key: string | number | Symbol) => {
-				// sanity check for the provided `key`
-				assertOneOf(
-					key,
-					keys,
+			get: <T extends keyof TObject>(
+				_target: TObject,
+				key: string | number | Symbol,
+			): TObject[T] => {
+				assert(
+					isOneOf(key, keys),
 					`The '${key}' is not mocked.`,
 				);
 
-				return overrides[key];
+				// note! it's ok to type assert here, because of the explicit runtime
+				//       assertion  above
+				return overrides[key as T] as TObject[T];
 			},
 		});
 
-	// note! it's ok to `as TObject` here, because of
-	// 		 the runtime checks in the `Proxy` getter
-	return service as (typeof overrides) as TObject;
+	// note! it's ok to type assert here, because of the runtime checks in
+	//       the `Proxy` getter
+	return mocked as TObject;
 }
 
 /**

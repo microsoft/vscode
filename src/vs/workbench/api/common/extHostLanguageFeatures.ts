@@ -1335,7 +1335,7 @@ class InlineCompletionAdapter {
 		items: readonly vscode.InlineCompletionItem[];
 	}>();
 
-	private readonly _isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
+	private readonly _isAdditionsProposedApiEnabled: boolean;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -1343,6 +1343,7 @@ class InlineCompletionAdapter {
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
 	) {
+		this._isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
 	}
 
 	public get supportsHandleEvents(): boolean {

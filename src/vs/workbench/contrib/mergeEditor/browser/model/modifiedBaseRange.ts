@@ -11,7 +11,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { LineRangeEdit, RangeEdit } from './editing.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, MappingAlignment } from './mapping.js';
 
 /**
@@ -44,21 +44,21 @@ export class ModifiedBaseRange {
 		);
 	}
 
-	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
-	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
-	public readonly isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+	public readonly input1CombinedDiff;
+	public readonly input2CombinedDiff;
+	public readonly isEqualChange;
 
 	constructor(
-		public readonly baseRange: LineRange,
+		public readonly baseRange: MergeEditorLineRange,
 		public readonly baseTextModel: ITextModel,
-		public readonly input1Range: LineRange,
+		public readonly input1Range: MergeEditorLineRange,
 		public readonly input1TextModel: ITextModel,
 
 		/**
 		 * From base to input1
 		*/
 		public readonly input1Diffs: readonly DetailedLineRangeMapping[],
-		public readonly input2Range: LineRange,
+		public readonly input2Range: MergeEditorLineRange,
 		public readonly input2TextModel: ITextModel,
 
 		/**
@@ -66,12 +66,19 @@ export class ModifiedBaseRange {
 		*/
 		public readonly input2Diffs: readonly DetailedLineRangeMapping[]
 	) {
+		this.input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
+		this.input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
+		this.isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+		this.smartInput1LineRangeEdit = null;
+		this.smartInput2LineRangeEdit = null;
+		this.dumbInput1LineRangeEdit = null;
+		this.dumbInput2LineRangeEdit = null;
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
 			throw new BugIndicatingError('must have at least one diff');
 		}
 	}
 
-	public getInputRange(inputNumber: 1 | 2): LineRange {
+	public getInputRange(inputNumber: 1 | 2): MergeEditorLineRange {
 		return inputNumber === 1 ? this.input1Range : this.input2Range;
 	}
 
@@ -135,8 +142,8 @@ export class ModifiedBaseRange {
 		};
 	}
 
-	private smartInput1LineRangeEdit: LineRangeEdit | undefined | null = null;
-	private smartInput2LineRangeEdit: LineRangeEdit | undefined | null = null;
+	private smartInput1LineRangeEdit: LineRangeEdit | undefined | null;
+	private smartInput2LineRangeEdit: LineRangeEdit | undefined | null;
 
 	private smartCombineInputs(firstInput: 1 | 2): LineRangeEdit | undefined {
 		if (firstInput === 1 && this.smartInput1LineRangeEdit !== null) {
@@ -173,8 +180,8 @@ export class ModifiedBaseRange {
 		return result;
 	}
 
-	private dumbInput1LineRangeEdit: LineRangeEdit | undefined | null = null;
-	private dumbInput2LineRangeEdit: LineRangeEdit | undefined | null = null;
+	private dumbInput1LineRangeEdit: LineRangeEdit | undefined | null;
+	private dumbInput2LineRangeEdit: LineRangeEdit | undefined | null;
 
 	private dumbCombineInputs(firstInput: 1 | 2): LineRangeEdit | undefined {
 		if (firstInput === 1 && this.dumbInput1LineRangeEdit !== null) {
@@ -199,7 +206,7 @@ export class ModifiedBaseRange {
 	}
 }
 
-function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textModel: ITextModel): LineRangeEdit | undefined {
+function editsToLineRangeEdit(range: MergeEditorLineRange, sortedEdits: RangeEdit[], textModel: ITextModel): LineRangeEdit | undefined {
 	let text = '';
 	const startsLineBefore = range.startLineNumber > 1;
 	let currentPosition = startsLineBefore

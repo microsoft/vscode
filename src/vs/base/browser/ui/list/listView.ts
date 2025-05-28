@@ -194,8 +194,8 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 
 class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilityProvider<T>> {
 
-	readonly getSetSize: (element: any, index: number, listLength: number) => number;
-	readonly getPosInSet: (element: any, index: number) => number;
+	readonly getSetSize: (element: T, index: number, listLength: number) => number;
+	readonly getPosInSet: (element: T, index: number) => number;
 	readonly getRole: (element: T) => AriaRole | undefined;
 	readonly isChecked: (element: T) => boolean | IValueWithChangeEvent<boolean> | undefined;
 
@@ -650,7 +650,7 @@ export class ListView<T> implements IListView<T> {
 				const renderer = this.renderers.get(item.templateId);
 
 				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
+					renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
 				}
 
 				rows.unshift(item.row);
@@ -984,7 +984,7 @@ export class ListView<T> implements IListView<T> {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		renderer?.renderElement(item.element, index, item.row.templateData, item.size);
+		renderer?.renderElement(item.element, index, item.row.templateData, { height: item.size });
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
@@ -1050,7 +1050,7 @@ export class ListView<T> implements IListView<T> {
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, item.row.templateData, item.size);
+				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size });
 			}
 
 			this.cache.release(item.row);
@@ -1650,9 +1650,9 @@ export class ListView<T> implements IListView<T> {
 			throw new BugIndicatingError('Missing renderer for templateId: ' + item.templateId);
 		}
 
-		renderer.renderElement(item.element, index, row.templateData, undefined);
+		renderer.renderElement(item.element, index, row.templateData);
 		item.size = row.domNode.offsetHeight;
-		renderer.disposeElement?.(item.element, index, row.templateData, undefined);
+		renderer.disposeElement?.(item.element, index, row.templateData);
 
 		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
 

@@ -19,6 +19,8 @@ interface IGettingStartedContentProvider {
 	(): string;
 }
 
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", product.defaultChatAgent?.providerName, product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
+
 class GettingStartedContentProviderRegistry {
 
 	private readonly providers = new Map<string, IGettingStartedContentProvider>();
@@ -249,9 +251,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatSetupSignedOut', true),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited)', false),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatSetupSignedOut && (!chatSetupInstalled || chatPlanCanSignUp)', true),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut', true),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', true),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
@@ -689,18 +691,18 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'copilotSetup.inline',
-					title: localize('gettingStarted.nes.title', "Next Edit Suggestions"),
+					title: localize('gettingStarted.nes.title', "Next edit suggestions"),
 					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
 					media: {
-						type: 'svg', altText: 'Next Edit Suggestions', path: 'ai-powered-suggestions.svg'
+						type: 'svg', altText: 'Next edit suggestions', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{
 					id: 'copilotSetup.customize',
 					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetup')),
+					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Set up AI"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
 					media: {
-						type: 'svg', altText: 'Personalize', path: 'multi-file-edits.svg'
+						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
 					},
 				},
 				{

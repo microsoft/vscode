@@ -18,9 +18,9 @@ import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ExtHostNotebookController } from './extHostNotebook.js';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument.js';
 import * as extHostTypeConverters from './extHostTypeConverters.js';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from './extHostTypes.js';
+import { NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from './extHostTypes.js';
 import { asWebviewUri } from '../../contrib/webview/common/webview.js';
-import { INotebookKernelSourceAction, NotebookCellExecutionState } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookKernelSourceAction } from '../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -54,9 +54,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
-
-	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
-	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -511,19 +508,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
 	}
 
-	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: NotebookCellExecutionState | undefined): void {
-		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
-		const cell = document.getCell(cellHandle);
-		if (cell) {
-			const newState = state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle;
-			if (newState !== undefined) {
-				this._onDidChangeCellExecutionState.fire({
-					cell: cell.apiCell,
-					state: newState
-				});
-			}
-		}
-	}
 
 	// ---
 

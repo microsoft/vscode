@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../core/range.js';
+import { BaseToken } from '../../baseToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { FrontMatterValueToken } from './frontMatterToken.js';
 import { assertDefined } from '../../../../../base/common/types.js';
@@ -11,32 +11,58 @@ import { assertDefined } from '../../../../../base/common/types.js';
 /**
  * Token that represents a `boolean` value in a Front Matter header.
  */
-export class FrontMatterBoolean extends FrontMatterValueToken<'boolean'> {
+export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonly [Word]> {
 	/**
 	 * Name of the `boolean` value type.
 	 */
 	public override readonly valueTypeName = 'boolean';
 
-	constructor(
-		range: Range,
-		public readonly value: boolean,
-	) {
-		super(range);
-	}
+	/**
+	 * Value of the `boolean` token.
+	 */
+	public readonly value: boolean;
 
-	public static fromToken(token: Word): FrontMatterBoolean {
+	/**
+	 * @throws if provided {@link Word} cannot be converted to a `boolean` value.
+	 */
+	constructor(token: Word) {
 		const value = asBoolean(token);
-
 		assertDefined(
 			value,
 			`Cannot convert '${token}' to a boolean value.`,
 		);
 
-		return new FrontMatterBoolean(token.range, value);
+		super([token]);
+
+		this.value = value;
 	}
 
-	public override get text(): string {
-		return `${this.value}`;
+	/**
+	 * Try creating a {@link FrontMatterBoolean} out of provided token.
+	 * Unlike the constructor, this method does not throw, returning
+	 * a 'null' value on failure instead.
+	 */
+	public static tryFromToken(
+		token: BaseToken,
+	): FrontMatterBoolean | null {
+		if (token instanceof Word === false) {
+			return null;
+		}
+
+		try {
+			return new FrontMatterBoolean(token);
+		} catch (_error) {
+			// noop
+			return null;
+		}
+	}
+
+	public override equals(other: BaseToken): other is typeof this {
+		if (super.equals(other) === false) {
+			return false;
+		}
+
+		return this.value === other.value;
 	}
 
 	public override toString(): string {

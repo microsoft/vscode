@@ -11,6 +11,7 @@ import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { InlineDecorationType } from '../viewModel.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -18,28 +19,6 @@ export const enum RenderWhitespace {
 	Selection = 2,
 	Trailing = 3,
 	All = 4
-}
-
-export class LineRange {
-	/**
-	 * Zero-based offset on which the range starts, inclusive.
-	 */
-	public readonly startOffset: number;
-
-	/**
-	 * Zero-based offset on which the range ends, inclusive.
-	 */
-	public readonly endOffset: number;
-
-	constructor(startIndex: number, endIndex: number) {
-		this.startOffset = startIndex;
-		this.endOffset = endIndex;
-	}
-
-	public equals(otherLineRange: LineRange) {
-		return this.startOffset === otherLineRange.startOffset
-			&& this.endOffset === otherLineRange.endOffset;
-	}
 }
 
 export class RenderLineInput {
@@ -67,7 +46,7 @@ export class RenderLineInput {
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
 	 * and ordered by position within the line.
 	 */
-	public readonly selectionsOnLine: LineRange[] | null;
+	public readonly selectionsOnLine: OffsetRange[] | null;
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -88,7 +67,7 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: LineRange[] | null
+		selectionsOnLine: OffsetRange[] | null
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -116,7 +95,7 @@ export class RenderLineInput {
 		);
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
-		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.startOffset < b.startOffset ? -1 : 1);
+		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -129,7 +108,7 @@ export class RenderLineInput {
 		}
 	}
 
-	private sameSelection(otherSelections: LineRange[] | null): boolean {
+	private sameSelection(otherSelections: OffsetRange[] | null): boolean {
 		if (this.selectionsOnLine === null) {
 			return otherSelections === null;
 		}
@@ -721,7 +700,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 		const chCode = lineContent.charCodeAt(charIndex);
 
-		if (currentSelection && charIndex >= currentSelection.endOffset) {
+		if (currentSelection && currentSelection.endExclusive <= charIndex) {
 			currentSelectionIndex++;
 			currentSelection = selections && selections[currentSelectionIndex];
 		}
@@ -752,7 +731,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 
 		// If rendering whitespace on selection, check that the charIndex falls within a selection
 		if (isInWhitespace && selections) {
-			isInWhitespace = !!currentSelection && currentSelection.startOffset <= charIndex && currentSelection.endOffset > charIndex;
+			isInWhitespace = !!currentSelection && currentSelection.start <= charIndex && charIndex < currentSelection.endExclusive;
 		}
 
 		// If rendering only trailing whitespace, check that the charIndex points to trailing whitespace.

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
+import { AsyncIterableObject, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -88,32 +88,46 @@ class LanguageModelResponse {
 		}
 	}
 
-	handleFragment(fragment: IChatResponseFragment): void {
+	handleFragment(fragments: IChatResponseFragment | IChatResponseFragment[]): void {
 		if (this._isDone) {
 			return;
 		}
-		let res = this._responseStreams.get(fragment.index);
-		if (!res) {
-			if (this._responseStreams.size === 0) {
-				// the first response claims the default response
-				res = new LanguageModelResponseStream(fragment.index, this._defaultStream);
+
+		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[]>();
+
+		for (const fragment of Iterable.wrap(fragments)) {
+
+			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+			if (fragment.part.type === 'text') {
+				out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
+			} else if (fragment.part.type === 'data') {
+				out = new extHostTypes.LanguageModelTextPart('');
 			} else {
-				res = new LanguageModelResponseStream(fragment.index);
+				out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 			}
-			this._responseStreams.set(fragment.index, res);
+			const array = partsByIndex.get(fragment.index);
+			if (!array) {
+				partsByIndex.set(fragment.index, [out]);
+			} else {
+				array.push(out);
+			}
 		}
 
-		let out: vscode.LanguageModelTextPart | vscode.LanguageModelDataPart | vscode.LanguageModelToolCallPart;
-		if (fragment.part.type === 'text') {
-			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
-		} else if (fragment.part.type === 'data') {
-			out = new extHostTypes.LanguageModelTextPart('');
-		} else {
-			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
+
+		for (const [index, parts] of partsByIndex) {
+			let res = this._responseStreams.get(index);
+			if (!res) {
+				if (this._responseStreams.size === 0) {
+					// the first response claims the default response
+					res = new LanguageModelResponseStream(index, this._defaultStream);
+				} else {
+					res = new LanguageModelResponseStream(index);
+				}
+				this._responseStreams.set(index, res);
+			}
+			res.stream.emitMany(parts);
 		}
-		res.stream.emitOne(out);
 	}
-
 
 	reject(err: Error): void {
 		this._isDone = true;
@@ -206,6 +220,26 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			throw new Error('Provider not found');
 		}
+
+		const queue: IChatResponseFragment[] = [];
+		const sendNow = () => {
+			if (queue.length > 0) {
+				this._proxy.$reportResponsePart(requestId, queue);
+				queue.length = 0;
+			}
+		};
+		const queueScheduler = new RunOnceScheduler(sendNow, 30);
+		const sendSoon = (part: IChatResponseFragment) => {
+			const newLen = queue.push(part);
+			// flush/send if things pile up more than expected
+			if (newLen > 30) {
+				sendNow();
+				queueScheduler.cancel();
+			} else {
+				queueScheduler.schedule();
+			}
+		};
+
 		const progress = new Progress<vscode.ChatResponseFragment2>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
@@ -226,7 +260,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return;
 			}
 
-			this._proxy.$reportResponsePart(requestId, { index: fragment.index, part });
+			sendSoon({ index: fragment.index, part });
 		});
 
 		let value: any;
@@ -246,8 +280,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		Promise.resolve(value).then(() => {
+			sendNow();
 			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
+			sendNow();
 			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
@@ -413,7 +449,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return internalMessages;
 	}
 
-	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (data) {
 			data.res.handleFragment(chunk);

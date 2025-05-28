@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .element-selection-message,
-.element-expand-container {
+.element-expand-container,
+.connecting-webview-element {
 	position: absolute;
 	bottom: 10px;
 	right: 10px;
@@ -27,15 +28,21 @@
 	right: 10px;
 }
 
-.element-expand-container {
+.element-expand-container,
+.connecting-webview-element {
 	bottom: 15px;
 	right: 15px;
 }
 
-.element-selection-cancel,
-.element-selection-start {
+.element-selection-cancel {
 	padding: 2px 8px;
 	width: fit-content;
+}
+
+.element-selection-message .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	height: 24px;
+	align-content: center;
+	padding: 0px 5px;
 }
 
 .element-selection-message .monaco-button.codicon.codicon-close,

@@ -20,7 +20,7 @@ import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
-import { autorun, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './media/inlineChat.css';
@@ -40,6 +40,20 @@ import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/constants.js';
+import { MODE_FILE_EXTENSION } from '../../../../platform/prompts/common/prompts.js';
+
+/**
+ * Set of language IDs where inline chat hints should not be shown.
+ */
+const IGNORED_LANGUAGE_IDS = new Set([
+	PLAINTEXT_LANGUAGE_ID,
+	'markdown',
+	'search-result',
+	INSTRUCTIONS_LANGUAGE_ID,
+	PROMPT_LANGUAGE_ID,
+	MODE_FILE_EXTENSION
+]);
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -224,7 +238,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
 		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
-		const showDataObs = derivedWithStore((r, store) => {
+		const showDataObs = derived((r) => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
@@ -237,15 +251,14 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
-			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown' || model.getLanguageId() === 'search-result') {
+			if (IGNORED_LANGUAGE_IDS.has(model.getLanguageId())) {
 				return undefined;
 			}
 
-
 			// DEBT - I cannot use `model.onDidChangeContent` directly here
 			// https://github.com/microsoft/vscode/issues/242059
-			const emitter = store.add(new Emitter<void>());
-			store.add(model.onDidChangeContent(() => emitter.fire()));
+			const emitter = r.store.add(new Emitter<void>());
+			r.store.add(model.onDidChangeContent(() => emitter.fire()));
 			observableFromEvent(emitter.event, () => model.getVersionId()).read(r);
 
 			// position can be wrong
