@@ -280,18 +280,30 @@ class McpToolImplementation implements IToolImpl {
 		};
 
 		for (const item of callResult.content) {
+			const audience = item.annotations?.audience || ['assistant'];
+			if (audience.includes('user')) {
+				if (item.type === 'text') {
+					progress.report({ message: item.text });
+				}
+			}
+
+			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
 				details.output.push({ type: 'text', value: item.text });
-				result.content.push({
-					kind: 'text',
-					value: item.text
-				});
+				if (isForModel) {
+					result.content.push({
+						kind: 'text',
+						value: item.text
+					});
+				}
 			} else if (item.type === 'image' || item.type === 'audio') {
 				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
-				result.content.push({
-					kind: 'data',
-					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
-				});
+				if (isForModel) {
+					result.content.push({
+						kind: 'data',
+						value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
+					});
+				}
 			} else {
 				// unsupported for now.
 			}
