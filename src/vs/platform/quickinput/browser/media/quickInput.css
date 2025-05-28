@@ -194,8 +194,30 @@
 }
 
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
-	border-top-width: 1px;
-	border-top-style: solid;
+	position: relative;
+	border-top-style: none;
+}
+
+/*
+	Quick pick row separator needs to be rendered outside of DOM flow otherwise
+	it will push the row content down and cause the lower outline to be clipped.
+	See `.quick-input-list .monaco-list-row.focused .quick-input-list-entry` class
+	later in this file for outline styles.
+*/
+.quick-input-list .quick-input-list-entry.quick-input-list-separator-border::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: var(--vscode-pickerGroup-border);
+	z-index: -1;
+}
+
+/* Ensure that the separator is visible on hover, except when the list row is focused. */
+.quick-input-list .monaco-list-row:not(.focused) .quick-input-list-entry:has(:hover).quick-input-list-separator-border::before {
+	z-index: 2;
 }
 
 .quick-input-list .monaco-list-row {
@@ -337,6 +359,20 @@
 .quick-input-list .quick-input-list-separator-as-item {
 	padding: 4px 6px;
 	font-size: 12px;
+}
+
+.quick-input-list .monaco-list-row .quick-input-list-entry {
+	/*
+		Label height needs to be manually set to match the dynamically set height of higher level list row parent element.
+		Reference: https://github.com/microsoft/vscode/blob/main/src/vs/platform/quickinput/browser/quickInputTree.ts#L272-L279
+	 */
+	height: 22px;
+}
+
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: 4px;
 }
 
 /* Quick input separators as full-row item */
