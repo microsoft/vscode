@@ -1164,7 +1164,7 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		fontSize?: number;
+		fontSize?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */

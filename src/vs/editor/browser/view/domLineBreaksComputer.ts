@@ -7,19 +7,19 @@ import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js'
 import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
-import { EditorFontLigatures, EditorOption, WrappingIndent } from '../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
-import { CharacterMapping, RenderLineInput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { assertIsDefined } from '../../../base/common/types.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
-const LINE_HEIGHT = 300;
+const LINE_BREAK_LINE_HEIGHT = 300;
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
@@ -37,13 +37,13 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(context, config, assertIsDefined(this.targetWindow.deref()), tabSize, lineNumbers);
+				return createLineBreaks(assertIsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
 			}
 		};
 	}
 }
 
-function createLineBreaks(context: ILineBreaksComputerContext, config: IEditorConfiguration, targetWindow: Window, tabSize: number, lineNumbers: number[]): (ModelLineProjectionData | null)[] {
+function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = context.getLineInjectedText(lineNumbers[requestIdx]);
 		if (injectedTexts) {
@@ -60,6 +60,7 @@ function createLineBreaks(context: ILineBreaksComputerContext, config: IEditorCo
 			return null;
 		}
 	}
+
 	const options = config.options;
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const wrappingIndent = options.get(EditorOption.wrappingIndent);
@@ -126,48 +127,7 @@ function createLineBreaks(context: ILineBreaksComputerContext, config: IEditorCo
 		}
 
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
-		const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
-		// Assume the largest case which is that the whitespaces are rendered
-		const renderWhitespace = options.get(EditorOption.renderWhitespace);
-		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
-		const fontLigatures = options.get(EditorOption.fontLigatures);
-		const inlineDecorations = context.getInlineDecorations(lineNumbers[i]);
-		const lineDecorations = LineDecoration.filter(inlineDecorations.decorations, i, 0, Infinity);
-		const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
-		const tokens = context.getLineTokens(lineNumbers[i]);
-		const isBasicASCII = strings.isBasicASCII(renderLineContent);
-		const containsRTL = strings.containsRTL(renderLineContent);
-		const fontLigaturesEnabled = fontLigatures !== EditorFontLigatures.OFF;
-		const renderLineInput = new RenderLineInput(
-			useMonospaceOptimizations,
-			fontInfo.canUseHalfwidthRightwardsArrow,
-			renderLineContent,
-			false,
-			isBasicASCII,
-			containsRTL,
-			0,
-			tokens,
-			lineDecorations,
-			tabSize,
-			firstLineBreakColumn,
-			fontInfo.spaceWidth,
-			fontInfo.middotWidth,
-			fontInfo.wsmiddotWidth,
-			stopRenderingLineAfter,
-			renderWhitespace,
-			renderControlCharacters,
-			fontLigaturesEnabled,
-			null
-		);
-		sb.appendString('<div style="height:');
-		sb.appendString(String(LINE_HEIGHT));
-		sb.appendString('px;line-height:');
-		sb.appendString(String(LINE_HEIGHT));
-		sb.appendString('px;width:');
-		sb.appendString(String(width));
-		sb.appendString('px;">');
-		const renderedLineOutput = renderViewLine(renderLineInput, sb);
-		sb.appendString('</div>');
+		const renderedLineOutput = renderLine(context, lineNumbers[i], firstNonWhitespaceIndex, tabSize, width, options, sb);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -235,6 +195,60 @@ function createLineBreaks(context: ILineBreaksComputerContext, config: IEditorCo
 	containerDomNode.remove();
 	return result;
 }
+
+function renderLine(context: ILineBreaksComputerContext, lineNumber: number, initialVisibleColumn: number, tabSize: number, width: number, options: IComputedEditorOptions, sb: StringBuilder): RenderLineOutput {
+	const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+	const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
+	const fontInfo = options.get(EditorOption.fontInfo);
+	const fontLigatures = options.get(EditorOption.fontLigatures);
+	const inlineDecorations = context.getInlineDecorations(lineNumber);
+	const lineDecorations = LineDecoration.filter(inlineDecorations.decorations, lineNumber, 0, Infinity);
+	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
+	const tokens = context.getLineTokens(lineNumber);
+	const lineContent = context.getLineContent(lineNumber);
+	const isBasicASCII = strings.isBasicASCII(lineContent);
+	const containsRTL = strings.containsRTL(lineContent);
+	const lineHasVariableFonts = inlineDecorations.affectsFonts;
+	let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	if (lineHasVariableFonts || options.get(EditorOption.experimentalWhitespaceRendering) === 'off') {
+		renderWhitespace = options.get(EditorOption.renderWhitespace);
+	} else {
+		renderWhitespace = 'none';
+	}
+	const fontLigaturesEnabled = fontLigatures !== EditorFontLigatures.OFF;
+	const renderLineInput = new RenderLineInput(
+		useMonospaceOptimizations,
+		fontInfo.canUseHalfwidthRightwardsArrow,
+		lineContent,
+		false,
+		isBasicASCII,
+		containsRTL,
+		0,
+		tokens,
+		lineDecorations,
+		tabSize,
+		initialVisibleColumn,
+		fontInfo.spaceWidth,
+		fontInfo.middotWidth,
+		fontInfo.wsmiddotWidth,
+		stopRenderingLineAfter,
+		renderWhitespace,
+		renderControlCharacters,
+		fontLigaturesEnabled,
+		null
+	);
+	sb.appendString('<div style="height:');
+	sb.appendString(String(LINE_BREAK_LINE_HEIGHT));
+	sb.appendString('px;line-height:');
+	sb.appendString(String(LINE_BREAK_LINE_HEIGHT));
+	sb.appendString('px;width:');
+	sb.appendString(String(width));
+	sb.appendString('px;">');
+	const renderedLineOutput = renderViewLine(renderLineInput, sb);
+	sb.appendString('</div>');
+	return renderedLineOutput;
+}
+
 function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, characterMapping: CharacterMapping): number[] | null {
 	if (lineContent.length <= 1) {
 		return null;
@@ -269,7 +283,7 @@ function discoverBreaks(range: Range, outerSpan: HTMLSpanElement, characterMappi
 	const highDomPosition2 = characterMapping.getDomPosition(high + 1);
 	highRects = highRects || readClientRect(range, outerSpan, highDomPosition1.charIndex, highDomPosition1.partIndex, highDomPosition2.charIndex, highDomPosition2.partIndex);
 
-	if (Math.abs(lowRects[0].top - highRects[0].top) <= LINE_HEIGHT / 2) {
+	if (Math.abs(lowRects[0].top - highRects[0].top) <= LINE_BREAK_LINE_HEIGHT / 2) {
 		// same line
 		return;
 	}
