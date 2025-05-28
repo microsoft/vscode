@@ -664,6 +664,9 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 			fileKind: FileKind.FOLDER,
 			separator: this._labelService.getSeparator(folder.uri.scheme)
 		});
+
+		templateData.actionBar.context = undefined;
+		templateData.actionBar.setActions([]);
 	}
 
 	private _renderGraphPlaceholder(templateData: HistoryItemChangeTemplate, historyItemViewModel: ISCMHistoryItemViewModel, graphColumns: ISCMHistoryItemGraphNode[]): void {
