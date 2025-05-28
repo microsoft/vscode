@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { LanguageModelInitiatorKind, LanguageModelRequestInitiator } from './languageModels.js';
 
 export const ILanguageModelStatsService = createDecorator<ILanguageModelStatsService>('ILanguageModelStatsService');
 
 export interface ILanguageModelStatsService {
 	readonly _serviceBrand: undefined;
 
-	update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void>;
+	update(model: string, initator: LanguageModelRequestInitiator, agent: string | undefined, tokenCount: number | undefined): Promise<void>;
 }
 
 export class LanguageModelStatsService extends Disposable implements ILanguageModelStatsService {
@@ -37,8 +37,10 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	async update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
-		await this.extensionFeaturesManagementService.getAccess(extensionId, CopilotUsageExtensionFeatureId);
+	async update(model: string, initator: LanguageModelRequestInitiator, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
+		if (initator.kind === LanguageModelInitiatorKind.Extension) {
+			await this.extensionFeaturesManagementService.getAccess(initator.extensionId, CopilotUsageExtensionFeatureId);
+		}
 	}
 
 }

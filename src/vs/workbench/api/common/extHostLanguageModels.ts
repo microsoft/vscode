@@ -16,7 +16,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, LanguageModelRequestInitiator } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
@@ -204,8 +204,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			capabilities: metadata.capabilities,
 		});
 
-		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
-			this._proxy.$whenLanguageModelChatRequestMade(identifier, new ExtensionIdentifier(extensionId), participant, tokenCount);
+		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ initiator, participant, tokenCount }) => {
+			this._proxy.$whenLanguageModelChatRequestMade(identifier, typeConvert.LanguageModelRequestInitiator.from(initiator), participant, tokenCount);
 		});
 
 		return toDisposable(() => {
@@ -215,7 +215,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+	async $startChatRequest(handle: number, requestId: number, initiator: LanguageModelRequestInitiator, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
 			throw new Error('Provider not found');
@@ -269,7 +269,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelResponse(
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 				options,
-				ExtensionIdentifier.toKey(from),
+				typeConvert.LanguageModelRequestInitiator.to(initiator),
 				progress,
 				token
 			);

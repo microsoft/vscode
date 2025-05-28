@@ -12,9 +12,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService, LanguageModelInitiatorKind } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
 import { IMcpSamplingService, IMcpServer, ISamplingOptions, ISamplingResult, McpError } from './mcpTypes.js';
@@ -64,7 +63,7 @@ export class McpSamplingService implements IMcpSamplingService {
 
 		const model = await this._getMatchingModel(opts);
 		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('Github.copilot-chat'), messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, { kind: LanguageModelInitiatorKind.McpServer, id: opts.server.definition.id }, messages, {}, token);
 
 		let responseText = '';
 
