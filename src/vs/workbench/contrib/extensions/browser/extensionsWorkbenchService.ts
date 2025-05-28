@@ -679,10 +679,13 @@ class Extensions extends Disposable {
 		}
 	}
 
-	async syncMissingFromGallery(galleryExtensions: IGalleryExtension[]): Promise<void> {
+	async syncMissingFromGallery(galleryExtensions: IGalleryExtension[], filter?: IExtensionInfo[]): Promise<void> {
 		const extensions = this.local;
 		for (const extension of extensions) {
 			if (!extension.identifier.uuid) {
+				continue;
+			}
+			if (filter && !filter.some(f => areSameExtensions(f, extension.identifier))) {
 				continue;
 			}
 			const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
@@ -1356,6 +1359,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
 		this.syncInstalledExtensionsWithGallery(galleryExtensions);
+		this.syncMissingFromGallery(galleryExtensions, extensionInfos);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -1896,13 +1900,31 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), updateCheck: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
 				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+				await this.syncMissingFromGallery(galleryExtensions, infos);
 			}
-			this.syncMissingFromGallery(extensions, galleryExtensions);
 		}
 	}
 
-	private async syncMissingFromGallery(extensions: Extensions[], galleryExtensions: IGalleryExtension[]): Promise<void> {
-		await Promise.allSettled(extensions.map(extension => extension.syncMissingFromGallery(galleryExtensions)));
+	/**
+	 * Synchronizes the missing extensions from the gallery.
+	 * @param galleryExtensions The response after querying the gallery with the **filter** set of extensions.
+	 * @param filter The set of extensions info used when fetching gallery extension metadata.
+	 */
+	private async syncMissingFromGallery(galleryExtensions: IGalleryExtension[], filter: IExtensionInfo[]): Promise<void> {
+		const extensions: Extensions[] = [];
+		if (this.localExtensions) {
+			extensions.push(this.localExtensions);
+		}
+		if (this.remoteExtensions) {
+			extensions.push(this.remoteExtensions);
+		}
+		if (this.webExtensions) {
+			extensions.push(this.webExtensions);
+		}
+		if (!extensions.length) {
+			return;
+		}
+		await Promise.allSettled(extensions.map(extension => extension.syncMissingFromGallery(galleryExtensions, filter)));
 	}
 
 	async updateAll(): Promise<InstallExtensionResult[]> {
