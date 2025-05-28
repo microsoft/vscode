@@ -634,13 +634,13 @@ export class SettingsEditor2 extends EditorPane {
 		if (!setupHidden && showSuggestions) {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResults', "Show AI Results"), showAiResultActionClassNames.join(' ')
+				localize('showAiResultsDescription', "Describe what you want to configure"), showAiResultActionClassNames.join(' '), false
 			));
-			this._register(this.showAiResultsAction.onDidChange(() => {
-				this.onSearchInputChanged(true);
-			}));
 			this._register(this.aiSettingsSearchService.onDidEnable(() => {
 				this.showAiResultsAction!.enabled = true;
+			}));
+			this._register(this.showAiResultsAction.onDidChange(() => {
+				this.onSearchInputChanged(true);
 			}));
 		}
 
@@ -1746,6 +1746,9 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.showAiResultsAction?.checked) {
 			return this.searchDelayer.trigger(async () => {
 				// Use both embeddings and LLM results from the AI search.
+				if (searchInProgress.token.isCancellationRequested) {
+					return;
+				}
 				const embeddingsResults = await this.doAiSearch(query, searchInProgress.token);
 				if (!this.searchResultModel || searchInProgress.token.isCancellationRequested) {
 					return;
