@@ -188,6 +188,11 @@ export interface IBaseTerminalInstance {
 	readonly selection: string | undefined;
 
 	/**
+	 * The shell type of the terminal.
+	 */
+	readonly shellType: TerminalShellType | undefined;
+
+	/**
 	 * Check if anything is selected in terminal.
 	 */
 	hasSelection(): boolean;
