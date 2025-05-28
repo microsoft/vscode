@@ -26,6 +26,7 @@ import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -94,6 +95,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@ILogService private readonly logService: ILogService,
 		@IURLService private readonly urlService: IURLService,
 		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -499,6 +501,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (result) {
 			// Open verification URI
 			try {
+				await this.clipboardService.writeText(userCode);
 				return await this.openerService.open(URI.parse(verificationUri));
 			} catch (error) {
 				this.notificationService.error(nls.localize('failedToOpenUri', "Failed to open {0}", verificationUri));
