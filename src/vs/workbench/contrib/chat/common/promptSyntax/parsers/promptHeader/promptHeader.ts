@@ -6,7 +6,6 @@
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
 import { PromptMetadataWarning } from './diagnostics.js';
-import { TInstructionsMetadata } from './instructionsHeader.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
@@ -17,7 +16,7 @@ import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/fro
 /**
  * Metadata utility object for prompt files.
  */
-interface IPromptMetadata extends IHeaderMetadata {
+export interface IPromptMetadata extends IHeaderMetadata {
 	/**
 	 * Tools metadata in the prompt header.
 	 */
@@ -35,13 +34,7 @@ interface IPromptMetadata extends IHeaderMetadata {
 export type TPromptMetadata = Partial<TDehydrated<IPromptMetadata>> & { promptType: PromptsType.prompt };
 
 /**
- * Metadata defined in the header of prompt/instruction/mode files.
- */
-// TODO: @legomushroom - move to header base class?
-export type TMetadata = TPromptMetadata | TInstructionsMetadata;
-
-/**
- * Header object for prompt and mode files.
+ * Header object for prompt files.
  */
 export class PromptHeader extends HeaderBase<IPromptMetadata> {
 	protected override handleToken(token: FrontMatterRecord): boolean {

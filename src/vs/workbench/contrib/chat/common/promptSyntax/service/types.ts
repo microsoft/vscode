@@ -7,7 +7,7 @@ import { TTree } from '../utils/treeUtils.js';
 import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { TMetadata } from '../parsers/promptHeader/promptHeader.js';
+import { TMetadata } from '../parsers/promptHeader/modeHeader.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
