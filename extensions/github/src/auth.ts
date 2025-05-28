@@ -9,6 +9,7 @@ import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
+import { sequentialize } from './util.js';
 
 export class AuthenticationError extends Error { }
 
@@ -57,29 +58,30 @@ export function getOctokit(): Promise<Octokit> {
 	return _octokit;
 }
 
-let _octokitGraphql: Promise<graphql> | undefined;
+export class AuthHelper {
+	private static _octokitGraphql: graphql | undefined;
 
-export async function getOctokitGraphql(): Promise<graphql> {
-	if (!_octokitGraphql) {
-		_octokitGraphql = getSession()
-			.then(async session => {
-				const token = session.accessToken;
-				const agent = getAgent();
+	@sequentialize
+	static async getOctokitGraphql(): Promise<graphql> {
+		if (AuthHelper._octokitGraphql) {
+			return AuthHelper._octokitGraphql;
+		}
 
-				const { graphql } = await import('@octokit/graphql');
-				return graphql.defaults({
-					headers: {
-						authorization: `token ${token}`,
-						'user-agent': 'GitHub VSCode'
-					},
-					request: { agent }
-				});
-			})
-			.then(null, async err => {
-				_octokitGraphql = undefined;
-				throw new AuthenticationError(err.message);
-			});
+		const session = await authentication.getSession('github', scopes);
+		if (!session) {
+			throw new AuthenticationError('User is not signed in to GitHub');
+		}
+
+		const { graphql } = await import('@octokit/graphql');
+
+		AuthHelper._octokitGraphql = graphql.defaults({
+			headers: {
+				authorization: `token ${session.accessToken}`,
+				'user-agent': 'GitHub VSCode'
+			},
+			request: { agent: getAgent() }
+		});
+
+		return AuthHelper._octokitGraphql;
 	}
-
-	return _octokitGraphql;
 }

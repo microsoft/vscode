@@ -5,7 +5,7 @@
 
 import { authentication, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
-import { AuthenticationError, getOctokitGraphql } from './auth.js';
+import { AuthenticationError, AuthHelper } from './auth.js';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
@@ -132,7 +132,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 	}
 
 	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
-		const graphql = await getOctokitGraphql();
+		const graphql = await AuthHelper.getOctokitGraphql();
 		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
 
 		return repository;
@@ -142,7 +142,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		const rulesets: RepositoryRuleset[] = [];
 
 		let cursor: string | undefined = undefined;
-		const graphql = await getOctokitGraphql();
+		const graphql = await AuthHelper.getOctokitGraphql();
 
 		while (true) {
 			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });

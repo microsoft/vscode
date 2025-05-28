@@ -7,7 +7,7 @@ import { authentication, Command, l10n, LogOutputChannel, workspace } from 'vsco
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
 import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.js';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
-import { AuthenticationError, getOctokitGraphql } from './auth.js';
+import { AuthenticationError, AuthHelper } from './auth.js';
 import { getAvatarLink } from './links.js';
 
 const ISSUE_EXPRESSION = /(([A-Za-z0-9_.\-]+)\/([A-Za-z0-9_.\-]+))?(#|GH-)([1-9][0-9]*)($|\b)/g;
@@ -264,7 +264,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Querying assignable user(s) for ${descriptor.owner}/${descriptor.repo}.`);
 
 		try {
-			const graphql = await getOctokitGraphql();
+			const graphql = await AuthHelper.getOctokitGraphql();
 			const { repository } = await graphql<{ repository: GitHubRepository }>(ASSIGNABLE_USERS_QUERY, descriptor);
 
 			const users: GitHubUser[] = [];
@@ -285,7 +285,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			this._store.set(this._getRepositoryKey(descriptor), { users, commits: new Set() });
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Successfully queried assignable user(s) for ${descriptor.owner}/${descriptor.repo}: ${users.length} user(s).`);
 		} catch (err) {
-			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Failed to load assignable user(s) for ${descriptor.owner}/${descriptor.repo}: ${err}`);
+			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_loadAssignableUsers] Failed to load assignable user(s) for ${descriptor.owner}/${descriptor.repo}: ${err.message}`);
 			throw err;
 		}
 	}
@@ -294,7 +294,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 		this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Querying commit author for ${descriptor.owner}/${descriptor.repo}/${commit}.`);
 
 		try {
-			const graphql = await getOctokitGraphql();
+			const graphql = await AuthHelper.getOctokitGraphql();
 			const { repository } = await graphql<{ repository: GitHubRepository }>(COMMIT_AUTHOR_QUERY, { ...descriptor, commit });
 
 			const commitAuthor = (repository.object as Commit).author;
@@ -316,7 +316,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Successfully queried commit author for ${descriptor.owner}/${descriptor.repo}/${commit}: ${user.login}.`);
 			return user;
 		} catch (err) {
-			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Failed to get commit author for ${descriptor.owner}/${descriptor.repo}/${commit}: ${err}`);
+			this._logger.warn(`[GitHubSourceControlHistoryItemDetailsProvider][_getCommitAuthor] Failed to get commit author for ${descriptor.owner}/${descriptor.repo}/${commit}: ${err.message}`);
 			throw err;
 		}
 	}
