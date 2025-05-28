@@ -357,9 +357,14 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit
 			&& this._useCodeShifting.read(reader) !== 'never'
-			&& isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)
 		) {
-			return 'insertionInline';
+			if (isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)) {
+				return 'insertionInline';
+			}
+
+			// If we have a single line insertion before the cursor position, we do not want to move the cursor by inserting
+			// the suggestion inline. Use a line replacement view instead
+			return 'lineReplacement';
 		}
 
 		const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
