@@ -1012,6 +1012,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getDecorationsInRange(range: Range): IModelDecoration[] | null;
 
 	/**
+	 * Get all the font decorations for a range (filtering out decorations from other editors).
+	 * @param range The range to get font decorations for.
+	 */
+	getFontDecorationsInRange(range: Range): IModelDecoration[] | null;
+
+	/**
 	 * All decorations added through this call will get the ownerId of this editor.
 	 * @deprecated Use `createDecorationsCollection`
 	 * @see createDecorationsCollection

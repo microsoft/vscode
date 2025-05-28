@@ -413,7 +413,8 @@ export class SingleLineInlineDecoration {
 		public readonly startOffset: number,
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean
+		public readonly inlineClassNameAffectsLetterSpacing: boolean,
+		public readonly affectsFont: boolean
 	) {
 	}
 

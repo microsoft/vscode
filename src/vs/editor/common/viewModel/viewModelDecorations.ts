@@ -32,8 +32,8 @@ export class InlineDecorations {
 
 	constructor() { }
 
-	public push(range: Range, inlineClassName: string, inlineDecorationType: InlineDecorationType, affectsFont?: boolean): void {
-		this.decorations.push(new InlineDecoration(range, inlineClassName, inlineDecorationType));
+	public push(inlineDecoration: InlineDecoration, affectsFont: boolean): void {
+		this.decorations.push(inlineDecoration);
 		if (affectsFont) {
 			this._affectsFonts = true;
 		}
@@ -166,7 +166,9 @@ export class ViewModelDecorations implements IDisposable {
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					inlineDecorations[j - startLineNumber].push(viewRange, decorationOptions.inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+					const inlineClassName = decorationOptions.inlineClassName;
+					const inlineDecoration: InlineDecoration = new InlineDecoration(viewRange, inlineClassName, inlineDecorationType);
+					inlineDecorations[j - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}
 			if (decorationOptions.beforeContentClassName) {
@@ -174,7 +176,8 @@ export class ViewModelDecorations implements IDisposable {
 					const range = new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn);
 					const inlineClassName = decorationOptions.beforeContentClassName;
 					const inlineDecorationType = InlineDecorationType.Before;
-					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(range, inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+					const inlineDecoration: InlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
+					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}
 			if (decorationOptions.afterContentClassName) {
@@ -182,7 +185,8 @@ export class ViewModelDecorations implements IDisposable {
 					const range = new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn);
 					const inlineClassName = decorationOptions.afterContentClassName;
 					const inlineDecorationType = InlineDecorationType.After;
-					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(range, inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+					const inlineDecoration: InlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
+					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}
 		}

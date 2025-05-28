@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -1088,9 +1088,11 @@ export interface ITextModel {
 	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
 
 	/**
+	 * Gets all the font decorations for the line `lineNumber` as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @internal
 	 */
-	getFontDecorations(range: IRange): IModelDecoration[];
+	getFontDecorationsInRange(range: IRange, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.
@@ -1141,12 +1143,11 @@ export interface ITextModel {
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
-	 * Gets the decorations that contain injected text on the given line.
-	 * @param lineNumber
+	 * Gets the decorations that contain injected text in the given range
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @internal
 	 */
-	getInjectedTextInLine(lineNumber: number, ownerId?: number): LineInjectedText[];
+	getInjectedTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations that contain custom line heights.

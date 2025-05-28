@@ -75,16 +75,16 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
+			let fontSize: number = this._editor.getOption(EditorOption.fontInfo).fontSize;
 			const cursorSelection = this._editorObs.cursorSelection.read(reader);
-			if (!cursorSelection) { return ''; }
-			const model = this._editor._getViewModel()?.model;
-			let fontSize: number = this._editorObs.getOption(EditorOption.fontInfo).read(reader).fontSize;
-			if (model) {
-				const fontDecorations = model.getFontDecorations(Range.fromPositions(cursorSelection.getEndPosition()));
-				for (const fontDecoration of fontDecorations) {
-					if (fontDecoration.options.fontSize) {
-						fontSize = fontDecoration.options.fontSize;
-						break;
+			if (cursorSelection) {
+				const fontDecorations = this._editor.getFontDecorationsInRange(Range.fromPositions(cursorSelection.getEndPosition()));
+				if (fontDecorations) {
+					for (const fontDecoration of fontDecorations) {
+						if (fontDecoration.options.fontSize) {
+							fontSize = fontDecoration.options.fontSize;
+							break;
+						}
 					}
 				}
 			}

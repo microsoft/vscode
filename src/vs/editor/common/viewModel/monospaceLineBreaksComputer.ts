@@ -43,13 +43,14 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = lineNumbers.length; i < len; i++) {
-					const injectedText = context.getLineInjectedText(lineNumbers[i]);
-					const lineContent = context.getLineContent(lineNumbers[i]);
+					const lineNumber = lineNumbers[i];
+					const injectedText = context.getLineInjectedText(lineNumber);
+					const lineContent = context.getLineContent(lineNumber);
 					const previousLineBreakData = previousBreakingData[i];
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineContent, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, context.getLineContent(lineNumbers[i]), injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+						result[i] = createLineBreaks(this.classifier, lineContent, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					}
 				}
 				arrPool1.length = 0;

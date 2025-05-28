@@ -7,7 +7,7 @@ import { EditorOption } from '../config/editorOptions.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
-export class LineBreaksComputerFactory {
+export class LineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	constructor(
 		private readonly domLineBreaksComputerFactory: ILineBreaksComputerFactory,

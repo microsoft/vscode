@@ -41,6 +41,7 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { LineInjectedText } from '../textModelEvents.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -811,7 +812,9 @@ export class ViewModel extends Disposable implements IViewModel {
 				return this.getViewLineRenderingData(lineNumber).inlineDecorations;
 			},
 			getLineInjectedText: (lineNumber: number) => {
-				return this.model.getInjectedTextInLine(lineNumber, this._editorId);
+				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
 			}
 		};
 	}
@@ -824,7 +827,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (lineData.inlineDecorations) {
 			for (const inlineDecoration of lineData.inlineDecorations) {
-				// inlineDecorations.add();
+				inlineDecorations.push(inlineDecoration.toInlineDecoration(lineNumber), inlineDecoration.affectsFont);
 			}
 		}
 

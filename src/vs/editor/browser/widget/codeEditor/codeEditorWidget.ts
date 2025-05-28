@@ -1309,6 +1309,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
 	}
 
+	public getFontDecorationsInRange(range: Range): IModelDecoration[] | null {
+		if (!this._modelData) {
+			return null;
+		}
+		const options = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!options) {
+			return [];
+		}
+		return this._modelData.model.getFontDecorationsInRange(range, this._id);
+	}
+
 	/**
 	 * @deprecated
 	 */
@@ -1908,6 +1919,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const view = new View(
 			this._domElement,
+			this._id,
 			this.getId(),
 			commandDelegate,
 			this._configuration,

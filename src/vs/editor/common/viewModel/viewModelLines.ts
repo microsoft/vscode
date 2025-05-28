@@ -15,9 +15,10 @@ import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, InlineDecorationType, ViewLineData } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { InlineDecorations, isModelDecorationVisible } from './viewModelDecorations.js';
+import { LineInjectedText } from '../textModelEvents.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -998,7 +999,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return tokenization.getLineTokens(lineNumber);
 			},
 			getLineInjectedText: (lineNumber: number) => {
-				return this.model.getInjectedTextInLine(lineNumber, this._editorId);
+				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
 			},
 			getInlineDecorations: (lineNumber: number): InlineDecorations => {
 				const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
@@ -1021,18 +1024,22 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 						lineNumber === decorationRange.endLineNumber ? decorationRange.endColumn : this.model.getLineMaxColumn(lineNumber)
 					);
 					if (decorationOptions.inlineClassName) {
-						const inlineDecorationType = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-						inlineDecorations.push(range, decorationOptions.inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+						const inlineClassName = decorationOptions.inlineClassName;
+						const type = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+						const inlineDecoration: InlineDecoration = { range, inlineClassName, type };
+						inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
 					}
 					if (decorationOptions.beforeContentClassName) {
 						const inlineClassName = decorationOptions.beforeContentClassName;
-						const inlineDecorationType = InlineDecorationType.Before;
-						inlineDecorations.push(range, inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+						const type = InlineDecorationType.Before;
+						const inlineDecoration: InlineDecoration = { range, inlineClassName, type };
+						inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
 					}
 					if (decorationOptions.afterContentClassName) {
 						const inlineClassName = decorationOptions.afterContentClassName;
-						const inlineDecorationType = InlineDecorationType.After;
-						inlineDecorations.push(range, inlineClassName, inlineDecorationType, decorationOptions.affectsFont ?? false);
+						const type = InlineDecorationType.After;
+						const inlineDecoration: InlineDecoration = { range, inlineClassName, type };
+						inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
 					}
 				}
 				return inlineDecorations;

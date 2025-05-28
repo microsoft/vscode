@@ -215,7 +215,7 @@ export class IntervalNode {
 		setNodeIsInGlyphMargin(this, this.options.glyphMarginClassName !== null);
 		_setNodeStickiness(this, <number>this.options.stickiness);
 		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
-		setNodeAffectsFont(this, this.options.fontSize !== null || this.options.fontFamily !== null);
+		setNodeAffectsFont(this, this.options.affectsFont ?? false);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {

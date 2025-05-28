@@ -40,7 +40,7 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -1574,7 +1574,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLinesByFontChange = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.versionId, customFontChange.decorationId, customFontChange.lineNumber));
+			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.versionId, customFontChange.lineNumber));
 			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1755,18 +1755,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
 	}
 
-	public getInjectedTextInLine(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
-		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
-		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
-
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
-		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
-	}
-
-	public getFontDecorations(range: IRange): model.IModelDecoration[] {
+	public getInjectedTextDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
 		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
-		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, 0);
+		return this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
+	}
+
+	public getFontDecorationsInRange(range: IRange, ownerId: number = 0): model.IModelDecoration[] {
+		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
@@ -1807,7 +1805,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const oldRange = this.getDecorationRange(decorationId);
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, oldRange!.startLineNumber, null);
 		}
-		if (node.options.fontFamily !== null || node.options.fontSize !== null) {
+		if (node.options.affectsFont) {
 			const oldRange = this.getDecorationRange(decorationId);
 			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, oldRange!.startLineNumber);
 		}
@@ -1830,7 +1828,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.lineHeight !== null) {
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, range.startLineNumber, node.options.lineHeight);
 		}
-		if (node.options.fontFamily !== null || node.options.fontSize !== null) {
+		if (node.options.affectsFont) {
 			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, range.startLineNumber);
 		}
 	}
@@ -1859,8 +1857,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, nodeRange.startLineNumber, options.lineHeight);
 		}
-		if (node.options.fontFamily !== null || options.fontFamily !== null
-			|| node.options.fontSize !== null || options.fontSize !== null) {
+		if (node.options.affectsFont || options.affectsFont) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, nodeRange.startLineNumber);
 		}
@@ -1914,7 +1911,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, nodeRange.startLineNumber, null);
 						}
-						if (node.options.fontFamily !== null || node.options.fontSize !== null) {
+						if (node.options.affectsFont) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, node.id, nodeRange.startLineNumber);
 						}
@@ -1955,7 +1952,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					if (node.options.lineHeight !== null) {
 						this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, node.id, range.startLineNumber, node.options.lineHeight);
 					}
-					if (node.options.fontFamily || node.options.fontSize) {
+					if (node.options.affectsFont) {
 						this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, node.id, range.startLineNumber);
 					}
 					if (!suppressEvents) {
@@ -2128,7 +2125,7 @@ class DecorationsTrees {
 	public getFontDecorationsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const decorations = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, false, versionId, false);
-		return this._ensureNodesHaveRanges(host, decorations).filter((i) => i.options.fontFamily || i.options.fontSize);
+		return this._ensureNodesHaveRanges(host, decorations).filter((i) => i.options.affectsFont);
 	}
 
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
@@ -2370,8 +2367,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
-	readonly fontFamily: string | null;
-	readonly fontSize?: number | null;
+	readonly fontSize: number | null;
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
@@ -2400,11 +2396,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
-		// if (!!options.fontSize) {
-		// 	this.stickiness = model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-		// } else {
-		// 	this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
-		// }
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
@@ -2414,7 +2405,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.lineHeight = options.lineHeight ? Math.min(options.lineHeight, LINE_HEIGHT_CEILING) : null;
-		this.fontFamily = options.fontFamily ?? null;
 		this.fontSize = options.fontSize ?? null;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
@@ -2435,7 +2425,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
-		this.affectsFont = !!options.fontSize || !!options.fontFamily;
+		this.affectsFont = !!options.fontSize || !!options.fontFamily || !!options.fontWeight || !!options.fontStyle;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
