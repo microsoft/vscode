@@ -20,7 +20,7 @@ import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/com
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
+import { IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -33,6 +33,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
+	private _aiSearchProvider: IAiSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -52,6 +53,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		});
 	}
 
+	getLocalSearchProvider(filter: string): LocalSearchProvider {
+		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	}
+
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return workbenchSettings.enableNaturalLanguageSearch;
@@ -67,8 +72,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getLocalSearchProvider(filter: string): LocalSearchProvider {
-		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	getAiSearchProvider(filter: string): IAiSearchProvider {
+		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
+		this._aiSearchProvider.setFilter(filter);
+		return this._aiSearchProvider;
 	}
 }
 
@@ -414,10 +421,11 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 		this._recordProvider.updateModel(preferencesModel);
 		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
 
+		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
 			exactMatch: false,
-			providerName: 'embeddings'
+			providerName
 		};
 	}
 
@@ -582,6 +590,72 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			}
 		}
 		return null;
+	}
+}
+
+class AiSearchProvider implements IAiSearchProvider {
+	private readonly _embeddingsSearchProvider: EmbeddingsSearchProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
+	private _filter: string = '';
+
+	constructor(
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
+	) {
+		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, false);
+		this._recordProvider = new SettingsRecordProvider();
+	}
+
+	setFilter(filter: string): void {
+		this._filter = filter;
+		this._embeddingsSearchProvider.setFilter(filter);
+	}
+
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
+		}
+
+		this._recordProvider.updateModel(preferencesModel);
+		const results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
+		return results;
+	}
+
+	async getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
+		}
+
+		const items = await this.getLLMRankedItems(token);
+		return {
+			filterMatches: items,
+			exactMatch: false,
+			providerName: 'llmRanked'
+		};
+	}
+
+	private async getLLMRankedItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
+		const filterMatches: ISettingMatch[] = [];
+		const settings = await this.aiSettingsSearchService.getLLMRankedResults(this._filter, token);
+		if (!settings) {
+			return [];
+		}
+
+		for (const settingKey of settings) {
+			if (!settingsRecord[settingKey]) {
+				// Non-existent setting.
+				continue;
+			}
+			filterMatches.push({
+				setting: settingsRecord[settingKey],
+				matches: [settingsRecord[settingKey].range],
+				matchType: SettingMatchType.RemoteMatch,
+				keyMatchScore: 0,
+				score: 0 // the results are sorted upstream.
+			});
+		}
+
+		return filterMatches;
 	}
 }
 
