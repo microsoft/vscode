@@ -91,6 +91,7 @@ interface IChatListItemTemplate {
 	renderedParts?: IChatContentPart[];
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
+	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
 	readonly username: HTMLElement;
@@ -305,16 +306,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const header = dom.append(headerParent, $('.header'));
-		const user = dom.append(header, $('.user'));
-		const avatarContainer = dom.append(user, $('.avatar-container'));
-		const username = dom.append(user, $('h3.username'));
-		username.tabIndex = 0;
-		const detailContainer = dom.append(detailContainerParent ?? user, $('span.detail-container'));
-		const detail = dom.append(detailContainer, $('span.detail'));
-		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
-		const value = dom.append(valueParent, $('.value'));
-		const elementDisposables = new DisposableStore();
-
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
@@ -331,6 +322,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
+		const user = dom.append(header, $('.user'));
+		const avatarContainer = dom.append(user, $('.avatar-container'));
+		const username = dom.append(user, $('h3.username'));
+		username.tabIndex = 0;
+		const detailContainer = dom.append(detailContainerParent ?? user, $('span.detail-container'));
+		const detail = dom.append(detailContainer, $('span.detail'));
+		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
+		const value = dom.append(valueParent, $('.value'));
+		const elementDisposables = new DisposableStore();
+
+
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		const footerToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, footerToolbarContainer, MenuId.ChatMessageFooter, {
@@ -367,7 +369,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
+		const template: IChatListItemTemplate = { header, avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
 		return template;
 	}
 
@@ -436,6 +438,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isRequestVM(element) && element.confirmation) {
 			this.renderConfirmationAction(element, templateData);
 		}
+
+		// TODO: @justschen decide if we want to hide the header for requests or not
+		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
+		templateData.header?.classList.toggle('hidden', !shouldShowHeader);
 
 		// Do a progressive render if
 		// - This the last response in the list
@@ -1125,7 +1131,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth);
+			markdownPart.layout(this._currentLayoutWidth, isRequestVM(element));
 			this.updateItemHeight(templateData);
 		}));
 

@@ -365,7 +365,7 @@ export const enum McpServerTransportType {
  */
 export interface McpServerTransportStdio {
 	readonly type: McpServerTransportType.Stdio;
-	readonly cwd: URI | undefined;
+	readonly cwd: string | undefined;
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
@@ -390,7 +390,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
-		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
+		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -403,7 +403,7 @@ export namespace McpServerLaunch {
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
-					cwd: launch.cwd ? URI.revive(launch.cwd) : undefined,
+					cwd: launch.cwd,
 					command: launch.command,
 					args: launch.args,
 					env: launch.env,
@@ -638,4 +638,10 @@ export const enum McpCapability {
 	ResourcesListChanged = 1 << 6,
 	Tools = 1 << 7,
 	ToolsListChanged = 1 << 8,
+}
+
+export const enum McpToolName {
+	Prefix = 'mcp_',
+	MaxPrefixLen = 18,
+	MaxLength = 64,
 }

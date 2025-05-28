@@ -19,6 +19,7 @@ import * as Convert from './extHostTypeConverters.js';
 import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
+import { CancellationError } from '../../../base/common/errors.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -183,7 +184,10 @@ class McpHTTPHandle extends Disposable {
 	private _mode: HttpModeT = { value: HttpMode.Unknown };
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
-	private _authMetadata?: IAuthorizationServerMetadata;
+	private _authMetadata?: {
+		server: IAuthorizationServerMetadata;
+		resource?: IAuthorizationProtectedResourceMetadata;
+	};
 
 	constructor(
 		private readonly _id: number,
@@ -264,11 +268,7 @@ class McpHTTPHandle extends Disposable {
 
 		if (this._mode.value === HttpMode.Unknown && res.status >= 400 && res.status < 500) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
-			const endpoint = await this._attachSSE();
-			if (endpoint) {
-				this._mode = { value: HttpMode.SSE, endpoint };
-				await this._sendLegacySSE(endpoint, message);
-			}
+			this._sseFallbackWithMessage(message);
 			return;
 		}
 
@@ -294,7 +294,15 @@ class McpHTTPHandle extends Disposable {
 		}
 
 		// Not awaited, we don't need to block the sequencer while we read the response
-		this._handleSuccessfulStreamableHttp(res);
+		this._handleSuccessfulStreamableHttp(res, message);
+	}
+
+	private async _sseFallbackWithMessage(message: string) {
+		const endpoint = await this._attachSSE();
+		if (endpoint) {
+			this._mode = { value: HttpMode.SSE, endpoint };
+			await this._sendLegacySSE(endpoint, message);
+		}
 	}
 
 	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
@@ -311,12 +319,14 @@ class McpHTTPHandle extends Disposable {
 		// Second, fetch that url's well-known server metadata
 		let serverMetadataUrl: string | undefined;
 		let scopesSupported: string[] | undefined;
+		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
 			scopesSupported = resourceMetadata.scopes_supported;
+			resource = resourceMetadata;
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;
@@ -335,14 +345,17 @@ class McpHTTPHandle extends Disposable {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
 			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
-				...serverMetadataWithDefaults,
-				// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
-				// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
-				// literally... it contains `{tenant}`... instead of `organizations`. This may change our
-				// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
-				// as the isser.
-				issuer: serverMetadataUrl,
-				scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
+				server: {
+					...serverMetadataWithDefaults,
+					// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
+					// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
+					// literally... it contains `{tenant}`... instead of `organizations`. This may change our
+					// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
+					// as the isser.
+					issuer: serverMetadataUrl,
+					scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
+				},
+				resource
 			};
 			return;
 		} catch (e) {
@@ -352,7 +365,10 @@ class McpHTTPHandle extends Disposable {
 		// If there's no well-known server metadata, then use the default values based off of the url.
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
-		this._authMetadata = defaultMetadata;
+		this._authMetadata = {
+			server: defaultMetadata,
+			resource
+		};
 	}
 
 	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
@@ -428,7 +444,7 @@ class McpHTTPHandle extends Disposable {
 		throw new Error(`Invalid authorization server metadata: ${JSON.stringify(body)}`);
 	}
 
-	private async _handleSuccessfulStreamableHttp(res: Response) {
+	private async _handleSuccessfulStreamableHttp(res: Response, message: string) {
 		if (res.status === 202) {
 			return; // no body
 		}
@@ -438,6 +454,11 @@ class McpHTTPHandle extends Disposable {
 				const parser = new SSEParser(event => {
 					if (event.type === 'message') {
 						this._proxy.$onDidReceiveMessage(this._id, event.data);
+					} else if (event.type === 'endpoint') {
+						// An SSE server that didn't correctly return a 4xx status when we POSTed
+						this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
+						this._sseFallbackWithMessage(message);
+						throw new CancellationError(); // just to end the SSE stream
 					}
 				});
 
@@ -618,7 +639,7 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.server, this._authMetadata.resource);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}

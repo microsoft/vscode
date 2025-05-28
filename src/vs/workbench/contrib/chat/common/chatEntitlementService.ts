@@ -526,7 +526,7 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 
 		try {
-			return await this.authenticationService.getSessions(providerId, undefined, preferredAccount);
+			return await this.authenticationService.getSessions(providerId, undefined, { account: preferredAccount });
 		} catch (error) {
 			// ignore - errors can throw if a provider is not registered
 		}

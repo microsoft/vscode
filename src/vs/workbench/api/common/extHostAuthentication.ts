@@ -12,7 +12,7 @@ import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/com
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI } from '../../../base/common/uri.js';
-import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
@@ -161,29 +161,47 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Promise.resolve();
 	}
 
-	async $registerDynamicAuthProvider(serverMetadata: IAuthorizationServerMetadata, clientId?: string, initialTokens?: IAuthorizationToken[]): Promise<void> {
-		const issuerUri = URI.parse(serverMetadata.issuer);
-		const provider = await DynamicAuthProvider.create(
+	async $registerDynamicAuthProvider(
+		serverMetadata: IAuthorizationServerMetadata,
+		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
+		clientId: string | undefined,
+		initialTokens: IAuthorizationToken[] | undefined
+	): Promise<string> {
+		if (!clientId) {
+			if (!serverMetadata.registration_endpoint) {
+				throw new Error('Server does not support dynamic registration');
+			}
+			try {
+				const registration = await fetchDynamicRegistration(serverMetadata.registration_endpoint, this._initData.environment.appName);
+				clientId = registration.client_id;
+			} catch (err) {
+				throw new Error(`Dynamic registration failed: ${err.message}`);
+			}
+		}
+		const provider = new DynamicAuthProvider(
 			this._extHostWindow,
 			this._extHostUrls,
 			this._initData,
+			this._extHostLoggerService,
 			this._proxy,
-			this._extHostLoggerService.createLogger(serverMetadata.issuer, { name: issuerUri.authority }),
 			serverMetadata,
+			resourceMetadata,
+			clientId,
 			this._onDidDynamicAuthProviderTokensChange,
-			{ clientId, initialTokens }
+			initialTokens || []
 		);
-		const disposable = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(serverMetadata.issuer, e));
+		const disposable = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(provider.id, e));
 		this._authenticationProviders.set(
-			serverMetadata.issuer,
+			provider.id,
 			{
-				label: issuerUri.authority,
+				label: provider.label,
 				provider,
 				disposable: Disposable.from(provider, disposable),
 				options: { supportsMultipleAccounts: false }
 			}
 		);
-		await this._proxy.$registerDynamicAuthenticationProvider(serverMetadata.issuer, issuerUri.authority, issuerUri, provider.clientId);
+		await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.issuer, provider.clientId);
+		return provider.id;
 	}
 
 	async $onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens: IAuthorizationToken[]): Promise<void> {
@@ -207,6 +225,10 @@ class TaskSingler<T> {
 }
 
 export class DynamicAuthProvider implements vscode.AuthenticationProvider {
+	readonly id: string;
+	readonly label: string;
+	readonly issuer: URI;
+
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
@@ -214,21 +236,34 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	private readonly _createFlows: Array<(scopes: string[]) => Promise<IAuthorizationTokenResponse>>;
 
+	private readonly _logger: ILogger;
 	private readonly _disposable: DisposableStore;
 
 	constructor(
 		@IExtHostWindow private readonly _extHostWindow: IExtHostWindow,
 		@IExtHostUrlsService private readonly _extHostUrls: IExtHostUrlsService,
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@ILoggerService loggerService: ILoggerService,
 		private readonly _proxy: MainThreadAuthenticationShape,
-		private readonly _logger: ILogger,
 		private readonly _serverMetadata: IAuthorizationServerMetadata,
+		private readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		readonly clientId: string,
-		scopedEvent: Event<IAuthorizationToken[]>,
+		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
 	) {
+		this.issuer = URI.parse(_serverMetadata.issuer);
+		this.id = _resourceMetadata?.resource
+			? _serverMetadata.issuer + ' ' + _resourceMetadata?.resource
+			: _serverMetadata.issuer;
+		this.label = _resourceMetadata?.resource_name ?? this.issuer.authority;
+
+		this._logger = loggerService.createLogger(_serverMetadata.issuer, { name: this.label });
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
+		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
+			.filter(e => e.authProviderId === this.id && e.clientId === clientId)
+			.map(e => e.tokens)
+		);
 		this._tokenStore = this._disposable.add(new TokenStore(
 			{
 				onDidChange: scopedEvent,
@@ -240,46 +275,6 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._disposable.add(this._tokenStore.onDidChangeSessions(e => this._onDidChangeSessions.fire(e)));
 		// Will be extended later to support other flows
 		this._createFlows = [scopes => this._createWithUrlHandler(scopes)];
-	}
-
-	static async create(
-		@IExtHostWindow extHostWindow: IExtHostWindow,
-		@IExtHostUrlsService extHostUrls: IExtHostUrlsService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		proxy: MainThreadAuthenticationShape,
-		logger: ILogger,
-		serverMetadata: IAuthorizationServerMetadata,
-		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
-		existingState: { clientId?: string; initialTokens?: IAuthorizationToken[] } = {},
-	): Promise<DynamicAuthProvider> {
-		let { clientId, initialTokens } = existingState;
-		try {
-			if (!clientId) {
-				if (!serverMetadata.registration_endpoint) {
-					throw new Error('Server does not support dynamic registration');
-				}
-				const registration = await fetchDynamicRegistration(serverMetadata.registration_endpoint, initData.environment.appName);
-				clientId = registration.client_id;
-			}
-			const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
-				.filter(e => e.authProviderId === serverMetadata.issuer && e.clientId === clientId)
-				.map(e => e.tokens)
-			);
-			const provider = new DynamicAuthProvider(
-				extHostWindow,
-				extHostUrls,
-				initData,
-				proxy,
-				logger,
-				serverMetadata,
-				clientId,
-				scopedEvent,
-				initialTokens || []
-			);
-			return provider;
-		} catch (err) {
-			throw new Error(`Dynamic registration failed: ${err.message}`);
-		}
 	}
 
 	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
@@ -399,6 +394,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		authorizationUrl.searchParams.append('state', state.toString());
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
+		if (this._resourceMetadata?.resource) {
+			// If a resource is specified, include it in the request
+			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
+		}
 
 		// Use a redirect URI that matches what was registered during dynamic registration
 		const redirectUri = 'https://vscode.dev/redirect';
