@@ -45,8 +45,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment: number | undefined;
-	readonly total: number | undefined;
+	readonly increment?: number;
+	readonly total?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
