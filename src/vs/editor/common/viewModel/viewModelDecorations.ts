@@ -121,6 +121,11 @@ export class ViewModelDecorations implements IDisposable {
 		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
 	}
 
+	public getLineViewportData(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IDecorationsViewportData {
+		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
+	}
+
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
 		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;

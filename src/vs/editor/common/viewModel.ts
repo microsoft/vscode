@@ -15,6 +15,7 @@ import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { TextDirection } from './standalone/standaloneEnums.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
@@ -49,6 +50,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getTextDirection(lineNumber: number): TextDirection;
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
@@ -330,6 +332,8 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
+	public readonly textDirection: TextDirection | null;
+
 	/**
 	 * Whether the line has variable fonts
 	 */
@@ -346,6 +350,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		textDirection: TextDirection | null,
 		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
@@ -360,6 +365,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.textDirection = textDirection;
 		this.hasVariableFonts = hasVariableFonts;
 	}
 
