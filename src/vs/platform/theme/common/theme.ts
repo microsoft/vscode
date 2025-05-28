@@ -13,13 +13,20 @@ export enum ColorScheme {
 	HIGH_CONTRAST_LIGHT = 'hcLight'
 }
 
+/**
+ * File icon scheme used by the OS and by color themes.
+ */
+export enum FileIconScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+}
+
 export enum ThemeTypeSelector {
 	VS = 'vs',
 	VS_DARK = 'vs-dark',
 	HC_BLACK = 'hc-black',
 	HC_LIGHT = 'hc-light'
 }
-
 
 export function isHighContrast(scheme: ColorScheme): boolean {
 	return scheme === ColorScheme.HIGH_CONTRAST_DARK || scheme === ColorScheme.HIGH_CONTRAST_LIGHT;

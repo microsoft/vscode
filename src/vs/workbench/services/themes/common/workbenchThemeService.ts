@@ -10,7 +10,7 @@ import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from '.
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { isBoolean, isString } from '../../../../base/common/types.js';
 import { IconContribution, IconDefinition } from '../../../../platform/theme/common/iconRegistry.js';
-import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, FileIconScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -32,6 +32,9 @@ export enum ThemeSettings {
 	PREFERRED_LIGHT_COLOR_THEME = 'workbench.preferredLightColorTheme',
 	PREFERRED_HC_DARK_COLOR_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
 	PREFERRED_HC_LIGHT_COLOR_THEME = 'workbench.preferredHighContrastLightColorTheme',
+
+	PREFERRED_DARK_FILE_ICON_THEME = 'workbench.preferredDarkFileIconTheme',
+	PREFERRED_LIGHT_FILE_ICON_THEME = 'workbench.preferredLightFileIconTheme',
 
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast',
@@ -150,6 +153,8 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	getMarketplaceFileIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
+
+	getPreferredFileIconScheme(): FileIconScheme | undefined;
 
 	setProductIconTheme(iconThemeId: string | undefined | IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;

@@ -34,7 +34,7 @@ import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from './productIc
 import { registerProductIconThemeSchemas } from '../common/productIconThemeSchema.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, FileIconScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
@@ -255,7 +255,12 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			) {
 				this.restoreColorTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
+			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
+			) {
 				this.restoreFileIconTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {
@@ -358,6 +363,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this._register(this.hostColorService.onDidChangeColorScheme(() => {
 			if (this.settings.isDetectingColorScheme()) {
 				this.restoreColorTheme();
+				this.restoreFileIconTheme();
 			}
 		}));
 	}
@@ -550,12 +556,16 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}
 	}
 
+	public getFileIconTheme(): IWorkbenchFileIconTheme {
+		return this.currentFileIconTheme;
+	}
+
 	public async getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]> {
 		return this.fileIconThemeRegistry.getThemes();
 	}
 
-	public getFileIconTheme() {
-		return this.currentFileIconTheme;
+	public getPreferredFileIconScheme(): FileIconScheme | undefined {
+		return this.settings.getPreferredFileIconScheme();
 	}
 
 	public get onDidFileIconThemeChange(): Event<IWorkbenchFileIconTheme> {
