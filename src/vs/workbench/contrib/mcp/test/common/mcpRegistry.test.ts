@@ -155,7 +155,8 @@ suite('Workbench - MCP - Registry', () => {
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
 			isTrustedByDefault: true,
-			scope: StorageScope.APPLICATION
+			scope: StorageScope.APPLICATION,
+			configTarget: ConfigurationTarget.USER,
 		};
 
 		// Create base definition that can be reused
