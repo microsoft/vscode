@@ -10,9 +10,9 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -52,7 +52,7 @@ export async function showToolsPicker(
 	placeHolder: string,
 	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>,
 	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void
-): Promise<ReadonlyMap<ToolSet | IToolData, boolean>> {
+): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
 	const mcpService = accessor.get(IMcpService);
@@ -365,13 +365,15 @@ export async function showToolsPicker(
 		_update();
 	}));
 
+	let didAccept = false;
 	store.add(picker.onDidAccept(() => {
 		picker.activeItems.find(isCallbackPick)?.run();
+		didAccept = true;
 	}));
 
 	await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 
 	store.dispose();
 
-	return result;
+	return didAccept ? result : undefined;
 }
