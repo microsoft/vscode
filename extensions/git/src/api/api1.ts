@@ -371,6 +371,20 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
+	async getRepositoryRoot(uri: Uri): Promise<Uri | null> {
+		const repository = this.getRepository(uri);
+		if (repository) {
+			return repository.rootUri;
+		}
+
+		try {
+			const root = await this.#model.git.getRepositoryRoot(uri.fsPath);
+			return Uri.file(root);
+		} catch {
+			return null;
+		}
+	}
+
 	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
 		await this.#model.git.init(path, options);

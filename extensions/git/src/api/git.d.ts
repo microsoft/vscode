@@ -364,6 +364,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
