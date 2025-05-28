@@ -135,7 +135,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -163,7 +163,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const state = await connection.start();
+		const state = await connection.start({});
 
 		assert.strictEqual(state.state, McpConnectionState.Kind.Error);
 		assert.ok(state.message);
@@ -182,7 +182,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate error in transport
 		transport.setConnectionState({
@@ -208,7 +208,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -232,10 +232,10 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise1 = connection.start();
+		const startPromise1 = connection.start({});
 
 		// Try to start again while starting
-		const startPromise2 = connection.start();
+		const startPromise2 = connection.start({});
 
 		// Simulate successful connection
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
@@ -265,7 +265,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -298,7 +298,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Simulate log message from transport
 		transport.simulateLog('Test log message');
@@ -327,7 +327,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// Start the connection
-		const startPromise = connection.start();
+		const startPromise = connection.start({});
 
 		// Transition to error state
 		const errorState: McpConnectionState = {
@@ -343,7 +343,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		transport.setConnectionState({ state: McpConnectionState.Kind.Stopped });
 
 		// Transition back to running state
-		const startPromise2 = connection.start();
+		const startPromise2 = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		state = await startPromise2;
 		assert.deepStrictEqual(state, { state: McpConnectionState.Kind.Running });
@@ -365,7 +365,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		store.add(connection);
 
 		// First cycle
-		let startPromise = connection.start();
+		let startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
@@ -373,7 +373,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(connection.state.get(), { state: McpConnectionState.Kind.Stopped });
 
 		// Second cycle
-		startPromise = connection.start();
+		startPromise = connection.start({});
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		await startPromise;
 
