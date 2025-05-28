@@ -188,6 +188,28 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return await deferredPromise.p;
 	}
 
+	$showContinueNotification(message: string): Promise<boolean> {
+		const yes = nls.localize('yes', "Yes");
+		const no = nls.localize('no', "No");
+		const deferredPromise = new DeferredPromise<boolean>();
+		let result = false;
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			message,
+			[{
+				label: yes,
+				run: () => result = true
+			}, {
+				label: no,
+				run: () => result = false
+			}]);
+		const disposable = handle.onDidClose(() => {
+			deferredPromise.complete(result);
+			disposable.dispose();
+		});
+		return deferredPromise.p;
+	}
+
 	async $registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void> {
 		await this.$registerAuthenticationProvider(id, label, false, [issuer]);
 		this.dynamicAuthProviderStorageService.storeClientId(id, clientId, label, URI.revive(issuer).toString());
@@ -459,4 +481,29 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	//#endregion
+
+	async $showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean> {
+		const { result } = await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('deviceCodeTitle', "Device Code Authentication"),
+			detail: nls.localize('deviceCodeDetail', "Your code: {0}\n\nTo complete authentication, navigate to {1} and enter the code above.", userCode, verificationUri),
+			buttons: [
+				{
+					label: nls.localize('copyAndContinue', "Copy & Continue"),
+					run: () => true
+				}
+			],
+			cancelButton: true
+		});
+
+		if (result) {
+			// Open verification URI
+			try {
+				return await this.openerService.open(URI.parse(verificationUri));
+			} catch (error) {
+				this.notificationService.error(nls.localize('failedToOpenUri', "Failed to open {0}", verificationUri));
+			}
+		}
+		return false;
+	}
 }
