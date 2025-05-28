@@ -382,7 +382,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Create header object base on the target prompt file language ID.
+	 * The language ID is important here, because it defines what type
+	 * of metadata is valid for a prompt file and what type of related
+	 * diagnostics we would show to the user.
 	 */
 	private createHeader(header: FrontMatterHeader): void {
 		const { languageId } = this.promptContentsProvider;
@@ -390,6 +393,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		if (languageId === PROMPT_LANGUAGE_ID) {
 			this.promptHeader = new PromptHeader(header.contentToken, languageId);
 		}
+
 		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
 			this.promptHeader = new InstructionsHeader(header.contentToken, languageId);
 		}

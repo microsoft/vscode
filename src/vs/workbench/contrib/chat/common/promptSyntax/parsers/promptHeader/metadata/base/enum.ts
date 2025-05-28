@@ -17,7 +17,7 @@ import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../..
  */
 export abstract class PromptEnumMetadata<
 	TValidValues extends string = string,
-> extends PromptStringMetadata<TValidValues> {
+> extends PromptStringMetadata {
 	constructor(
 		private readonly validValues: readonly TValidValues[],
 		expectedRecordName: string,

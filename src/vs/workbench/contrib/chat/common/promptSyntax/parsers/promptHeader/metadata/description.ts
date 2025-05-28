@@ -14,7 +14,7 @@ const RECORD_NAME = 'description';
 /**
  * Prompt `description` metadata record inside the prompt header.
  */
-export class PromptDescriptionMetadata extends PromptStringMetadata<string> {
+export class PromptDescriptionMetadata extends PromptStringMetadata {
 	public override get recordName(): string {
 		return RECORD_NAME;
 	}

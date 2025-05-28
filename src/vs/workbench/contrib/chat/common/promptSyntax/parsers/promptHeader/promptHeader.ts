@@ -41,11 +41,20 @@ export type TMetadata = Partial<TPromptMetadata> | Partial<TInstructionsMetadata
 /**
  * TODO: @legomushroom
  */
+function isEmptyObject(
+	metadata: Record<string, unknown>,
+): boolean {
+	return (Reflect.ownKeys(metadata).length === 0);
+}
+
+/**
+ * TODO: @legomushroom
+ */
 export function isPromptMetadata(
 	metadata: TMetadata,
 ): metadata is Partial<TPromptMetadata> {
 	return (
-		('tools' in metadata) || ('mode' in metadata)
+		('tools' in metadata) || ('mode' in metadata) || isEmptyObject(metadata)
 	);
 }
 
@@ -56,14 +65,13 @@ export function isPromptMetadata(
 export function isInstructionsMetadata(
 	metadata: TMetadata,
 ): metadata is Partial<TInstructionsMetadata> {
-	return ('applyTo' in metadata);
+	return ('applyTo' in metadata) || isEmptyObject(metadata);
 }
 
 /**
  * TODO: @legomushroom
  */
 export class PromptHeader extends HeaderBase<IPromptMetadata> {
-	// TODO: @legomushroom - return a record name instead?
 	protected override handleToken(token: FrontMatterRecord): boolean {
 		// if the record might be a "tools" metadata
 		// add it to the list of parsed metadata records

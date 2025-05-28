@@ -57,7 +57,7 @@ export abstract class HeaderBase<
 		const result: Partial<TCleanMetadata<TMetadata>> = {};
 
 		for (const [entryName, entryValue] of Object.entries(this.meta)) {
-			if (entryValue === undefined) {
+			if (entryValue?.value === undefined) {
 				continue;
 			}
 
@@ -117,6 +117,7 @@ export abstract class HeaderBase<
 	/**
 	 * TODO: @legomushroom
 	 */
+	// TODO: @legomushroom - a note regarding purpose of returned boolean value
 	protected abstract handleToken(
 		token: FrontMatterRecord,
 	): boolean;

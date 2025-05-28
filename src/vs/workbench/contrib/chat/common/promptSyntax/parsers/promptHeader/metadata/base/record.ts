@@ -11,14 +11,23 @@ import { FrontMatterRecord } from '../../../../../../../../../editor/common/code
 /**
  * TODO: @legomushroom
  */
-export interface IWithValue<T> {
+type TMetadataPrimitive = string | boolean;
+/**
+ * TODO: @legomushroom
+ */
+type TMetadataValue = TMetadataPrimitive | TMetadataPrimitive[];
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IWithValue<T extends TMetadataValue> {
 	readonly value: T | undefined;
 }
 
 /**
  * Abstract class for all metadata records in the prompt header.
  */
-export abstract class PromptMetadataRecord<TValue> implements IWithValue<TValue> {
+export abstract class PromptMetadataRecord<TValue extends TMetadataValue> implements IWithValue<TValue> {
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.

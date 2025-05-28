@@ -12,29 +12,17 @@ import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../..
 /**
  * Base class for all metadata records with a `string` value.
  */
-export abstract class PromptStringMetadata<TValue extends string = string> extends PromptMetadataRecord<TValue> {
+export abstract class PromptStringMetadata extends PromptMetadataRecord<string> {
 	/**
 	 * Value token reference of the record.
 	 */
 	protected valueToken: FrontMatterString | FrontMatterSequence | undefined;
 
 	/**
-	 * Clean text value of the record.
-	 */
-	public get text(): string | undefined {
-		return this.valueToken?.cleanText;
-	}
-
-	/**
-	 * Underlying string value of the record.
-	 */
-	private stringValue: TValue | undefined;
-
-	/**
 	 * String value of a metadata record.
 	 */
-	public override get value(): TValue | undefined {
-		return this.stringValue;
+	public override get value(): string | undefined {
+		return this.valueToken?.cleanText;
 	}
 
 	constructor(

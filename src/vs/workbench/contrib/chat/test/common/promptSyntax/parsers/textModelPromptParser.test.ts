@@ -25,6 +25,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { isInstructionsMetadata, isPromptMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -376,7 +377,6 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			// TODO: @legomushroom - implement below for both prompt and instructions
 			test(`• has correct 'prompt' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
@@ -396,6 +396,7 @@ suite('TextModelPromptParser', () => {
 					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 					],
+					PROMPT_LANGUAGE_ID,
 				);
 
 				await test.validateReferences([
@@ -416,31 +417,20 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				// TODO: @legomushroom
-				// const { tools, mode, description, applyTo } = metadata;
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	['tool_name1', 'tool_name2'],
-				// 	`Prompt header must have correct tools metadata, got '${tools?.join(', ')}'.`,
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.strictEqual(
-				// 	mode,
-				// 	'agent',
-				// 	`Prompt header must have correct 'mode' metadata.`,
-				// );
-
-				// assert.strictEqual(
-				// 	description,
-				// 	'My prompt.',
-				// 	`Prompt header must have correct 'description' metadata.`,
-				// );
-
-				// assert.strictEqual(
-				// 	applyTo,
-				// 	undefined,
-				// 	`Prompt header must have no 'applyTo' metadata.`,
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: 'agent',
+						description: 'My prompt.',
+						tools: ['tool_name1', 'tool_name2'],
+					},
+					'Must have correct metadata.',
+				);
 			});
 
 			test(`• has correct 'instructions' metadata`, async () => {
@@ -483,31 +473,19 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				// TODO: @legomushroom
-				// const { tools, mode, description, applyTo } = metadata;
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	['tool_name1', 'tool_name2'],
-				// 	`Prompt header must have correct tools metadata.`,
-				// );
+				assert(
+					isInstructionsMetadata(metadata),
+					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.strictEqual(
-				// 	mode,
-				// 	'agent',
-				// 	`Prompt header must have correct 'mode' metadata.`,
-				// );
-
-				// assert.strictEqual(
-				// 	description,
-				// 	'My prompt.',
-				// 	`Prompt header must have correct 'description' metadata.`,
-				// );
-
-				// assert.strictEqual(
-				// 	applyTo,
-				// 	'frontend/**/*spec.ts',
-				// 	`Prompt header must have no 'applyTo' metadata.`,
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						description: 'My prompt.',
+						applyTo: 'frontend/**/*spec.ts',
+					},
+					'Must have correct metadata.',
+				);
 			});
 		});
 
@@ -530,6 +508,7 @@ suite('TextModelPromptParser', () => {
 					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
 					],
+					PROMPT_LANGUAGE_ID,
 				);
 
 				await test.validateReferences([
@@ -550,12 +529,19 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				// TODO: @legomushroom
-				// const { tools } = metadata;
-				// assertDefined(
-				// 	tools,
-				// 	'Tools metadata must be defined.',
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
+
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: 'agent',
+						tools: ['tool_name1', 'tool_name2'],
+					},
+					'Must have correct metadata.',
+				);
 
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticError(
@@ -656,18 +642,18 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { applyTo, mode } = metadata;
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Ask,
-						// 	'Mode metadata must have correct value.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert(
-						// 	applyTo === undefined,
-						// 	'ApplyTo metadata must not be defined.',
-						// );
+						assert.deepStrictEqual(
+							metadata,
+							{
+								mode: ChatMode.Ask,
+							},
+							'Must have correct metadata.',
+						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
@@ -698,19 +684,18 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { applyTo, mode } = metadata;
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Edit,
-						// 	'Mode metadata must have correct value.',
-						// );
+						assert(
+							isInstructionsMetadata(metadata),
+							`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	applyTo,
-						// 	'**/*',
-						// 	'ApplyTo metadata must have correct value.',
-						// );
+						assert.deepStrictEqual(
+							metadata,
+							{
+								applyTo: '**/*',
+							},
+							'Must have correct metadata.',
+						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
@@ -743,19 +728,16 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				// TODO: @legomushroom
-				// const { applyTo, mode } = metadata;
-				// assert.strictEqual(
-				// 	mode,
-				// 	ChatMode.Agent,
-				// 	'Mode metadata must have correct value.',
-				// );
+				assert(
+					isInstructionsMetadata(metadata),
+					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.strictEqual(
-				// 	applyTo,
-				// 	undefined,
-				// 	'ApplyTo metadata must not be defined.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{},
+					'Must have correct metadata.',
+				);
 
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticWarning(
@@ -785,23 +767,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 9),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my-mode'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 1, 2, 7 + 9),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -820,23 +795,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 6),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'myMode'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 1, 2, 7 + 6),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -855,23 +823,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 7),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my-mode'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 1, 2, 7 + 7),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -890,23 +851,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 7, 2, 7 + 20),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'my mode is your mode'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 1, 2, 7 + 20),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -926,23 +880,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(3, 7, 3, 7 + 6),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got 'mode24'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(3, 1, 3, 7 + 6),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -963,23 +910,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 9, 2, 9 + `${booleanValue}`.length),
-								`The 'mode' metadata must be a 'string', got 'boolean'.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 2, 2, 9 + `${booleanValue}`.length),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -993,7 +933,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */`	mode: ${quotedString}`,
+					/* 02 */`		mode: ${quotedString}`,
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
@@ -1002,23 +942,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 8, 2, 8 + `${quotedString}`.length),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 3, 2, 9 + `${quotedString}`.length),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1032,7 +965,7 @@ suite('TextModelPromptParser', () => {
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
 					/* 01 */"---",
-					/* 02 */`	mode: ${value}`,
+					/* 02 */`	\vmode: ${value}`,
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
@@ -1041,23 +974,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 8, 2, 8),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 3, 2, 9),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1076,23 +1002,16 @@ suite('TextModelPromptParser', () => {
 
 						await test.allSettled();
 
-						const { header, metadata } = test.parser;
+						const { header } = test.parser;
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// assert.strictEqual(
-						// 	metadata.mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
-
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
-								new Range(2, 8, 2, 8),
-								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got ''.`,
+							new ExpectedDiagnosticWarning(
+								new Range(2, 2, 2, 8),
+								`Unknown metadata 'mode' will be ignored.`,
 							),
 						]);
 					});
@@ -1111,6 +1030,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1121,18 +1041,22 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assertDefined(
-						// 	tools,
-						// 	'Tools metadata must be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
@@ -1152,6 +1076,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1162,18 +1087,22 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assertDefined(
-						// 	tools,
-						// 	'Tools metadata must be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
 
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
@@ -1193,6 +1122,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1203,18 +1133,22 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assertDefined(
-						// 	tools,
-						// 	'Tools metadata must be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
@@ -1228,6 +1162,7 @@ suite('TextModelPromptParser', () => {
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1238,18 +1173,22 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assertDefined(
-						// 	tools,
-						// 	'Tools metadata must be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
@@ -1268,6 +1207,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1278,25 +1218,29 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assertDefined(
-						// 	tools,
-						// 	'Tools metadata must be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assertDefined(
+							tools,
+							'Tools metadata must be defined.',
+						);
 
-						// await test.validateHeaderDiagnostics([
-						// 	new ExpectedDiagnosticError(
-						// 		new Range(3, 10, 3, 10 + value.trim().length),
-						// 		`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
-						// 	),
-						// ]);
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(3, 10, 3, 10 + value.trim().length),
+								`The 'mode' metadata must be one of 'ask' | 'edit' | 'agent', got '${value.trim()}'.`,
+							),
+						]);
 					});
 				});
 
@@ -1311,6 +1255,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1321,25 +1266,29 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assert(
-						// 	tools === undefined,
-						// 	'Tools metadata must not be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Ask,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assert(
+							tools === undefined,
+							'Tools metadata must not be defined.',
+						);
 
-						// await test.validateHeaderDiagnostics([
-						// 	new ExpectedDiagnosticError(
-						// 		new Range(2, 14, 2, 14 + 29),
-						// 		`The 'description' metadata must be a 'string', got 'array'.`,
-						// 	),
-						// ]);
+						assert.strictEqual(
+							mode,
+							ChatMode.Ask,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticError(
+								new Range(2, 14, 2, 14 + 29),
+								`The 'description' metadata must be a 'string', got 'array'.`,
+							),
+						]);
 					});
 
 					test('• edit mode', async () => {
@@ -1352,6 +1301,7 @@ suite('TextModelPromptParser', () => {
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1362,20 +1312,24 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assert(
-						// 	tools === undefined,
-						// 	'Tools metadata must not be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Edit,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assert(
+							tools === undefined,
+							'Tools metadata must not be defined.',
+						);
 
-						// await test.validateHeaderDiagnostics([]);
+						assert.strictEqual(
+							mode,
+							ChatMode.Edit,
+							'Mode metadata must have correct value.',
+						);
+
+						await test.validateHeaderDiagnostics([]);
 					});
 
 					test('• agent mode', async () => {
@@ -1387,6 +1341,7 @@ suite('TextModelPromptParser', () => {
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1397,18 +1352,22 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assert(
-						// 	tools === undefined,
-						// 	'Tools metadata must not be defined.',
-						// );
+						assert(
+							isPromptMetadata(metadata),
+							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	ChatMode.Agent,
-						// 	'Mode metadata must have correct value.',
-						// );
+						const { tools, mode } = metadata;
+						assert(
+							tools === undefined,
+							'Tools metadata must not be defined.',
+						);
+
+						assert.strictEqual(
+							mode,
+							ChatMode.Agent,
+							'Mode metadata must have correct value.',
+						);
 
 						await test.validateHeaderDiagnostics([]);
 					});
@@ -1422,6 +1381,7 @@ suite('TextModelPromptParser', () => {
 					/* 03 */"---",
 					/* 04 */"The cactus on my desk has a thriving Instagram account.",
 							],
+							PROMPT_LANGUAGE_ID,
 						);
 
 						await test.allSettled();
@@ -1432,20 +1392,17 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						// TODO: @legomushroom
-						// const { tools, mode } = metadata;
-						// assert(
-						// 	tools === undefined,
-						// 	'Tools metadata must not be defined.',
-						// );
+						assert(
+							('tools' in metadata) === false,
+							'Tools metadata must not be defined.',
+						);
 
-						// assert.strictEqual(
-						// 	mode,
-						// 	undefined,
-						// 	'Mode metadata must have correct value.',
-						// );
+						assert(
+							('mode' in metadata) === false,
+							'Mode metadata must not be defined.',
+						);
 
-						// await test.validateHeaderDiagnostics([]);
+						await test.validateHeaderDiagnostics([]);
 					});
 				});
 			});
