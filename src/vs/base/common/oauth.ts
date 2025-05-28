@@ -98,6 +98,11 @@ export interface IAuthorizationServerMetadata {
 	token_endpoint?: string;
 
 	/**
+	 * OPTIONAL. URL of the authorization server's device code endpoint.
+	 */
+	device_authorization_endpoint?: string;
+
+	/**
 	 * OPTIONAL. URL of the authorization server's JWK Set document containing signing keys.
 	 */
 	jwks_uri?: string;
@@ -350,6 +355,70 @@ export interface IAuthorizationTokenErrorResponse {
 	error_uri?: string;
 }
 
+/**
+ * Response from the device authorization endpoint as per RFC 8628 section 3.2.
+ */
+export interface IAuthorizationDeviceResponse {
+	/**
+	 * REQUIRED. The device verification code.
+	 */
+	device_code: string;
+
+	/**
+	 * REQUIRED. The end-user verification code.
+	 */
+	user_code: string;
+
+	/**
+	 * REQUIRED. The end-user verification URI on the authorization server.
+	 */
+	verification_uri: string;
+
+	/**
+	 * OPTIONAL. A verification URI that includes the user_code, designed for non-textual transmission.
+	 */
+	verification_uri_complete?: string;
+
+	/**
+	 * REQUIRED. The lifetime in seconds of the device_code and user_code.
+	 */
+	expires_in: number;
+
+	/**
+	 * OPTIONAL. The minimum amount of time in seconds that the client should wait between polling requests.
+	 * If no value is provided, clients must use 5 as the default.
+	 */
+	interval?: number;
+}
+
+/**
+ * Error response from the token endpoint when using device authorization grant.
+ * As defined in RFC 8628 section 3.5.
+ */
+export interface IAuthorizationDeviceTokenErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or in RFC 8628 section 3.5.
+	 * Standard OAuth 2.0 error codes plus:
+	 * - "authorization_pending": The authorization request is still pending as the end user hasn't completed the user interaction steps
+	 * - "slow_down": A variant of "authorization_pending", polling should continue but interval must be increased by 5 seconds
+	 * - "access_denied": The authorization request was denied
+	 * - "expired_token": The "device_code" has expired and the device authorization session has concluded
+	 */
+	error: 'invalid_request' | 'invalid_client' | 'invalid_grant' | 'unauthorized_client' |
+	'unsupported_grant_type' | 'invalid_scope' | 'authorization_pending' |
+	'slow_down' | 'access_denied' | 'expired_token' | string;
+
+	/**
+	 * OPTIONAL. Human-readable description of the error.
+	 */
+	error_description?: string;
+
+	/**
+	 * OPTIONAL. URI to a human-readable web page with more information about the error.
+	 */
+	error_uri?: string;
+}
+
 export interface IAuthorizationJWTClaims {
 	/**
 	 * REQUIRED. JWT ID. Unique identifier for the token.
@@ -537,6 +606,22 @@ export function isDynamicClientRegistrationResponse(obj: unknown): obj is IAutho
 	return response.client_id !== undefined && response.client_name !== undefined;
 }
 
+export function isAuthorizationDeviceResponse(obj: unknown): obj is IAuthorizationDeviceResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationDeviceResponse;
+	return response.device_code !== undefined && response.user_code !== undefined && response.verification_uri !== undefined && response.expires_in !== undefined;
+}
+
+export function isAuthorizationDeviceTokenErrorResponse(obj: unknown): obj is IAuthorizationDeviceTokenErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationDeviceTokenErrorResponse;
+	return response.error !== undefined && response.error_description !== undefined;
+}
+
 //#endregion
 
 export function getDefaultMetadataForUrl(issuer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
@@ -561,7 +646,15 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
 	};
 }
 
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, additionalRedirectUris: string[] = []): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+/**
+ * Default port for the authorization flow. We try to use this port so that
+ * the redirect URI does not change when running on localhost. This is useful
+ * for servers that only allow exact matches on the redirect URI. The spec
+ * says that the port should not matter, but some servers do not follow
+ * the spec and require an exact match.
+ */
+export const DEFAULT_AUTH_FLOW_PORT = 33418;
+export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string): Promise<IAuthorizationDynamicClientRegistrationResponse> {
 	const response = await fetch(registrationEndpoint, {
 		method: 'POST',
 		headers: {
@@ -570,12 +663,19 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 		body: JSON.stringify({
 			client_name: clientName,
 			client_uri: 'https://code.visualstudio.com',
-			grant_types: ['authorization_code', 'refresh_token'],
+			grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
 			response_types: ['code'],
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				...additionalRedirectUris
+				'http://localhost/',
+				'http://127.0.0.1/',
+				// Added these for any server that might do
+				// only exact match on the redirect URI even
+				// though the spec says it should not care
+				// about the port.
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
 			token_endpoint_auth_method: 'none'
 		})
