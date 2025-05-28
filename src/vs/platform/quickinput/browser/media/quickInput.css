@@ -201,10 +201,10 @@
 /*
 	Quick pick row separator needs to be rendered outside of DOM flow otherwise
 	it will push the row content down and cause the lower outline to be clipped.
-	See `.quick-input-list .monaco-list-row.focused .quick-input-list-entry` class
-	later in this file for outline styles.
+	See `.quick-input-list:has(:focus-visible) .monaco-list-row.focused .quick-input-list-entry`
+	class later in this file for outline styles.
 */
-.quick-input-list .quick-input-list-entry.quick-input-list-separator-border::before {
+.quick-input-list .monaco-list-row:has(.focused) .quick-input-list-entry.quick-input-list-separator-border::before {
 	content: '';
 	position: absolute;
 	top: 0;
@@ -369,10 +369,16 @@
 	height: 22px;
 }
 
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry {
+/* List row focus styles. */
+.quick-input-list:has(:focus-visible) .monaco-list-row.focused .quick-input-list-entry {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 	border-radius: 4px;
+}
+
+/* Ensure that when codicon (i.e. settings icon) is focused the list row is not outlined. */
+.monaco-workbench .quick-input-list:has(.monaco-list-row .quick-input-list-entry .codicon:focus) .quick-input-list-entry {
+	outline: none;
 }
 
 /* Quick input separators as full-row item */
