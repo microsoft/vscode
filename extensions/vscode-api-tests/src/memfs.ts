@@ -228,7 +228,28 @@ export class TestFS implements vscode.FileSystemProvider {
 	}
 
 	private _fireSoon(...events: vscode.FileChangeEvent[]): void {
-		this._bufferedEvents.push(...events);
+		// Extend events with mtime if available
+		const enhancedEvents = events.map(event => {
+			// Skip events that already have an mtime property
+			if ((event as any).mtime !== undefined) {
+				return event;
+			}
+			
+			// Try to lookup the entry for the resource to get its mtime
+			try {
+				const entry = this._lookup(event.uri, true);
+				if (entry) {
+					// Add mtime to the event
+					return { ...event, mtime: entry.mtime };
+				}
+			} catch (error) {
+				// Ignore errors during lookup
+			}
+			
+			return event;
+		});
+
+		this._bufferedEvents.push(...enhancedEvents);
 
 		if (this._fireSoonHandle) {
 			clearTimeout(this._fireSoonHandle);

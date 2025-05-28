@@ -953,6 +953,12 @@ export interface IFileChange {
 	 * in the change.
 	 */
 	readonly cId?: number;
+
+	/**
+	 * Optional modification time of the file at the time of the change.
+	 * Note: not all file system providers will provide this information.
+	 */
+	readonly mtime?: number;
 }
 
 export class FileChangesEvent {
@@ -960,8 +966,10 @@ export class FileChangesEvent {
 	private static readonly MIXED_CORRELATION = null;
 
 	private readonly correlationId: number | undefined | typeof FileChangesEvent.MIXED_CORRELATION = undefined;
+	private readonly _changes: readonly IFileChange[];
 
 	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
+		this._changes = changes;
 		for (const change of changes) {
 
 			// Split by type
@@ -992,6 +1000,22 @@ export class FileChangesEvent {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Returns the stat information for a file change if it exists in this event.
+	 * This assumes the IFileChange object may contain an mtime property as some implementations provide it.
+	 */
+	stat(resource: URI): { mtime: number } | undefined {
+		// Check if any of the changes have extra data with mtimes
+		for (const change of this._changes) {
+			if (change.resource.toString() === resource.toString() && 
+				(change as unknown as { mtime?: number }).mtime !== undefined) {
+				const mtime = (change as unknown as { mtime: number }).mtime;
+				return { mtime };
+			}
+		}
+		return undefined;
 	}
 
 	private readonly added = new Lazy(() => {
