@@ -156,34 +156,3 @@ function getTimestampFromFilename(filename: string): number | undefined {
 	}
 	return undefined;
 }
-
-
-export async function chatImageUploader(binaryData: Uint8Array, name: string, mimeType: string | undefined, token: string | undefined): Promise<string> {
-	if (mimeType && token) {
-		const url = `https://uploads.github.com/copilot/chat/attachments?name=${name}&content_type=${mimeType}`;
-		const init: RequestInit = {
-			method: 'POST',
-			body: binaryData,
-			// Using default 'cors' mode but with credentials
-			credentials: 'include',
-			headers: new Headers({
-				'Content-Type': 'application/octet-stream',
-				'Authorization': `Bearer ${token}`
-			})
-		};
-		try {
-			const response = await fetch(url, init);
-			if (!response.ok) {
-				console.error(`Invalid GitHub URL provided: ${response.status} ${response.statusText}`);
-				return '';
-			}
-			const result = await response.json();
-			return result;
-		} catch (error) {
-			console.error('Error uploading image:', error);
-			return '';
-		}
-	}
-
-	return '';
-}

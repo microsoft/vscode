@@ -26,32 +26,21 @@ import { getOutputViewModelFromId } from '../../notebook/browser/controller/cell
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
-import { resizeImage, chatImageUploader } from './imageUtils.js';
-import { getCurrentAuthenticationSessionInfo } from '../../../services/authentication/browser/authenticationService.js';
+import { resizeImage } from './imageUtils.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatEntitlementRequests } from '../common/chatEntitlementService.js';
 import product from '../../../../platform/product/common/product.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 
-// --- EDITORS ---
-
 const defaultChat = {
-	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
-	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
-	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
-	chatQuotaExceededContext: product.defaultChatAgent?.chatQuotaExceededContext ?? '',
-	completionsQuotaExceededContext: product.defaultChatAgent?.completionsQuotaExceededContext ?? ''
 };
 
+// --- EDITORS ---
 
 export async function resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, editorService: IEditorService, textModelService: ITextModelService, extensionService: IExtensionService, dialogService: IDialogService, authenticationService: IAuthenticationService, configurationService: IConfigurationService, authenticationExtensionsService: IAuthenticationExtensionsService, productService: IProductService, sharedWebContentExtractorService: ISharedWebContentExtractorService): Promise<IChatRequestVariableEntry | undefined> {
 	// untitled editor
@@ -81,13 +70,10 @@ export async function resolveEditorAttachContext(editor: EditorInput | IDraggedR
 		providerId = defaultChat?.providerId;
 	}
 
+	const accountName = authenticationExtensionsService.getAccountPreference(defaultChat.chatExtensionId, providerId);
+	const session = await authenticationService.getSessions(providerId);
+	const token = session?.find(s => s.account.label === accountName)?.accessToken;
 
-	const accountName = authenticationExtensionsService.getAccountPreference('github.copilot-chat', 'github');
-	const session = await authenticationService.getSessions('github');
-	const token = session?.find(s => s.account.label === 'justschen')?.accessToken;
-
-	// const currentSession = await getCurrentAuthenticationSessionInfo(secretStorageService, productService);
-	// const token = currentSession?.accessToken;
 	const imageContext = await resolveImageEditorAttachContext(fileService, dialogService, editor.resource, token, undefined, undefined, sharedWebContentExtractorService);
 	if (imageContext) {
 		return extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;

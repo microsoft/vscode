@@ -30,7 +30,6 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
