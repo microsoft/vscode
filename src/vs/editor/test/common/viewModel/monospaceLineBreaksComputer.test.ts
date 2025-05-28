@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { TestConfiguration } from '../../browser/config/testConfiguration.js';
 import { LineTokens } from '../../../common/tokens/lineTokens.js';
@@ -90,11 +90,23 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		fontSize: fontInfo.fontSize,
 		lineHeight: fontInfo.lineHeight,
 	});
-	const lineBreaksComputer = factory.createLineBreaksComputer(configuration, tabSize);
+	const context: ILineBreaksComputerContext = {
+		getLineContent(lineNumber: number) {
+			return text;
+		},
+		getInlineDecorations(lineNumber: number) {
+			return new InlineDecorations();
+		},
+		getLineTokens(lineNumber: number) {
+			return new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
+		},
+		getLineInjectedText(lineNumber) {
+			return null;
+		}
+	};
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, configuration, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
-	const lineInlineDecorations = new InlineDecorations();
-	const lineTokens = new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
-	lineBreaksComputer.addRequest(text, null, lineInlineDecorations, lineTokens, previousLineBreakDataClone);
+	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 

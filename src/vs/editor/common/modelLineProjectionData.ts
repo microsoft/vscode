@@ -329,14 +329,21 @@ export class OutputPosition {
 	}
 }
 
+export interface ILineBreaksComputerContext {
+	getLineContent(lineNumber: number): string;
+	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
+	getInlineDecorations(lineNumber: number): InlineDecorations;
+	getLineTokens(lineNumber: number): IViewLineTokens;
+}
+
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(options: IEditorConfiguration, tabSize: number): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext, options: IEditorConfiguration, tabSize: number): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

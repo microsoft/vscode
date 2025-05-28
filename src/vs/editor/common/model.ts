@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -1139,6 +1139,14 @@ export interface ITextModel {
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 */
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
+	 * Gets the decorations that contain injected text on the given line.
+	 * @param lineNumber
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * @internal
+	 */
+	getInjectedTextInLine(lineNumber: number, ownerId?: number): LineInjectedText[];
 
 	/**
 	 * Gets all the decorations that contain custom line heights.

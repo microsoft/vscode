@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorOption } from '../config/editorOptions.js';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { LineInjectedText } from '../textModelEvents.js';
-import { IViewLineTokens } from '../tokens/lineTokens.js';
-import { InlineDecorations } from './viewModelDecorations.js';
 
 export class LineBreaksComputerFactory {
 
@@ -17,8 +14,8 @@ export class LineBreaksComputerFactory {
 		private readonly monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory
 	) { }
 
-	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): LineBreaksComputer {
-		return new LineBreaksComputer(config, tabSize, this.domLineBreaksComputerFactory, this.monospaceLineBreaksComputerFactory);
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, config: IEditorConfiguration, tabSize: number): LineBreaksComputer {
+		return new LineBreaksComputer(context, config, tabSize, this.domLineBreaksComputerFactory, this.monospaceLineBreaksComputerFactory);
 	}
 }
 
@@ -33,25 +30,29 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 	private readonly _monospaceLineBreaksComputer: ILineBreaksComputer;
 	private readonly _lineBreaksComputerMapping: LineBreaksComputerType[] = [];
 	private readonly _config: IEditorConfiguration;
+	private readonly _context: ILineBreaksComputerContext;
 
 	constructor(
+		context: ILineBreaksComputerContext,
 		config: IEditorConfiguration,
 		tabSize: number,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory
 	) {
+		this._context = context;
 		this._config = config;
-		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(config, tabSize);
-		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(config, tabSize);
+		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(context, config, tabSize);
+		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(context, config, tabSize);
 	}
 
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null): void {
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void {
 		const wrappingStrategy = this._config.options.get(EditorOption.wrappingStrategy);
-		if (wrappingStrategy === 'advanced' || inlineDecorations.affectsFonts) {
-			this._domLineBreaksComputer.addRequest(lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData);
+		const allowVariableFonts = this._config.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getInlineDecorations(lineNumber).affectsFonts)) {
+			this._domLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
 			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Dom);
 		} else {
-			this._monospaceLineBreaksComputer.addRequest(lineText, injectedText, inlineDecorations, lineTokens, previousLineBreakData);
+			this._monospaceLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
 			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Monospace);
 		}
 	}

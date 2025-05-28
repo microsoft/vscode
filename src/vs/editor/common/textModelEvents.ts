@@ -219,18 +219,13 @@ export class ModelRawLineChanged {
 	 */
 	public readonly lineNumber: number;
 	/**
-	 * The new value of the line.
+	 * The new line number the old one is mapped to
 	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	public readonly newLineNumber: number;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, newLineNumber: number) {
 		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
+		this.newLineNumber = newLineNumber;
 	}
 }
 
@@ -331,19 +326,19 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly toLineNumber: number;
 	/**
-	 * The text that was inserted
+	 * The new from line number of the inserted lines.
 	 */
-	public readonly detail: string[];
+	public readonly newFromLineNumber: number;
 	/**
-	 * The injected texts for every inserted line.
+	 * The new to line number of the inserted lines.
 	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	public readonly newToLineNumber: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
+	constructor(fromLineNumber: number, toLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
-		this.detail = detail;
+		this.newFromLineNumber = newFromLineNumber;
+		this.newToLineNumber = newToLineNumber;
 	}
 }
 

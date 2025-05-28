@@ -13,7 +13,7 @@ import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
-import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
@@ -77,7 +77,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;

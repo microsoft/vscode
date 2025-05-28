@@ -9,10 +9,8 @@ import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/
 import { CharacterClassifier } from '../core/characterClassifier.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { IViewLineTokens } from '../tokens/lineTokens.js';
-import { InlineDecorations } from './viewModelDecorations.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -28,14 +26,12 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
 	}
 
-	public createLineBreaksComputer(config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
-		const requests: string[] = [];
-		const injectedTexts: (LineInjectedText[] | null)[] = [];
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
+		const lineNumbers: number[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, inlineDecorations: InlineDecorations, lineTokens: IViewLineTokens, previousLineBreakData: ModelLineProjectionData | null) => {
-				requests.push(lineText);
-				injectedTexts.push(injectedText);
+			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
+				lineNumbers.push(lineNumber);
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
@@ -46,13 +42,14 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				const wordBreak = options.get(EditorOption.wordBreak);
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
-				for (let i = 0, len = requests.length; i < len; i++) {
-					const injectedText = injectedTexts[i];
+				for (let i = 0, len = lineNumbers.length; i < len; i++) {
+					const injectedText = context.getLineInjectedText(lineNumbers[i]);
+					const lineContent = context.getLineContent(lineNumbers[i]);
 					const previousLineBreakData = previousBreakingData[i];
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineContent, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+						result[i] = createLineBreaks(this.classifier, context.getLineContent(lineNumbers[i]), injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					}
 				}
 				arrPool1.length = 0;
