@@ -54,6 +54,7 @@ import { IChatContentReference } from '../common/chatService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { IChatWidgetService } from './chat.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -62,6 +63,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	private readonly _onDidDelete: event.Emitter<Event> = this._register(new event.Emitter<Event>());
 	get onDidDelete(): event.Event<Event> {
 		return this._onDidDelete.event;
+	}
+
+	private readonly _onDidOpen: event.Emitter<void> = this._register(new event.Emitter<void>());
+	get onDidOpen(): event.Event<void> {
+		return this._onDidOpen.event;
 	}
 
 	constructor(
@@ -151,6 +157,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
 		};
 		await this.openerService.open(resource, options);
+		this._onDidOpen.fire();
 		this.element.focus();
 	}
 }
