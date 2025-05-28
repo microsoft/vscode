@@ -50,32 +50,6 @@ export interface ITopError extends IResolveError {
 	readonly localizedMessage: string;
 }
 
-// TODO: @legomushroom  - remove
-// /**
-//  * Metadata defined in the prompt header.
-//  */
-// export interface IPromptMetadata {
-// 	/**
-// 	 * Description metadata in the prompt header.
-// 	 */
-// 	description?: string;
-
-// 	/**
-// 	 * Tools metadata in the prompt header.
-// 	 */
-// 	tools?: readonly string[];
-
-// 	/**
-// 	 * Chat mode metadata in the prompt header.
-// 	 */
-// 	mode?: ChatMode;
-
-// 	/**
-// 	 * Chat 'applyTo' metadata in the prompt header.
-// 	 */
-// 	applyTo?: string;
-// }
-
 /**
  * Base interface for a generic prompt reference.
  */

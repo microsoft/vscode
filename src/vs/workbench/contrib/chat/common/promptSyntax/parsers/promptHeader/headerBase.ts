@@ -48,16 +48,11 @@ export abstract class HeaderBase<
 	 * Metadata records.
 	 */
 	protected readonly meta: Partial<TMetadata>;
-	// /**
-	//  * Metadata records.
-	//  */
-	// public get metadata(): Readonly<Partial<TMetadata>> {
-	// 	return Object.freeze({ ...this.meta });
-	// }
 
 	/**
 	 * Metadata records.
 	 */
+	// TODO: @legomushroom - improve return type signature
 	public get metadata(): Partial<TCleanMetadata<TMetadata>> {
 		const result: Partial<TCleanMetadata<TMetadata>> = {};
 
@@ -66,12 +61,20 @@ export abstract class HeaderBase<
 				continue;
 			}
 
+			// TODO: @legomushroom - add reason comment
 			Object.assign(result, {
 				[entryName]: entryValue.value,
 			});
 		}
 
 		return result;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get rawMetadata(): Partial<TMetadata> {
+		return this.meta;
 	}
 
 	/**

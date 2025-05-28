@@ -24,7 +24,6 @@ export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
 	 * this metadata record.
 	 */
 	public override get value(): string[] | undefined {
-		// TODO: @legomushroom
 		if (this.validToolNames === undefined) {
 			return [];
 		}

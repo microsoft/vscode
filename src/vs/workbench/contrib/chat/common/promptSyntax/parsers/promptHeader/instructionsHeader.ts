@@ -26,7 +26,6 @@ export type TInstructionsMetadata = TCleanMetadata<IInstructionsMetadata>;
  * TODO: @legomushroom
  */
 export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
-	// TODO: @legomushroom - return a record name instead?
 	protected override handleToken(token: FrontMatterRecord): boolean {
 		// if the record might be a "applyTo" metadata
 		// add it to the list of parsed metadata records

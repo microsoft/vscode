@@ -52,7 +52,7 @@ import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
-import { IPromptMetadata } from '../common/promptSyntax/parsers/types.js';
+import { isPromptMetadata, TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IMetadata, IPromptsService } from '../common/promptSyntax/service/types.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -1213,7 +1213,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let metadata: IMetadata | undefined;
 
-		// frst check if the input has a prompt slash command
+		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (agentSlashPromptPart) {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
@@ -1244,7 +1244,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			requestInput.input = `Follow instructions from ${basename(metadata.uri)}`;
 		}
 
-		await this._applyPromptMetadata(metadata.metadata);
+		const meta = metadata.metadata;
+		if (isPromptMetadata(meta)) {
+			await this._applyPromptMetadata(meta);
+		}
 
 		return metadata;
 	}
@@ -1552,7 +1555,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: IPromptMetadata): Promise<void> {
+	private async _applyPromptMetadata(metadata: Partial<TPromptMetadata>): Promise<void> {
 
 		const { mode, tools } = metadata;
 

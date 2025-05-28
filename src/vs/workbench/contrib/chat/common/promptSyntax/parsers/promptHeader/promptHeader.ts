@@ -11,6 +11,7 @@ import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
 import { HeaderBase, IHeaderMetadata, type TCleanMetadata } from './headerBase.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { TInstructionsMetadata } from './instructionsHeader.js';
 
 /**
  * TODO: @legomushroom
@@ -31,6 +32,32 @@ interface IPromptMetadata extends IHeaderMetadata {
  * TODO: @legomushroom
  */
 export type TPromptMetadata = TCleanMetadata<IPromptMetadata>;
+
+/**
+ * TODO: @legomushroom
+ */
+export type TMetadata = Partial<TPromptMetadata> | Partial<TInstructionsMetadata>;
+
+/**
+ * TODO: @legomushroom
+ */
+export function isPromptMetadata(
+	metadata: TMetadata,
+): metadata is Partial<TPromptMetadata> {
+	return (
+		('tools' in metadata) || ('mode' in metadata)
+	);
+}
+
+/**
+ * TODO: @legomushroom
+ */
+// TODO: @legomushroom - unused?
+export function isInstructionsMetadata(
+	metadata: TMetadata,
+): metadata is Partial<TInstructionsMetadata> {
+	return ('applyTo' in metadata);
+}
 
 /**
  * TODO: @legomushroom

@@ -29,6 +29,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isInstructionsMetadata, isPromptMetadata } from '../parsers/promptHeader/promptHeader.js';
 
 /**
  * Provides prompt services.
@@ -191,14 +192,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, CancellationToken.None);
 		const metaDatas = await this.getAllMetadata(modeFiles.map(promptPath => promptPath.uri));
-		return metaDatas.map(metadata => {
-			return {
+
+		const result = [];
+		for (const metadata of metaDatas) {
+			const meta = metadata.metadata;
+			if (isPromptMetadata(meta) === false) {
+				continue;
+			}
+
+			result.push({
 				uri: metadata.uri,
 				name: getCleanPromptName(metadata.uri),
-				description: metadata.metadata.description,
-				tools: metadata.metadata.tools
-			};
-		});
+				description: meta.description,
+				tools: meta.tools,
+			});
+		}
+
+		return result;
 	}
 
 	@logTime()
@@ -217,8 +227,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const foundFiles = new ResourceSet();
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
-			const { applyTo } = metadata;
 
+			if (isInstructionsMetadata(metadata) === false) {
+				continue;
+			}
+
+			const { applyTo } = metadata;
 			if (applyTo === undefined) {
 				continue;
 			}

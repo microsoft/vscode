@@ -6,15 +6,14 @@
 import { TTree } from '../utils/treeUtils.js';
 import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { TMetadata } from '../parsers/promptHeader/promptHeader.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { TPromptMetadata } from '../parsers/promptHeader/promptHeader.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { TInstructionsMetadata } from '../parsers/promptHeader/instructionsHeader.js';
-import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Provides prompt services.
@@ -66,8 +65,7 @@ export interface IMetadata {
 	/**
 	 * Metadata of the prompt file.
 	 */
-	// TODO: @legomushroom - create a common type for this
-	readonly metadata: Partial<TPromptMetadata | TInstructionsMetadata>;
+	readonly metadata: TMetadata;
 
 	/**
 	 * List of metadata for each valid child prompt reference.

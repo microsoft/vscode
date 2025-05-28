@@ -26,12 +26,12 @@ export abstract class PromptStringMetadata<TValue extends string = string> exten
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Underlying string value of the record.
 	 */
 	private stringValue: TValue | undefined;
 
 	/**
-	 * TODO: @legomushroom
+	 * String value of a metadata record.
 	 */
 	public override get value(): TValue | undefined {
 		return this.stringValue;

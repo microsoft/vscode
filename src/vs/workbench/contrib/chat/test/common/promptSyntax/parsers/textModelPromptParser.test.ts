@@ -290,10 +290,11 @@ suite('TextModelPromptParser', () => {
 
 	suite('• header', () => {
 		suite(' • metadata', () => {
-			test(`• empty header`, async () => {
-				const test = createTest(
-					URI.file('/absolute/folder/and/a/filename.txt'),
-					[
+			suite(' • instructions', () => {
+				test(`• empty header`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.txt'),
+						[
 					/* 01 */"---",
 					/* 02 */"",
 					/* 03 */"---",
@@ -302,39 +303,80 @@ suite('TextModelPromptParser', () => {
 					/* 06 */"In an alternate universe, pigeons deliver sushi by drone.",
 					/* 07 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 08 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
-					],
-				);
+						],
+						INSTRUCTIONS_LANGUAGE_ID,
+					);
 
-				await test.validateReferences([
-					new ExpectedReference({
-						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
-						text: '[text](./foo-bar-baz/another-file.ts)',
-						path: './foo-bar-baz/another-file.ts',
-						startLine: 5,
-						startColumn: 43,
-						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
-					}),
-				]);
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 5,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
 
-				const { header, metadata } = test.parser;
-				assertDefined(
-					header,
-					'Prompt header must be defined.',
-				);
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Prompt header must be defined.',
+					);
 
-				assert.deepStrictEqual(
-					metadata,
-					{
-						applyTo: undefined,
-						description: undefined,
-						mode: undefined,
-						tools: undefined,
-					},
-					'Must have empty metadata.',
-				);
+					assert.deepStrictEqual(
+						metadata,
+						{},
+						'Must have empty metadata.',
+					);
+				});
 			});
 
+			suite(' • prompts', () => {
+				test(`• empty header`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.txt'),
+						[
+					/* 01 */"---",
+					/* 02 */"",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+					/* 05 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 06 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 07 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						PROMPT_LANGUAGE_ID,
+					);
+
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 5,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Prompt header must be defined.',
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{},
+						'Must have empty metadata.',
+					);
+				});
+			});
+
+			// TODO: @legomushroom - implement below for both prompt and instructions
 			test(`• has correct 'prompt' metadata`, async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
@@ -628,9 +670,9 @@ suite('TextModelPromptParser', () => {
 						// );
 
 						await test.validateHeaderDiagnostics([
-							new ExpectedDiagnosticError(
+							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 1 + 15),
-								'The \'applyTo\' metadata record is only valid in instruction files.',
+								`Unknown metadata 'applyTo' will be ignored.`,
 							),
 						]);
 					});
@@ -670,7 +712,12 @@ suite('TextModelPromptParser', () => {
 						// 	'ApplyTo metadata must have correct value.',
 						// );
 
-						await test.validateHeaderDiagnostics([]);
+						await test.validateHeaderDiagnostics([
+							new ExpectedDiagnosticWarning(
+								new Range(3, 1, 3, 13),
+								`Unknown metadata 'mode' will be ignored.`,
+							),
+						]);
 					});
 				});
 			});
@@ -712,8 +759,12 @@ suite('TextModelPromptParser', () => {
 
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticWarning(
+						new Range(2, 1, 2, 14),
+						`Unknown metadata 'mode' will be ignored.`,
+					),
+					new ExpectedDiagnosticWarning(
 						new Range(3, 10, 3, 10 + 2),
-						'Invalid glob pattern \'\'.',
+						`Invalid glob pattern ''.`,
 					),
 				]);
 			});
