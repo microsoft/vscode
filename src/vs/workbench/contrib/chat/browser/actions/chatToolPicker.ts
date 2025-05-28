@@ -117,7 +117,6 @@ export async function showToolsPicker(
 	for (const [toolSetOrTool, picked] of toolsEntries) {
 
 		let bucket: BucketPick | undefined;
-		let description: string | undefined;
 		const buttons: ActionableButton[] = [];
 
 		if (toolSetOrTool.source.type === 'mcp') {
@@ -193,8 +192,8 @@ export async function showToolsPicker(
 				type: 'item',
 				picked,
 				toolset: toolSetOrTool,
-				label: toolSetOrTool.displayName,
-				description: description ?? toolSetOrTool.description,
+				label: toolSetOrTool.toolReferenceName,
+				description: toolSetOrTool.description,
 				indented: true,
 				buttons
 
@@ -206,7 +205,7 @@ export async function showToolsPicker(
 				picked,
 				tool: toolSetOrTool,
 				label: toolSetOrTool.toolReferenceName ?? toolSetOrTool.displayName,
-				description: toolSetOrTool.userDescription,
+				description: toolSetOrTool.userDescription ?? toolSetOrTool.modelDescription,
 				indented: true,
 			});
 		}
