@@ -164,6 +164,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					remoteAuthority: src.path.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,
+					configTarget: src.path.target,
 					scope: src.path.scope,
 				});
 			}

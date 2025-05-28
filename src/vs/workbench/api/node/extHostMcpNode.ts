@@ -15,12 +15,14 @@ import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServer
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import * as path from '../../../base/common/path.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initDataService: IExtHostInitDataService,
 	) {
-		super(extHostRpc);
+		super(extHostRpc, initDataService);
 	}
 
 	private nodeServers = new Map<number, {

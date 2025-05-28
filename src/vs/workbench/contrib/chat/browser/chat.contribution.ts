@@ -253,6 +253,7 @@ configurationRegistry.registerConfiguration({
 		[mcpServerSamplingSection]: {
 			type: 'object',
 			description: nls.localize('chat.mcp.serverSampling', "Configures which models are exposed to MCP servers for sampling (making model requests in the background). This setting can be edited in a graphical way under the `{0}` command.", 'MCP: ' + nls.localize('mcp.list', 'List Servers')),
+			scope: ConfigurationScope.RESOURCE,
 			additionalProperties: {
 				type: 'object',
 				properties: {

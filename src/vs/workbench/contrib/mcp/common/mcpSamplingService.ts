@@ -10,7 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -226,21 +226,54 @@ export class McpSamplingService implements IMcpSamplingService {
 		return foundModelIds[0]; // Return the first matching model
 	}
 
+	private _configKey(server: IMcpServer) {
+		return `${server.collection.label}: ${server.definition.label}`;
+	}
+
 	public getConfig(server: IMcpServer): IMcpServerSamplingConfiguration {
-		const mapping = this._configurationService.getValue<Record<string, IMcpServerSamplingConfiguration>>(mcpServerSamplingSection);
-		return mapping[server.definition.id] || {};
+		return this._getConfig(server).value || {};
+	}
+
+	/**
+	 * _getConfig reads the sampling config reads the `{ server: data }` mapping
+	 * from the appropriate config. We read from the most specific possible
+	 * config up to the default configuration location that the MCP server itself
+	 * is defined in. We don't go further because then workspace-specific servers
+	 * would get in the user settings which is not meaningful and could lead
+	 * to confusion.
+	 *
+	 * todo@connor4312: generalize this for other esttings when we have them
+	 */
+	private _getConfig(server: IMcpServer) {
+		const def = server.readDefinitions().get();
+		const mostSpecificConfig = ConfigurationTarget.MEMORY;
+		const leastSpecificConfig = def.collection?.configTarget || ConfigurationTarget.USER;
+		const key = this._configKey(server);
+		const resource = def.collection?.presentation?.origin;
+
+		const configValue = this._configurationService.inspect<Record<string, IMcpServerSamplingConfiguration>>(mcpServerSamplingSection, { resource });
+		for (let target = mostSpecificConfig; target >= leastSpecificConfig; target--) {
+			const mapping = getConfigValueInTarget(configValue, target);
+			const config = mapping?.[key];
+			if (config) {
+				return { value: config, key, mapping, target, resource };
+			}
+		}
+
+		return { value: undefined, mapping: undefined, key, target: leastSpecificConfig, resource };
 	}
 
 	public async updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown) {
-		const def = server.readDefinitions().get();
-		const mapping = this._configurationService.getValue<Record<string, IMcpServerSamplingConfiguration>>(mcpServerSamplingSection, { resource: def.collection?.presentation?.origin });
+		const { value, mapping, key, target, resource } = this._getConfig(server);
 
-		const newConfig = { ...mapping[server.definition.id] };
+		const newConfig = { ...value };
 		mutate(newConfig);
 
 		await this._configurationService.updateValue(
 			mcpServerSamplingSection,
-			{ ...mapping, [server.definition.id]: newConfig },
+			{ ...mapping, [key]: newConfig },
+			{ resource },
+			target,
 		);
 		return newConfig;
 	}

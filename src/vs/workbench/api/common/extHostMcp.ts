@@ -20,6 +20,8 @@ import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetad
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -38,6 +40,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
@@ -105,6 +108,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			scope: StorageScope.WORKSPACE,
 			canResolveLaunch: typeof provider.resolveMcpServerDefinition === 'function',
 			extensionId: extension.identifier.value,
+			configTarget: this._extHostInitData.remote.isRemote ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER,
 		};
 
 		const update = async () => {
@@ -124,7 +128,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id,
 					label: item.label,
 					cacheNonce: item.version,
-					launch: Convert.McpServerDefinition.from(item)
+					launch: Convert.McpServerDefinition.from(item),
 				});
 			}
 

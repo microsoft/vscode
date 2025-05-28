@@ -20,6 +20,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -86,7 +87,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
 			isTrustedByDefault: true,
-			scope: StorageScope.APPLICATION
+			scope: StorageScope.APPLICATION,
+			configTarget: ConfigurationTarget.USER,
 		};
 
 		// Create server definition

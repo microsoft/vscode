@@ -54,6 +54,8 @@ export interface McpCollectionDefinition {
 	readonly isTrustedByDefault: boolean;
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
+	/** Configuration target where configuration related to this server should be stored. */
+	readonly configTarget: ConfigurationTarget;
 
 	/** Resolves a server definition. If present, always called before a server starts. */
 	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
@@ -94,6 +96,7 @@ export namespace McpCollectionDefinition {
 		readonly scope: StorageScope;
 		readonly canResolveLaunch: boolean;
 		readonly extensionId: string;
+		readonly configTarget: ConfigurationTarget;
 	}
 
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
