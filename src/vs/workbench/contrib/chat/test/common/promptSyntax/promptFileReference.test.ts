@@ -30,6 +30,7 @@ import { ConfigurationService } from '../../../../../../platform/configuration/c
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { isInstructionsMetadata, isPromptMetadata } from '../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
 /**
@@ -880,31 +881,32 @@ suite('PromptFileReference', function () {
 
 			const rootReference = await test.run();
 
-			// TODO: @legomushroom  - fix
-			// const { metadata, allToolsMetadata } = rootReference;
-			// const { tools, description } = metadata;
+			const { metadata, allToolsMetadata } = rootReference;
 
-			// assert.deepStrictEqual(
-			// 	tools,
-			// 	['my-tool1'],
-			// 	'Must have correct tools metadata.',
-			// );
+			assert(
+				isPromptMetadata(metadata),
+				`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+			);
 
-			// assert.deepStrictEqual(
-			// 	description,
-			// 	'Root prompt description.',
-			// 	'Must have correct description metadata.',
-			// );
+			assert.deepStrictEqual(
+				metadata,
+				{
+					mode: 'agent',
+					description: 'Root prompt description.',
+					tools: ['my-tool1'],
+				},
+				'Must have correct metadata.',
+			);
 
-			// assertDefined(
-			// 	allToolsMetadata,
-			// 	'All tools metadata must to be defined.',
-			// );
-			// assert.deepStrictEqual(
-			// 	allToolsMetadata,
-			// 	['my-tool1', 'my-tool3', 'my-tool2'],
-			// 	'Must have correct all tools metadata.',
-			// );
+			assertDefined(
+				allToolsMetadata,
+				'All tools metadata must be defined.',
+			);
+			assert.deepStrictEqual(
+				allToolsMetadata,
+				['my-tool1', 'my-tool3', 'my-tool2'],
+				'Must have correct all tools metadata.',
+			);
 		});
 
 		suite('• applyTo', () => {
@@ -1000,44 +1002,33 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				// TODO: @legomushroom - fix
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description, applyTo } = metadata;
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	['my-tool12'],
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.strictEqual(
-				// 	mode,
-				// 	ChatMode.Agent,
-				// 	'Must have correct \'mode\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: ChatMode.Agent,
+						description: 'Description of my prompt.',
+						tools: ['my-tool12'],
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.strictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	[
-				// 		'my-tool12',
-				// 		'my-tool1',
-				// 		'my-tool2',
-				// 		'my-tool3',
-				// 	],
-				// 	'Must have correct all tools metadata.',
-				// );
-
-				// assert.strictEqual(
-				// 	applyTo,
-				// 	undefined,
-				// 	'Must have no \'applyTo\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					[
+						'my-tool12',
+						'my-tool1',
+						'my-tool2',
+						'my-tool3',
+					],
+					'Must have correct all tools metadata.',
+				);
 			});
 
 
@@ -1067,7 +1058,7 @@ suite('PromptFileReference', function () {
 									'---',
 									'applyTo: \'**/*\'',
 									'tools: [ false, \'my-tool12\' , ]',
-									'description: \'Description of my prompt.\'',
+									'description: \'Description of my instructions file.\'',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -1133,44 +1124,27 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				// TODO: @legomushroom - fix
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description, applyTo } = metadata;
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	['my-tool12'],
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert(
+					isInstructionsMetadata(metadata),
+					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.strictEqual(
-				// 	mode,
-				// 	ChatMode.Agent,
-				// 	'Must have correct \'mode\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						applyTo: '**/*',
+						description: 'Description of my instructions file.',
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.strictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	[
-				// 		'my-tool12',
-				// 		'my-tool1',
-				// 		'my-tool2',
-				// 		'my-tool3',
-				// 	],
-				// 	'Must have correct all tools metadata.',
-				// );
-
-				// assert.strictEqual(
-				// 	applyTo,
-				// 	'**/*',
-				// 	'Must have no \'applyTo\' metadata.',
-				// );
+				assert.strictEqual(
+					allToolsMetadata,
+					null,
+					'Must have correct all tools metadata.',
+				);
 			});
 		});
 
@@ -1267,34 +1241,27 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// TODO: @legomushroom
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description } = metadata;
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	undefined,
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: ChatMode.Ask,
+						description: 'Description of my prompt.',
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.deepStrictEqual(
-				// 	mode,
-				// 	ChatMode.Ask,
-				// 	'Must have correct \'mode\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	null,
-				// 	'Must have correct all tools metadata.',
-				// );
+				assert.strictEqual(
+					allToolsMetadata,
+					null,
+					'Must have correct all tools metadata.',
+				);
 			});
 
 			test('• tools are ignored if root prompt in the edit mode', async function () {
@@ -1388,33 +1355,27 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				// TODO: @legomushroom
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description } = metadata;
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	undefined,
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.deepStrictEqual(
-				// 	mode,
-				// 	ChatMode.Edit,
-				// 	'Must have correct tools metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: ChatMode.Edit,
+						description: 'Description of my prompt.',
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.deepStrictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	null,
-				// 	'Must have correct all tools metadata.',
-				// );
+				assert.strictEqual(
+					allToolsMetadata,
+					null,
+					'Must have correct all tools metadata.',
+				);
 			});
 
 			test('• tools are not ignored if root prompt in the agent mode', async function () {
@@ -1508,37 +1469,31 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				// TODO: @legomushroom
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description } = metadata;
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	undefined,
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.deepStrictEqual(
-				// 	mode,
-				// 	ChatMode.Agent,
-				// 	'Must have correct \'mode\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: ChatMode.Agent,
+						description: 'Description of my prompt.',
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.deepStrictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	[
-				// 		'my-tool1',
-				// 		'my-tool2',
-				// 		'my-tool3',
-				// 	],
-				// 	'Must have correct all tools metadata.',
-				// );
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					[
+						'my-tool1',
+						'my-tool2',
+						'my-tool3',
+					],
+					'Must have correct all tools metadata.',
+				);
 			});
 
 			test('• tools are not ignored if root prompt implicitly in the agent mode', async function () {
@@ -1566,7 +1521,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'tools: [ false, \'my-tool12\' , ]',
-									'description: \'Description of my prompt.\'',
+									'description: \'Description of the prompt file.\'',
 									'---',
 									'## Files',
 									'\t- this file #file:folder1/file3.prompt.md ',
@@ -1632,38 +1587,33 @@ suite('PromptFileReference', function () {
 
 				const rootReference = await test.run();
 
-				// TODO: @legomushroom
-				// const { metadata, allToolsMetadata } = rootReference;
-				// const { tools, mode, description } = metadata;
+				const { metadata, allToolsMetadata } = rootReference;
 
-				// assert.deepStrictEqual(
-				// 	tools,
-				// 	['my-tool12'],
-				// 	'Must have correct \'tools\' metadata.',
-				// );
+				assert(
+					isPromptMetadata(metadata),
+					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+				);
 
-				// assert.deepStrictEqual(
-				// 	mode,
-				// 	ChatMode.Agent,
-				// 	'Must have correct \'mode\' metadata.',
-				// );
+				assert.deepStrictEqual(
+					metadata,
+					{
+						mode: ChatMode.Agent,
+						tools: ['my-tool12'],
+						description: 'Description of the prompt file.',
+					},
+					'Must have correct metadata.',
+				);
 
-				// assert.deepStrictEqual(
-				// 	description,
-				// 	'Description of my prompt.',
-				// 	'Must have correct \'description\' metadata.',
-				// );
-
-				// assert.deepStrictEqual(
-				// 	allToolsMetadata,
-				// 	[
-				// 		'my-tool12',
-				// 		'my-tool1',
-				// 		'my-tool2',
-				// 		'my-tool3',
-				// 	],
-				// 	'Must have correct all tools metadata.',
-				// );
+				assert.deepStrictEqual(
+					allToolsMetadata,
+					[
+						'my-tool12',
+						'my-tool1',
+						'my-tool2',
+						'my-tool3',
+					],
+					'Must have correct all tools metadata.',
+				);
 			});
 		});
 	});
