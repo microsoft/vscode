@@ -51,21 +51,8 @@ export class PromptFilesLocator {
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		try {
-			const info = await this.fileService.resolve(this.userDataService.currentProfile.promptsHome);
-			if (info.isDirectory && info.children && !token.isCancellationRequested) {
-				const result: URI[] = [];
-				for (const child of info.children) {
-					if (child.isFile && getPromptFileType(child.resource) === type) {
-						result.push(child.resource);
-					}
-				}
-				return result;
-			}
-			return [];
-		} catch (error) {
-			return [];
-		}
+		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
+		return files.filter(file => getPromptFileType(file) === type);
 	}
 
 	/**
