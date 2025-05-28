@@ -203,11 +203,13 @@ declare module 'vscode' {
 		readonly command: string;
 		readonly language: string;
 		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+		readonly presentation?: 'hidden' | undefined;
 
 		constructor(
 			command: string,
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
+			presentation?: 'hidden'
 		);
 	}
 

@@ -236,37 +236,33 @@ export class Extension implements IExtension {
 		return this.gallery?.detailsLink;
 	}
 
-	get iconUrl(): string {
+	get iconUrl(): string | undefined {
 		return this.galleryIconUrl || this.resourceExtensionIconUrl || this.localIconUrl || this.defaultIconUrl;
 	}
 
-	get iconUrlFallback(): string {
-		return this.galleryIconUrlFallback || this.resourceExtensionIconUrl || this.localIconUrl || this.defaultIconUrl;
+	get iconUrlFallback(): string | undefined {
+		return this.gallery?.assets.icon?.fallbackUri ?? DefaultIconPath;
 	}
 
-	private get localIconUrl(): string | null {
+	private get localIconUrl(): string | undefined {
 		if (this.local && this.local.manifest.icon) {
 			return FileAccess.uriToBrowserUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
 		}
-		return null;
+		return undefined;
 	}
 
-	private get resourceExtensionIconUrl(): string | null {
+	private get resourceExtensionIconUrl(): string | undefined {
 		if (this.resourceExtension?.manifest.icon) {
 			return FileAccess.uriToBrowserUri(resources.joinPath(this.resourceExtension.location, this.resourceExtension.manifest.icon)).toString(true);
 		}
-		return null;
+		return undefined;
 	}
 
-	private get galleryIconUrl(): string | null {
-		return this.gallery?.assets.icon ? this.gallery.assets.icon.uri : null;
+	private get galleryIconUrl(): string | undefined {
+		return this.gallery?.assets.icon?.uri;
 	}
 
-	private get galleryIconUrlFallback(): string | null {
-		return this.gallery?.assets.icon ? this.gallery.assets.icon.fallbackUri : null;
-	}
-
-	private get defaultIconUrl(): string {
+	private get defaultIconUrl(): string | undefined {
 		if (this.type === ExtensionType.System && this.local) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {

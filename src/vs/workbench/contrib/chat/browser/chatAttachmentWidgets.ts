@@ -109,38 +109,35 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 				this._onDidDelete.fire(e.browserEvent);
 			}
 		}));
-		if (this.options.shouldFocusClearButton) {
-			clearButton.focus();
-		}
 	}
 
 	protected addResourceOpenHandlers(resource: URI, range: IRange | undefined): void {
 		this.element.style.cursor = 'pointer';
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
 			if (this.attachment.kind === 'directory') {
-				this.openResource(resource, true);
+				await this.openResource(resource, true);
 			} else {
-				this.openResource(resource, false, range);
+				await this.openResource(resource, false, range);
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				dom.EventHelper.stop(e, true);
 				if (this.attachment.kind === 'directory') {
-					this.openResource(resource, true);
+					await this.openResource(resource, true);
 				} else {
-					this.openResource(resource, false, range);
+					await this.openResource(resource, false, range);
 				}
 			}
 		}));
 	}
 
-	protected openResource(resource: URI, isDirectory: true): void;
-	protected openResource(resource: URI, isDirectory: false, range: IRange | undefined): void;
-	protected openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
+	protected async openResource(resource: URI, isDirectory: true): Promise<void>;
+	protected async openResource(resource: URI, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected async openResource(resource: URI, isDirectory?: boolean, range?: IRange): Promise<void> {
 		if (isDirectory) {
 			// Reveal Directory in explorer
 			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
@@ -151,9 +148,10 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
 			fromUserGesture: true,
-			editorOptions: openTextEditorOptions,
+			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
 		};
-		this.openerService.open(resource, options);
+		await this.openerService.open(resource, options);
+		this.element.focus();
 	}
 }
 
@@ -257,9 +255,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
-		const clickHandler = () => {
+		const clickHandler = async () => {
 			if (resource) {
-				this.openResource(resource, false, undefined);
+				await this.openResource(resource, false, undefined);
 			}
 		};
 		type AttachImageEvent = {
@@ -588,7 +586,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			ariaLabel = this.getAriaLabel(attachment);
 		}
 
-		const clickHandler = () => this.openResource(resource, false, undefined);
+		const clickHandler = async () => await this.openResource(resource, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));

@@ -20,14 +20,14 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
 	store: DisposableStore;
 }
 
-type IMcpServerRec = IReference<IMcpServer>;
+type IMcpServerRec = IReference<IMcpServer> & { toolPrefix: string };
 
 export class McpService extends Disposable implements IMcpService {
 
@@ -94,6 +94,15 @@ export class McpService extends Disposable implements IMcpService {
 
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
+
+			// toRegister is deferred until deleting tools that moving a tool between
+			// servers (or deleting one instance of a multi-instance server) doesn't cause an error.
+			const toRegister: (() => void)[] = [];
+			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
+				store.add(this._toolsService.registerToolData(toolData));
+				store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+			};
+
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
@@ -102,7 +111,7 @@ export class McpService extends Disposable implements IMcpService {
 					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
 					icon: Codicon.tools,
 					displayName: tool.definition.annotations?.title || tool.definition.name,
-					toolReferenceName: tool.definition.name,
+					toolReferenceName: tool.id,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
@@ -112,26 +121,20 @@ export class McpService extends Disposable implements IMcpService {
 					tags: ['mcp'],
 				};
 
-				const registerTool = (store: DisposableStore) => {
-					store.add(this._toolsService.registerToolData(toolData));
-					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
-				};
-
 				if (existing) {
 					if (!equals(existing.toolData, toolData)) {
 						existing.toolData = toolData;
 						existing.store.clear();
 						// We need to re-register both the data and implementation, as the
 						// implementation is discarded when the data is removed (#245921)
-						registerTool(store);
+						registerTool(tool, toolData, store);
 					}
 					toDelete.delete(tool.id);
 				} else {
 					const store = new DisposableStore();
-					registerTool(store);
+					toRegister.push(() => registerTool(tool, toolData, store));
 					tools.set(tool.id, { toolData, store });
 				}
-
 			}
 
 			for (const id of toDelete) {
@@ -140,6 +143,10 @@ export class McpService extends Disposable implements IMcpService {
 					tool.store.dispose();
 					tools.delete(id);
 				}
+			}
+
+			for (const fn of toRegister) {
+				fn();
 			}
 		}));
 
@@ -151,11 +158,12 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public updateCollectedServers() {
+		const prefixGenerator = new McpPrefixGenerator();
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
-			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
-				serverDefinition,
-				collectionDefinition,
-			}))
+			collectionDefinition.serverDefinitions.get().map(serverDefinition => {
+				const toolPrefix = prefixGenerator.generate(serverDefinition.label);
+				return { serverDefinition, collectionDefinition, toolPrefix };
+			})
 		);
 
 		const nextDefinitions = new Set(definitions);
@@ -174,7 +182,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Transfer over any servers that are still valid.
 		for (const server of currentServers) {
-			const match = definitions.find(d => defsEqual(server.object, d));
+			const match = definitions.find(d => defsEqual(server.object, d) && server.toolPrefix === d.toolPrefix);
 			if (match) {
 				pushMatch(match, server);
 			} else {
@@ -192,12 +200,13 @@ export class McpService extends Disposable implements IMcpService {
 				def.serverDefinition.roots,
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+				def.toolPrefix,
 			);
 
 			store.add(object);
 			this._syncTools(object, store);
 
-			nextServers.push({ object, dispose: () => store.dispose() });
+			nextServers.push({ object, dispose: () => store.dispose(), toolPrefix: def.toolPrefix });
 		}
 
 		transaction(tx => {
@@ -290,5 +299,20 @@ class McpToolImplementation implements IToolImpl {
 
 		result.toolResultDetails = details;
 		return result;
+	}
+}
+
+// Helper class for generating unique MCP tool prefixes
+class McpPrefixGenerator {
+	private readonly seenPrefixes = new Set<string>();
+
+	generate(label: string): string {
+		const baseToolPrefix = McpToolName.Prefix + label.toLowerCase().replace(/[^a-z0-9_.-]+/g, '_').slice(0, McpToolName.MaxPrefixLen - McpToolName.Prefix.length - 1);
+		let toolPrefix = baseToolPrefix + '_';
+		for (let i = 2; this.seenPrefixes.has(toolPrefix); i++) {
+			toolPrefix = baseToolPrefix + i + '_';
+		}
+		this.seenPrefixes.add(toolPrefix);
+		return toolPrefix;
 	}
 }

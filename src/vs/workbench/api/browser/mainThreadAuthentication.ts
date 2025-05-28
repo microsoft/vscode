@@ -113,13 +113,18 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (serverMetadata) => {
+			create: async (serverMetadata, resource) => {
 				const clientId = this.dynamicAuthProviderStorageService.getClientId(serverMetadata.issuer);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
 				}
-				return this._proxy.$registerDynamicAuthProvider(serverMetadata, clientId, initialTokens);
+				return await this._proxy.$registerDynamicAuthProvider(
+					serverMetadata,
+					resource,
+					clientId,
+					initialTokens
+				);
 			}
 		}));
 	}
@@ -260,7 +265,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const issuer = URI.revive(options.issuer);
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true, issuer);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, { account: options.account, issuer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
