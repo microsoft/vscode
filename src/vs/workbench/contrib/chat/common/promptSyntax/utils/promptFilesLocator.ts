@@ -51,21 +51,8 @@ export class PromptFilesLocator {
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		try {
-			const info = await this.fileService.resolve(this.userDataService.currentProfile.promptsHome);
-			if (info.isDirectory && info.children && !token.isCancellationRequested) {
-				const result: URI[] = [];
-				for (const child of info.children) {
-					if (child.isFile && getPromptFileType(child.resource) === type) {
-						result.push(child.resource);
-					}
-				}
-				return result;
-			}
-			return [];
-		} catch (error) {
-			return [];
-		}
+		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
+		return files.filter(file => getPromptFileType(file) === type);
 	}
 
 	/**
@@ -142,17 +129,13 @@ export class PromptFilesLocator {
 			);
 
 			const { parent, filePattern } = firstNonGlobParentAndPattern(absoluteLocation);
-			if (filePattern === undefined && await this.isExistingFile(parent)) {
-				// if the provided location points to a file, add it
-				if (getPromptFileType(parent) === type) {
-					paths.add(parent);
-				}
-			} else {
-				const promptFiles = await this.searchFilesInLocation(parent, filePattern, token);
-				for (const file of promptFiles) {
-					if (getPromptFileType(file) === type) {
-						paths.add(file);
-					}
+
+			const files = (filePattern === undefined)
+				? await this.resolveFilesAtLocation(parent, token) // if the location does not contain a glob pattern, resolve the location directly
+				: await this.searchFilesInLocation(parent, filePattern, token);
+			for (const file of files) {
+				if (getPromptFileType(file) === type) {
+					paths.add(file);
 				}
 			}
 			if (token.isCancellationRequested) {
@@ -198,6 +181,31 @@ export class PromptFilesLocator {
 		return [...result];
 	}
 
+	/**
+	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
+	 */
+	private async resolveFilesAtLocation(location: URI, token: CancellationToken): Promise<URI[]> {
+		try {
+			const info = await this.fileService.resolve(location);
+			if (info.isFile) {
+				return [info.resource];
+			} else if (info.isDirectory && info.children) {
+				const result: URI[] = [];
+				for (const child of info.children) {
+					if (child.isFile) {
+						result.push(child.resource);
+					}
+				}
+				return result;
+			}
+		} catch (error) {
+		}
+		return [];
+	}
+
+	/**
+	 * Uses the search service to find all files at the provided location
+	 */
 	private async searchFilesInLocation(
 		folder: URI,
 		filePattern: string | undefined,
@@ -229,14 +237,6 @@ export class PromptFilesLocator {
 			}
 		}
 		return [];
-	}
-
-	private async isExistingFile(uri: URI): Promise<boolean> {
-		try {
-			return (await this.fileService.resolve(uri)).isFile;
-		} catch (e) {
-		}
-		return false;
 	}
 }
 
@@ -341,6 +341,13 @@ const firstNonGlobParentAndPattern = (
 		// just find all prompt files in the provided location
 		return { parent: location, filePattern: undefined };
 	}
+	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
+		return {
+			parent: location.with({ path: segments.slice(0, i).join('/') }),
+			filePattern: undefined
+		};
+	}
+
 	// the path contains a glob pattern, so we search in last folder that does not contain a glob pattern
 	return {
 		parent: location.with({ path: segments.slice(0, i).join('/') }),
