@@ -162,9 +162,9 @@ export class ViewGpuContext extends Disposable {
 		}
 
 		// Check if all inline decorations are supported
-		if (data.inlineDecorations.inlineDecorations.length > 0) {
+		if (data.inlineDecorations.decorations.length > 0) {
 			let supported = true;
-			for (const decoration of data.inlineDecorations.inlineDecorations) {
+			for (const decoration of data.inlineDecorations.decorations) {
 				if (decoration.type !== InlineDecorationType.Regular) {
 					supported = false;
 					break;
@@ -204,12 +204,12 @@ export class ViewGpuContext extends Disposable {
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');
 		}
-		if (data.inlineDecorations.inlineDecorations.length > 0) {
+		if (data.inlineDecorations.decorations.length > 0) {
 			let supported = true;
 			const problemTypes: InlineDecorationType[] = [];
 			const problemSelectors: string[] = [];
 			const problemRules: string[] = [];
-			for (const decoration of data.inlineDecorations.inlineDecorations) {
+			for (const decoration of data.inlineDecorations.decorations) {
 				if (decoration.type !== InlineDecorationType.Regular) {
 					problemTypes.push(decoration.type);
 					supported = false;

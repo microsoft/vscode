@@ -137,7 +137,7 @@ function createLineBreaks(config: IEditorConfiguration, targetWindow: Window, re
 		const renderWhitespace = options.get(EditorOption.renderWhitespace);
 		const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		const fontLigatures = options.get(EditorOption.fontLigatures);
-		const lineDecorations = LineDecoration.filter(linesInlineDecorations[i].inlineDecorations, i, 0, Infinity);
+		const lineDecorations = LineDecoration.filter(linesInlineDecorations[i].decorations, i, 0, Infinity);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 		const tokens = linesTokens[i];
 		const isBasicASCII = strings.isBasicASCII(renderLineContent);

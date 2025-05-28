@@ -88,7 +88,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+			this._lines = new ViewModelLinesFromModelAsIs(this._editorId, this.model, this._configuration);
 
 		} else {
 			const options = this._configuration.options;
@@ -136,7 +136,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
 
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._decorations = new ViewModelDecorations(this.model, this._lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
 

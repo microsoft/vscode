@@ -361,7 +361,7 @@ export class ViewLineRenderingData {
 		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecorations,
 		tabSize: number,
-		startVisibleColumn: number
+		startVisibleColumn: number,
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
