@@ -634,7 +634,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!setupHidden && showSuggestions) {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResultsDescription', "Describe what you want to configure"), showAiResultActionClassNames.join(' '), false
+				localize('showAiResultsDescription', "Search settings with AI"), showAiResultActionClassNames.join(' '), false
 			));
 			this._register(this.aiSettingsSearchService.onDidEnable(() => {
 				this.showAiResultsAction!.enabled = true;
@@ -736,6 +736,12 @@ export class SettingsEditor2 extends EditorPane {
 			const actionsToPush = [clearInputAction, this.showAiResultsAction, filterAction];
 			searchContainer.classList.add('with-ai-toggle');
 			actionBar.push(actionsToPush, { label: false, icon: true });
+		}
+	}
+
+	toggleAiSearch(): void {
+		if (this.showAiResultsAction && this.showAiResultsAction.enabled) {
+			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
 		}
 	}
 
