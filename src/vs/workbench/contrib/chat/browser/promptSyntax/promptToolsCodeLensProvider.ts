@@ -56,11 +56,11 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			return undefined;
 		}
 
-		if (('tools' in header.rawMetadata) === false) {
+		if (('tools' in header.metadataUtility) === false) {
 			return undefined;
 		}
 
-		const { tools } = header.rawMetadata;
+		const { tools } = header.metadataUtility;
 		if (tools === undefined) {
 			return undefined;
 		}

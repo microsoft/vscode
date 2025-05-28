@@ -6,15 +6,15 @@
 import { ChatMode } from '../../../constants.js';
 import { localize } from '../../../../../../../nls.js';
 import { PromptMetadataWarning } from './diagnostics.js';
+import { TInstructionsMetadata } from './instructionsHeader.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
-import { HeaderBase, IHeaderMetadata, type TCleanMetadata } from './headerBase.js';
+import { HeaderBase, IHeaderMetadata, isHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
-import { TInstructionsMetadata } from './instructionsHeader.js';
 
 /**
- * TODO: @legomushroom
+ * Metadata utility object for prompt files.
  */
 interface IPromptMetadata extends IHeaderMetadata {
 	/**
@@ -29,47 +29,18 @@ interface IPromptMetadata extends IHeaderMetadata {
 }
 
 /**
- * TODO: @legomushroom
+ * Metadata for prompt files.
  */
-export type TPromptMetadata = TCleanMetadata<IPromptMetadata>;
+export type TPromptMetadata = TDehydrated<IPromptMetadata>;
 
 /**
- * TODO: @legomushroom
+ * Metadata for prompt/instruction/mode files.
  */
+// TODO: @legomushroom - move to header base class?
 export type TMetadata = Partial<TPromptMetadata> | Partial<TInstructionsMetadata>;
 
 /**
- * TODO: @legomushroom
- */
-function isEmptyObject(
-	metadata: Record<string, unknown>,
-): boolean {
-	return (Reflect.ownKeys(metadata).length === 0);
-}
-
-/**
- * TODO: @legomushroom
- */
-export function isPromptMetadata(
-	metadata: TMetadata,
-): metadata is Partial<TPromptMetadata> {
-	return (
-		('tools' in metadata) || ('mode' in metadata) || isEmptyObject(metadata)
-	);
-}
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - unused?
-export function isInstructionsMetadata(
-	metadata: TMetadata,
-): metadata is Partial<TInstructionsMetadata> {
-	return ('applyTo' in metadata) || isEmptyObject(metadata);
-}
-
-/**
- * TODO: @legomushroom
+ * Header object for prompt and mode files.
  */
 export class PromptHeader extends HeaderBase<IPromptMetadata> {
 	protected override handleToken(token: FrontMatterRecord): boolean {
@@ -162,4 +133,15 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 			),
 		);
 	}
+}
+
+/**
+ * Check if provided metadata belongs to prompt files.
+ */
+export function isPromptMetadata(
+	metadata: TMetadata,
+): metadata is Partial<TPromptMetadata> {
+	return (
+		('tools' in metadata) || ('mode' in metadata) || isHeaderMetadata(metadata)
+	);
 }

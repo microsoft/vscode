@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TMetadata } from './promptHeader.js';
 import { PromptApplyToMetadata } from './metadata/applyTo.js';
-import { HeaderBase, IHeaderMetadata, type TCleanMetadata } from './headerBase.js';
+import { HeaderBase, IHeaderMetadata, isHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
- * TODO: @legomushroom
+ * Metadata utility object for instruction files.
  */
 interface IInstructionsMetadata extends IHeaderMetadata {
 	/**
@@ -18,12 +19,13 @@ interface IInstructionsMetadata extends IHeaderMetadata {
 }
 
 /**
- * TODO: @legomushroom
+ * Metadata for instruction files.
  */
-export type TInstructionsMetadata = TCleanMetadata<IInstructionsMetadata>;
+// TODO: @legomushroom - add 'metadataType' field?
+export type TInstructionsMetadata = TDehydrated<IInstructionsMetadata>;
 
 /**
- * TODO: @legomushroom
+ * Header object for instruction files.
  */
 export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
 	protected override handleToken(token: FrontMatterRecord): boolean {
@@ -40,4 +42,13 @@ export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
 
 		return false;
 	}
+}
+
+/**
+ * Check if provided metadata belongs to instruction files.
+ */
+export function isInstructionsMetadata(
+	metadata: TMetadata,
+): metadata is Partial<TInstructionsMetadata> {
+	return ('applyTo' in metadata) || isHeaderMetadata(metadata);
 }

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TMetadata } from './promptHeader.js';
 import { localize } from '../../../../../../../nls.js';
-import { IWithValue } from './metadata/base/record.js';
+import { IMetadataRecord } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
+import { isEmptyObject } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
@@ -14,14 +16,13 @@ import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCod
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
-type TValuesOf<T extends IHeaderMetadata> = {
-	[K in keyof T]: T[K] extends IWithValue<infer U> ? (U extends undefined ? undefined : NonNullable<U>) : undefined;
-};
-
 /**
- * TODO: @legomushroom
+ * A metadata utility class "dehydrated" into a plain data object with
+ * semi-primitive record values (string, boolean, string[], boolean[], etc.).
  */
-export type TCleanMetadata<TMetadata extends IHeaderMetadata> = TValuesOf<TMetadata>;
+export type TDehydrated<T extends IHeaderMetadata> = {
+	[K in keyof T]: T[K] extends IMetadataRecord<infer U> ? (U extends undefined ? undefined : NonNullable<U>) : undefined;
+};
 
 /**
  * Metadata defined in the prompt header.
@@ -34,7 +35,12 @@ export interface IHeaderMetadata {
 }
 
 /**
- * TODO: @legomushroom
+ * Metadata for prompt/instruction/mode files.
+ */
+export type THeaderMetadata = Partial<TDehydrated<IHeaderMetadata>>;
+
+/**
+ * Base class for prompt/instruction/mode headers.
  */
 export abstract class HeaderBase<
 	TMetadata extends IHeaderMetadata,
@@ -50,18 +56,18 @@ export abstract class HeaderBase<
 	protected readonly meta: Partial<TMetadata>;
 
 	/**
-	 * Metadata records.
+	 * Data object with all header's metadata records.
 	 */
-	// TODO: @legomushroom - improve return type signature
-	public get metadata(): Partial<TCleanMetadata<TMetadata>> {
-		const result: Partial<TCleanMetadata<TMetadata>> = {};
+	public get metadata(): Partial<TDehydrated<TMetadata>> {
+		const result: Partial<TDehydrated<TMetadata>> = {};
 
 		for (const [entryName, entryValue] of Object.entries(this.meta)) {
 			if (entryValue?.value === undefined) {
 				continue;
 			}
 
-			// TODO: @legomushroom - add reason comment
+			// note! we have to resort to `Object.assign()` here because
+			//       the `Object.entries()` call looses type information
 			Object.assign(result, {
 				[entryName]: entryValue.value,
 			});
@@ -71,10 +77,14 @@ export abstract class HeaderBase<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * A copy of metadata object with utility classes as values
+	 * for each of prompt header's record.
+	 *
+	 * Please use {@link metadata} instead if all you need to read is
+	 * the plain "data" object representation of valid metadata records.
 	 */
-	public get rawMetadata(): Partial<TMetadata> {
-		return this.meta;
+	public get metadataUtility(): Partial<TMetadata> {
+		return { ...this.meta };
 	}
 
 	/**
@@ -115,9 +125,14 @@ export abstract class HeaderBase<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Process a front matter record token, which includes:
+	 *  - validation of the record and whether it is compatible with other header records
+	 *  - adding validation-related diagnostic messages to the {@link issues} list
+	 *  - setting associated utility class for the record on the {@link meta} object
+	 *
+	 * @returns a boolean flag that indicates whether the token was handled and therefore
+	 *          should not be processed any further.
 	 */
-	// TODO: @legomushroom - a note regarding purpose of returned boolean value
 	protected abstract handleToken(
 		token: FrontMatterRecord,
 	): boolean;
@@ -232,4 +247,15 @@ export abstract class HeaderBase<
 
 		return this;
 	}
+}
+
+/**
+ * Check if provided metadata belongs to prompt/instruction/mode files.
+ */
+export function isHeaderMetadata(
+	metadata: TMetadata,
+): metadata is Partial<THeaderMetadata> {
+	return (
+		('description' in metadata) || isEmptyObject(metadata)
+	);
 }

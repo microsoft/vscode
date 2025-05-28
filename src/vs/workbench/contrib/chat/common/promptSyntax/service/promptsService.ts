@@ -16,20 +16,21 @@ import { basename } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { isPromptMetadata } from '../parsers/promptHeader/promptHeader.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isInstructionsMetadata } from '../parsers/promptHeader/instructionsHeader.js';
 import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
-import { getCleanPromptName, isValidPromptType, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isInstructionsMetadata, isPromptMetadata } from '../parsers/promptHeader/promptHeader.js';
+import { getCleanPromptName, isValidPromptType, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Provides prompt services.

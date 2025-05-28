@@ -22,15 +22,16 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { isPromptMetadata } from '../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
+import { isInstructionsMetadata } from '../../../common/promptSyntax/parsers/promptHeader/instructionsHeader.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { isInstructionsMetadata, isPromptMetadata } from '../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
 /**
