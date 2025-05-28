@@ -8,7 +8,6 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -100,7 +99,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				args: [],
 				env: {},
 				envFile: undefined,
-				cwd: URI.parse('file:///test')
+				cwd: '/test'
 			}
 		};
 	});

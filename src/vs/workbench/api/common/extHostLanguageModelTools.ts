@@ -242,7 +242,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 					kind: 'terminal',
 					language: result.language,
 					command: result.command,
-				}
+				},
+				presentation: result.presentation
 			};
 		} else if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
