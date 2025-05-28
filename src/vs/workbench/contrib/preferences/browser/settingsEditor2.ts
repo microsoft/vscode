@@ -1669,7 +1669,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-			await this.triggerFilterPreferences(query, expandResults);
+			await this.triggerFilterPreferences(query, expandResults, progressRunner);
 			this.toggleTocBySearchBehaviorType();
 		} else {
 			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
@@ -1709,8 +1709,8 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTree();
 				this.layoutSplitView(this.dimension);
 			}
+			progressRunner.done();
 		}
-		progressRunner.done();
 	}
 
 	/**
@@ -1735,13 +1735,12 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private async triggerFilterPreferences(query: string, expandResults: boolean): Promise<void> {
+	private async triggerFilterPreferences(query: string, expandResults: boolean, progressRunner: IProgressRunner): Promise<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
 		}
 
-		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 
 		if (this.showAiResultsAction?.checked) {
@@ -1758,10 +1757,10 @@ export class SettingsEditor2 extends EditorPane {
 						if (searchInProgress.token.isCancellationRequested) {
 							return;
 						}
-						this.onDidFinishSearch(expandResults);
+						this.onDidFinishSearch(expandResults, progressRunner);
 					});
 				} else {
-					this.onDidFinishSearch(expandResults);
+					this.onDidFinishSearch(expandResults, progressRunner);
 				}
 			});
 		}
@@ -1785,11 +1784,11 @@ export class SettingsEditor2 extends EditorPane {
 
 			// Update UI only after all the search results are in
 			// ref https://github.com/microsoft/vscode/issues/224946
-			this.onDidFinishSearch(expandResults);
+			this.onDidFinishSearch(expandResults, progressRunner);
 		});
 	}
 
-	private onDidFinishSearch(expandResults: boolean) {
+	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner) {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
@@ -1799,6 +1798,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
+		progressRunner.done();
 	}
 
 	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
