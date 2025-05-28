@@ -54,7 +54,6 @@ import { IChatContentReference } from '../common/chatService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IChatWidgetService } from './chat.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
