@@ -76,7 +76,7 @@ export class McpPromptArgumentPick extends Disposable {
 			const restore = backSnapshots.at(i);
 			quickPick.step = i + 1;
 			quickPick.placeholder = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-			quickPick.title = arg.name;
+			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.name);
 			quickPick.value = restore?.value ?? ((args.hasOwnProperty(arg.name) && args[arg.name]) || '');
 			quickPick.items = restore?.items ?? [];
 			quickPick.activeItems = restore?.activeItems ?? [];
