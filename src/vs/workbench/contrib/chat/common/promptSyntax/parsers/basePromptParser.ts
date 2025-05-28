@@ -13,26 +13,26 @@ import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
 import type { IPromptContentsProvider } from '../contentProviders/types.js';
 import type { TPromptReference, IResolveError, ITopError } from './types.js';
-import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
+import { PromptHeader, type TMetadata, type TPromptMetadata } from './promptHeader/promptHeader.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
-import { isPromptMetadata, PromptHeader, TMetadata, type TPromptMetadata } from './promptHeader/promptHeader.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { isPromptOrInstructionsFile, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
@@ -584,13 +584,24 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
-	public get metadata(): TMetadata {
+	public get metadata(): TMetadata | null {
 		if (this.header === undefined) {
-			return {};
+			const { promptType } = this.promptContentsProvider;
+
+			if (promptType === 'non-prompt') {
+				return null;
+			}
+
+			return {
+				promptType,
+			};
 		}
 
 		if (this.header instanceof InstructionsHeader) {
-			return this.header.metadata;
+			return {
+				promptType: PromptsType.instructions,
+				...this.header.metadata,
+			};
 		}
 
 		const { tools, mode, description } = this.header.metadata;
@@ -615,7 +626,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			result.mode = resultingMode;
 		}
 
-		return result;
+		return {
+			promptType: PromptsType.prompt,
+			...result,
+		};
 	}
 
 	/**
@@ -626,7 +640,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		let hasTools = false;
 		const result: string[] = [];
 
-		if (isPromptMetadata(this.metadata) === false) {
+		if (this.metadata?.promptType !== PromptsType.prompt) {
 			return null;
 		}
 
@@ -941,7 +955,7 @@ export class PromptReference extends ObservableDisposable implements TPromptRefe
 		return this.parser.allReferences;
 	}
 
-	public get metadata(): TMetadata {
+	public get metadata(): TMetadata | null {
 		return this.parser.metadata;
 	}
 

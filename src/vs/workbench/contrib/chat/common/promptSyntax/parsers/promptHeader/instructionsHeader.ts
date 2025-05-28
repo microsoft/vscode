@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TMetadata } from './promptHeader.js';
 import { PromptApplyToMetadata } from './metadata/applyTo.js';
-import { HeaderBase, IHeaderMetadata, isHeaderMetadata, type TDehydrated } from './headerBase.js';
+import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
+import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -21,8 +21,7 @@ interface IInstructionsMetadata extends IHeaderMetadata {
 /**
  * Metadata for instruction files.
  */
-// TODO: @legomushroom - add 'metadataType' field?
-export type TInstructionsMetadata = TDehydrated<IInstructionsMetadata>;
+export type TInstructionsMetadata = Partial<TDehydrated<IInstructionsMetadata>> & { promptType: PromptsType.instructions };
 
 /**
  * Header object for instruction files.
@@ -42,13 +41,4 @@ export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
 
 		return false;
 	}
-}
-
-/**
- * Check if provided metadata belongs to instruction files.
- */
-export function isInstructionsMetadata(
-	metadata: TMetadata,
-): metadata is Partial<TInstructionsMetadata> {
-	return ('applyTo' in metadata) || isHeaderMetadata(metadata);
 }

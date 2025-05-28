@@ -10,7 +10,8 @@ import { TInstructionsMetadata } from './instructionsHeader.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
-import { HeaderBase, IHeaderMetadata, isHeaderMetadata, type TDehydrated } from './headerBase.js';
+import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
+import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -31,13 +32,13 @@ interface IPromptMetadata extends IHeaderMetadata {
 /**
  * Metadata for prompt files.
  */
-export type TPromptMetadata = TDehydrated<IPromptMetadata>;
+export type TPromptMetadata = Partial<TDehydrated<IPromptMetadata>> & { promptType: PromptsType.prompt };
 
 /**
- * Metadata for prompt/instruction/mode files.
+ * Metadata defined in the header of prompt/instruction/mode files.
  */
 // TODO: @legomushroom - move to header base class?
-export type TMetadata = Partial<TPromptMetadata> | Partial<TInstructionsMetadata>;
+export type TMetadata = TPromptMetadata | TInstructionsMetadata;
 
 /**
  * Header object for prompt and mode files.
@@ -133,15 +134,4 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 			),
 		);
 	}
-}
-
-/**
- * Check if provided metadata belongs to prompt files.
- */
-export function isPromptMetadata(
-	metadata: TMetadata,
-): metadata is Partial<TPromptMetadata> {
-	return (
-		('tools' in metadata) || ('mode' in metadata) || isHeaderMetadata(metadata)
-	);
 }

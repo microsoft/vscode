@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from '../utils/treeUtils.js';
 import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
-import { flatten } from '../utils/treeUtils.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
@@ -19,13 +19,11 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
-import { isPromptMetadata } from '../parsers/promptHeader/promptHeader.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isInstructionsMetadata } from '../parsers/promptHeader/instructionsHeader.js';
 import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
@@ -197,7 +195,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result = [];
 		for (const metadata of metaDatas) {
 			const meta = metadata.metadata;
-			if (isPromptMetadata(meta) === false) {
+			if (meta?.promptType !== PromptsType.prompt) {
 				continue;
 			}
 
@@ -229,7 +227,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const instruction of instructions.flatMap(flatten)) {
 			const { metadata, uri } = instruction;
 
-			if (isInstructionsMetadata(metadata) === false) {
+			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
 

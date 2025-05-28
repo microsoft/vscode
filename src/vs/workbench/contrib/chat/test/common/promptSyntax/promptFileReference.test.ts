@@ -17,18 +17,16 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { type TPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { getPromptFileType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
 import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
-import { isPromptMetadata } from '../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
+import { getPromptFileType, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
-import { isInstructionsMetadata } from '../../../common/promptSyntax/parsers/promptHeader/instructionsHeader.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -885,7 +883,7 @@ suite('PromptFileReference', function () {
 			const { metadata, allToolsMetadata } = rootReference;
 
 			assert(
-				isPromptMetadata(metadata),
+				metadata?.promptType === PromptsType.prompt,
 				`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 			);
 
@@ -1006,7 +1004,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1128,7 +1126,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isInstructionsMetadata(metadata),
+					metadata?.promptType === PromptsType.instructions,
 					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1245,7 +1243,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1359,7 +1357,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1473,7 +1471,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1591,7 +1589,7 @@ suite('PromptFileReference', function () {
 				const { metadata, allToolsMetadata } = rootReference;
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 

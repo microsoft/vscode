@@ -15,15 +15,14 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { isPromptMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
-import { isInstructionsMetadata } from '../../../../common/promptSyntax/parsers/promptHeader/instructionsHeader.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -419,7 +418,7 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -475,7 +474,7 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert(
-					isInstructionsMetadata(metadata),
+					metadata?.promptType === PromptsType.instructions,
 					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -531,7 +530,7 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert(
-					isPromptMetadata(metadata),
+					metadata?.promptType === PromptsType.prompt,
 					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -644,7 +643,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -686,7 +685,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isInstructionsMetadata(metadata),
+							metadata?.promptType === PromptsType.instructions,
 							`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -730,7 +729,7 @@ suite('TextModelPromptParser', () => {
 				);
 
 				assert(
-					isInstructionsMetadata(metadata),
+					metadata?.promptType === PromptsType.instructions,
 					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
 				);
 
@@ -1043,7 +1042,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1089,7 +1088,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1135,7 +1134,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1175,7 +1174,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1220,7 +1219,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1268,7 +1267,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1314,7 +1313,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1354,7 +1353,7 @@ suite('TextModelPromptParser', () => {
 						);
 
 						assert(
-							isPromptMetadata(metadata),
+							metadata?.promptType === PromptsType.prompt,
 							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
 						);
 
@@ -1391,6 +1390,11 @@ suite('TextModelPromptParser', () => {
 						assertDefined(
 							header,
 							'Prompt header must be defined.',
+						);
+
+						assertDefined(
+							metadata,
+							'Prompt metadata and metadata must be defined.',
 						);
 
 						assert(

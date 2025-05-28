@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TMetadata } from './promptHeader.js';
 import { localize } from '../../../../../../../nls.js';
 import { IMetadataRecord } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
-import { isEmptyObject } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
@@ -247,15 +245,4 @@ export abstract class HeaderBase<
 
 		return this;
 	}
-}
-
-/**
- * Check if provided metadata belongs to prompt/instruction/mode files.
- */
-export function isHeaderMetadata(
-	metadata: TMetadata,
-): metadata is Partial<THeaderMetadata> {
-	return (
-		('description' in metadata) || isEmptyObject(metadata)
-	);
 }

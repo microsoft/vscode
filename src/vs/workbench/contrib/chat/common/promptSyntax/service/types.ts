@@ -65,12 +65,12 @@ export interface IMetadata {
 	/**
 	 * Metadata of the prompt file.
 	 */
-	readonly metadata: TMetadata;
+	readonly metadata: TMetadata | null;
 
 	/**
 	 * List of metadata for each valid child prompt reference.
 	 */
-	readonly children?: readonly TTree<IMetadata>[];
+	readonly children?: readonly TTree<IMetadata | null>[];
 }
 
 export interface ICustomChatMode {
