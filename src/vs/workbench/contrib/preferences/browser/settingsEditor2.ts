@@ -37,7 +37,7 @@ import { IExtensionManifest } from '../../../../platform/extensions/common/exten
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
