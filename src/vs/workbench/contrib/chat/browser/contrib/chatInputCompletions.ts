@@ -663,14 +663,19 @@ class StartParameterizedPromptAction extends Action2 {
 				}
 			};
 
+			const hasMultipleRoles = messages.some(m => m.role !== messages[0].role);
 			let input = '';
 			for (const message of messages) {
-				if (message.role === 'assistant') {
-					continue; // would we ever support these?
-				}
 				switch (message.content.type) {
 					case 'text':
-						input += (input ? '\n' : '') + message.content.text;
+						if (input) {
+							input += '\n\n';
+						}
+						if (hasMultipleRoles) {
+							input += `--${message.role.toUpperCase()}\n`;
+						}
+
+						input += message.content.text;
 						break;
 					case 'resource':
 						if ('text' in message.content.resource) {
