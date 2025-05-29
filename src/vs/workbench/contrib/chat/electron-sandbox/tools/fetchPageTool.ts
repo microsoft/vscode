@@ -141,7 +141,7 @@ export class FetchWebPageTool implements IToolImpl {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
 					localize('fetchWebPage.confirmationMessage.singular', 
-						'{0}\n\n⚠️ Web content may contain malicious code or attempt prompt injection attacks.', 
+						'{0}\n\n$(info) Web content may contain malicious code or attempt prompt injection attacks.', 
 						urlsNeedingConfirmation[0].toString()
 					)
 				);
@@ -149,7 +149,7 @@ export class FetchWebPageTool implements IToolImpl {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
 					localize('fetchWebPage.confirmationMessage.plural', 
-						'{0}\n\n⚠️ Web content may contain malicious code or attempt prompt injection attacks.', 
+						'{0}\n\n$(info) Web content may contain malicious code or attempt prompt injection attacks.', 
 						urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n')
 					)
 				);
