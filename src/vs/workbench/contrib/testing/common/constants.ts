@@ -83,6 +83,7 @@ export const enum TestCommandId {
 	GetExplorerSelection = '_testing.getExplorerSelection',
 	GetSelectedProfiles = 'testing.getSelectedProfiles',
 	GoToTest = 'testing.editFocusedTest',
+	CopyTestName = 'workbench.action.testing.copyTestName',
 	GoToRelatedTest = 'testing.goToRelatedTest',
 	PeekRelatedTest = 'testing.peekRelatedTest',
 	GoToRelatedCode = 'testing.goToRelatedCode',
