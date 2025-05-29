@@ -882,14 +882,10 @@ suite('PromptFileReference', function () {
 
 			const { metadata, allToolsMetadata } = rootReference;
 
-			assert(
-				metadata?.promptType === PromptsType.prompt,
-				`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-			);
-
 			assert.deepStrictEqual(
 				metadata,
 				{
+					promptType: PromptsType.prompt,
 					mode: 'agent',
 					description: 'Root prompt description.',
 					tools: ['my-tool1'],
@@ -1003,14 +999,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: ChatMode.Agent,
 						description: 'Description of my prompt.',
 						tools: ['my-tool12'],
@@ -1125,14 +1117,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.instructions,
-					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.instructions,
 						applyTo: '**/*',
 						description: 'Description of my instructions file.',
 					},
@@ -1148,7 +1136,7 @@ suite('PromptFileReference', function () {
 		});
 
 		suite('• tools and mode compatibility', () => {
-			test('• tools are ignored if root prompt in the ask mode', async function () {
+			test('• tools are ignored if root prompt is in the ask mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1242,14 +1230,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: ChatMode.Ask,
 						description: 'Description of my prompt.',
 					},
@@ -1263,7 +1247,7 @@ suite('PromptFileReference', function () {
 				);
 			});
 
-			test('• tools are ignored if root prompt in the edit mode', async function () {
+			test('• tools are ignored if root prompt is in the edit mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1356,14 +1340,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: ChatMode.Edit,
 						description: 'Description of my prompt.',
 					},
@@ -1377,7 +1357,7 @@ suite('PromptFileReference', function () {
 				);
 			});
 
-			test('• tools are not ignored if root prompt in the agent mode', async function () {
+			test('• tools are not ignored if root prompt is in the agent mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1470,14 +1450,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: ChatMode.Agent,
 						description: 'Description of my prompt.',
 					},
@@ -1588,14 +1564,10 @@ suite('PromptFileReference', function () {
 
 				const { metadata, allToolsMetadata } = rootReference;
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: ChatMode.Agent,
 						tools: ['my-tool12'],
 						description: 'Description of the prompt file.',

@@ -328,7 +328,9 @@ suite('TextModelPromptParser', () => {
 
 					assert.deepStrictEqual(
 						metadata,
-						{},
+						{
+							promptType: PromptsType.instructions,
+						},
 						'Must have empty metadata.',
 					);
 				});
@@ -371,7 +373,9 @@ suite('TextModelPromptParser', () => {
 
 					assert.deepStrictEqual(
 						metadata,
-						{},
+						{
+							promptType: PromptsType.prompt,
+						},
 						'Must have empty metadata.',
 					);
 				});
@@ -425,6 +429,7 @@ suite('TextModelPromptParser', () => {
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: 'agent',
 						description: 'My prompt.',
 						tools: ['tool_name1', 'tool_name2'],
@@ -481,6 +486,7 @@ suite('TextModelPromptParser', () => {
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.instructions,
 						description: 'My prompt.',
 						applyTo: 'frontend/**/*spec.ts',
 					},
@@ -529,14 +535,10 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
 					{
+						promptType: PromptsType.prompt,
 						mode: 'agent',
 						tools: ['tool_name1', 'tool_name2'],
 					},
@@ -642,14 +644,10 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						assert(
-							metadata?.promptType === PromptsType.prompt,
-							`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-						);
-
 						assert.deepStrictEqual(
 							metadata,
 							{
+								promptType: PromptsType.prompt,
 								mode: ChatMode.Ask,
 							},
 							'Must have correct metadata.',
@@ -684,14 +682,10 @@ suite('TextModelPromptParser', () => {
 							'Prompt header must be defined.',
 						);
 
-						assert(
-							metadata?.promptType === PromptsType.instructions,
-							`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
-						);
-
 						assert.deepStrictEqual(
 							metadata,
 							{
+								promptType: PromptsType.instructions,
 								applyTo: '**/*',
 							},
 							'Must have correct metadata.',
@@ -728,14 +722,11 @@ suite('TextModelPromptParser', () => {
 					'Prompt header must be defined.',
 				);
 
-				assert(
-					metadata?.promptType === PromptsType.instructions,
-					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
 				assert.deepStrictEqual(
 					metadata,
-					{},
+					{
+						promptType: PromptsType.instructions,
+					},
 					'Must have correct metadata.',
 				);
 
