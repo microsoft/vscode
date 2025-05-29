@@ -6,12 +6,14 @@
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -555,18 +557,45 @@ class StartParameterizedPromptAction extends Action2 {
 			return;
 		}
 
-		const replaceTextWith = (value: string) => {
-			const index = model.findMatches(textToReplace, true, false, true, null, false);
-			model.applyEdits([{
-				range: index[0]?.range || model.getFullModelRange().collapseToEnd(),
-				text: value,
-			}]);
-		};
+		const lastPosition = model.getFullModelRange().collapseToEnd();
+		const getPromptIndex = () => model.findMatches(textToReplace, true, false, true, null, false)[0];
+		const replaceTextWith = (value: string) => model.applyEdits([{
+			range: getPromptIndex()?.range || lastPosition,
+			text: value,
+		}]);
 
 		const store = new DisposableStore();
+		const cts = store.add(new CancellationTokenSource());
+		store.add(chatWidget.input.startGenerating());
+
+		store.add(model.onDidChangeContent(() => {
+			if (getPromptIndex()) {
+				cts.cancel(); // cancel if the user deletes their prompt
+			}
+		}));
+
+		model.changeDecorations(accessor => {
+			const id = accessor.addDecoration(lastPosition, {
+				description: 'mcp-prompt-spinner',
+				showIfCollapsed: true,
+				after: {
+					content: ' ',
+					inlineClassNameAffectsLetterSpacing: true,
+					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin')) + ' chat-prompt-spinner',
+				}
+			});
+			store.add(toDisposable(() => {
+				model.changeDecorations(a => a.removeDecoration(id));
+			}));
+		});
+
 		const pick = store.add(instantiationService.createInstance(McpPromptArgumentPick, prompt));
 
 		try {
+			// start the server if not already running so that it's ready to resolve
+			// the prompt instantly when the user finishes picking arguments.
+			server.start();
+
 			const args = await pick.createArgs();
 			if (!args) {
 				replaceTextWith('');
@@ -575,9 +604,11 @@ class StartParameterizedPromptAction extends Action2 {
 
 			let messages: IMcpPromptMessage[];
 			try {
-				messages = await prompt.resolve(args);
+				messages = await prompt.resolve(args, cts.token);
 			} catch (e) {
-				notificationService.error(localize('mcp.prompt.error', "Error resolving prompt: {0}", String(e)));
+				if (!cts.token.isCancellationRequested) {
+					notificationService.error(localize('mcp.prompt.error', "Error resolving prompt: {0}", String(e)));
+				}
 				replaceTextWith('');
 				return;
 			}
