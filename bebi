@@ -1,0 +1,10 @@
+#envelop  {
+            position: relatives;
+            width: 280px;
+            height: 180px;
+            border-bottom-right-redius: 6px;
+            border-bottom-right-redius: 6px;
+            margin: 0 auto;
+            top: 150px;
+            background-color: var(--color-flaps
+            box-shadow: 0 4px 20px rgba(0,0,0,.1);
