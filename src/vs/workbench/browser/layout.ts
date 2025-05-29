@@ -1400,9 +1400,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Zen Mode Configuration Changes
 			this.state.runtime.zenMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
 				// Activity Bar
-				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR)) {
+				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR) || e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
-					this.setActivityBarHidden(zenModeHideActivityBar);
+					const activityBarLocation = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+					this.setActivityBarHidden(zenModeHideActivityBar ? true : (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM));
 				}
 
 				// Status Bar
