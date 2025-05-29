@@ -74,7 +74,8 @@ class QuickDiffDecorator extends Disposable {
 	constructor(
 		private readonly codeEditor: ICodeEditor,
 		private readonly quickDiffModelRef: IReference<QuickDiffModel>,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		super();
 
@@ -134,19 +135,19 @@ class QuickDiffDecorator extends Disposable {
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
 		const primaryQuickDiff = this.quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(labeledChange => labeledChange.label === primaryQuickDiff?.label);
+		const primaryQuickDiffChanges = this.quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
 
 		const decorations: IModelDeltaDecoration[] = [];
 		for (const change of this.quickDiffModelRef.object.changes) {
 			const quickDiff = this.quickDiffModelRef.object.quickDiffs
-				.find(quickDiff => quickDiff.label === change.label);
+				.find(quickDiff => quickDiff.id === change.providerId);
 
-			if (!quickDiff?.visible) {
-				// Not visible
+			// Skip quick diffs that are not visible
+			if (!quickDiff || !this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id)) {
 				continue;
 			}
 
-			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.overlapOrTouch(change.change2.modified))) {
+			if (quickDiff.kind !== 'primary' && primaryQuickDiffChanges.some(c => c.change2.modified.intersectsOrTouches(change.change2.modified))) {
 				// Overlap with primary quick diff changes
 				continue;
 			}
@@ -356,8 +357,8 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 			const visibleDecorationCount = observableFromEvent(this,
 				quickDiffModelRef.object.onDidChange, () => {
-					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
-					return quickDiffModelRef.object.changes.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label)).length;
+					const visibleQuickDiffs = quickDiffModelRef.object.quickDiffs.filter(quickDiff => this.quickDiffService.isQuickDiffProviderVisible(quickDiff.id));
+					return quickDiffModelRef.object.changes.filter(change => visibleQuickDiffs.some(quickDiff => quickDiff.id === change.providerId)).length;
 				});
 
 			store.add(autorun(reader => {
@@ -371,8 +372,13 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.transientDisposables.add(autorunWithStore((reader, store) => {
 			const providers = this.quickDiffProviders.read(reader);
 
+			const labels: string[] = [];
 			for (let index = 0; index < providers.length; index++) {
 				const provider = providers[index];
+				if (labels.includes(provider.label)) {
+					continue;
+				}
+
 				const visible = this.quickDiffService.isQuickDiffProviderVisible(provider.id);
 				const group = provider.kind !== 'contributed' ? '0_scm' : '1_contributed';
 				const order = index + 1;
@@ -394,6 +400,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 						quickDiffService.toggleQuickDiffProviderVisibility(provider.id);
 					}
 				}));
+				labels.push(provider.label);
 			}
 		}));
 	}
@@ -423,7 +430,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 				this.decorators.set(textModel.uri, new DisposableMap<string>());
 			}
 
-			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService));
+			this.decorators.get(textModel.uri)!.set(editorId, new QuickDiffDecorator(editor, quickDiffModelRef, this.configurationService, this.quickDiffService));
 		}
 
 		// Dispose decorators for editors that are no longer visible.

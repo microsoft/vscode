@@ -17,7 +17,6 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
-import './media/issueReporter.css';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
 	private readonly store = new DisposableStore();

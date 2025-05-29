@@ -151,7 +151,7 @@ const testModules = (async function () {
 				modules.push(file.replace(/\.js$/, ''));
 
 			} else if (!isDefaultModules) {
-				console.warn(`DROPPONG ${file} because it cannot be run inside a browser`);
+				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
 		}
 		return modules;

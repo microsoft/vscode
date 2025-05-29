@@ -102,12 +102,14 @@
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified {
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified,
+.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted {
 	transition: opacity 0.5s;
 }
 
 .monaco-editor .margin:hover .dirty-diff-added,
-.monaco-editor .margin:hover .dirty-diff-modified {
+.monaco-editor .margin:hover .dirty-diff-modified,
+.monaco-editor .margin:hover .dirty-diff-deleted {
 	opacity: 1;
 }
 

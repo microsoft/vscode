@@ -30,6 +30,8 @@ import { ICodeEditorService } from '../../../../../../editor/browser/services/co
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -111,7 +113,7 @@ abstract class RunPromptBaseAction extends Action2 {
 				{
 					id: MenuId.EditorTitleRun,
 					group: 'navigation',
-					order: 0,
+					order: options.alt ? 0 : 1,
 					alt: options.alt,
 					when: EDITOR_ACTIONS_CONDITION,
 				},
@@ -149,6 +151,12 @@ abstract class RunPromptBaseAction extends Action2 {
 	}
 }
 
+const RUN_CURRENT_PROMPT_ACTION_TITLE = localize2(
+	'run-prompt.capitalized',
+	"Run Prompt in Current Chat"
+);
+const RUN_CURRENT_PROMPT_ACTION_ICON = Codicon.playCircle;
+
 /**
  * The default `Run Current Prompt` action.
  */
@@ -156,16 +164,9 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 	constructor() {
 		super({
 			id: RUN_CURRENT_PROMPT_ACTION_ID,
-			title: localize2(
-				'run-prompt.capitalized', "Run Prompt",
-			),
-			icon: Codicon.play,
+			title: RUN_CURRENT_PROMPT_ACTION_TITLE,
+			icon: RUN_CURRENT_PROMPT_ACTION_ICON,
 			keybinding: COMMAND_KEY_BINDING,
-			alt: {
-				id: RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID,
-				title: RUN_IN_NEW_CHAT_ACTION_TITLE,
-				icon: RUN_IN_NEW_CHAT_ACTION_ICON,
-			},
 		});
 	}
 
@@ -209,14 +210,14 @@ class RunSelectedPromptAction extends Action2 {
 		const pickers = instaService.createInstance(PromptFilePickers);
 
 		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles('prompt');
+		const promptFiles = await promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const placeholder = localize(
 			'commands.prompt.select-dialog.placeholder',
 			'Select the prompt file to run (hold {0}-key to use in new chat)',
 			UILabelProvider.modifierLabels[OS].ctrlKey
 		);
 
-		const result = await pickers.selectPromptFile({ promptFiles, placeholder });
+		const result = await pickers.selectPromptFile({ promptFiles, placeholder, type: PromptsType.prompt });
 
 		if (result === undefined) {
 			return;
@@ -265,7 +266,7 @@ const RUN_IN_NEW_CHAT_ACTION_TITLE = localize2(
 /**
  * Icon for the `Run Current Prompt In New Chat` action.
  */
-const RUN_IN_NEW_CHAT_ACTION_ICON = Codicon.playCircle;
+const RUN_IN_NEW_CHAT_ACTION_ICON = Codicon.play;
 
 /**
  * `Run Current Prompt In New Chat` action.
@@ -277,6 +278,11 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 			title: RUN_IN_NEW_CHAT_ACTION_TITLE,
 			icon: RUN_IN_NEW_CHAT_ACTION_ICON,
 			keybinding: COMMAND_KEY_BINDING | KeyMod.CtrlCmd,
+			alt: {
+				id: RUN_CURRENT_PROMPT_ACTION_ID,
+				title: RUN_CURRENT_PROMPT_ACTION_TITLE,
+				icon: RUN_CURRENT_PROMPT_ACTION_ICON,
+			},
 		});
 	}
 
@@ -296,7 +302,7 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
  * Helper to register all the `Run Current Prompt` actions.
  */
 export const registerRunPromptActions = () => {
-	registerAction2(RunCurrentPromptAction);
 	registerAction2(RunCurrentPromptInNewChatAction);
+	registerAction2(RunCurrentPromptAction);
 	registerAction2(RunSelectedPromptAction);
 };

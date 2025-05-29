@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -35,6 +36,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export interface IChatResponseErrorDetailsConfirmationButton {
+	data: any;
+	label: string;
+	isSecondary?: boolean;
+}
+
 export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
@@ -42,6 +49,7 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	level?: ChatErrorLevel;
+	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -151,6 +159,12 @@ export interface IChatTaskDto {
 	kind: 'progressTask';
 }
 
+export interface IChatTaskSerialized {
+	content: IMarkdownString;
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	kind: 'progressTaskSerialized';
+}
+
 export interface IChatTaskResult {
 	content: IMarkdownString | void;
 	kind: 'progressTaskResult';
@@ -225,15 +239,17 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
+	originMessage: string | IMarkdownString | undefined;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
 
@@ -248,8 +264,9 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
 	invocationMessage: string | IMarkdownString;
+	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	isConfirmed: boolean | undefined;
@@ -262,6 +279,11 @@ export interface IChatToolInvocationSerialized {
 export interface IChatExtensionsContent {
 	extensions: string[];
 	kind: 'extensions';
+}
+
+export interface IChatPrepareToolInvocationPart {
+	readonly kind: 'prepareToolInvocation';
+	readonly toolName: string;
 }
 
 export type IChatProgress =
@@ -285,7 +307,9 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
-	| IChatUndoStop;
+	| IChatUndoStop
+	| IChatPrepareToolInvocationPart
+	| IChatTaskSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -463,7 +487,8 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
-	userSelectedTools?: string[];
+	userSelectedTools?: Record<string, boolean>;
+	toolSelectionIsExclusive?: boolean;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
@@ -519,7 +544,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 

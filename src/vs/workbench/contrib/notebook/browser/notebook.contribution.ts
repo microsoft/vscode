@@ -132,6 +132,8 @@ import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInpu
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
+import { NotebookOutputEditor } from './outputEditor/notebookOutputEditor.js';
+import { NotebookOutputEditorInput } from './outputEditor/notebookOutputEditorInput.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -154,6 +156,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(NotebookDiffEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		NotebookOutputEditor,
+		NotebookOutputEditor.ID,
+		'Notebook Output Editor'
+	),
+	[
+		new SyncDescriptor(NotebookOutputEditorInput)
 	]
 );
 
@@ -239,6 +252,32 @@ class NotebookEditorSerializer implements IEditorSerializer {
 	}
 }
 
+export type SerializedNotebookOutputEditorData = { notebookUri: URI; cellIndex: number; outputIndex: number };
+class NotebookOutputEditorSerializer implements IEditorSerializer {
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookOutputEditorInput.ID;
+	}
+	serialize(input: EditorInput): string | undefined {
+		assertType(input instanceof NotebookOutputEditorInput);
+
+		const data = input.getSerializedData(); // in case of cell movement etc get latest indices
+		if (!data) {
+			return undefined;
+		}
+
+		return JSON.stringify(data);
+	}
+	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput | undefined {
+		const data = <SerializedNotebookOutputEditorData>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+
+		const input = instantiationService.createInstance(NotebookOutputEditorInput, data.notebookUri, data.cellIndex, undefined, data.outputIndex);
+		return input;
+	}
+}
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookEditorInput.ID,
 	NotebookEditorSerializer
@@ -247,6 +286,11 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	NotebookDiffEditorInput.ID,
 	NotebookDiffEditorSerializer
+);
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	NotebookOutputEditorInput.ID,
+	NotebookOutputEditorSerializer
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
@@ -1046,6 +1090,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
+		// [NotebookSetting.openOutputInPreviewEditor]: {
+		// 	description: nls.localize('notebook.output.openInPreviewEditor.description', "Controls whether or not the action to open a cell output in a preview editor is enabled. This action can be used via the cell output menu."),
+		// 	type: 'boolean',
+		// 	default: false,
+		// 	tags: ['preview']
+		// },
 		[NotebookSetting.showFoldingControls]: {
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
 			type: 'string',

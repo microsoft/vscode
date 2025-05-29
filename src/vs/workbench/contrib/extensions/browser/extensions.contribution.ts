@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/extensionManagement.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, SortBy, FilterType, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, AutoRestartConfigurationKey } from '../common/extensions.js';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, AutoRestartConfigurationKey, extensionsFilterSubMenu, DefaultViewsContext } from '../common/extensions.js';
 import { InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
@@ -83,6 +84,7 @@ import product from '../../../../platform/product/common/product.js';
 import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
+import { InstallExtensionsTool, InstallExtensionsToolData } from '../common/installExtensionsTool.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -108,7 +110,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(ExtensionsInput)
 	]);
 
-Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
+export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
 		title: localize2('extensions', "Extensions"),
@@ -274,13 +276,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus. There can be a data loss if you have open Notebooks or Custom Editors."),
 				default: false,
 				included: product.quality !== 'stable'
-			},
-			[UseUnpkgResourceApiConfigKey]: {
-				type: 'boolean',
-				description: localize('extensions.gallery.useUnpkgResourceApi', "When enabled, extensions to update are fetched from Unpkg service."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['onExp', 'usesOnlineServices']
 			},
 			[ExtensionGalleryServiceUrlConfigKey]: {
 				type: 'string',
@@ -522,6 +517,7 @@ type IExtensionActionOptions = IAction2Options & {
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
 	constructor(
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
@@ -955,7 +951,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		const extensionsFilterSubMenu = new MenuId('extensionsFilterSubMenu');
 		MenuRegistry.appendMenuItem(extensionsSearchActionsMenu, {
 			submenu: extensionsFilterSubMenu,
 			title: localize('filterExtensions', "Filter Extensions..."),
@@ -1065,6 +1060,22 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.installedExtensions',
+			title: localize2('installedExtensions', 'Show Installed Extensions'),
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			menu: [{
+				id: extensionsFilterSubMenu,
+				group: '3_installed',
+				order: 1,
+			}],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
+			},
+			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.listBuiltInExtensions',
 			title: localize2('showBuiltInExtensions', 'Show Built-in Extensions'),
 			category: ExtensionsLocalizedLabel,
@@ -1074,7 +1085,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 2,
+				order: 3,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
@@ -1092,7 +1103,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
 				when: CONTEXT_HAS_GALLERY,
-				order: 1,
+				order: 2,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
@@ -1110,7 +1121,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 5,
+				order: 6,
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
@@ -1129,7 +1140,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 3,
+				order: 4,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('enabled filter', "Enabled")
@@ -1147,7 +1158,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: extensionsFilterSubMenu,
 				group: '3_installed',
-				order: 4,
+				order: 5,
 			}],
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
@@ -1503,7 +1514,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases });
+					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
 					return action.run();
 				}
@@ -1525,7 +1536,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, {
-						installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases,
+						installPreReleaseVersion: this.extensionManagementService.preferPreReleases,
 						isMachineScoped: true,
 					});
 					action.extension = extension;
@@ -1980,6 +1991,10 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 		const searchExtensionsTool = instantiationService.createInstance(SearchExtensionsTool);
 		this._register(toolsService.registerToolData(SearchExtensionsToolData));
 		this._register(toolsService.registerToolImplementation(SearchExtensionsToolData.id, searchExtensionsTool));
+
+		const installExtensionsTool = instantiationService.createInstance(InstallExtensionsTool);
+		this._register(toolsService.registerToolData(InstallExtensionsToolData));
+		this._register(toolsService.registerToolImplementation(InstallExtensionsToolData.id, installExtensionsTool));
 	}
 }
 

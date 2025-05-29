@@ -11,12 +11,11 @@ import * as platform from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { Constants } from '../../../base/common/uint.js';
 import { FontInfo } from './fontInfo.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -54,6 +53,10 @@ export interface IEditorOptions {
 	 * This editor is used inside a diff editor.
 	 */
 	inDiffEditor?: boolean;
+	/**
+	 * This editor is allowed to use variable line heights.
+	 */
+	allowVariableLineHeights?: boolean;
 	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
@@ -1352,6 +1355,13 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 		}
 		return this._convert(<any>input);
 	}
+}
+
+function stringArray(value: any, defaultValue: string[]): string[] {
+	if (!Array.isArray(value)) {
+		return defaultValue;
+	}
+	return value.map(item => String(item));
 }
 
 //#endregion
@@ -4271,6 +4281,16 @@ export interface IInlineSuggestOptions {
 		*/
 		useMultiLineGhostText?: boolean;
 	};
+
+	/**
+	* @internal
+	*/
+	experimental?: {
+		/**
+		* @internal
+		*/
+		suppressInlineSuggestions?: string[];
+	};
 }
 
 type RequiredRecursive<T> = {
@@ -4302,6 +4322,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: 'always',
 				useMultiLineGhostText: true
 			},
+			experimental: {
+				suppressInlineSuggestions: [],
+			},
 		};
 
 		super(
@@ -4332,6 +4355,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
+				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
+					type: 'array',
+					tags: ['experimental', 'onExp'],
+					items: { type: 'string' },
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4385,6 +4414,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
+			},
+			experimental: {
+				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 			},
 		};
 	}
@@ -5425,7 +5457,7 @@ const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace
  */
 export const EDITOR_FONT_DEFAULTS = {
 	fontFamily: (
-		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isWindows ? DEFAULT_WINDOWS_FONT_FAMILY : DEFAULT_LINUX_FONT_FAMILY)
 	),
 	fontWeight: 'normal',
 	fontSize: (
@@ -5450,6 +5482,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowVariableLineHeights,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5630,6 +5663,9 @@ export const EditorOptions = {
 			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
 			tags: ['accessibility']
 		})),
+	allowVariableLineHeights: register(new EditorBooleanOption(
+		EditorOption.allowVariableLineHeights, 'allowVariableLineHeights', true
+	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -5867,7 +5903,7 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', true,
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative

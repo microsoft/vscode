@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 8
+// version: 9
 
 declare module 'vscode' {
 
@@ -203,11 +203,13 @@ declare module 'vscode' {
 		readonly command: string;
 		readonly language: string;
 		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+		readonly presentation?: 'hidden' | undefined;
 
 		constructor(
 			command: string,
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
+			presentation?: 'hidden'
 		);
 	}
 
@@ -237,6 +239,19 @@ declare module 'vscode' {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
 		export const onDidDisposeChatSession: Event<string>;
+	}
+
+	// #endregion
+
+	// #region ChatErrorDetailsWithConfirmation
+
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
+	}
+
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
 	}
 
 	// #endregion

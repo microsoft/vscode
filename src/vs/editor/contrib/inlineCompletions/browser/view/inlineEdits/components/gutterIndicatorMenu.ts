@@ -10,7 +10,7 @@ import { KeybindingLabel } from '../../../../../../../base/browser/ui/keybinding
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
-import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -22,8 +22,8 @@ import { defaultKeybindingLabelStyles } from '../../../../../../../platform/them
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder, keybindingLabelBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { IInlineEditModel } from '../inlineEditsViewInterface.js';
 import { FirstFnArg, } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
@@ -67,8 +67,8 @@ export class GutterIndicatorMenuContent {
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
 			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
-			icon: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
-			commandId: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? inlineSuggestCommitId : jumpToNextInlineEditId)
+			icon: Codicon.check,
+			commandId: inlineSuggestCommitId
 		}));
 
 		const reject = option(createOptionArgs({
@@ -170,7 +170,7 @@ function option(props: {
 	onHoverChange?: (isHovered: boolean) => void;
 	onAction?: () => void;
 }) {
-	return derivedWithStore((_reader, store) => n.div({
+	return derived((_reader) => n.div({
 		class: ['monaco-menu-option', props.isActive?.map(v => v && 'active')],
 		onmouseenter: () => props.onHoverChange?.(true),
 		onmouseleave: () => props.onHoverChange?.(false),
@@ -195,7 +195,7 @@ function option(props: {
 		n.div({
 			style: { marginLeft: 'auto' },
 			ref: elem => {
-				const keybindingLabel = store.add(new KeybindingLabel(elem, OS, {
+				const keybindingLabel = _reader.store.add(new KeybindingLabel(elem, OS, {
 					disableTitle: true,
 					...defaultKeybindingLabelStyles,
 					keybindingLabelShadow: undefined,
@@ -203,7 +203,7 @@ function option(props: {
 					keybindingLabelBorder: 'transparent',
 					keybindingLabelBottomBorder: undefined,
 				}));
-				store.add(autorun(reader => {
+				_reader.store.add(autorun(reader => {
 					keybindingLabel.set(props.keybinding.read(reader));
 				}));
 			}
@@ -213,7 +213,7 @@ function option(props: {
 
 // TODO: make this observable
 function actionBar(actions: IAction[], options: IActionBarOptions) {
-	return derivedWithStore((_reader, store) => n.div({
+	return derived((_reader) => n.div({
 		class: ['action-widget-action-bar'],
 		style: {
 			padding: '0 10px',
@@ -221,7 +221,7 @@ function actionBar(actions: IAction[], options: IActionBarOptions) {
 	}, [
 		n.div({
 			ref: elem => {
-				const actionBar = store.add(new ActionBar(elem, options));
+				const actionBar = _reader.store.add(new ActionBar(elem, options));
 				actionBar.push(actions, { icon: false, label: true });
 			}
 		})

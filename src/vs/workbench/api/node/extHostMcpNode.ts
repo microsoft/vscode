@@ -7,19 +7,22 @@ import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { parseEnvFile } from '../../../base/common/envfile.js';
-import { URI } from '../../../base/common/uri.js';
+import { untildify } from '../../../base/common/labels.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
-import { findExecutable } from '../../../base/node/processes.js';
+import * as path from '../../../base/common/path.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initDataService: IExtHostInitDataService,
 	) {
-		super(extHostRpc);
+		super(extHostRpc, initDataService);
 	}
 
 	private nodeServers = new Map<number, {
@@ -57,6 +60,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	private async startNodeMpc(id: number, launch: McpServerTransportStdio) {
 		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
+			code: err.hasOwnProperty('code') ? String((err as any).code) : undefined,
 			message: typeof err === 'string' ? err : err.message,
 		});
 
@@ -80,12 +84,23 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
-			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : homedir();
-			const { executable, args, shell } = await formatSubprocessArguments(launch.command, launch.args, cwd, env);
+			const home = homedir();
+			let cwd = launch.cwd ? untildify(launch.cwd, home) : home;
+			if (!path.isAbsolute(cwd)) {
+				cwd = path.join(home, cwd);
+			}
+
+			const { executable, args, shell } = await formatSubprocessArguments(
+				untildify(launch.command, home),
+				launch.args.map(a => untildify(a, home)),
+				cwd,
+				env
+			);
+
 			this._proxy.$onDidPublishLog(id, LogLevel.Debug, `Server command line: ${executable} ${args.join(' ')}`);
 			child = spawn(executable, args, {
 				stdio: 'pipe',
-				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
+				cwd,
 				signal: abortCtrl.signal,
 				env,
 				shell,

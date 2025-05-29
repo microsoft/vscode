@@ -34,6 +34,17 @@
           "copilot-instructions.md"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "chatmode",
+        "aliases": [
+          "Chat Mode",
+          "chat mode"
+        ],
+        "extensions": [
+          ".chatmode.md"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -54,6 +65,15 @@
           "markup.underline.link.markdown",
           "punctuation.definition.list.begin.markdown"
         ]
+      },
+      {
+        "language": "chatmode",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
     "configurationDefaults": {
@@ -66,8 +86,27 @@
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false
+      },
+      "[chatmode]": {
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false
       }
-    }
+    },
+    "snippets": [
+     {
+        "language": "prompt",
+        "path": "./snippets/prompt.code-snippets"
+      },
+      {
+        "language": "instructions",
+        "path": "./snippets/instructions.code-snippets"
+      },
+      {
+        "language": "chatmode",
+        "path": "./snippets/chatmode.code-snippets"
+      }
+    ]
   },
   "scripts": {},
   "repository": {

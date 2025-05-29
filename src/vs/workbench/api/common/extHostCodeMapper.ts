@@ -53,6 +53,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 			location: internalRequest.location,
 			chatRequestId: internalRequest.chatRequestId,
 			chatRequestModel: internalRequest.chatRequestModel,
+			chatSessionId: internalRequest.chatSessionId,
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,

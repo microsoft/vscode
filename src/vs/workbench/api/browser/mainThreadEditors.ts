@@ -398,7 +398,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 		try {
 			const primaryQuickDiff = quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-			const primaryQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.label === primaryQuickDiff?.label);
+			const primaryQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.providerId === primaryQuickDiff?.id);
 
 			return Promise.resolve(primaryQuickDiffChanges.map(change => change.change) ?? []);
 		} finally {

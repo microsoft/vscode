@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseToken } from '../../baseToken.js';
 import { MarkdownLink } from '../tokens/markdownLink.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -171,14 +172,11 @@ export class PartialMarkdownLink extends ParserBase<TSimpleDecoderToken, Partial
 				const { startLineNumber, startColumn } = this.captionTokens[0].range;
 
 				// create link caption string
-				const caption = this.captionTokens
-					.map((token) => { return token.text; })
-					.join('');
+				const caption = BaseToken.render(this.captionTokens);
 
 				// create link reference string
 				this.currentTokens.push(token);
-				const reference = this.currentTokens
-					.map((token) => { return token.text; }).join('');
+				const reference = BaseToken.render(this.currentTokens);
 
 				// return complete markdown link object
 				return {

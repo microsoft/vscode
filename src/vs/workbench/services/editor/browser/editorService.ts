@@ -90,8 +90,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.registerListeners();
 	}
 
-	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService {
-		return disposables.add(new EditorService(editorGroupsContainer === 'main' ? this.editorGroupService.mainPart : editorGroupsContainer, this.editorGroupService, this.instantiationService, this.fileService, this.configurationService, this.contextService, this.uriIdentityService, this.editorResolverService, this.workspaceTrustRequestService, this.hostService, this.textEditorService));
+	createScoped(editorGroupsContainer: IEditorGroupsContainer, disposables: DisposableStore): IEditorService {
+		return disposables.add(new EditorService(editorGroupsContainer, this.editorGroupService, this.instantiationService, this.fileService, this.configurationService, this.contextService, this.uriIdentityService, this.editorResolverService, this.workspaceTrustRequestService, this.hostService, this.textEditorService));
 	}
 
 	private registerListeners(): void {

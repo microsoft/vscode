@@ -24,7 +24,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
-import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -87,6 +87,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._imeTextArea = new FastDomNode(document.createElement('textarea'));
 		this._imeTextArea.setClassName(`ime-text-area`);
 		this._imeTextArea.setAttribute('readonly', 'true');
+		this._imeTextArea.setAttribute('tabindex', '-1');
 		this.domNode.setAttribute('autocorrect', 'off');
 		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');

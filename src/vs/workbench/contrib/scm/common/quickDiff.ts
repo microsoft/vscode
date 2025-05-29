@@ -79,12 +79,11 @@ export interface QuickDiff {
 	readonly id: string;
 	readonly label: string;
 	readonly originalResource: URI;
-	readonly visible: boolean;
 	readonly kind: 'primary' | 'secondary' | 'contributed';
 }
 
 export interface QuickDiffChange {
-	readonly label: string;
+	readonly providerId: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly change: IChange;
@@ -92,7 +91,6 @@ export interface QuickDiffChange {
 }
 
 export interface QuickDiffResult {
-	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly changes: IChange[];

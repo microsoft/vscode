@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VALID_SPACE_TOKENS } from '../constants.js';
 import { assert } from '../../../../../base/common/assert.js';
+import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
+import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
-import { PartialFrontMatterValue, VALID_VALUE_START_TOKENS } from './frontMatterValue.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
@@ -18,14 +19,14 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
  * and array brackets.
  */
 const VALID_DELIMITER_TOKENS = Object.freeze([
-	...VALID_SPACE_TOKENS,
+	...VALID_INTER_RECORD_SPACING_TOKENS,
 	Comma,
 ]);
 
 /**
  * Responsible for parsing an array syntax (or "inline sequence"
  * in YAML terms), e.g. `[1, '2', true, 2.54]`
- */
+*/
 export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, PartialFrontMatterArray | FrontMatterArray> {
 	/**
 	 * Current parser reference responsible for parsing an array "value".
@@ -33,33 +34,15 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	private currentValueParser?: PartialFrontMatterValue;
 
 	/**
-	 * Whether an array item is allowed in the current position
-	 * of the token sequence. E.g., items are allowed after
-	 * a command or a open bracket, but not immediately after
-	 * another item in the array.
+	 * Whether an array item is allowed in the current position of the token
+	 * sequence. E.g., items are allowed after a command or a open bracket,
+	 * but not immediately after another item in the array.
 	 */
 	private arrayItemAllowed = true;
 
 	constructor(
 		private readonly startToken: LeftBracket,
 	) {
-		/**
-		 * Sanity check - logic inside the {@link PartialFrontMatterArray.accept accept} method
-		 * above assumes that the {@link VALID_DELIMITER_TOKENS} tokens list does not intersect
-		 * with the {@link VALID_VALUE_START_TOKENS} tokens list.
-		 *
-		 * Note! the `as` type casting below is ok since we offload the type intersection check
-		 *       to the runtime, and is required to avoid compilation errors in Typescript.
-		 */
-		for (const DelimiterToken of VALID_DELIMITER_TOKENS) {
-			for (const ValueStartToken of VALID_VALUE_START_TOKENS as unknown[]) {
-				assert(
-					DelimiterToken !== ValueStartToken,
-					`Delimiter tokens list must not contain value start token '${ValueStartToken}'.`,
-				);
-			}
-		}
-
 		super([startToken]);
 	}
 
@@ -83,6 +66,13 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			if (nextParser instanceof FrontMatterValueToken) {
 				this.currentTokens.push(nextParser);
 				delete this.currentValueParser;
+
+				// if token was not consume, call the `accept()` method
+				// recursively so that the current parser can re-process
+				// the token (e.g., a comma or a closing square bracket)
+				if (wasTokenConsumed === false) {
+					return this.accept(token);
+				}
 
 				return {
 					result: 'success',
@@ -134,9 +124,19 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
-		// once we found a valid start value token, create a new value parser
-		if ((this.arrayItemAllowed === true) && PartialFrontMatterValue.isValueStartToken(token)) {
-			this.currentValueParser = new PartialFrontMatterValue();
+		// is an array item value is allowed at this position, create a new
+		// value parser and start the value parsing process using it
+		if (this.arrayItemAllowed === true) {
+			this.currentValueParser = new PartialFrontMatterValue(
+				(currentToken) => {
+					// comma or a closing square bracket must stop the parsing
+					// process of the value represented by a generic sequence of tokens
+					return (
+						(currentToken instanceof RightBracket)
+						|| (currentToken instanceof Comma)
+					);
+				},
+			);
 			this.arrayItemAllowed = false;
 
 			return this.accept(token);
@@ -158,12 +158,11 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	 * 		   is not a closing bracket ({@link RightBracket}).
 	 */
 	public asArrayToken(): FrontMatterArray {
-		this.isConsumed = true;
 		const endToken = this.currentTokens[this.currentTokens.length - 1];
 
 		assertDefined(
 			endToken,
-			`No tokens found.`,
+			'No tokens found.',
 		);
 
 		assert(
@@ -173,11 +172,20 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 		const valueTokens: FrontMatterValueToken[] = [];
 		for (const currentToken of this.currentTokens) {
-			if (currentToken instanceof FrontMatterValueToken) {
-				valueTokens.push(currentToken);
+			if ((currentToken instanceof FrontMatterValueToken) === false) {
+				continue;
 			}
+
+			// the generic sequence tokens can have trailing spacing tokens,
+			// hence trim them to ensure the array contains only "clean" values
+			if (currentToken instanceof FrontMatterSequence) {
+				currentToken.trimEnd();
+			}
+
+			valueTokens.push(currentToken);
 		}
 
+		this.isConsumed = true;
 		return new FrontMatterArray([
 			this.startToken,
 			...valueTokens,

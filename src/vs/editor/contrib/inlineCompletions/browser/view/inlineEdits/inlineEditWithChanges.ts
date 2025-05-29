@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
+import { SingleLineEdit } from '../../../../../common/core/edits/lineEdit.js';
+import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
-import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
+import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
+import { AbstractText } from '../../../../../common/core/text/abstractText.js';
 import { Command } from '../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
 	public get lineEdit() {
-		return SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
+		return SingleLineEdit.fromSingleTextEdit(this.edit.toReplacement(this.originalText), this.originalText);
 	}
 
 	public get originalLineRange() { return this.lineEdit.lineRange; }
