@@ -1869,6 +1869,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session:not(.chat-widget > .interactive-session) {
 
+	.interactive-item-container {
+		padding-top: 5px 16px;
+	}
+
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
 		padding-bottom: 0px;
@@ -1883,7 +1887,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 		width: fit-content;
 		margin-bottom: 5px;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 		position: relative;
 	}
 
@@ -1901,7 +1904,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .chat-attached-context {
-		margin-top: 10px;
 		max-width: 100%;
 		width: fit-content;
 		justify-content: flex-end;
