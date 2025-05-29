@@ -6,6 +6,7 @@
 import { PromptMetadataRecord } from './base/record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
+import { FrontMatterSequence } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
 import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
@@ -99,8 +100,11 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	): readonly PromptMetadataDiagnostic[] {
 		const issues: PromptMetadataDiagnostic[] = [];
 
-		// tool name must be a string
-		if ((valueToken instanceof FrontMatterString) === false) {
+		// tool name must be a quoted or an unquoted 'string'
+		if (
+			(valueToken instanceof FrontMatterString) === false &&
+			(valueToken instanceof FrontMatterSequence) === false
+		) {
 			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
