@@ -1944,7 +1944,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover.has-no-actions {
-		display: none;
+		display: none !important;
 	}
 }
 
