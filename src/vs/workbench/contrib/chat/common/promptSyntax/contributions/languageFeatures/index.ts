@@ -9,7 +9,6 @@ import { isWindows } from '../../../../../../../base/common/platform.js';
 import { PromptPathAutocompletion } from './providers/promptPathAutocompletion.js';
 import { PromptLinkDiagnosticsInstanceManager } from './providers/promptLinkDiagnosticsProvider.js';
 import { PromptHeaderDiagnosticsInstanceManager } from './providers/promptHeaderDiagnosticsProvider.js';
-import { PromptDecorationsProviderInstanceManager } from './providers/decorationsProvider/promptDecorationsProvider.js';
 
 /**
  * Base list of language feature contributions.
@@ -18,7 +17,12 @@ const CONTRIBUTIONS: TContribution[] = [
 	PromptLinkProvider,
 	PromptLinkDiagnosticsInstanceManager,
 	PromptHeaderDiagnosticsInstanceManager,
-	PromptDecorationsProviderInstanceManager,
+	/**
+	 * PromptDecorationsProviderInstanceManager is currently disabled because the only currently
+	 * available decoration is the Front Matter header, which we decided to disable for now.
+	 * Add it back when more decorations are needed.
+	 */
+	// PromptDecorationsProviderInstanceManager,
 ];
 
 /**
