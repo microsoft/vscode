@@ -633,10 +633,11 @@ export class SettingsEditor2 extends EditorPane {
 		const showSuggestions = this.configurationService.getValue<boolean>('workbench.settings.showAISearchToggle');
 		if (!setupHidden && showSuggestions) {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
+			const searchServiceEnabled = this.aiSettingsSearchService.isEnabled();
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResultsDescription', "Search settings with AI"), showAiResultActionClassNames.join(' '), false
+				localize('showAiResultsDescription', "Search settings with AI"), showAiResultActionClassNames.join(' '), searchServiceEnabled
 			));
-			this._register(this.aiSettingsSearchService.onDidEnable(() => {
+			this._register(this.aiSettingsSearchService.onProviderRegistered(() => {
 				this.showAiResultsAction!.enabled = true;
 			}));
 			this._register(this.showAiResultsAction.onDidChange(() => {

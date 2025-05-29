@@ -131,7 +131,8 @@ export class LocalSearchProvider implements ISearchProvider {
 		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch);
 		return Promise.resolve({
 			filterMatches: filteredMatches,
-			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
+			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch),
+			providerName: 'local'
 		});
 	}
 
