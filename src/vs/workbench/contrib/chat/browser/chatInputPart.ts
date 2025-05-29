@@ -14,6 +14,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
@@ -368,6 +369,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * See {@linkcode PromptInstructionsAttachmentsCollectionWidget}.
 	 */
 	private promptInstructionsAttachmentsPart: PromptInstructionsAttachmentsCollectionWidget;
+
+	/**
+	 * Number consumers holding the 'generating' lock.
+	 */
+	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -740,6 +746,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setVisible(visible: boolean): void {
 		this._onDidChangeVisibility.fire(visible);
+	}
+
+	/** If consumers are busy generating the chat input, returns the promise resolved when they finish */
+	get generating() {
+		return this._generating?.defer.p;
+	}
+
+	/** Disables the input submissions buttons until the disposable is disposed. */
+	startGenerating(): IDisposable {
+		this.logService.trace('ChatWidget#startGenerating');
+		if (this._generating) {
+			this._generating.rc++;
+		} else {
+			this._generating = { rc: 1, defer: new DeferredPromise<void>() };
+		}
+
+		return toDisposable(() => {
+			this.logService.trace('ChatWidget#doneGenerating');
+			if (this._generating && !--this._generating.rc) {
+				this._generating.defer.complete();
+				this._generating = undefined;
+			}
+		});
 	}
 
 	get element(): HTMLElement {

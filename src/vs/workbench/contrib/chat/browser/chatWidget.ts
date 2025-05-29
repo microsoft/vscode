@@ -1254,6 +1254,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		if (!query && this.inputPart.generating) {
+			// if the user submits the input and generation finishes quickly, just submit it for them
+			const generatingAutoSubmitWindow = 500;
+			const start = Date.now();
+			await this.input.generating;
+			if (Date.now() - start > generatingAutoSubmitWindow) {
+				return;
+			}
+		}
+
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 			this.scrollLock = !!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll);
