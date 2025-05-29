@@ -64,6 +64,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		return this._onDidDelete.event;
 	}
 
+	private readonly _onDidOpen: event.Emitter<void> = this._register(new event.Emitter<void>());
+	get onDidOpen(): event.Event<void> {
+		return this._onDidOpen.event;
+	}
+
 	constructor(
 		private readonly attachment: IChatRequestVariableEntry,
 		private readonly options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
@@ -151,6 +156,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
 		};
 		await this.openerService.open(resource, options);
+		this._onDidOpen.fire();
 		this.element.focus();
 	}
 }
