@@ -919,7 +919,7 @@ export const enum SearchResultIdx {
 
 export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[] | null = null;
-	private cachedUniqueSearchResults: ISearchResult | null = null;
+	private cachedUniqueSearchResults: Map<boolean, ISearchResult | null>;
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
 	private settingsOrderByTocIndex: Map<string, number> | null;
@@ -939,11 +939,13 @@ export class SearchResultModel extends SettingsTreeModel {
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
+		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
 	set showAiResults(show: boolean) {
 		this.aiFilterEnabled = show;
+		this.updateChildren();
 	}
 
 	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
@@ -986,8 +988,9 @@ export class SearchResultModel extends SettingsTreeModel {
 	}
 
 	getUniqueSearchResults(): ISearchResult | null {
-		if (this.cachedUniqueSearchResults) {
-			return this.cachedUniqueSearchResults;
+		const cachedResults = this.cachedUniqueSearchResults.get(this.aiFilterEnabled);
+		if (cachedResults) {
+			return cachedResults;
 		}
 
 		if (!this.rawSearchResults) {
@@ -1009,33 +1012,35 @@ export class SearchResultModel extends SettingsTreeModel {
 				embeddingsResult.filterMatches = embeddingsResult.filterMatches.filter(m => !aiSelectedKeys.has(m.setting.key));
 				combinedFilterMatches = combinedFilterMatches.concat(embeddingsResult.filterMatches);
 			}
-			this.cachedUniqueSearchResults = {
+			const result = {
 				filterMatches: combinedFilterMatches,
 				exactMatch: false
 			};
-		} else {
-			const localMatchKeys = new Set<string>();
-			const localResult = this.rawSearchResults[SearchResultIdx.Local];
-			if (localResult) {
-				localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-				combinedFilterMatches = localResult.filterMatches;
-			}
-
-			const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
-			if (remoteResult) {
-				remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-				combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
-
-				this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
-			}
-			combinedFilterMatches = this.sortResults(combinedFilterMatches);
-			this.cachedUniqueSearchResults = {
-				filterMatches: combinedFilterMatches,
-				exactMatch: localResult.exactMatch // remote results should never have an exact match
-			};
+			this.cachedUniqueSearchResults.set(true, result);
+			return result;
 		}
 
-		return this.cachedUniqueSearchResults;
+		const localMatchKeys = new Set<string>();
+		const localResult = this.rawSearchResults[SearchResultIdx.Local];
+		if (localResult) {
+			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+			combinedFilterMatches = localResult.filterMatches;
+		}
+
+		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
+		if (remoteResult) {
+			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
+			combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
+
+			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
+		}
+		combinedFilterMatches = this.sortResults(combinedFilterMatches);
+		const result = {
+			filterMatches: combinedFilterMatches,
+			exactMatch: localResult.exactMatch // remote results should never have an exact match
+		};
+		this.cachedUniqueSearchResults.set(false, result);
+		return result;
 	}
 
 	getRawResults(): ISearchResult[] {
@@ -1089,7 +1094,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	}
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
-		this.cachedUniqueSearchResults = null;
+		this.cachedUniqueSearchResults.clear();
 		this.newExtensionSearchResults = null;
 
 		this.rawSearchResults ??= [];
