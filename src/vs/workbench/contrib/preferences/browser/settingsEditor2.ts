@@ -1233,7 +1233,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingClassification = {
 			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
 			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
-			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the remote search provider, if applicable.' };
+			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the search provider, if applicable.' };
 			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
 			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the combined search results, if applicable.' };
 			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
@@ -1249,9 +1249,9 @@ export class SettingsEditor2 extends EditorPane {
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
 			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
-			providerName = props.searchResults.filterMatches.find(m => m.setting.key === props.key)?.providerName;
 
 			if (this.searchResultModel) {
+				providerName = props.searchResults.filterMatches.find(m => m.setting.key === props.key)?.providerName;
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Local] && displayIndex >= 0) {
 					const settingInLocalResults = rawResults[SearchResultIdx.Local].filterMatches.some(m => m.setting.key === props.key);
