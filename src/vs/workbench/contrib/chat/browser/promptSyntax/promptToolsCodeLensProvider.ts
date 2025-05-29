@@ -52,19 +52,23 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			.start()
 			.settled();
 
-		if (token.isCancellationRequested) {
+		if ((header === undefined) || token.isCancellationRequested) {
 			return undefined;
 		}
 
-		const tools = header?.metadata.tools;
-		if (!tools) {
+		if (('tools' in header.metadataUtility) === false) {
+			return undefined;
+		}
+
+		const { tools } = header.metadataUtility;
+		if (tools === undefined) {
 			return undefined;
 		}
 
 		const codeLens: CodeLens = {
 			range: tools.range.collapseToStart(),
 			command: {
-				title: localize('eee', "Configure Tools..."),
+				title: localize('configure-tools.capitalized.ellipsis', "Configure Tools..."),
 				id: this.cmdId,
 				arguments: [model, tools]
 			}
@@ -74,7 +78,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 	private async updateTools(model: ITextModel, tools: PromptToolsMetadata) {
 
-		const toolNames = new Set(tools.toolNames);
+		const toolNames = new Set(tools.value);
 		const selectedToolsNow = new Map<ToolSet | IToolData, boolean>();
 
 		for (const tool of this.languageModelToolsService.getTools()) {

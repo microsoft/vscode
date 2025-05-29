@@ -5,15 +5,15 @@
 
 import { TTree } from '../utils/treeUtils.js';
 import { ChatMode } from '../../constants.js';
-import { IPromptMetadata } from '../parsers/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { TMetadata } from '../parsers/promptHeader/headerBase.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Provides prompt services.
@@ -65,12 +65,12 @@ export interface IMetadata {
 	/**
 	 * Metadata of the prompt file.
 	 */
-	readonly metadata: IPromptMetadata;
+	readonly metadata: TMetadata | null;
 
 	/**
 	 * List of metadata for each valid child prompt reference.
 	 */
-	readonly children?: readonly TTree<IMetadata>[];
+	readonly children?: readonly TTree<IMetadata | null>[];
 }
 
 export interface ICustomChatMode {
