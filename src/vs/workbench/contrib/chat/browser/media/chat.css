@@ -1942,6 +1942,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-top: 4px;
 		padding-left: 1px;
 	}
+
+	.request-hover.has-no-actions {
+		display: none;
+	}
 }
 
 .chat-buttons-container {
