@@ -592,12 +592,37 @@ suite('ExtHostWorkspace', function () {
 					assert.strictEqual(options.excludePattern, undefined);
 					assert.strictEqual(options.disregardExcludeSettings, false);
 					assert.strictEqual(options.maxResults, 10);
+					assert.strictEqual(options.shouldGlobSearch, true);
 					return Promise.resolve(null);
 				}
 			});
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
 			return ws.findFiles('foo', undefined, 10, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('glob pattern include', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.includePattern, '**/image.png');
+					assert.strictEqual(_includeFolder, null);
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.maxResults, 10);
+					assert.strictEqual(options.shouldGlobSearch, true);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles('**/image.png', undefined, 10, new ExtensionIdentifier('test')).then(() => {
 				assert(mainThreadCalled, 'mainThreadCalled');
 			});
 		});
@@ -711,6 +736,7 @@ suite('ExtHostWorkspace', function () {
 					assert.strictEqual(options.excludePattern, undefined);
 					assert.strictEqual(options.disregardExcludeSettings, false);
 					assert.strictEqual(options.maxResults, 10);
+					assert.strictEqual(options.shouldGlobSearch, true);
 					return Promise.resolve(null);
 				}
 			});
