@@ -1402,7 +1402,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// Activity Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
-					this.setActivityBarHidden(zenModeHideActivityBar);
+					const activityBarLocation = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+					this.setActivityBarHidden(zenModeHideActivityBar ? true : activityBarLocation !== ActivityBarPosition.DEFAULT);
 				}
 
 				// Status Bar
