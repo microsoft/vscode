@@ -12,7 +12,7 @@ import { PromptsConfig } from '../../../../../../platform/prompts/common/config.
 import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getPromptFileExtension, getPromptFileType, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { getPromptFileExtension, getPromptFileLocationsConfigKey, getPromptFileType, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
@@ -20,11 +20,13 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { TPromptsStorage } from '../service/types.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 
 /**
  * Utility class to locate prompt files.
  */
-export class PromptFilesLocator {
+export class PromptFilesLocator extends Disposable {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -33,7 +35,9 @@ export class PromptFilesLocator {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-	) { }
+	) {
+		super();
+	}
 
 	/**
 	 * List all prompt files from the filesystem.
@@ -42,9 +46,7 @@ export class PromptFilesLocator {
 	 */
 	public async listFiles(type: PromptsType, storage: TPromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
 		if (storage === 'local') {
-			const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-			const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
-			return await this.findFilesInLocations(absoluteLocations, type, token);
+			return await this.listFilesInLocal(type, token);
 		} else {
 			return await this.listFilesInUserData(type, token);
 		}
@@ -53,6 +55,29 @@ export class PromptFilesLocator {
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
 		return files.filter(file => getPromptFileType(file) === type);
+	}
+
+	public getFilesUpdatedEvent(type: PromptsType): Event<void> {
+		const eventEmitter = this._register(new Emitter<void>());
+		const key = getPromptFileLocationsConfigKey(type);
+		let parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
+		this._register(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
+				eventEmitter.fire();
+			}
+		}));
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.affects(this.userDataService.currentProfile.promptsHome)) {
+				eventEmitter.fire();
+				return;
+			}
+			if (parentFolders.some(folder => e.affects(folder))) {
+				eventEmitter.fire();
+				return;
+			}
+		}));
+		return eventEmitter.event;
 	}
 
 	/**
@@ -107,29 +132,19 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Finds all existent prompt files in the provided source folders.
+	 * Finds all existent prompt files in the configured local source folders.
 	 *
-	 * @throws if any of the provided folder paths is not an `absolute path`.
-	 *
-	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
-	 * @returns List of prompt files found in the provided source folders.
+	 * @returns List of prompt files found in the local source folders.
 	 */
-	private async findFilesInLocations(
-		absoluteLocations: readonly URI[],
+	private async listFilesInLocal(
 		type: PromptsType,
 		token: CancellationToken
 	): Promise<readonly URI[]> {
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
-		for (const absoluteLocation of absoluteLocations) {
-			assert(
-				isAbsolute(absoluteLocation.path),
-				`Provided location must be an absolute path, got '${absoluteLocation.path}'.`,
-			);
 
-			const { parent, filePattern } = firstNonGlobParentAndPattern(absoluteLocation);
-
+		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
 			const files = (filePattern === undefined)
 				? await this.resolveFilesAtLocation(parent, token) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(parent, filePattern, token);
@@ -144,6 +159,12 @@ export class PromptFilesLocator {
 		}
 
 		return [...paths];
+	}
+
+	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
+		return absoluteLocations.map(firstNonGlobParentAndPattern);
 	}
 
 	/**
@@ -330,7 +351,7 @@ export const isValidGlob = (pattern: string): boolean => {
  */
 const firstNonGlobParentAndPattern = (
 	location: URI
-): { parent: URI; filePattern: string | undefined } => {
+): { parent: URI; filePattern?: string } => {
 	const segments = location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
@@ -339,18 +360,16 @@ const firstNonGlobParentAndPattern = (
 	if (i === segments.length) {
 		// the path does not contain a glob pattern, so we can
 		// just find all prompt files in the provided location
-		return { parent: location, filePattern: undefined };
+		return { parent: location };
 	}
+	const parent = location.with({ path: segments.slice(0, i).join('/') });
 	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
-		return {
-			parent: location.with({ path: segments.slice(0, i).join('/') }),
-			filePattern: undefined
-		};
+		return { parent };
 	}
 
 	// the path contains a glob pattern, so we search in last folder that does not contain a glob pattern
 	return {
-		parent: location.with({ path: segments.slice(0, i).join('/') }),
+		parent,
 		filePattern: segments.slice(i).join('/')
 	};
 };

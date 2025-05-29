@@ -27,7 +27,7 @@ import { getCleanPromptName, isValidPromptType, PROMPT_FILE_EXTENSION, PromptsTy
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
@@ -52,6 +52,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public logTime: TLogFunction;
 
+	/**
+	 * Emitter for the custom chat modes change event.
+	 */
+	public readonly onDidChangeCustomChatModes: Event<void>;
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -61,7 +66,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		super();
 
-		this.fileLocator = this.instantiationService.createInstance(PromptFilesLocator);
+		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
+		this.onDidChangeCustomChatModes = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
+
+		this.onDidChangeCustomChatModes(() => {
+			console.log('Custom chat modes changed');
+		});
+
 		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
@@ -183,10 +194,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			};
 		});
 	}
-
-	private readonly _onDidChangeCustomChatModesEmitter: Emitter<void> = new Emitter<void>();
-	// todo: firing events not yet implemented
-	public readonly onDidChangeCustomChatModes: Event<void> = this._onDidChangeCustomChatModesEmitter.event;
 
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, CancellationToken.None);
