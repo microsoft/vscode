@@ -610,6 +610,11 @@ suite('TextModelPromptParser', () => {
 						'Prompt header must be defined.',
 					);
 
+					assert(
+						metadata?.promptType === PromptsType.prompt,
+						`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+					);
+
 					const { tools } = metadata;
 					assert.deepStrictEqual(
 						tools,
