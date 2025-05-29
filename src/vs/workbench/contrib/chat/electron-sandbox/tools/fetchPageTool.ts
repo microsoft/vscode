@@ -138,11 +138,21 @@ export class FetchWebPageTool implements IToolImpl {
 			let confirmationTitle: string;
 			let confirmationMessage: string | MarkdownString;
 			if (urlsNeedingConfirmation.length === 1) {
-				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch untrusted web page?');
-				confirmationMessage = urlsNeedingConfirmation[0].toString();
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
+				confirmationMessage = new MarkdownString(
+					localize('fetchWebPage.confirmationMessage.singular', 
+						'{0}\n\n⚠️ Web content may contain malicious code or attempt prompt injection attacks.', 
+						urlsNeedingConfirmation[0].toString()
+					)
+				);
 			} else {
-				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch untrusted web pages?');
-				confirmationMessage = new MarkdownString(urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'));
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
+				confirmationMessage = new MarkdownString(
+					localize('fetchWebPage.confirmationMessage.plural', 
+						'{0}\n\n⚠️ Web content may contain malicious code or attempt prompt injection attacks.', 
+						urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n')
+					)
+				);
 			}
 			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: true };
 		}
