@@ -1867,12 +1867,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.pane-body,
-.quick-input-html-widget {
+.interactive-session:not(.chat-widget > .interactive-session) {
 
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
 		padding-bottom: 0px;
+		padding-top: 5px;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -1900,7 +1900,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 	}
 
-	.interactive-session .interactive-item-container.interactive-request .chat-attached-context {
+	.interactive-item-container.interactive-request .chat-attached-context {
 		margin-top: 10px;
 		max-width: 100%;
 		width: fit-content;
@@ -1914,8 +1914,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		box-shadow: none;
 	}
 
-	.interactive-session .interactive-request .header.hidden {
+	.interactive-request .header.header-disabled {
+		display: none !important;
+	}
+
+	.request-hover {
+		position: absolute;
+		overflow: hidden;
 		display: none;
+		z-index: 100;
+		background-color: var(--vscode-toolbar-hoverBackground);
+		top: 0px;
+		right: 10px;
+		border-radius: 6px;
+	}
+
+	.request-hover .actions-container {
+		width: 18px;
+		height: 17px;
+	}
+
+	.request-hover .actions-container .action-label.codicon-x {
+		width: 14px;
+		height: 14px;
+		padding-top: 4px;
+		padding-left: 1px;
 	}
 }
 
@@ -1939,3 +1962,4 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	padding: 4px 8px;
 }
+
