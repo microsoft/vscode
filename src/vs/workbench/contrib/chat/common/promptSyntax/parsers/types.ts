@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TMetadata } from './promptHeader/modeHeader.js';
+import { TMetadata } from './promptHeader/headerBase.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';

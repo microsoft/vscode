@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { type TModeMetadata } from './modeHeader.js';
 import { localize } from '../../../../../../../nls.js';
+import { type TPromptMetadata } from './promptHeader.js';
 import { IMetadataRecord } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
+import { type TInstructionsMetadata } from './instructionsHeader.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
@@ -36,6 +39,11 @@ export interface IHeaderMetadata {
  * Metadata for prompt/instruction/mode files.
  */
 export type THeaderMetadata = Partial<TDehydrated<IHeaderMetadata>>;
+
+/**
+ * Metadata defined in the header of prompt/instruction/mode files.
+ */
+export type TMetadata = TPromptMetadata | TModeMetadata | TInstructionsMetadata;
 
 /**
  * Base class for prompt/instruction/mode headers.

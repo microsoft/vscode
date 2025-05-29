@@ -58,7 +58,7 @@ export abstract class PromptContentsProviderBase<
 	public abstract get sourceName(): string;
 
 	/**
-	 * TODO: @legomushroom
+	 * Prompt type used to determine how to interpret file contents.
 	 */
 	public get promptType(): PromptsType | 'non-prompt' {
 		const { languageId } = this;

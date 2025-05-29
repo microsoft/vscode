@@ -5,7 +5,7 @@
 
 import { TopError } from './topError.js';
 import { ChatMode } from '../../constants.js';
-import { TMetadata } from './promptHeader/modeHeader.js';
+import { TMetadata } from './promptHeader/headerBase.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';

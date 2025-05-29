@@ -24,11 +24,10 @@ export interface IPromptContentsProvider extends IDisposable {
 	/**
 	 * Language ID of the prompt contents.
 	 */
-	// TODO: @legomushroom - narrow down the type?
 	readonly languageId: string;
 
 	/**
-	 * TODO: @legomushroom
+	 * Prompt type used to determine how to interpret file contents.
 	 */
 	readonly promptType: PromptsType | 'non-prompt';
 
