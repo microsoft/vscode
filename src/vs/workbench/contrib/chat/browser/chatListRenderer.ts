@@ -323,17 +323,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
-			if (requestHover.classList.contains('has-no-actions')) {
-				return;
+			if (isRequestVM(template.currentElement)) {
+				requestHover.style.display = 'block';
 			}
-			requestHover.style.display = 'block';
 		}));
 
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
-			if (requestHover.classList.contains('has-no-actions')) {
-				return;
+			if (isRequestVM(template.currentElement)) {
+				requestHover.style.display = 'none';
 			}
-			requestHover.style.display = 'none';
 		}));
 
 		const user = dom.append(header, $('.user'));
