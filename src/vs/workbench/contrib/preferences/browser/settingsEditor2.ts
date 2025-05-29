@@ -1249,6 +1249,7 @@ export class SettingsEditor2 extends EditorPane {
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
 			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
+			providerName = props.searchResults.filterMatches.find(m => m.setting.key === props.key)?.providerName;
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
@@ -1257,7 +1258,6 @@ export class SettingsEditor2 extends EditorPane {
 					groupId = settingInLocalResults ? 'local' : 'remote';
 				}
 				if (rawResults[SearchResultIdx.Remote]) {
-					providerName = rawResults[SearchResultIdx.Remote].providerName;
 					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
@@ -1733,7 +1733,14 @@ export class SettingsEditor2 extends EditorPane {
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
-					fullResult.filterMatches.push({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 });
+					fullResult.filterMatches.push({
+						setting,
+						matches: [],
+						matchType: SettingMatchType.None,
+						keyMatchScore: 0,
+						score: 0,
+						providerName: 'filterModel'
+					});
 				}
 			}
 		}
