@@ -617,8 +617,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		store.add(handler.onDidChangePromptList(() => {
-			handler.logger.info('Prompts list changed, refreshing tools...');
-			updateTools(undefined);
+			handler.logger.info('Prompts list changed, refreshing prompts...');
+			updatePrompts(undefined);
 		}));
 
 		transaction(tx => {
