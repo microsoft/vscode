@@ -825,32 +825,46 @@ export class SearchView extends ViewPane {
 	}
 
 	private buildReplaceAllConfirmationMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		// Helper to truncate long values to 10 lines max
+		const truncateValue = (value: string | undefined): string | undefined => {
+			if (!value) {
+				return value;
+			}
+			const lines = value.split('\n');
+			if (lines.length > 10) {
+				return lines.slice(0, 10).join('\n') + '\n...';
+			}
+			return value;
+		};
+
+		const displayReplaceValue = truncateValue(replaceValue);
+
 		if (occurrences === 1) {
 			if (fileCount === 1) {
-				if (replaceValue) {
-					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+				if (displayReplaceValue) {
+					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, displayReplaceValue);
 				}
 
 				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file?", occurrences, fileCount);
 			}
 
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+			if (displayReplaceValue) {
+				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, displayReplaceValue);
 			}
 
 			return nls.localize('replaceAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files?", occurrences, fileCount);
 		}
 
 		if (fileCount === 1) {
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+			if (displayReplaceValue) {
+				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, displayReplaceValue);
 			}
 
 			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file?", occurrences, fileCount);
 		}
 
-		if (replaceValue) {
-			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+		if (displayReplaceValue) {
+			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, displayReplaceValue);
 		}
 
 		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
