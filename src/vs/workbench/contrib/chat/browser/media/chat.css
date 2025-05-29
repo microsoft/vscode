@@ -1951,11 +1951,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-			/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 		overflow: visible !important;
 	}
 
-	/* first element in list */
 	div[data-index="0"] .monaco-tl-contents {
 		.interactive-item-container.interactive-request {
 			padding-top: 15px;

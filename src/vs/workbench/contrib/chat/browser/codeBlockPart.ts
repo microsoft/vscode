@@ -380,7 +380,6 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		// this.editor.layout({ width: isRequest ? width * 0.9 : width, height });
 		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
 		this.updatePaddingForLayout();
 	}
