@@ -57,6 +57,8 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-requestCodeBorder",
+		"--vscode-chat-requestBubbleBackground",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-disabled-background",
@@ -957,6 +959,6 @@
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
 		"--animation-opacity",
-		"--chat-setup-dialog-glow-progress"
+		"--chat-setup-dialog-glow-angle"
 	]
 }

@@ -45,6 +45,13 @@ export const discoverySourceLabel: Record<DiscoverySource, string> = {
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpEnabledSection = 'chat.mcp.enabled';
+export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+
+export interface IMcpServerSamplingConfiguration {
+	allowedDuringChat?: boolean;
+	allowedOutsideChat?: boolean;
+	allowedModels?: string[];
+}
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {

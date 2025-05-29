@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.101.0",
-  "distro": "c0d702f8f75399581ffbd28b76c7eb7d06aee169",
+  "distro": "ba782a84e32786e63185b7946c791bf89cb8da7a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -152,7 +152,6 @@
     "cookie": "^0.7.2",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.9.1",
-    "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.13.4",
     "electron": "35.4.0",
@@ -199,8 +198,6 @@
     "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "postcss": "^8.4.33",
-    "postcss-nesting": "^12.0.2",
     "pump": "^1.0.1",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",

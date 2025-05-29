@@ -248,10 +248,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			|| this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
-	layout(width: number): void {
+	layout(width: number, isRequest: boolean): void {
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
-				ref.object.layout(width);
+				ref.object.layout(width, isRequest);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
 				const codeblockModel = this.codeblocks[index];
 				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {

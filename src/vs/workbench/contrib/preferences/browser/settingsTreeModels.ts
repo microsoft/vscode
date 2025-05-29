@@ -912,7 +912,9 @@ function settingTypeEnumRenderable(_type: string | string[]) {
 export const enum SearchResultIdx {
 	Local = 0,
 	Remote = 1,
-	NewExtensions = 2
+	NewExtensions = 2,
+	Embeddings = 3,
+	AiSelected = 4
 }
 
 export class SearchResultModel extends SettingsTreeModel {
@@ -921,6 +923,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
 	private settingsOrderByTocIndex: Map<string, number> | null;
+	private aiFilterEnabled: boolean = false;
 
 	readonly id = 'searchResultModel';
 
@@ -937,6 +940,10 @@ export class SearchResultModel extends SettingsTreeModel {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.update({ id: 'searchResultModel', label: '' });
+	}
+
+	set showAiResults(show: boolean) {
+		this.aiFilterEnabled = show;
 	}
 
 	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
@@ -989,27 +996,44 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		let combinedFilterMatches: ISettingMatch[] = [];
 
-		const localMatchKeys = new Set();
-		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-			combinedFilterMatches = localResult.filterMatches;
+		if (this.aiFilterEnabled) {
+			const aiSelectedKeys = new Set<string>();
+			const aiSelectedResult = this.rawSearchResults[SearchResultIdx.AiSelected];
+			if (aiSelectedResult) {
+				aiSelectedResult.filterMatches.forEach(m => aiSelectedKeys.add(m.setting.key));
+				combinedFilterMatches = aiSelectedResult.filterMatches;
+			}
+
+			const embeddingsResult = this.rawSearchResults[SearchResultIdx.Embeddings];
+			if (embeddingsResult) {
+				embeddingsResult.filterMatches = embeddingsResult.filterMatches.filter(m => !aiSelectedKeys.has(m.setting.key));
+				combinedFilterMatches = combinedFilterMatches.concat(embeddingsResult.filterMatches);
+			}
+			this.cachedUniqueSearchResults = {
+				filterMatches: combinedFilterMatches,
+				exactMatch: false
+			};
+		} else {
+			const localMatchKeys = new Set<string>();
+			const localResult = this.rawSearchResults[SearchResultIdx.Local];
+			if (localResult) {
+				localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+				combinedFilterMatches = localResult.filterMatches;
+			}
+
+			const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
+			if (remoteResult) {
+				remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
+				combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
+
+				this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
+			}
+			combinedFilterMatches = this.sortResults(combinedFilterMatches);
+			this.cachedUniqueSearchResults = {
+				filterMatches: combinedFilterMatches,
+				exactMatch: localResult.exactMatch // remote results should never have an exact match
+			};
 		}
-
-		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
-		if (remoteResult) {
-			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-			combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
-
-			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
-		}
-
-		combinedFilterMatches = this.sortResults(combinedFilterMatches);
-
-		this.cachedUniqueSearchResults = {
-			filterMatches: combinedFilterMatches,
-			exactMatch: localResult.exactMatch // remote results should never have an exact match
-		};
 
 		return this.cachedUniqueSearchResults;
 	}

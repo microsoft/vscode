@@ -11,6 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -32,14 +33,15 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerCacheState } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 
 // acroynms do not get localized
@@ -152,17 +154,17 @@ export class McpServerOptionsCommand extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const mcpRegistry = accessor.get(IMcpRegistry);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
 		}
 
-
 		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling';
 		}
 
 		const items: ActionItem[] = [];
@@ -188,6 +190,10 @@ export class McpServerOptionsCommand extends Action2 {
 		items.push({
 			label: localize('mcp.showOutput', 'Show Output'),
 			action: 'showOutput'
+		}, {
+			label: localize('mcp.configAccess', 'Configure Model Access'),
+			description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+			action: 'configSampling'
 		});
 
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
@@ -228,6 +234,8 @@ export class McpServerOptionsCommand extends Action2 {
 					options: { selection: URI.isUri(configTarget) ? undefined : configTarget!.range }
 				});
 				break;
+			case 'configSampling':
+				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
 			default:
 				assertNever(pick.action);
 		}
@@ -287,7 +295,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -618,5 +626,42 @@ export class McpBrowseResourcesCommand extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+	}
+}
+
+
+export class McpConfigureSamplingModels extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ConfigureSamplingModels,
+			title: localize2('mcp.configureSamplingModels', "Configure SamplingModel"),
+			category,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<number> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const lmService = accessor.get(ILanguageModelsService);
+		const mcpSampling = accessor.get(IMcpSamplingService);
+
+		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
+		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
+			const model = lmService.lookupLanguageModel(id)!;
+			return model.isUserSelectable ? ({ label: model.name, description: model.description, id, picked: existingIds.has(id) }) : undefined;
+		}).filter(isDefined);
+
+		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
+
+		// do the quickpick selection
+		const picked = await quickInputService.pick(allItems, {
+			placeHolder: localize('mcp.configureSamplingModels.ph', 'Pick the models {0} can access via MCP sampling', server.definition.label),
+			canPickMany: true,
+		});
+
+		if (picked) {
+			await mcpSampling.updateConfig(server, c => c.allowedModels = picked.map(p => p.id!));
+		}
+
+		return picked?.length || 0;
 	}
 }

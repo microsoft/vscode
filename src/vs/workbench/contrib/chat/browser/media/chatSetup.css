@@ -5,30 +5,26 @@
 
 /* Glowing Animation */
 
-@property --chat-setup-dialog-glow-progress {
-	syntax: '<percentage>';
-	initial-value: 0%;
+@property --chat-setup-dialog-glow-angle {
+	syntax: '<angle>';
+	initial-value: 0deg;
 	inherits: false;
 }
 
-@keyframes chat-setup-dialog-glow-progress-animation {
+@keyframes chat-setup-dialog-glow-angle-animation {
 	0% {
-		--chat-setup-dialog-glow-progress: -100%;
-	}
-
-	50% {
-		--chat-setup-dialog-glow-progress: 100%;
+		--chat-setup-dialog-glow-angle: 0deg;
 	}
 
 	100% {
-		--chat-setup-dialog-glow-progress: -100%;
+		--chat-setup-dialog-glow-angle: 360deg;
 	}
 }
 
 .chat-setup-dialog.chat-setup-glow {
 	border: 2px solid !important;
-	border-image: linear-gradient(45deg, var(--vscode-button-background) var(--chat-setup-dialog-glow-progress), var(--vscode-editorGutter-addedBackground)) 1 !important;
-	animation: 3s chat-setup-dialog-glow-progress-animation linear infinite;
+	border-image: linear-gradient(var(--chat-setup-dialog-glow-angle), var(--vscode-button-background) 0, var(--vscode-editorGutter-addedBackground)) 1 !important;
+	animation: 3s chat-setup-dialog-glow-angle-animation linear infinite;
 }
 
 .chat-setup-dialog {

@@ -70,6 +70,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suggestPreviewEnabled;
 	private readonly _suggestPreviewMode;
 	private readonly _inlineSuggestMode;
+	private readonly _suppressedInlineCompletionGroupIds;
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
 
@@ -103,6 +104,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 		this._suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 		this._inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions));
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._lastShownInlineCompletionInfo = undefined;
@@ -220,8 +222,10 @@ export class InlineCompletionsModel extends Disposable {
 			const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
 
 			const providers = changeSummary.provider ? [changeSummary.provider] : this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel);
+			const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
+			const availableProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
 
-			return this._source.fetch(providers, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider);
+			return this._source.fetch(availableProviders, cursorPosition, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider);
 		});
 		this._inlineCompletionItems = derivedOpts({ owner: this }, reader => {
 			const c = this._source.inlineCompletions.read(reader);

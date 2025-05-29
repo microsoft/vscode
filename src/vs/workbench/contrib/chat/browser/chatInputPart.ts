@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -18,6 +19,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
@@ -87,7 +89,7 @@ import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/pro
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, SCMHistoryItemAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -659,6 +661,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachments = state.inputState?.chatContextAttachments ?? [];
 		this._attachmentModel.clearAndSetContext(...attachments);
 
+		this.selectedToolsModel.resetSessionEnablementState();
+
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
 		}
@@ -1225,6 +1229,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 
+		store.add(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+			this.handleAttachmentNavigation(e);
+		}));
+
 		const attachments = [...this.attachmentModel.attachments.entries()];
 		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.promptInstructionsAttachmentsPart.empty;
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
@@ -1243,7 +1251,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true };
-			if (resource && isNotebookOutputVariableEntry(attachment)) {
+			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
+				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
@@ -1297,6 +1307,41 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._onDidChangeContext.fire({ removed: [attachment] });
 		this.renderAttachedContext();
+	}
+
+	private handleAttachmentNavigation(e: StandardKeyboardEvent): void {
+		if (!e.equals(KeyCode.LeftArrow) && !e.equals(KeyCode.RightArrow)) {
+			return;
+		}
+
+		const toolbar = this.addFilesToolbar?.getElement().querySelector('.action-label');
+		if (!toolbar) {
+			return;
+		}
+
+		const attachments = Array.from(this.attachedContextContainer.querySelectorAll('.chat-attached-context-attachment'));
+		if (!attachments.length) {
+			return;
+		}
+
+		attachments.unshift(toolbar);
+
+		const activeElement = dom.getWindow(this.attachmentsContainer).document.activeElement;
+		const currentIndex = attachments.findIndex(attachment => attachment === activeElement);
+		let newIndex = currentIndex;
+
+		if (e.equals(KeyCode.LeftArrow)) {
+			newIndex = currentIndex > 0 ? currentIndex - 1 : attachments.length - 1;
+		} else if (e.equals(KeyCode.RightArrow)) {
+			newIndex = currentIndex < attachments.length - 1 ? currentIndex + 1 : 0;
+		}
+
+		if (newIndex !== -1) {
+			const nextElement = attachments[newIndex] as HTMLElement;
+			nextElement.focus();
+			e.preventDefault();
+			e.stopPropagation();
+		}
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {

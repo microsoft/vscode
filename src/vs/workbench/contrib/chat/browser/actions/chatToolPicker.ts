@@ -10,9 +10,9 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -52,7 +52,7 @@ export async function showToolsPicker(
 	placeHolder: string,
 	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>,
 	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void
-): Promise<ReadonlyMap<ToolSet | IToolData, boolean>> {
+): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
 	const mcpService = accessor.get(IMcpService);
@@ -117,7 +117,6 @@ export async function showToolsPicker(
 	for (const [toolSetOrTool, picked] of toolsEntries) {
 
 		let bucket: BucketPick | undefined;
-		let description: string | undefined;
 		const buttons: ActionableButton[] = [];
 
 		if (toolSetOrTool.source.type === 'mcp') {
@@ -129,13 +128,16 @@ export async function showToolsPicker(
 				continue;
 			}
 
+			const buttons: ActionableButton[] = [];
+
 			bucket = toolBuckets.get(key) ?? {
 				type: 'item',
 				label: localize('mcplabel', "MCP Server: {0}", toolSetOrTool.source.label),
 				ordinal: BucketOrdinal.Mcp,
 				picked: false,
 				alwaysShow: true,
-				children: []
+				children: [],
+				buttons
 			};
 			toolBuckets.set(key, bucket);
 
@@ -161,7 +163,7 @@ export async function showToolsPicker(
 			const key = ToolDataSource.toKey(toolSetOrTool.source);
 			bucket = toolBuckets.get(key) ?? {
 				type: 'item',
-				label: toolSetOrTool.source.label,
+				label: localize('ext', 'Extension: {0}', toolSetOrTool.source.label),
 				ordinal: BucketOrdinal.Extension,
 				picked: false,
 				alwaysShow: true,
@@ -190,8 +192,8 @@ export async function showToolsPicker(
 				type: 'item',
 				picked,
 				toolset: toolSetOrTool,
-				label: toolSetOrTool.displayName,
-				description: description ?? toolSetOrTool.description,
+				label: toolSetOrTool.toolReferenceName,
+				description: toolSetOrTool.description,
 				indented: true,
 				buttons
 
@@ -203,7 +205,7 @@ export async function showToolsPicker(
 				picked,
 				tool: toolSetOrTool,
 				label: toolSetOrTool.toolReferenceName ?? toolSetOrTool.displayName,
-				description: toolSetOrTool.userDescription,
+				description: toolSetOrTool.userDescription ?? toolSetOrTool.modelDescription,
 				indented: true,
 			});
 		}
@@ -287,7 +289,19 @@ export async function showToolsPicker(
 				}
 			}
 
-			onUpdate?.(result);
+			if (onUpdate) {
+				let didChange = toolsEntries.size !== result.size;
+				for (const [key, value] of toolsEntries) {
+					if (didChange) {
+						break;
+					}
+					didChange = result.get(key) !== value;
+				}
+
+				if (didChange) {
+					onUpdate(result);
+				}
+			}
 
 		} finally {
 			ignoreEvent = false;
@@ -350,13 +364,15 @@ export async function showToolsPicker(
 		_update();
 	}));
 
+	let didAccept = false;
 	store.add(picker.onDidAccept(() => {
 		picker.activeItems.find(isCallbackPick)?.run();
+		didAccept = true;
 	}));
 
 	await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 
 	store.dispose();
 
-	return result;
+	return didAccept ? result : undefined;
 }

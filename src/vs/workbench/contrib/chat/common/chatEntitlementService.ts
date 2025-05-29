@@ -147,6 +147,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -179,7 +180,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		if (
 			!productService.defaultChatAgent ||				// needs product config
-			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
+			(
+				// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
+				isWeb &&
+				!environmentService.remoteAuthority &&
+				!configurationService.getValue('chat.experimental.serverlessWebEnabled')
+			)
 		) {
 			ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
@@ -520,7 +526,7 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 
 		try {
-			return await this.authenticationService.getSessions(providerId, undefined, preferredAccount);
+			return await this.authenticationService.getSessions(providerId, undefined, { account: preferredAccount });
 		} catch (error) {
 			// ignore - errors can throw if a provider is not registered
 		}

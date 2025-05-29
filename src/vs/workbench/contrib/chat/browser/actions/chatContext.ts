@@ -75,27 +75,44 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		for (const entry of widget.input.selectedToolsModel.entries.get()) {
 
-			const label = entry.toolReferenceName ?? entry.displayName;
-			const item: Pick = {
-				toolInfo: ToolDataSource.classify(entry.source),
-				label,
-				description: label !== entry.displayName ? entry.displayName : undefined,
-				asAttachment: (): IChatRequestToolEntry | IChatRequestToolSetEntry => {
-					return {
-						kind: entry instanceof ToolSet ? 'toolset' : 'tool',
-						id: entry.id,
-						name: entry.displayName,
-						fullName: entry.displayName,
-						value: undefined,
-					};
-				}
-			};
-
-			items.push(item);
+			if (entry instanceof ToolSet) {
+				items.push({
+					toolInfo: ToolDataSource.classify(entry.source),
+					label: entry.toolReferenceName,
+					description: entry.description,
+					asAttachment: (): IChatRequestToolSetEntry => {
+						return {
+							kind: 'toolset',
+							id: entry.id,
+							icon: entry.icon,
+							name: entry.displayName,
+							value: undefined,
+						};
+					}
+				});
+			} else {
+				items.push({
+					toolInfo: ToolDataSource.classify(entry.source),
+					label: entry.toolReferenceName ?? entry.displayName,
+					description: entry.userDescription ?? entry.modelDescription,
+					asAttachment: (): IChatRequestToolEntry => {
+						return {
+							kind: 'tool',
+							id: entry.id,
+							icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
+							name: entry.displayName,
+							value: undefined,
+						};
+					}
+				});
+			}
 		}
 
 		items.sort((a, b) => {
 			let res = a.toolInfo.ordinal - b.toolInfo.ordinal;
+			if (res === 0) {
+				res = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			}
 			if (res === 0) {
 				res = a.label.localeCompare(b.label);
 			}
@@ -104,7 +121,6 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		let lastGroupLabel: string | undefined;
 		const picks: (IQuickPickSeparator | Pick)[] = [];
-
 
 		for (const item of items) {
 			if (lastGroupLabel !== item.toolInfo.label) {

@@ -24,7 +24,7 @@ import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
-import { IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -138,7 +138,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
@@ -149,13 +149,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		const scopesSupported = metadata.scopes_supported || [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata, resource);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, undefined, true, issuer);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { issuer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -235,8 +235,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {
 		const message = recreatingSession
-			? nls.localize('confirmRelogin', "The MCP Server '{0}' wants you to sign in again using {1}.", mcpLabel, providerLabel)
-			: nls.localize('confirmLogin', "The MCP Server '{0}' wants to sign in using {1}.", mcpLabel, providerLabel);
+			? nls.localize('confirmRelogin', "The MCP Server Definition '{0}' wants you to authenticate to {1}.", mcpLabel, providerLabel)
+			: nls.localize('confirmLogin', "The MCP Server Definition '{0}' wants to authenticate to {1}.", mcpLabel, providerLabel);
 
 		const buttons: IPromptButton<boolean | undefined>[] = [
 			{
