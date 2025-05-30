@@ -6,15 +6,16 @@
 import { type TModeMetadata } from './modeHeader.js';
 import { localize } from '../../../../../../../nls.js';
 import { type TPromptMetadata } from './promptHeader.js';
-import { IMetadataRecord } from './metadata/base/record.js';
+import { type IMetadataRecord } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
 import { type TInstructionsMetadata } from './instructionsHeader.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
 import { PromptMetadataError, PromptMetadataWarning, type TDiagnostic } from './diagnostics.js';
 import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
 
 /**
@@ -111,8 +112,15 @@ export abstract class HeaderBase<
 		return this.issues;
 	}
 
+	/**
+	 * Full range of the header in the original document.
+	 */
+	public get range(): Range {
+		return this.token.range;
+	}
+
 	constructor(
-		public readonly contentsToken: Text,
+		public readonly token: FrontMatterHeader,
 		public readonly languageId: string,
 	) {
 		super();
@@ -123,7 +131,7 @@ export abstract class HeaderBase<
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				ObjectStream.fromArray([...contentsToken.children]),
+				ObjectStream.fromArray([...token.contentToken.children]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));
@@ -227,7 +235,7 @@ export abstract class HeaderBase<
 	private onError(error: Error): void {
 		this.issues.push(
 			new PromptMetadataError(
-				this.contentsToken.range,
+				this.token.range,
 				localize(
 					'prompt.header.diagnostics.parsing-error',
 					"Failed to parse prompt header: {0}",
