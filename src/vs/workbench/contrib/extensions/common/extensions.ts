@@ -78,8 +78,8 @@ export interface IExtension {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly supportUrl?: string;
-	readonly iconUrl: string;
-	readonly iconUrlFallback: string;
+	readonly iconUrl?: string;
+	readonly iconUrlFallback?: string;
 	readonly licenseUrl?: string;
 	readonly installCount?: number;
 	readonly rating?: number;

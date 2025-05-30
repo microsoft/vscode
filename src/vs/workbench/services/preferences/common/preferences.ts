@@ -157,6 +157,7 @@ export interface ISettingMatch {
 	matchType: SettingMatchType;
 	keyMatchScore: number;
 	score: number;
+	providerName?: string;
 }
 
 export interface IScoredResults {

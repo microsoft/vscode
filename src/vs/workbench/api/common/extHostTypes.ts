@@ -4834,6 +4834,7 @@ export class PreparedTerminalToolInvocation {
 		public readonly command: string,
 		public readonly language: string,
 		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
+		public readonly presentation?: 'hidden'
 	) { }
 }
 

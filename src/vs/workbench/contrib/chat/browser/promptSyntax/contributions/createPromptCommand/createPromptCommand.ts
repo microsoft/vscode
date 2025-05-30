@@ -18,13 +18,13 @@ import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
+import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../../../services/userDataSync/common/userDataSync.js';
 import { ISnippetsService } from '../../../../../snippets/browser/snippets.js';
 import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
-import { TPromptsType } from '../../../../common/promptSyntax/service/types.js';
+import { getLanguageIdForPromptsType } from '../../../../common/promptSyntax/constants.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
 import { askForPromptFileName } from './dialogs/askForPromptName.js';
 import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
@@ -32,7 +32,7 @@ import { createPromptFile } from './utils/createPromptFile.js';
 
 class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 
-	constructor(id: string, title: string, private readonly type: TPromptsType) {
+	constructor(id: string, title: string, private readonly type: PromptsType) {
 		super({
 			id,
 			title,
@@ -60,17 +60,7 @@ class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
 
-		const placeHolder = (this.type === 'instructions')
-			? localize(
-				'workbench.command.instructions.create.location.placeholder',
-				"Select a location to create the instructions file in...",
-			)
-			: localize(
-				'workbench.command.prompt.create.location.placeholder',
-				"Select a location to create the prompt file in...",
-			);
-
-		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type, placeHolder);
+		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
 		if (!selectedFolder) {
 			return;
 		}
@@ -90,7 +80,7 @@ class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 
 		const editor = getCodeEditor(editorService.activeTextEditorControl);
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
-			const languageId = this.type === 'instructions' ? INSTRUCTIONS_LANGUAGE_ID : PROMPT_LANGUAGE_ID;
+			const languageId = getLanguageIdForPromptsType(this.type);
 
 			const snippets = await snippetService.getSnippets(languageId, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
 			if (snippets.length > 0) {
@@ -126,7 +116,7 @@ class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 			Severity.Info,
 			localize(
 				'workbench.command.prompts.create.user.enable-sync-notification',
-				"Do you want to backup and sync your user prompt and instruction files with Setting Sync?'",
+				"Do you want to backup and sync your user prompt, instruction and mode files with Setting Sync?'",
 			),
 			[
 				{
@@ -158,20 +148,26 @@ class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
+export const NEW_MODE_COMMAND_ID = 'workbench.command.new.mode';
 
 class NewPromptFileAction extends AbstractNewPromptOrInstructionsFileAction {
 	constructor() {
-		super(NEW_PROMPT_COMMAND_ID, localize('commands.new.prompt.local.title', "New Prompt File..."), 'prompt');
+		super(NEW_PROMPT_COMMAND_ID, localize('commands.new.prompt.local.title', "New Prompt File..."), PromptsType.prompt);
 	}
 }
 
 class NewInstructionsFileAction extends AbstractNewPromptOrInstructionsFileAction {
 	constructor() {
-		super(NEW_INSTRUCTIONS_COMMAND_ID, localize('commands.new.instructions.local.title', "New Instructions File..."), 'instructions');
+		super(NEW_INSTRUCTIONS_COMMAND_ID, localize('commands.new.instructions.local.title', "New Instructions File..."), PromptsType.instructions);
+	}
+}
+
+class NewModeFileAction extends AbstractNewPromptOrInstructionsFileAction {
+	constructor() {
+		super(NEW_MODE_COMMAND_ID, localize('commands.new.mode.local.title', "New Mode File..."), PromptsType.mode);
 	}
 }
 
 registerAction2(NewPromptFileAction);
 registerAction2(NewInstructionsFileAction);
-
-
+registerAction2(NewModeFileAction);

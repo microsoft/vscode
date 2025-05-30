@@ -46,7 +46,7 @@ export class LineRange {
 	}
 
 	/**
-	 * @param lineRanges An array of sorted line ranges.
+	 * @param lineRanges An array of arrays of of sorted line ranges.
 	 */
 	public static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[] {
 		if (lineRanges.length === 0) {

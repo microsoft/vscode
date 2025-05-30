@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { McpServer } from './mcpServer.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpService, McpResourceURI } from './mcpTypes.js';
+import { IMcpService, McpCapability, McpResourceURI } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export class McpResourceFilesystem extends Disposable implements IWorkbenchContribution,
@@ -80,6 +80,10 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 	public watch(uri: URI, _opts: IWatchOptions): IDisposable {
 		const { resourceURI, server } = this._decodeURI(uri);
+		const cap = server.capabilities.get();
+		if (cap !== undefined && !(cap & McpCapability.ResourcesSubscribe)) {
+			return Disposable.None;
+		}
 
 		server.start();
 
@@ -215,7 +219,12 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 
 		const server = this._mcpService.servers.get().find(s => s.definition.id === definitionId);
 		if (!server) {
-			throw createFileSystemProviderError(`MCP server with definition ID ${definitionId} not found`, FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError(`MCP server ${definitionId} not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+
+		const cap = server.capabilities.get();
+		if (cap !== undefined && !(cap & McpCapability.Resources)) {
+			throw createFileSystemProviderError(`MCP server ${definitionId} does not support resources`, FileSystemProviderErrorCode.FileNotFound);
 		}
 
 		return { definitionId, resourceURI, server };

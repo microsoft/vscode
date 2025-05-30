@@ -119,19 +119,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 /**
  * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
-export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
+export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromise<T> | Promise<T>)[]): CancelablePromise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	try {
-		const result = await Promise.race(promises);
-		return result;
-	} finally {
+	const promise = Promise.race(promises) as CancelablePromise<T>;
+	promise.cancel = () => {
 		cancellablePromises.forEach((cancellablePromise, index) => {
-			if (index !== resolvedPromiseIndex) {
-				cancellablePromise.cancel();
+			if (index !== resolvedPromiseIndex && (cancellablePromise as CancelablePromise<T>).cancel) {
+				(cancellablePromise as CancelablePromise<T>).cancel();
 			}
 		});
-	}
+	};
+	promise.finally(() => {
+		promise.cancel();
+	});
+	return promise;
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -927,6 +929,86 @@ export class ResourceQueue implements IDisposable {
 		this.releaseDrainers();
 
 		this.drainListeners?.dispose();
+	}
+}
+
+export type Task<T = void> = () => (Promise<T> | T);
+
+/**
+ * Processes tasks in the order they were scheduled.
+*/
+export class TaskQueue {
+	private _runningTask: Task<any> | undefined = undefined;
+	private _pendingTasks: { task: Task<any>; deferred: DeferredPromise<any>; setUndefinedWhenCleared: boolean }[] = [];
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is rejected with a CancellationError.
+	*/
+	public schedule<T>(task: Task<T>): Promise<T> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: false });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	/**
+	 * Waits for the current and pending tasks to finish, then runs and awaits the given task.
+	 * If the task is skipped because of clearPending, the promise is resolved with undefined.
+	*/
+	public scheduleSkipIfCleared<T>(task: Task<T>): Promise<T | undefined> {
+		const deferred = new DeferredPromise<T>();
+		this._pendingTasks.push({ task, deferred, setUndefinedWhenCleared: true });
+		this._runIfNotRunning();
+		return deferred.p;
+	}
+
+	private _runIfNotRunning(): void {
+		if (this._runningTask === undefined) {
+			this._processQueue();
+		}
+	}
+
+	private async _processQueue(): Promise<void> {
+		if (this._pendingTasks.length === 0) {
+			return;
+		}
+
+		const next = this._pendingTasks.shift();
+		if (!next) {
+			return;
+		}
+
+		if (this._runningTask) {
+			throw new BugIndicatingError();
+		}
+
+		this._runningTask = next.task;
+
+		try {
+			const result = await next.task();
+			next.deferred.complete(result);
+		} catch (e) {
+			next.deferred.error(e);
+		} finally {
+			this._runningTask = undefined;
+			this._processQueue();
+		}
+	}
+
+	/**
+	 * Clears all pending tasks. Does not cancel the currently running task.
+	*/
+	public clearPending(): void {
+		const tasks = this._pendingTasks;
+		this._pendingTasks = [];
+		for (const task of tasks) {
+			if (task.setUndefinedWhenCleared) {
+				task.deferred.complete(undefined);
+			} else {
+				task.deferred.error(new CancellationError());
+			}
+		}
 	}
 }
 
@@ -1865,7 +1947,7 @@ export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
-	(emitter: AsyncIterableEmitter<T>): void | Promise<void>;
+	(emitter: AsyncIterableEmitter<T>): unknown | Promise<unknown>;
 }
 
 /**
@@ -2112,7 +2194,8 @@ export class AsyncIterableSource<T> {
 	private readonly _asyncIterable: AsyncIterableObject<T>;
 
 	private _errorFn: (error: Error) => void;
-	private _emitFn: (item: T) => void;
+	private _emitOneFn: (item: T) => void;
+	private _emitManyFn: (item: T[]) => void;
 
 	/**
 	 *
@@ -2131,22 +2214,31 @@ export class AsyncIterableSource<T> {
 				emitter.emitMany(earlyItems);
 			}
 			this._errorFn = (error: Error) => emitter.reject(error);
-			this._emitFn = (item: T) => emitter.emitOne(item);
+			this._emitOneFn = (item: T) => emitter.emitOne(item);
+			this._emitManyFn = (items: T[]) => emitter.emitMany(items);
 			return this._deferred.p;
 		}, onReturn);
 
 		let earlyError: Error | undefined;
 		let earlyItems: T[] | undefined;
 
-		this._emitFn = (item: T) => {
+
+		this._errorFn = (error: Error) => {
+			if (!earlyError) {
+				earlyError = error;
+			}
+		};
+		this._emitOneFn = (item: T) => {
 			if (!earlyItems) {
 				earlyItems = [];
 			}
 			earlyItems.push(item);
 		};
-		this._errorFn = (error: Error) => {
-			if (!earlyError) {
-				earlyError = error;
+		this._emitManyFn = (items: T[]) => {
+			if (!earlyItems) {
+				earlyItems = items.slice();
+			} else {
+				items.forEach(item => earlyItems!.push(item));
 			}
 		};
 	}
@@ -2165,8 +2257,31 @@ export class AsyncIterableSource<T> {
 	}
 
 	emitOne(item: T): void {
-		this._emitFn(item);
+		this._emitOneFn(item);
 	}
+
+	emitMany(items: T[]) {
+		this._emitManyFn(items);
+	}
+}
+
+export function cancellableIterable<T>(iterableOrIterator: AsyncIterator<T> | AsyncIterable<T>, token: CancellationToken): AsyncIterableIterator<T> {
+	const iterator = Symbol.asyncIterator in iterableOrIterator ? iterableOrIterator[Symbol.asyncIterator]() : iterableOrIterator;
+
+	return {
+		async next(): Promise<IteratorResult<T>> {
+			if (token.isCancellationRequested) {
+				return { done: true, value: undefined };
+			}
+			const result = await raceCancellation(iterator.next(), token);
+			return result || { done: true, value: undefined };
+		},
+		throw: iterator.throw?.bind(iterator),
+		return: iterator.return?.bind(iterator),
+		[Symbol.asyncIterator]() {
+			return this;
+		}
+	};
 }
 
 //#endregion

@@ -5,14 +5,7 @@
 
 import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../../nls.js';
-import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CellKind } from '../../common/notebookCommon.js';
-import { getNotebookEditorFromEditorPane, INotebookCellOverlay, INotebookCellOverlayChangeAccessor, INotebookViewCellsUpdateEvent } from '../notebookBrowser.js';
+import { INotebookCellOverlay, INotebookCellOverlayChangeAccessor, INotebookViewCellsUpdateEvent } from '../notebookBrowser.js';
 import { NotebookCellListView } from '../view/notebookCellListView.js';
 import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
 
@@ -142,63 +135,3 @@ export class NotebookCellOverlays extends Disposable {
 }
 
 
-
-class ToggleNotebookCellOverlaysDeveloperAction extends Action2 {
-	static cellOverlayIds: string[] = [];
-	constructor() {
-		super({
-			id: 'notebook.developer.addCellOverlays',
-			title: localize2('workbench.notebook.developer.addCellOverlays', "Toggle Notebook Cell Overlays"),
-			category: Categories.Developer,
-			precondition: IsDevelopmentContext,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
-			return;
-		}
-
-		if (ToggleNotebookCellOverlaysDeveloperAction.cellOverlayIds.length > 0) {
-			// remove all view zones
-			editor.changeCellOverlays(accessor => {
-				ToggleNotebookCellOverlaysDeveloperAction.cellOverlayIds.forEach(id => {
-					accessor.removeOverlay(id);
-				});
-				ToggleNotebookCellOverlaysDeveloperAction.cellOverlayIds = [];
-			});
-		} else {
-			editor.changeCellOverlays(accessor => {
-				const cells = editor.getCellsInRange();
-				if (cells.length === 0) {
-					return;
-				}
-
-				const cellOverlayIds: string[] = [];
-				for (let i = 0; i < cells.length; i++) {
-					if (cells[i].cellKind !== CellKind.Markup) {
-						continue;
-					}
-					const domNode = document.createElement('div');
-					domNode.innerText = `Cell Overlay ${i}`;
-					domNode.style.top = '10px';
-					domNode.style.right = '10px';
-					domNode.style.backgroundColor = 'rgba(0, 255, 0, 0.5)';
-					const overlayId = accessor.addOverlay({
-						cell: cells[i],
-						domNode: domNode,
-					});
-
-					cellOverlayIds.push(overlayId);
-				}
-				ToggleNotebookCellOverlaysDeveloperAction.cellOverlayIds = cellOverlayIds;
-			});
-		}
-	}
-}
-
-registerAction2(ToggleNotebookCellOverlaysDeveloperAction);
