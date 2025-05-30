@@ -78,11 +78,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {
-		const store = new DisposableStore();
 		const capability = this._capabilities.get(c);
 		if (!capability || this._capabilityDisposables.has(c)) {
 			return;
 		}
+		const store = new DisposableStore();
 		switch (capability.type) {
 			case TerminalCapability.BufferMarkDetection:
 				store.add(capability.onMarkAdded(mark => this.registerMarkDecoration(mark)));

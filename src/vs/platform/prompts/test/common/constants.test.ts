@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { randomInt } from '../../../../base/common/numbers.js';
-import { getCleanPromptName, isPromptOrInstructionsFile } from '../../common/constants.js';
+import { getCleanPromptName, isPromptOrInstructionsFile } from '../../common/prompts.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 

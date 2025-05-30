@@ -11,23 +11,25 @@ import { markdownCommandLink, MarkdownString } from '../../../../base/common/htm
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpResourceURI, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
 	store: DisposableStore;
 }
 
-type IMcpServerRec = IReference<IMcpServer>;
+type IMcpServerRec = IReference<IMcpServer> & { toolPrefix: string };
 
 export class McpService extends Disposable implements IMcpService {
 
@@ -52,7 +54,7 @@ export class McpService extends Disposable implements IMcpService {
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
 
-		const updateThrottle = this._store.add(new RunOnceScheduler(() => this._updateCollectedServers(), 500));
+		const updateThrottle = this._store.add(new RunOnceScheduler(() => this.updateCollectedServers(), 500));
 
 		// Throttle changes so that if a collection is changed, or a server is
 		// unregistered/registered, we don't stop servers unnecessarily.
@@ -73,14 +75,14 @@ export class McpService extends Disposable implements IMcpService {
 		const collections = await this._mcpRegistry.discoverCollections();
 		const collectionIds = new Set(collections.map(c => c.id));
 
-		this._updateCollectedServers();
+		this.updateCollectedServers();
 
 		// Discover any newly-collected servers with unknown tools
 		const todo: Promise<unknown>[] = [];
 		for (const { object: server } of this._servers.get()) {
 			if (collectionIds.has(server.collection.id)) {
-				const state = server.toolsState.get();
-				if (state === McpServerToolsState.Unknown) {
+				const state = server.cacheState.get();
+				if (state === McpServerCacheState.Unknown) {
 					todo.push(server.start());
 				}
 			}
@@ -94,6 +96,15 @@ export class McpService extends Disposable implements IMcpService {
 
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
+
+			// toRegister is deferred until deleting tools that moving a tool between
+			// servers (or deleting one instance of a multi-instance server) doesn't cause an error.
+			const toRegister: (() => void)[] = [];
+			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
+				store.add(this._toolsService.registerToolData(toolData));
+				store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+			};
+
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
@@ -102,22 +113,15 @@ export class McpService extends Disposable implements IMcpService {
 					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
 					icon: Codicon.tools,
 					displayName: tool.definition.annotations?.title || tool.definition.name,
-					toolReferenceName: tool.definition.name,
+					toolReferenceName: tool.id,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
-					supportsToolPicker: true,
 					alwaysDisplayInputOutput: true,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
-
-				const registerTool = (store: DisposableStore) => {
-					store.add(this._toolsService.registerToolData(toolData));
-					store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
-				};
-
 
 				if (existing) {
 					if (!equals(existing.toolData, toolData)) {
@@ -125,12 +129,12 @@ export class McpService extends Disposable implements IMcpService {
 						existing.store.clear();
 						// We need to re-register both the data and implementation, as the
 						// implementation is discarded when the data is removed (#245921)
-						registerTool(store);
+						registerTool(tool, toolData, store);
 					}
 					toDelete.delete(tool.id);
 				} else {
 					const store = new DisposableStore();
-					registerTool(store);
+					toRegister.push(() => registerTool(tool, toolData, store));
 					tools.set(tool.id, { toolData, store });
 				}
 			}
@@ -142,6 +146,10 @@ export class McpService extends Disposable implements IMcpService {
 					tools.delete(id);
 				}
 			}
+
+			for (const fn of toRegister) {
+				fn();
+			}
 		}));
 
 		store.add(toDisposable(() => {
@@ -151,12 +159,13 @@ export class McpService extends Disposable implements IMcpService {
 		}));
 	}
 
-	private _updateCollectedServers() {
+	public updateCollectedServers() {
+		const prefixGenerator = new McpPrefixGenerator();
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
-			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
-				serverDefinition,
-				collectionDefinition,
-			}))
+			collectionDefinition.serverDefinitions.get().map(serverDefinition => {
+				const toolPrefix = prefixGenerator.generate(serverDefinition.label);
+				return { serverDefinition, collectionDefinition, toolPrefix };
+			})
 		);
 
 		const nextDefinitions = new Set(definitions);
@@ -175,7 +184,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Transfer over any servers that are still valid.
 		for (const server of currentServers) {
-			const match = definitions.find(d => defsEqual(server.object, d));
+			const match = definitions.find(d => defsEqual(server.object, d) && server.toolPrefix === d.toolPrefix);
 			if (match) {
 				pushMatch(match, server);
 			} else {
@@ -193,11 +202,13 @@ export class McpService extends Disposable implements IMcpService {
 				def.serverDefinition.roots,
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+				def.toolPrefix,
 			);
+
 			store.add(object);
 			this._syncTools(object, store);
 
-			nextServers.push({ object, dispose: () => store.dispose() });
+			nextServers.push({ object, dispose: () => store.dispose(), toolPrefix: def.toolPrefix });
 		}
 
 		transaction(tx => {
@@ -239,7 +250,7 @@ class McpToolImplementation implements IToolImpl {
 
 		return {
 			confirmationMessages: needsConfirmation ? {
-				title: localize('msg.title', "Run {0}", title),
+				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
 				allowAutoConfirm: true,
 			} : undefined,
@@ -271,24 +282,67 @@ class McpToolImplementation implements IToolImpl {
 		};
 
 		for (const item of callResult.content) {
+			const audience = item.annotations?.audience || ['assistant'];
+			if (audience.includes('user')) {
+				if (item.type === 'text') {
+					progress.report({ message: item.text });
+				}
+			}
+
+			// Rewrite image rsources to images so they are inlined nicely
+			const addAsInlineData = (mimeType: string, value64: string, uri?: URI) => {
+				details.output.push({ type: 'data', mimeType, value64, uri });
+				if (isForModel) {
+					result.content.push({
+						kind: 'data',
+						value: { mimeType, data: decodeBase64(value64) }
+					});
+				}
+			};
+
+			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
 				details.output.push({ type: 'text', value: item.text });
-				result.content.push({
-					kind: 'text',
-					value: item.text
-				});
+				if (isForModel) {
+					result.content.push({
+						kind: 'text',
+						value: item.text
+					});
+				}
 			} else if (item.type === 'image' || item.type === 'audio') {
-				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
-				result.content.push({
-					kind: 'data',
-					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
-				});
-			} else {
-				// unsupported for now.
+				addAsInlineData(item.mimeType, item.data);
+			} else if (item.type === 'resource') {
+				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
+				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
+					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+				} else {
+					details.output.push({ type: 'resource', uri });
+					if (isForModel) {
+						result.content.push({
+							kind: 'text',
+							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
+						});
+					}
+				}
 			}
 		}
 
 		result.toolResultDetails = details;
 		return result;
+	}
+}
+
+// Helper class for generating unique MCP tool prefixes
+class McpPrefixGenerator {
+	private readonly seenPrefixes = new Set<string>();
+
+	generate(label: string): string {
+		const baseToolPrefix = McpToolName.Prefix + label.toLowerCase().replace(/[^a-z0-9_.-]+/g, '_').slice(0, McpToolName.MaxPrefixLen - McpToolName.Prefix.length - 1);
+		let toolPrefix = baseToolPrefix + '_';
+		for (let i = 2; this.seenPrefixes.has(toolPrefix); i++) {
+			toolPrefix = baseToolPrefix + i + '_';
+		}
+		this.seenPrefixes.add(toolPrefix);
+		return toolPrefix;
 	}
 }

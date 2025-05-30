@@ -10,7 +10,9 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
 
@@ -56,6 +58,34 @@ export abstract class PromptContentsProviderBase<
 	public abstract get sourceName(): string;
 
 	/**
+	 * Prompt contents stream.
+	 */
+	public get contents(): Promise<VSBufferReadableStream> {
+		return this.getContentsStream('full');
+	}
+
+	/**
+	 * Prompt type used to determine how to interpret file contents.
+	 */
+	public get promptType(): PromptsType | 'non-prompt' {
+		const { languageId } = this;
+
+		if (languageId === PROMPT_LANGUAGE_ID) {
+			return PromptsType.prompt;
+		}
+
+		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+			return PromptsType.instructions;
+		}
+
+		if (languageId === MODE_LANGUAGE_ID) {
+			return PromptsType.mode;
+		}
+
+		return 'non-prompt';
+	}
+
+	/**
 	 * Function to get contents stream for the provider. This function should
 	 * throw a `ResolveError` or its derivative if the contents cannot be parsed.
 	 *
@@ -90,9 +120,6 @@ export abstract class PromptContentsProviderBase<
 			...DEFAULT_OPTIONS,
 			...options,
 		};
-
-		// ensure that the `onChangeEmitter` always fires with the correct context
-		this.onChangeEmitter.fire = this.onChangeEmitter.fire.bind(this.onChangeEmitter);
 	}
 
 	/**
@@ -128,7 +155,7 @@ export abstract class PromptContentsProviderBase<
 
 		promise
 			.then((stream) => {
-				if (cancellationToken?.isCancellationRequested || this.disposed) {
+				if (cancellationToken?.isCancellationRequested || this.isDisposed) {
 					stream.destroy();
 					throw new CancellationError();
 				}
@@ -155,7 +182,7 @@ export abstract class PromptContentsProviderBase<
 	 */
 	public start(): this {
 		assert(
-			!this.disposed,
+			!this.isDisposed,
 			'Cannot start contents provider that was already disposed.',
 		);
 

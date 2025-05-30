@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `[` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class LeftBracket extends SimpleToken {
+export class LeftBracket extends SimpleToken<'['> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -18,7 +18,7 @@ export class LeftBracket extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '[' {
 		return LeftBracket.symbol;
 	}
 
@@ -34,7 +34,7 @@ export class LeftBracket extends SimpleToken {
  * A token that represent a `]` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class RightBracket extends SimpleToken {
+export class RightBracket extends SimpleToken<']'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -43,7 +43,7 @@ export class RightBracket extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): ']' {
 		return RightBracket.symbol;
 	}
 

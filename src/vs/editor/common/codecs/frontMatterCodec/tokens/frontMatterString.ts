@@ -15,29 +15,22 @@ export type TQuoteToken = Quote | DoubleQuote;
 /**
  * Token that represents a string value in a Front Matter header.
  */
-export class FrontMatterString<TQuote extends TQuoteToken = Quote> extends FrontMatterValueToken<'string'> {
+export class FrontMatterString<TQuote extends TQuoteToken = Quote> extends FrontMatterValueToken<
+	'quoted-string',
+	readonly [TQuote, ...BaseToken[], TQuote]
+> {
 	/**
 	 * Name of the `string` value type.
 	 */
-	public override readonly valueTypeName = 'string';
-
-	constructor(
-		public readonly tokens: readonly [TQuote, ...BaseToken[], TQuote],
-	) {
-		super(BaseToken.fullRange(tokens));
-	}
+	public override readonly valueTypeName = 'quoted-string';
 
 	/**
 	 * Text of the string value without the wrapping quotes.
 	 */
 	public get cleanText(): string {
 		return BaseToken.render(
-			this.tokens.slice(1, this.tokens.length - 1),
+			this.children.slice(1, this.children.length - 1),
 		);
-	}
-
-	public override get text(): string {
-		return BaseToken.render(this.tokens);
 	}
 
 	public override toString(): string {

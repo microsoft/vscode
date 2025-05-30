@@ -54,7 +54,7 @@ import { quickDiffDecorationCount } from './quickDiffDecorator.js';
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
 export interface IQuickDiffSelectItem extends ISelectOptionItem {
-	provider: string;
+	providerId: string;
 }
 
 export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSelectItem> {
@@ -74,9 +74,9 @@ export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSele
 		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
 	}
 
-	public setSelection(providers: string[], provider: string) {
-		this.optionsItems = providers.map(provider => ({ provider, text: provider }));
-		const index = this.optionsItems.findIndex(item => item.provider === provider);
+	public setSelection(quickDiffs: QuickDiff[], providerId: string) {
+		this.optionsItems = quickDiffs.map(quickDiff => ({ providerId: quickDiff.id, text: quickDiff.label }));
+		const index = this.optionsItems.findIndex(item => item.providerId === providerId);
 		this.setOptions(this.optionsItems, index);
 	}
 
@@ -149,7 +149,7 @@ class QuickDiffWidget extends PeekViewWidget {
 	private title: string;
 	private menu: IMenu | undefined;
 	private _index: number = 0;
-	private _provider: string = '';
+	private _providerId: string = '';
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
 	private dropdown: QuickDiffPickerViewItem | undefined;
@@ -184,8 +184,8 @@ class QuickDiffWidget extends PeekViewWidget {
 		this.setTitle(this.title);
 	}
 
-	get provider(): string {
-		return this._provider;
+	get providerId(): string {
+		return this._providerId;
 	}
 
 	get index(): number {
@@ -205,8 +205,8 @@ class QuickDiffWidget extends PeekViewWidget {
 		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].original.scheme);
 		this.updateActions();
 
-		this._provider = labeledChange.label;
 		this.change = change;
+		this._providerId = labeledChange.providerId;
 
 		if (Iterable.isEmpty(this.model.originalTextModels)) {
 			return;
@@ -229,10 +229,12 @@ class QuickDiffWidget extends PeekViewWidget {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const editorHeight = this.editor.getLayoutInfo().height;
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
-		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
+		const height = Math.min(
+			getChangeHeight(change) + 2 /* arrow, frame, header */ + 6 /* 3 lines above/below the change */,
+			Math.floor(editorHeightInLines / 3));
 
-		this.updateDropdown(labeledChange.label);
-		this.renderTitle(labeledChange.label);
+		this.renderTitle();
+		this.updateDropdown();
 
 		const changeType = getChangeType(change);
 		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
@@ -241,7 +243,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		const providerSpecificChanges: IChange[] = [];
 		let contextIndex = index;
 		for (const change of this.model.changes) {
-			if (change.label === this.model.changes[this._index].label) {
+			if (change.providerId === this.model.changes[this._index].providerId) {
 				providerSpecificChanges.push(change.change);
 				if (labeledChange === change) {
 					contextIndex = providerSpecificChanges.length - 1;
@@ -250,18 +252,24 @@ class QuickDiffWidget extends PeekViewWidget {
 		}
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
-			this.show(position, height);
+			// In order to account for the 1px border-top of the content element we
+			// have to add 1px. The pixel value needs to be expressed as a fraction
+			// of the line height.
+			this.show(position, height + (1 / lineHeight));
 			this.editor.setPosition(position);
 			this.editor.focus();
 		}
 	}
 
-	private renderTitle(label: string): void {
-		const providerChanges = this.model.quickDiffChanges.get(label)!;
+	private renderTitle(): void {
+		const providerChanges = this.model.quickDiffChanges.get(this._providerId)!;
 		const providerIndex = providerChanges.indexOf(this._index);
 
 		let detail: string;
 		if (!this.shouldUseDropdown()) {
+			const label = this.model.quickDiffs
+				.find(quickDiff => quickDiff.id === this._providerId)?.label ?? '';
+
 			detail = this.model.changes.length > 1
 				? nls.localize('changes', "{0} - {1} of {2} changes", label, providerIndex + 1, providerChanges.length)
 				: nls.localize('change', "{0} - {1} of {2} change", label, providerIndex + 1, providerChanges.length);
@@ -277,20 +285,20 @@ class QuickDiffWidget extends PeekViewWidget {
 	}
 
 	private switchQuickDiff(event?: IQuickDiffSelectItem) {
-		const newProvider = event?.provider;
-		if (newProvider === this.model.changes[this._index].label) {
+		const newProviderId = event?.providerId;
+		if (newProviderId === this.model.changes[this._index].providerId) {
 			return;
 		}
 		let closestGreaterIndex = this._index < this.model.changes.length - 1 ? this._index + 1 : 0;
 		for (let i = closestGreaterIndex; i !== this._index; i < this.model.changes.length - 1 ? i++ : i = 0) {
-			if (this.model.changes[i].label === newProvider) {
+			if (this.model.changes[i].providerId === newProviderId) {
 				closestGreaterIndex = i;
 				break;
 			}
 		}
 		let closestLesserIndex = this._index > 0 ? this._index - 1 : this.model.changes.length - 1;
 		for (let i = closestLesserIndex; i !== this._index; i > 0 ? i-- : i = this.model.changes.length - 1) {
-			if (this.model.changes[i].label === newProvider) {
+			if (this.model.changes[i].providerId === newProviderId) {
 				closestLesserIndex = i;
 				break;
 			}
@@ -327,16 +335,16 @@ class QuickDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose())), { label: false, icon: true });
 	}
 
-	private updateDropdown(label: string): void {
+	private updateDropdown(): void {
 		const quickDiffs = this.getQuickDiffsContainingChange();
-		this.dropdown?.setSelection(quickDiffs.map(quickDiff => quickDiff.label), label);
+		this.dropdown?.setSelection(quickDiffs, this._providerId);
 	}
 
 	private getQuickDiffsContainingChange(): QuickDiff[] {
 		const change = this.model.changes[this._index];
 
 		const quickDiffsWithChange = this.model.changes
-			.filter(c => change.change2.modified.overlapOrTouch(c.change2.modified))
+			.filter(c => change.change2.modified.intersectsOrTouches(c.change2.modified))
 			.map(c => c.providerId);
 
 		return this.model.quickDiffs
@@ -373,7 +381,15 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected _fillBody(container: HTMLElement): void {
 		const options: IDiffEditorOptions = {
-			scrollBeyondLastLine: true,
+			diffAlgorithm: 'advanced',
+			fixedOverflowWidgets: true,
+			ignoreTrimWhitespace: false,
+			minimap: { enabled: false },
+			readOnly: false,
+			renderGutterMenu: false,
+			renderIndicators: false,
+			renderOverviewRuler: false,
+			renderSideBySide: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
 				horizontal: 'auto',
@@ -381,14 +397,7 @@ class QuickDiffWidget extends PeekViewWidget {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
-			overviewRulerLanes: 2,
-			fixedOverflowWidgets: true,
-			minimap: { enabled: false },
-			renderSideBySide: false,
-			readOnly: false,
-			renderIndicators: false,
-			diffAlgorithm: 'advanced',
-			ignoreTrimWhitespace: false,
+			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false }
 		};
 
@@ -542,10 +551,10 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
-			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.providerId)) {
+			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.providerId);
 		} else {
-			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.providerId) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -562,10 +571,10 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
-			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.providerId)) {
+			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.providerId);
 		} else {
-			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.providerId) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}

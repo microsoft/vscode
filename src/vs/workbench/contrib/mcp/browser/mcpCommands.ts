@@ -11,6 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -19,7 +20,9 @@ import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/co
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -27,15 +30,19 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -56,9 +63,9 @@ export class ListMcpServerCommand extends Action2 {
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
-				id: MenuId.ChatInput,
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 101
+				order: 2,
 			},
 		});
 	}
@@ -67,6 +74,18 @@ export class ListMcpServerCommand extends Action2 {
 		const mcpService = accessor.get(IMcpService);
 		const commandService = accessor.get(ICommandService);
 		const quickInput = accessor.get(IQuickInputService);
+		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const viewsService = accessor.get(IViewsService);
+		const mcpGalleryService = accessor.get(IMcpGalleryService);
+
+		if (mcpGalleryService.isEnabled()) {
+			if (mcpWorkbenchService.local.length) {
+				return viewsService.openView(InstalledMcpServersViewId, true);
+			} else {
+				return extensionWorkbenchService.openSearch('@mcp');
+			}
+		}
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -135,17 +154,18 @@ export class McpServerOptionsCommand extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const mcpRegistry = accessor.get(IMcpRegistry);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
 		}
 
-
 		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'resources';
 		}
 
 		const items: ActionItem[] = [];
@@ -171,7 +191,19 @@ export class McpServerOptionsCommand extends Action2 {
 		items.push({
 			label: localize('mcp.showOutput', 'Show Output'),
 			action: 'showOutput'
+		}, {
+			label: localize('mcp.configAccess', 'Configure Model Access'),
+			description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+			action: 'configSampling'
 		});
+
+		const capabilities = server.capabilities.get();
+		if (capabilities === undefined || (capabilities & McpCapability.Resources)) {
+			items.push({
+				label: localize('mcp.resources', 'Browse Resources'),
+				action: 'resources',
+			});
+		}
 
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
 		if (configTarget) {
@@ -192,7 +224,7 @@ export class McpServerOptionsCommand extends Action2 {
 
 		switch (pick.action) {
 			case 'start':
-				await server.start(true);
+				await server.start({ isFromInteraction: true });
 				server.showOutput();
 				break;
 			case 'stop':
@@ -200,7 +232,7 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'restart':
 				await server.stop();
-				await server.start(true);
+				await server.start({ isFromInteraction: true });
 				break;
 			case 'showOutput':
 				server.showOutput();
@@ -211,6 +243,10 @@ export class McpServerOptionsCommand extends Action2 {
 					options: { selection: URI.isUri(configTarget) ? undefined : configTarget!.range }
 				});
 				break;
+			case 'configSampling':
+				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
+			case 'resources':
+				return instantiationService.createInstance(McpResourceQuickPick, server).pick();
 			default:
 				assertNever(pick.action);
 		}
@@ -233,23 +269,21 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			Refreshing,
 		}
 
-
-
 		const displayedState = derived((reader) => {
 			const servers = mcpService.servers.read(reader);
 			const serversPerState: IMcpServer[][] = [];
 			for (const server of servers) {
 				let thisState = DisplayedState.None;
-				switch (server.toolsState.read(reader)) {
-					case McpServerToolsState.Unknown:
-					case McpServerToolsState.Outdated:
+				switch (server.cacheState.read(reader)) {
+					case McpServerCacheState.Unknown:
+					case McpServerCacheState.Outdated:
 						if (server.trusted.read(reader) === false) {
 							thisState = DisplayedState.None;
 						} else {
 							thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
 						}
 						break;
-					case McpServerToolsState.RefreshingFromUnknown:
+					case McpServerCacheState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
 						break;
 					default:
@@ -272,7 +306,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -507,11 +541,11 @@ export class RestartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string) {
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
-		await s?.start(true);
+		await s?.start({ isFromInteraction: true, ...opts });
 	}
 }
 
@@ -525,9 +559,9 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string) {
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start(true);
+		await s?.start({ isFromInteraction: true, ...opts });
 	}
 }
 
@@ -564,5 +598,81 @@ export class InstallFromActivation extends Action2 {
 	async run(accessor: ServicesAccessor, uri: URI) {
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
 		addConfigHelper.pickForUrlHandler(uri);
+	}
+}
+
+export class McpBrowseCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.Browse,
+			title: localize2('mcp.command.browse', "MCP Servers"),
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: McpServersGalleryEnabledContext,
+			}, {
+				id: extensionsFilterSubMenu,
+				when: McpServersGalleryEnabledContext,
+				group: '1_predefined',
+				order: 1,
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
+	}
+}
+
+export class McpBrowseResourcesCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowseResources,
+			title: localize2('mcp.browseResources', "Browse Resources..."),
+			category,
+			precondition: McpContextKeys.serverCount.greater(0),
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+	}
+}
+
+
+export class McpConfigureSamplingModels extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ConfigureSamplingModels,
+			title: localize2('mcp.configureSamplingModels', "Configure SamplingModel"),
+			category,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<number> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const lmService = accessor.get(ILanguageModelsService);
+		const mcpSampling = accessor.get(IMcpSamplingService);
+
+		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
+		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
+			const model = lmService.lookupLanguageModel(id)!;
+			return model.isUserSelectable ? ({ label: model.name, description: model.description, id, picked: existingIds.has(id) }) : undefined;
+		}).filter(isDefined);
+
+		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
+
+		// do the quickpick selection
+		const picked = await quickInputService.pick(allItems, {
+			placeHolder: localize('mcp.configureSamplingModels.ph', 'Pick the models {0} can access via MCP sampling', server.definition.label),
+			canPickMany: true,
+		});
+
+		if (picked) {
+			await mcpSampling.updateConfig(server, c => c.allowedModels = picked.map(p => p.id!));
+		}
+
+		return picked?.length || 0;
 	}
 }

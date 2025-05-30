@@ -91,7 +91,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { NotebookPerfMarks } from '../common/notebookPerformance.js';
 import { BaseCellEditorOptions } from './viewModel/cellEditorOptions.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
-import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { CellFindMatchModel } from './contrib/find/findModel.js';
 import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -2171,6 +2171,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.getCellViewScrollTop(cell);
 	}
 
+	getAbsoluteBottomOfElement(cell: ICellViewModel) {
+		return this._list.getCellViewScrollBottom(cell);
+	}
+
 	getHeightOfElement(cell: ICellViewModel) {
 		return this._list.elementHeight(cell);
 	}
@@ -2824,12 +2828,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
+		let listViewOffset = 0;
+		if (this._dimension) {
+			listViewOffset = (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0) + (this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0);
+		}
+
 		return {
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
 			fontInfo: this._fontInfo!,
-			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0
+			stickyHeight: this._notebookStickyScroll?.getCurrentStickyHeight() ?? 0,
+			listViewOffsetTop: listViewOffset
 		};
 	}
 

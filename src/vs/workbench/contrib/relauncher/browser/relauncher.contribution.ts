@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWindowsConfiguration, IWindowSettings, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { localize } from '../../../../nls.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { URI } from '../../../../base/common/uri.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { isMacintosh, isNative, isLinux } from '../../../../base/common/platform.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IWindowsConfiguration, IWindowSettings, MenuSettings, MenuStyleConfiguration, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 
@@ -41,6 +41,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private static SETTINGS = [
 		TitleBarSetting.TITLE_BAR_STYLE,
+		MenuSettings.MenuStyle,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -49,7 +50,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
-		'workbench.settings.showSuggestions',
+		'workbench.settings.showAISearchToggle',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
@@ -58,6 +59,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
+	private readonly menuStyle = new ChangeObserver<MenuStyleConfiguration>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -118,6 +120,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Titlebar style
 			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
+
+			// Windows/Linux: Menu style
+			processChanged(!isMacintosh && this.menuStyle.handleChange(config.window?.menuStyle));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));

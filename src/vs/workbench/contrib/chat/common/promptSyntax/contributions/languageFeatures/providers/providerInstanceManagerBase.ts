@@ -9,7 +9,7 @@ import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../../base/common/objectCache.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../constants.js';
 import { IModelService } from '../../../../../../../../editor/common/services/model.js';
 import { PromptsConfig } from '../../../../../../../../platform/prompts/common/config.js';
 import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
@@ -25,6 +25,11 @@ export interface IPromptFileEditor extends IEditor {
 }
 
 /**
+ * Type for a class that can create a new provider instance.
+ */
+export type TProviderClass<TInstance extends ProviderInstanceBase> = new (editor: ITextModel, ...args: any[]) => TInstance;
+
+/**
  * A generic base class that manages creation and disposal of {@link TInstance}
  * objects for each specific editor object that is used for reusable prompt files.
  */
@@ -37,12 +42,12 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract get InstanceClass(): new (editor: ITextModel, ...args: any[]) => TInstance;
+	protected abstract get InstanceClass(): TProviderClass<TInstance>;
 
 	constructor(
 		@IModelService modelService: IModelService,
 		@IEditorService editorService: IEditorService,
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
 		super();
@@ -62,7 +67,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 					'Instance class field must be defined.',
 				);
 
-				const instance: TInstance = initService.createInstance(
+				const instance: TInstance = instantiationService.createInstance(
 					this.InstanceClass,
 					model,
 				);
@@ -110,7 +115,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 
 				// if the language is changed away from `prompt` or `instructions`,
 				// remove and dispose provider for this model
-				if (isPromptOrInstructionsFile(oldLanguageId)) {
+				if (isPromptFile(oldLanguageId)) {
 					this.instances.remove(model, true);
 					return;
 				}
@@ -140,13 +145,16 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 }
 
 /**
- * Check if provided language ID is either
- * the `prompt` or `instructions` one.
+ * Check if provided language ID is one of the prompt file languages.
  */
-const isPromptOrInstructionsFile = (
+const isPromptFile = (
 	languageId: string,
 ): boolean => {
-	return (languageId === PROMPT_LANGUAGE_ID) || (languageId === INSTRUCTIONS_LANGUAGE_ID);
+	return [
+		PROMPT_LANGUAGE_ID,
+		INSTRUCTIONS_LANGUAGE_ID,
+		MODE_LANGUAGE_ID,
+	].includes(languageId);
 };
 
 /**
@@ -164,7 +172,7 @@ const isPromptFileModel = (
 		return false;
 	}
 
-	if (isPromptOrInstructionsFile(model.getLanguageId()) === false) {
+	if (isPromptFile(model.getLanguageId()) === false) {
 		return false;
 	}
 
