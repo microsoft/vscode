@@ -403,6 +403,7 @@ export const enum GitErrorCodes {
 	NoUserEmailConfigured = 'NoUserEmailConfigured',
 	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
 	NotAGitRepository = 'NotAGitRepository',
+	NotASafeGitRepository = 'NotASafeGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
 	StashConflict = 'StashConflict',
