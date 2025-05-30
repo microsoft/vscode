@@ -324,16 +324,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
 			if (isRequestVM(template.currentElement)) {
-				requestHover.style.display = 'block';
+				dom.show(requestHover);
 			}
 		}));
 
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
 			if (isRequestVM(template.currentElement)) {
-				requestHover.style.display = 'none';
+				dom.hide(requestHover);
 			}
 		}));
-
+		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
