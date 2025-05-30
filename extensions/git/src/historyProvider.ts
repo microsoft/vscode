@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
@@ -234,7 +234,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return [...branches, ...remoteBranches, ...tags];
 	}
 
-	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemRef || !options.historyItemRefs) {
 			return [];
 		}
@@ -259,7 +259,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, skip: options.skip };
 			}
 
-			const commits = await this.repository.log({ ...logOptions, silent: true });
+			const commits = typeof options.filterText === 'string' && options.filterText !== ''
+				? await this._searchHistoryItems(options.filterText.trim(), logOptions, token)
+				: await this.repository.log({ ...logOptions, silent: true }, token);
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
 
 			// Avatars
 			const avatarQuery = {
@@ -457,6 +463,28 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
 		}
+	}
+
+	private async _searchHistoryItems(filterText: string, options: LogOptions, token: CancellationToken): Promise<Commit[]> {
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const commits = new Map<string, Commit>();
+
+		// Search by author and commit message in parallel
+		const [authorResults, grepResults] = await Promise.all([
+			this.repository.log({ ...options, refNames: undefined, author: filterText, silent: true }, token),
+			this.repository.log({ ...options, refNames: undefined, grep: filterText, silent: true }, token)
+		]);
+
+		for (const commit of [...authorResults, ...grepResults]) {
+			if (!commits.has(commit.hash)) {
+				commits.set(commit.hash, commit);
+			}
+		}
+
+		return Array.from(commits.values()).slice(0, options.maxEntries ?? 50);
 	}
 
 	private toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {

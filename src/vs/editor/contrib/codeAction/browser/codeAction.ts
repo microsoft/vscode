@@ -36,6 +36,7 @@ export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
+const CODE_ACTION_SOUND_APPLIED_DURATION = 1000;
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
@@ -327,7 +328,7 @@ export async function applyCodeAction(
 		}
 	}
 	// ensure the start sound and end sound do not overlap
-	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), 100);
+	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), CODE_ACTION_SOUND_APPLIED_DURATION);
 }
 
 function asMessage(err: any): string | undefined {

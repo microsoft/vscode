@@ -191,7 +191,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Free Quota Exceeded
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited && (chatQuotaExceeded || completionsQuotaExceeded)) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
 				let quotaWarning: string;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
@@ -209,7 +209,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = `$(copilot-unavailable)`;
-				ariaLabel = localize('completionsDisabledStatus', "Code Completions Disabled");
+				ariaLabel = localize('completionsDisabledStatus', "Code completions Disabled");
 			}
 		}
 
@@ -241,8 +241,8 @@ function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean
 	const newUser = isNewUser(chatEntitlementService);
 	const disabled = chatEntitlementService.sentiment.disabled;
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
-	const allFreeQuotaReached = limited && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
+	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
+	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
 	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
 }
@@ -342,7 +342,7 @@ class ChatStatusDashboard extends Disposable {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", this.dateFormatter.value.format(new Date(resetDate)))));
 			}
 
-			if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
+			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
 				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
@@ -572,21 +572,21 @@ class ChatStatusDashboard extends Disposable {
 		const modeId = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
-		// --- Code Completions
+		// --- Code completions
 		{
 			const globalSetting = append(settings, $('div.setting'));
-			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions', "Code Completions (all files)"), '*', disposables);
+			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions', "Code completions (all files)"), '*', disposables);
 
 			if (modeId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code Completions ({0})", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
+				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
 			}
 		}
 
-		// --- Next Edit Suggestions
+		// --- Next edit suggestions
 		{
 			const setting = append(settings, $('div.setting'));
-			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), this.getCompletionsSettingAccessor(modeId), disposables);
+			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next edit suggestions"), this.getCompletionsSettingAccessor(modeId), disposables);
 		}
 
 		return settings;

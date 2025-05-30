@@ -3406,7 +3406,7 @@ export namespace McpServerDefinition {
 				}
 				: {
 					type: McpServerTransportType.Stdio,
-					cwd: item.cwd,
+					cwd: item.cwd?.fsPath,
 					args: item.args,
 					command: item.command,
 					env: item.env,

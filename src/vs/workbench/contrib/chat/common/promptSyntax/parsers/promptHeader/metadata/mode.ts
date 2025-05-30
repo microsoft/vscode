@@ -29,13 +29,6 @@ export class PromptModeMetadata extends PromptEnumMetadata<ChatMode> {
 	}
 
 	/**
-	 * Chat mode value of the metadata record.
-	 */
-	public get chatMode(): ChatMode | undefined {
-		return this.enumValue;
-	}
-
-	/**
 	 * Check if a provided front matter token is a metadata record
 	 * with name equal to `mode`.
 	 */

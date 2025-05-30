@@ -33,7 +33,7 @@ export namespace ChatContextKeys {
 	export const hasPromptFile = new RawContextKey<boolean>('chatPromptFileAttached', false, { type: 'boolean', description: localize('chatPromptFileAttachedContextDescription', "True when the chat has a prompt file attached.") });
 	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
-	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
+	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
 
 	export const extensionParticipantRegistered = new RawContextKey<boolean>('chatPanelExtensionParticipantRegistered', false, { type: 'boolean', description: localize('chatPanelExtensionParticipantRegistered', "True when a default chat participant is registered for the panel from an extension.") });
@@ -58,8 +58,8 @@ export namespace ChatContextKeys {
 
 	export const Entitlement = {
 		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat limited user.
-		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),			// True when user is a chat limited user.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
+		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
 		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
 		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
@@ -76,6 +76,10 @@ export namespace ChatContextKeys {
 
 	export const Tools = {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
+	};
+
+	export const Modes = {
+		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomChatModes', false, { type: 'boolean', description: localize('chatHasCustomChatModes', "True when the chat has custom chat modes available.") }),
 	};
 }
 

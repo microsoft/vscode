@@ -7,12 +7,12 @@ import assert from 'assert';
 import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
-import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState } from '../../common/observable.js';
-// eslint-disable-next-line local/code-no-deep-import-of-internal
-import { BaseObservable } from '../../common/observableInternal/base.js';
+import { IDerivedReader, IObservableWithChange, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, recordChanges, transaction, waitForState, derivedHandleChanges, runOnChange } from '../../common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
-import { observableReducer } from '../../common/observableInternal/reducer.js';
+import { observableReducer } from '../../common/observableInternal/experimental/reducer.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../common/observableInternal/observables/baseObservable.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1690,6 +1690,54 @@ suite('observables', () => {
 		});
 	});
 
+	test('derivedHandleChanges with reportChanges', () => {
+		const log = new Log();
+
+		const signal1 = observableSignal<{ message: string }>('signal1');
+		const signal2 = observableSignal<{ message: string }>('signal2');
+
+		const signal2Derived = derivedHandleChanges(
+			{ changeTracker: recordChanges({ signal2 }) },
+			(reader: IDerivedReader<{ message: string }>, changeSummary) => {
+				for (const c of changeSummary.changes) {
+					reader.reportChange({ message: c.change.message + ' (derived)' });
+				}
+			}
+		);
+
+		const d = derivedHandleChanges({
+			changeTracker: recordChanges({ signal1, signal2Derived }),
+		}, (r: IDerivedReader<string>, changes) => {
+			const log = changes.changes.map(c => `${c.key}: ${c.change.message}`).join(', ');
+			r.reportChange(log);
+		});
+
+		const disp = runOnChange(d, (_val, _prev, changes) => {
+			log.log(`runOnChange ${JSON.stringify(changes)}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		transaction(tx => {
+			signal1.trigger(tx, { message: 'foo' });
+			signal2.trigger(tx, { message: 'bar' });
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([
+			"runOnChange [\"signal1: foo, signal2Derived: bar (derived)\"]"
+		]));
+
+
+		transaction(tx => {
+			signal2.trigger(tx, { message: 'baz' });
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([
+			"runOnChange [\"signal2Derived: baz (derived)\"]"
+		]));
+
+		disp.dispose();
+	});
 });
 
 export class LoggingObserver implements IObserver {

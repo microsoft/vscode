@@ -4,36 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { ChatEditingService } from '../../browser/chatEditing/chatEditingServiceImpl.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { waitForState } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IChatService } from '../../common/chatService.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { ChatService } from '../../common/chatServiceImpl.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
-import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
-import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { assertType } from '../../../../../base/common/types.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { waitForState } from '../../../../../base/common/observable.js';
-import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { ChatEditingService } from '../../browser/chatEditing/chatEditingServiceImpl.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatService } from '../../common/chatServiceImpl.js';
+import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
+import { NullLanguageModelsService } from '../common/languageModels.js';
+import { MockChatVariablesService } from '../common/mockChatVariables.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -67,6 +69,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;

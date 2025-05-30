@@ -5,20 +5,41 @@
 
 // This is a facade for the observable implementation. Only import from here!
 
-export { observableValueOpts } from './api.js';
-export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta } from './autorun.js';
-export { asyncTransaction, disposableObservableValue, globalTransaction, observableValue, subtransaction, transaction, TransactionImpl, type IObservable, type IObservableWithChange, type IObserver, type IReader, type ISettable, type ISettableObservable, type ITransaction, } from './base.js';
-export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore, type IDerivedReader } from './derived.js';
-export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './promise.js';
-export { derivedWithCancellationToken, waitForState } from './utilsCancellation.js';
-export { constObservable, debouncedObservableDeprecated, debouncedObservable, derivedConstOnceDefined, derivedObservableWithCache, derivedObservableWithWritableCache, keepObserved, latestChangedValue, mapObservableArrayCached, observableFromEvent, observableFromEventOpts, observableFromPromise, observableFromValueWithChangeEvent, observableSignal, observableSignalFromEvent, recomputeInitiallyAndOnChange, runOnChange, runOnChangeWithStore, runOnChangeWithCancellationToken, signalFromObservable, ValueWithChangeEventFromObservable, wasEventTriggeredRecently, type IObservableSignal, } from './utils.js';
+export { observableValueOpts } from './observables/observableValueOpts.js';
+export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta } from './reactions/autorun.js';
+export { type IObservable, type IObservableWithChange, type IObserver, type IReader, type ISettable, type ISettableObservable, type ITransaction } from './base.js';
+export { disposableObservableValue } from './observables/observableValue.js';
+export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './observables/derived.js';
+export { type IDerivedReader } from './observables/derivedImpl.js';
+export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './utils/promise.js';
+export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation.js';
+export {
+	debouncedObservableDeprecated, debouncedObservable, derivedObservableWithCache,
+	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
+	recomputeInitiallyAndOnChange,
+	signalFromObservable, wasEventTriggeredRecently,
+} from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';
 export { type IChangeContext, type IChangeTracker, recordChanges } from './changeTracker.js';
+export { constObservable } from './observables/constObservable.js';
+export { type IObservableSignal, observableSignal } from './observables/observableSignal.js';
+export { observableFromEventOpts } from './observables/observableFromEvent.js';
+export { observableSignalFromEvent } from './observables/observableSignalFromEvent.js';
+export { asyncTransaction, globalTransaction, subtransaction, transaction, TransactionImpl } from './transaction.js';
+export { observableFromValueWithChangeEvent, ValueWithChangeEventFromObservable } from './utils/valueWithChangeEvent.js';
+export { runOnChange, runOnChangeWithCancellationToken, runOnChangeWithStore } from './utils/runOnChange.js';
+export { derivedConstOnceDefined, latestChangedValue } from './experimental/utils.js';
+export { observableFromEvent } from './observables/observableFromEvent.js';
+export { observableValue } from './observables/observableValue.js';
+
+export { ObservableSet } from './set.js';
+export { ObservableMap } from './map.js';
 
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
 import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
 import { env } from '../process.js';
+
 
 setLogObservableFn(logObservableToConsole);
 

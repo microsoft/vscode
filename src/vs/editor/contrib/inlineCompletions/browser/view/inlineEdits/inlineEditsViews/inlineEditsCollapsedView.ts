@@ -16,7 +16,7 @@ import { singleTextRemoveCommonPrefix } from '../../../model/singleTextEditHelpe
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { inlineEditIndicatorPrimaryBorder } from '../theme.js';
-import { PathBuilder } from '../utils/utils.js';
+import { getEditorValidOverlayRect, PathBuilder, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsCollapsedView extends Disposable implements IInlineEditsView {
 
@@ -102,10 +102,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 			ref: this._iconRef,
 			style: {
 				position: 'absolute',
-				top: 0,
-				left: contentLeft,
-				width: this._editorObs.contentWidth,
-				height: this._editorObs.editor.getContentHeight(),
+				...rectToProps((r) => getEditorValidOverlayRect(this._editorObs).read(r)),
 				overflow: 'hidden',
 				pointerEvents: 'none',
 			}

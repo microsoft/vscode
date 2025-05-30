@@ -45,7 +45,7 @@ import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { extensionDefaultIcon, extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -71,6 +71,75 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 		}
 	}));
 	return disposables;
+}
+
+export class ExtensionIconWidget extends ExtensionWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+	private readonly element: HTMLElement;
+	private readonly iconElement: HTMLImageElement;
+	private readonly defaultIconElement: HTMLElement;
+
+	private iconUrl: string | undefined;
+
+	constructor(
+		container: HTMLElement,
+	) {
+		super();
+		this.element = append(container, $('.extension-icon'));
+
+		this.iconElement = append(this.element, $('img.icon', { alt: '' }));
+		this.iconElement.style.display = 'none';
+
+		this.defaultIconElement = append(this.element, $(ThemeIcon.asCSSSelector(extensionDefaultIcon)));
+		this.defaultIconElement.style.display = 'none';
+
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.iconUrl = undefined;
+		this.iconElement.src = '';
+		this.iconElement.style.display = 'none';
+		this.defaultIconElement.style.display = 'none';
+		this.disposables.clear();
+	}
+
+	render(): void {
+		if (!this.extension) {
+			this.clear();
+			return;
+		}
+
+		if (this.extension.iconUrl) {
+			this.iconElement.style.display = 'inherit';
+			this.defaultIconElement.style.display = 'none';
+			if (this.iconUrl !== this.extension.iconUrl) {
+				this.iconUrl = this.extension.iconUrl;
+				this.disposables.add(addDisposableListener(this.iconElement, 'error', () => {
+					if (this.extension?.iconUrlFallback) {
+						this.iconElement.src = this.extension.iconUrlFallback;
+					} else {
+						this.iconElement.style.display = 'none';
+						this.defaultIconElement.style.display = 'inherit';
+					}
+				}, { once: true }));
+				this.iconElement.src = this.iconUrl;
+				if (!this.iconElement.complete) {
+					this.iconElement.style.visibility = 'hidden';
+					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+				} else {
+					this.iconElement.style.visibility = 'inherit';
+				}
+			}
+		} else {
+			this.iconUrl = undefined;
+			this.iconElement.style.display = 'none';
+			this.iconElement.src = '';
+			this.defaultIconElement.style.display = 'inherit';
+		}
+	}
 }
 
 export class InstallCountWidget extends ExtensionWidget {

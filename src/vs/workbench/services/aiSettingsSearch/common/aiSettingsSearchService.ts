@@ -5,11 +5,12 @@
 
 import { DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
 
-export class AiSettingsSearchService implements IAiSettingsSearchService {
+export class AiSettingsSearchService extends Disposable implements IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
 	private static readonly MAX_PICKS = 5;
 
@@ -17,12 +18,16 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 	private _llmRankedResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 	private _embeddingsResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 
+	private _onProviderRegistered: Emitter<void> = this._register(new Emitter<void>());
+	readonly onProviderRegistered: Event<void> = this._onProviderRegistered.event;
+
 	isEnabled(): boolean {
 		return this._providers.length > 0;
 	}
 
 	registerSettingsSearchProvider(provider: IAiSettingsSearchProvider): IDisposable {
 		this._providers.push(provider);
+		this._onProviderRegistered.fire();
 		return {
 			dispose: () => {
 				const index = this._providers.indexOf(provider);
@@ -33,7 +38,7 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 		};
 	}
 
-	startSearch(query: string, token: CancellationToken): void {
+	startSearch(query: string, embeddingsOnly: boolean, token: CancellationToken): void {
 		if (!this.isEnabled()) {
 			throw new Error('No settings search providers registered');
 		}
@@ -41,7 +46,7 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 		this._embeddingsResultsPromises.delete(query);
 		this._llmRankedResultsPromises.delete(query);
 
-		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS }, token));
+		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS, embeddingsOnly }, token));
 	}
 
 	async getEmbeddingsResults(query: string, token: CancellationToken): Promise<string[] | null> {
