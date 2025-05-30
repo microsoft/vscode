@@ -3,28 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ITextModel } from '../../model.js';
 import { ObjectStream } from './objectStream.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 /**
  * Create new instance of the stream from a provided text model.
  */
 export function objectStreamFromTextModel(
 	model: ITextModel,
+	startLineNumber: number = 1,
 	cancellationToken?: CancellationToken,
 ): ObjectStream<VSBuffer> {
-	return new ObjectStream(modelToGenerator(model), cancellationToken);
+	return new ObjectStream(modelToGenerator(model, startLineNumber), cancellationToken);
 }
 
 /**
  * Create a generator out of a provided text model.
  */
-export const modelToGenerator = (model: ITextModel): Generator<VSBuffer, undefined> => {
+// TODO: @legomushroom - make private?
+export const modelToGenerator = (
+	model: ITextModel,
+	startLineNumber: number = 1,
+): Generator<VSBuffer, undefined> => {
+	// TODO: @legomushroom - validate `startLineNumber` argument
+
 	return (function* (): Generator<VSBuffer, undefined> {
 		const totalLines = model.getLineCount();
-		let currentLine = 1;
+		let currentLine = startLineNumber;
 
 		while (currentLine <= totalLines) {
 			if (model.isDisposed()) {

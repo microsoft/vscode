@@ -188,26 +188,43 @@ export class PromptsService extends Disposable implements IPromptsService {
 	// todo: firing events not yet implemented
 	public readonly onDidChangeCustomChatModes: Event<void> = this._onDidChangeCustomChatModesEmitter.event;
 
+	@logTime()
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = await this.listPromptFiles(PromptsType.mode, CancellationToken.None);
-		const metaDatas = await this.getAllMetadata(modeFiles.map(promptPath => promptPath.uri));
+		const modeFiles = (await this.listPromptFiles(PromptsType.mode, CancellationToken.None))
+			.map(modeFile => modeFile.uri);
 
-		const result = [];
-		for (const metadata of metaDatas) {
-			const meta = metadata.metadata;
-			if (meta?.promptType !== PromptsType.mode) {
-				continue;
-			}
+		const metadataList = await Promise.all(
+			modeFiles.map(async (uri): Promise<ICustomChatMode> => {
+				let parser: PromptParser | undefined;
+				try {
+					// TODO: @legomushroom - use the `getSyntaxParserFor` method when possible?
+					parser = this.instantiationService.createInstance(
+						PromptParser,
+						uri,
+						{ allowNonPromptFiles: true },
+					).start();
 
-			result.push({
-				uri: metadata.uri,
-				name: getCleanPromptName(metadata.uri),
-				description: meta.description,
-				tools: meta.tools,
-			});
-		}
+					await parser.settled();
 
-		return result;
+					const { metadata } = parser;
+					const tools = (metadata?.promptType === PromptsType.mode)
+						? metadata.tools
+						: undefined;
+
+					return {
+						uri: uri,
+						name: getCleanPromptName(uri),
+						description: metadata?.description,
+						tools,
+						body: await parser.getBody(),
+					};
+				} finally {
+					parser?.dispose();
+				}
+			}),
+		);
+
+		return metadataList;
 	}
 
 	@logTime()

@@ -5,11 +5,10 @@
 
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { TextModel } from '../../../../../../editor/common/model/textModel.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -62,8 +61,19 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	protected override async getContentsStream(
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
-	): Promise<ReadableStream<VSBuffer>> {
-		return objectStreamFromTextModel(this.model, cancellationToken);
+	): Promise<VSBufferReadableStream> {
+		return this.getLines(1, cancellationToken);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	// TODO: @legomushroom - merge with `getContentsStream()`?
+	public override async getLines(
+		startLineNumber: number,
+		cancellationToken?: CancellationToken,
+	): Promise<VSBufferReadableStream> {
+		return objectStreamFromTextModel(this.model, startLineNumber, cancellationToken);
 	}
 
 	public override createNew(

@@ -103,7 +103,7 @@ suite('ObjectStream', () => {
 			};
 
 			const stream = disposables.add(
-				objectStreamFromTextModel(model, cancellation.token),
+				objectStreamFromTextModel(model, 1, cancellation.token),
 			);
 
 			const receivedData = await consume(stream);

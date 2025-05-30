@@ -6,6 +6,7 @@
 import { TopError } from './topError.js';
 import { ChatMode } from '../../constants.js';
 import { TMetadata } from './promptHeader/headerBase.js';
+import { ModeHeader } from './promptHeader/modeHeader.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptToken } from '../codecs/tokens/promptToken.js';
 import * as path from '../../../../../../base/common/path.js';
@@ -13,6 +14,7 @@ import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
+import { consumeStream } from '../../../../../../base/common/stream.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
@@ -23,12 +25,12 @@ import type { TPromptReference, IResolveError, ITopError } from './types.js';
 import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
-import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
+import { VSBuffer, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
@@ -94,14 +96,31 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	private promptHeader?: PromptHeader | InstructionsHeader | undefined;
+	private promptHeader?: PromptHeader | InstructionsHeader | ModeHeader | undefined;
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
 	 * with the prompt.
 	 */
-	public get header(): PromptHeader | InstructionsHeader | undefined {
+	public get header(): PromptHeader | InstructionsHeader | ModeHeader | undefined {
 		return this.promptHeader;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public async getBody(): Promise<string> {
+		const startLineNumber = (this.header !== undefined)
+			? this.header.range.endLineNumber + 1
+			: 1;
+
+
+		const result = await consumeStream(
+			await this.promptContentsProvider.getLines(startLineNumber),
+			VSBuffer.concat,
+		);
+
+		return result.toString();
 	}
 
 	/**
@@ -329,6 +348,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
 
+
 		/**
 		 * !NOTE! The order of event subscriptions below is critical here because
 		 *        the `data` event is also starts the stream, hence changing
@@ -397,6 +417,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
 			this.promptHeader = new InstructionsHeader(header.contentToken, languageId);
+		}
+
+		if (languageId === MODE_LANGUAGE_ID) {
+			this.promptHeader = new ModeHeader(header.contentToken, languageId);
 		}
 
 		this.promptHeader?.start();

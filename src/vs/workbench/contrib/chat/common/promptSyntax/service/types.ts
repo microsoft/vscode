@@ -83,6 +83,7 @@ export interface ICustomChatMode {
 	 * Name of the custom chat mode.
 	 */
 	readonly name: string;
+
 	/**
 	 * Description of the mode
 	 */
@@ -92,6 +93,11 @@ export interface ICustomChatMode {
 	 * Tools metadata in the prompt header.
 	 */
 	readonly tools?: readonly string[];
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly body: string;
 }
 
 
@@ -210,7 +216,6 @@ export interface IPromptsService extends IDisposable {
 	getAllMetadata(
 		promptUris: readonly URI[],
 	): Promise<readonly IMetadata[]>;
-
 }
 
 export interface IChatPromptSlashCommand {

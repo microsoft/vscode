@@ -9,6 +9,7 @@ import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Interface for a prompt contents provider. Prompt contents providers are
@@ -59,4 +60,12 @@ export interface IPromptContentsProvider extends IDisposable {
 	createNew(
 		promptContentsSource: { uri: URI },
 	): IPromptContentsProvider;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	getLines(
+		startLineNumber?: number,
+		cancellationToken?: CancellationToken,
+	): Promise<VSBufferReadableStream>;
 }

@@ -10,11 +10,11 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Options of the {@link PromptContentsProviderBase} class.
@@ -88,6 +88,14 @@ export abstract class PromptContentsProviderBase<
 	 */
 	protected abstract getContentsStream(
 		changesEvent: TChangeEvent | 'full',
+		cancellationToken?: CancellationToken,
+	): Promise<VSBufferReadableStream>;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public abstract getLines(
+		startLineNumber: number,
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream>;
 

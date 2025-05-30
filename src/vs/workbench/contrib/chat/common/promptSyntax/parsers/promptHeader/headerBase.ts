@@ -6,9 +6,10 @@
 import { type TModeMetadata } from './modeHeader.js';
 import { localize } from '../../../../../../../nls.js';
 import { type TPromptMetadata } from './promptHeader.js';
-import { IMetadataRecord } from './metadata/base/record.js';
+import { type IMetadataRecord } from './metadata/base/record.js';
 import { PromptDescriptionMetadata } from './metadata/index.js';
 import { type TInstructionsMetadata } from './instructionsHeader.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
 import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
@@ -109,6 +110,13 @@ export abstract class HeaderBase<
 	 */
 	public get diagnostics(): readonly TDiagnostic[] {
 		return this.issues;
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get range(): Range {
+		return this.contentsToken.range;
 	}
 
 	constructor(

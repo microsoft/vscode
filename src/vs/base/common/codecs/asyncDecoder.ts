@@ -55,8 +55,8 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 				delete this.resolveOnNewEvent;
 			}
 		};
-		this.decoder.on('data', callback);
 		this.decoder.on('end', callback);
+		this.decoder.on('data', callback);
 
 		// start flowing the decoder stream
 		this.decoder.start();
