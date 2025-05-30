@@ -211,12 +211,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 						? metadata.tools
 						: undefined;
 
+					const body = await parser.getBody();
 					return {
 						uri: uri,
 						name: getCleanPromptName(uri),
 						description: metadata?.description,
 						tools,
-						body: await parser.getBody(),
+						body,
 					};
 				} finally {
 					parser?.dispose();

@@ -14,7 +14,6 @@ import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { consumeStream } from '../../../../../../base/common/stream.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
@@ -26,6 +25,7 @@ import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
@@ -36,7 +36,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { isPromptOrInstructionsFile, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
@@ -119,23 +118,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			await this.promptContentsProvider.contents,
 		);
 
-		const stream = newWriteableBufferStream();
-		for await (const token of decoder) {
-			if (token === null) {
-				break;
-			}
+		const tokens = (await decoder.consumeAll())
+			.filter(({ range }) => {
+				return (range.startLineNumber >= startLineNumber);
+			});
 
-			const { range, text } = token;
-
-			// skip lines before the start line number
-			if (range.startLineNumber < startLineNumber) {
-				continue;
-			}
-
-			await stream.write(VSBuffer.fromString(text));
-		}
-
-		return (await consumeStream(stream, VSBuffer.concat)).toString();
+		return BaseToken.render(tokens);
 	}
 
 	/**
@@ -423,19 +411,19 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * of metadata is valid for a prompt file and what type of related
 	 * diagnostics we would show to the user.
 	 */
-	private createHeader(header: FrontMatterHeader): void {
+	private createHeader(headerToken: FrontMatterHeader): void {
 		const { languageId } = this.promptContentsProvider;
 
 		if (languageId === PROMPT_LANGUAGE_ID) {
-			this.promptHeader = new PromptHeader(header.contentToken, languageId);
+			this.promptHeader = new PromptHeader(headerToken, languageId);
 		}
 
 		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
-			this.promptHeader = new InstructionsHeader(header.contentToken, languageId);
+			this.promptHeader = new InstructionsHeader(headerToken, languageId);
 		}
 
 		if (languageId === MODE_LANGUAGE_ID) {
-			this.promptHeader = new ModeHeader(header.contentToken, languageId);
+			this.promptHeader = new ModeHeader(headerToken, languageId);
 		}
 
 		this.promptHeader?.start();
