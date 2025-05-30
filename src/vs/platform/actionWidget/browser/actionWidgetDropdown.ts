@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number };
@@ -126,6 +127,14 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}));
 
+		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
+			isChecked(element) {
+				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+			},
+			getRole: (e) => e.kind === ActionListItemKind.Action ? 'menuitemcheckbox' : 'separator',
+			getWidgetRole: () => 'menu',
+		};
+
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
@@ -133,7 +142,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			actionWidgetDelegate,
 			this.element,
 			undefined,
-			actionBarActions
+			actionBarActions,
+			accessibilityProvider
 		);
 	}
 }

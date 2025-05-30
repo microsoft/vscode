@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Interface for a prompt contents provider. Prompt contents providers are
@@ -24,6 +25,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	 * Language ID of the prompt contents.
 	 */
 	readonly languageId: string;
+
+	/**
+	 * Prompt type used to determine how to interpret file contents.
+	 */
+	readonly promptType: PromptsType | 'non-prompt';
 
 	/**
 	 * Prompt contents source name.
