@@ -1,0 +1,3 @@
+[submodule "extensions/cline"]
+	path = extensions/cline
+	url = https://github.com/gitjeet/cline.git
