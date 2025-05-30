@@ -107,7 +107,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get contents of the prompt body.
 	 */
 	public async getBody(): Promise<string> {
 		const startLineNumber = (this.header !== undefined)

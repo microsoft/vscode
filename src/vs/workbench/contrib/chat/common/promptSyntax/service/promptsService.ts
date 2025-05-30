@@ -197,7 +197,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			modeFiles.map(async (uri): Promise<ICustomChatMode> => {
 				let parser: PromptParser | undefined;
 				try {
-					// TODO: @legomushroom - use the `getSyntaxParserFor` method when possible?
+					// Note! this can be (and should be) improved by using shared parser instances
+					// 		 that the `getSyntaxParserFor` method provides for opened documents.
 					parser = this.instantiationService.createInstance(
 						PromptParser,
 						uri,

@@ -113,7 +113,7 @@ export abstract class HeaderBase<
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Full range of the header in the original document.
 	 */
 	public get range(): Range {
 		return this.token.range;

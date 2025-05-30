@@ -58,6 +58,13 @@ export abstract class PromptContentsProviderBase<
 	public abstract get sourceName(): string;
 
 	/**
+	 * Prompt contents stream.
+	 */
+	public get contents(): Promise<VSBufferReadableStream> {
+		return this.getContentsStream('full');
+	}
+
+	/**
 	 * Prompt type used to determine how to interpret file contents.
 	 */
 	public get promptType(): PromptsType | 'non-prompt' {
@@ -90,13 +97,6 @@ export abstract class PromptContentsProviderBase<
 		changesEvent: TChangeEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream>;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public get contents(): Promise<VSBufferReadableStream> {
-		return this.getContentsStream('full');
-	}
 
 	/**
 	 * Internal event emitter for the prompt contents change event. Classes that extend
