@@ -351,7 +351,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		// decode the byte stream to a stream of prompt tokens
 		this.stream = ChatPromptCodec.decode(streamOrError);
 
-
 		/**
 		 * !NOTE! The order of event subscriptions below is critical here because
 		 *        the `data` event is also starts the stream, hence changing
