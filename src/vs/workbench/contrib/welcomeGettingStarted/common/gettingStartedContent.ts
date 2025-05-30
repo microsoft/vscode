@@ -367,7 +367,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				// Copilot setup steps for Codespaces, using the same steps as non-web walkthroughs but with a Codespaces-specific when clause
+				// Copilot setup steps for remote scenarios, using the same steps as non-web walkthroughs but with a remote-specific when clause
 				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut && !!remoteName', true),
 				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited) && !!remoteName', false),
 				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp) && !!remoteName', true),
