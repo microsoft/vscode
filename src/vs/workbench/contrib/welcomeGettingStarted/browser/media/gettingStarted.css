@@ -629,7 +629,8 @@
 	max-height: 100%;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-details-content > .getting-started-footer {
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
 	grid-area: footer;
 	align-self: flex-end;
 	justify-self: center;
