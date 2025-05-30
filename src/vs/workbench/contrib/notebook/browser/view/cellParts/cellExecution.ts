@@ -116,7 +116,7 @@ export class CellExecutionPart extends CellContentPart {
 		if (!cellIsRunning) {
 			// Keep showing the execution order label but remove sticky class
 			this._executionOrderLabel.classList.remove('sticky');
-			
+
 			// If we were sticky and cell stopped running, restore the proper content
 			if (wasSticky) {
 				const executionOrder = this.currentCell.internalMetadata.executionOrder;
