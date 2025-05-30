@@ -7,6 +7,7 @@ import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.
 import { observableValue } from '../../../../../base/common/observable.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IMcpCollectionContribution } from '../../../../../platform/extensions/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -85,6 +86,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 						remoteAuthority: null,
 						isTrustedByDefault: true,
 						scope: StorageScope.WORKSPACE,
+						configTarget: ConfigurationTarget.USER,
 						serverDefinitions: observableValue<McpServerDefinition[]>(this, serverDefs?.map(McpServerDefinition.fromSerialized) || []),
 						lazy: {
 							isCached: !!serverDefs,

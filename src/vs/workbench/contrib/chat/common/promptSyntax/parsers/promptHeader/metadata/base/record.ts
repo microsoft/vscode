@@ -9,10 +9,30 @@ import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } 
 import { FrontMatterRecord } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
 /**
+ * Supported primitive types for metadata values in a prompt header.
+ */
+type TMetadataPrimitive = string | boolean;
+
+/**
+ * Supported metadata values in a prompt header.
+ */
+type TMetadataValue = TMetadataPrimitive | TMetadataPrimitive[];
+
+/**
+ * Interface for a generic metadata record in the prompt header.
+ */
+export interface IMetadataRecord<T extends TMetadataValue> {
+	/**
+	 * Value of a metadata record. If the value is not defined, it usually
+	 * means that a record is present but its value is not set or valid.
+	 */
+	readonly value: T | undefined;
+}
+
+/**
  * Abstract class for all metadata records in the prompt header.
  */
-export abstract class PromptMetadataRecord {
-
+export abstract class PromptMetadataRecord<TValue extends TMetadataValue> implements IMetadataRecord<TValue> {
 	/**
 	 * Private field for tracking all diagnostic issues
 	 * related to this metadata record.
@@ -60,6 +80,11 @@ export abstract class PromptMetadataRecord {
 	public get diagnostics(): readonly PromptMetadataDiagnostic[] {
 		return this.issues;
 	}
+
+	/**
+	 * Get the value of the metadata record.
+	 */
+	public abstract get value(): TValue | undefined;
 
 	/**
 	 * List of all `error` issue diagnostics.

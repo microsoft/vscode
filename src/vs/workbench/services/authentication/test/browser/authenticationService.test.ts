@@ -249,7 +249,7 @@ suite('AuthenticationService', () => {
 				},
 			});
 			authenticationService.registerAuthenticationProvider(provider.id, provider);
-			assert.rejects(() => authenticationService.getSessions(provider.id, [], undefined, undefined, URI.parse('https://example.com')));
+			assert.rejects(() => authenticationService.getSessions(provider.id, [], { issuer: URI.parse('https://example.com') }));
 			assert.ok(!isCalled);
 		});
 

@@ -358,7 +358,6 @@ suite('FrontMatterDecoder', () => {
 						]);
 				});
 
-
 				test('• redundant commas', async () => {
 					const test = disposables.add(new TestFrontMatterDecoder());
 

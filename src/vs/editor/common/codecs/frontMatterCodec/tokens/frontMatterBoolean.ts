@@ -73,9 +73,9 @@ export class FrontMatterBoolean extends FrontMatterValueToken<'boolean', readonl
 /**
  * Try to convert a {@link Word} token to a `boolean` value.
  */
-const asBoolean = (
+export function asBoolean(
 	token: Word,
-): boolean | null => {
+): boolean | null {
 	if (token.text.toLowerCase() === 'true') {
 		return true;
 	}
@@ -85,4 +85,4 @@ const asBoolean = (
 	}
 
 	return null;
-};
+}

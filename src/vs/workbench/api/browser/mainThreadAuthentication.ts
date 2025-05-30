@@ -21,6 +21,12 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
+import { IURLService } from '../../../platform/url/common/url.js';
+import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -86,17 +92,42 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IURLService private readonly urlService: IURLService,
+		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
-		this._register(this.authenticationService.onDidChangeSessions(e => {
-			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
-		}));
+		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this._proxy.$onDidUnregisterAuthenticationProvider(e.id)));
 		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(e => {
 			const providerInfo = this.authenticationService.getProvider(e.providerId);
 			this._proxy.$onDidChangeAuthenticationSessions(providerInfo.id, providerInfo.label, e.extensionIds);
+		}));
+
+		// Listen for dynamic authentication provider token changes
+		this._register(this.dynamicAuthProviderStorageService.onDidChangeTokens(e => {
+			this._proxy.$onDidChangeDynamicAuthProviderTokens(e.authProviderId, e.clientId, e.tokens);
+		}));
+
+		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
+			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
+			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
+			create: async (serverMetadata, resource) => {
+				const clientId = this.dynamicAuthProviderStorageService.getClientId(serverMetadata.issuer);
+				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
+				if (clientId) {
+					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
+				}
+				return await this._proxy.$registerDynamicAuthProvider(
+					serverMetadata,
+					resource,
+					clientId,
+					initialTokens
+				);
+			}
 		}));
 	}
 
@@ -118,7 +149,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
-	$unregisterAuthenticationProvider(id: string): void {
+	async $unregisterAuthenticationProvider(id: string): Promise<void> {
 		this._registrations.deleteAndDispose(id);
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
@@ -129,7 +160,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 	}
 
-	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void {
+	async $sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
 		const obj = this._registrations.get(providerId);
 		if (obj instanceof Emitter) {
 			obj.fire(event);
@@ -139,6 +170,57 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
+
+	async $waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents> {
+		const deferredPromise = new DeferredPromise<UriComponents>();
+		const disposable = this.urlService.registerHandler({
+			handleURL: async (uri: URI) => {
+				if (uri.scheme !== expectedUri.scheme || uri.authority !== expectedUri.authority || uri.path !== expectedUri.path) {
+					return false;
+				}
+				deferredPromise.complete(uri);
+				disposable.dispose();
+				return true;
+			}
+		});
+		const result = await raceTimeout(deferredPromise.p, 5 * 60 * 1000); // 5 minutes
+		if (!result) {
+			throw new Error('Timed out waiting for URI handler');
+		}
+		return await deferredPromise.p;
+	}
+
+	$showContinueNotification(message: string): Promise<boolean> {
+		const yes = nls.localize('yes', "Yes");
+		const no = nls.localize('no', "No");
+		const deferredPromise = new DeferredPromise<boolean>();
+		let result = false;
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			message,
+			[{
+				label: yes,
+				run: () => result = true
+			}, {
+				label: no,
+				run: () => result = false
+			}]);
+		const disposable = handle.onDidClose(() => {
+			deferredPromise.complete(result);
+			disposable.dispose();
+		});
+		return deferredPromise.p;
+	}
+
+	async $registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void> {
+		await this.$registerAuthenticationProvider(id, label, false, [issuer]);
+		this.dynamicAuthProviderStorageService.storeClientId(id, clientId, label, URI.revive(issuer).toString());
+	}
+
+	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
+		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
+	}
+
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {
 		let message: string;
 
@@ -207,7 +289,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const issuer = URI.revive(options.issuer);
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true, issuer);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, { account: options.account, issuer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
@@ -401,4 +483,30 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	//#endregion
+
+	async $showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean> {
+		const { result } = await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('deviceCodeTitle', "Device Code Authentication"),
+			detail: nls.localize('deviceCodeDetail', "Your code: {0}\n\nTo complete authentication, navigate to {1} and enter the code above.", userCode, verificationUri),
+			buttons: [
+				{
+					label: nls.localize('copyAndContinue', "Copy & Continue"),
+					run: () => true
+				}
+			],
+			cancelButton: true
+		});
+
+		if (result) {
+			// Open verification URI
+			try {
+				await this.clipboardService.writeText(userCode);
+				return await this.openerService.open(URI.parse(verificationUri));
+			} catch (error) {
+				this.notificationService.error(nls.localize('failedToOpenUri', "Failed to open {0}", verificationUri));
+			}
+		}
+		return false;
+	}
 }

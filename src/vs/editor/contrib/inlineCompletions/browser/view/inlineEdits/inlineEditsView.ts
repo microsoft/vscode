@@ -192,6 +192,12 @@ export class InlineEditsView extends Disposable {
 			if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
 				return this._insertion.startLineOffset.read(reader);
 			}
+
+			const ghostTextIndicator = this._ghostTextIndicator.read(reader);
+			if (ghostTextIndicator) {
+				return getGhostTextTopOffset(ghostTextIndicator, this._editor);
+			}
+
 			return 0;
 		});
 		this._sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
@@ -357,9 +363,14 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit
 			&& this._useCodeShifting.read(reader) !== 'never'
-			&& isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)
 		) {
-			return 'insertionInline';
+			if (isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)) {
+				return 'insertionInline';
+			}
+
+			// If we have a single line insertion before the cursor position, we do not want to move the cursor by inserting
+			// the suggestion inline. Use a line replacement view instead
+			return 'lineReplacement';
 		}
 
 		const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
@@ -574,4 +585,38 @@ function _growEdits(replacements: TextReplacement[], originalText: AbstractText,
 	}
 
 	return result;
+}
+
+function getGhostTextTopOffset(ghostTextIndicator: GhostTextIndicator, editor: ICodeEditor): number {
+	const replacements = ghostTextIndicator.model.inlineEdit.edit.replacements;
+	if (replacements.length !== 1) {
+		return 0;
+	}
+
+	const textModel = editor.getModel();
+	if (!textModel) {
+		return 0;
+	}
+
+	const EOL = textModel.getEOL();
+	const replacement = replacements[0];
+	if (replacement.range.isEmpty() && replacement.text.startsWith(EOL)) {
+		const lineHeight = editor.getLineHeightForPosition(replacement.range.getStartPosition());
+		return countPrefixRepeats(replacement.text, EOL) * lineHeight;
+	}
+
+	return 0;
+}
+
+function countPrefixRepeats(str: string, prefix: string): number {
+	if (!prefix.length) {
+		return 0;
+	}
+	let count = 0;
+	let i = 0;
+	while (str.startsWith(prefix, i)) {
+		count++;
+		i += prefix.length;
+	}
+	return count;
 }

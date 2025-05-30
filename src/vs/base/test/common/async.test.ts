@@ -13,6 +13,7 @@ import { URI } from '../../common/uri.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { DisposableStore } from '../../common/lifecycle.js';
+import { Iterable } from '../../common/iterator.js';
 
 suite('Async', () => {
 
@@ -1729,6 +1730,143 @@ suite('Async', () => {
 			}
 
 			assert.strictEqual(calledOnReturn, false);
+		});
+
+		test('emitMany emits all items', async function () {
+			const source = new async.AsyncIterableSource<number>();
+			const values = [10, 20, 30, 40];
+			source.emitMany(values);
+			source.resolve();
+
+			const result: number[] = [];
+			for await (const item of source.asyncIterable) {
+				result.push(item);
+			}
+
+			assert.deepStrictEqual(result, values);
+		});
+
+
+	});
+
+	suite('cancellableIterable', () => {
+		let cts: CancellationTokenSource;
+		setup(() => {
+			cts = store.add(new CancellationTokenSource());
+		});
+
+		test('should iterate through all values when not canceled', async function () {
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					yield 'a';
+					yield 'b';
+					yield 'c';
+				}
+			};
+
+			const cancelableIterable = async.cancellableIterable(asyncIterable, cts.token);
+
+			const result = await Iterable.asyncToArray(cancelableIterable);
+			assert.deepStrictEqual(result, ['a', 'b', 'c']);
+		});
+
+		test('should stop iteration immediately when cancelled before starting', async function () {
+			const values: string[] = [];
+
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					values.push('iterator created');
+					yield 'a';
+					values.push('after a');
+					yield 'b';
+					values.push('after b');
+					yield 'c';
+					values.push('after c');
+				}
+			};
+
+			// Cancel before iteration starts
+			cts.cancel();
+			const cancelableIterable = async.cancellableIterable(asyncIterable, cts.token);
+
+			const result = await Iterable.asyncToArray(cancelableIterable);
+			assert.deepStrictEqual(result, []);
+			assert.deepStrictEqual(values, []);
+		});
+
+		test('should stop iteration when cancelled during iteration', async function () {
+			const cts = new CancellationTokenSource();
+			const deferredA = new async.DeferredPromise<void>();
+			const deferredB = new async.DeferredPromise<void>();
+			const deferredC = new async.DeferredPromise<void>();
+
+			const values: string[] = [];
+
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					values.push('a yielded');
+					yield 'a';
+					await deferredA.p;
+
+					values.push('b yielded');
+					yield 'b';
+					await deferredB.p;
+
+					values.push('c yielded');
+					yield 'c';
+					await deferredC.p;
+				}
+			};
+
+			for await (const value of async.cancellableIterable(asyncIterable, cts.token)) {
+				if (value === 'a') {
+					deferredA.complete();
+				} else if (value === 'b') {
+					cts.cancel();
+					deferredB.complete();
+				} else {
+					throw new Error('Unexpected value');
+				}
+			}
+
+			assert.deepStrictEqual(values, ['a yielded', 'b yielded']);
+		});
+
+		test('should handle return method correctly', async function () {
+			let returnCalled = false;
+			let n = 0;
+			const asyncIterable = {
+				async *[Symbol.asyncIterator]() {
+					try {
+						yield 'a'; n++;
+						yield 'b'; n++;
+						yield 'c'; n++;
+					} finally {
+						returnCalled = true;
+					}
+				},
+			};
+
+			// Add a return method to the iterator
+			const originalIterable = asyncIterable[Symbol.asyncIterator]();
+			originalIterable.return = async function () {
+				returnCalled = true;
+				return Promise.resolve({ done: true, value: undefined });
+			};
+
+			// Create a test-specific iterable with our mocked iterator
+			const testIterable = {
+				[Symbol.asyncIterator]: () => originalIterable
+			};
+
+			for await (const value of async.cancellableIterable(testIterable, cts.token)) {
+				if (value === 'b') {
+					break;
+				}
+			}
+
+			assert.strictEqual(returnCalled, true);
+			assert.strictEqual(n < 2, true);
 		});
 	});
 });

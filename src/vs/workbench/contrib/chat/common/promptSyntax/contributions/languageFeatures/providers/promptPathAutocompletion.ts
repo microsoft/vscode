@@ -21,7 +21,7 @@ import { extUri } from '../../../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../../../base/common/errors.js';
-import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../../constants.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../../constants.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { IPromptFileReference, TPromptReference } from '../../../parsers/types.js';
 import { assert, assertNever } from '../../../../../../../../base/common/assert.js';
@@ -102,7 +102,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	) {
 		super();
 
-		this._register(this.languageService.completionProvider.register(PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR, this));
+		this._register(this.languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**

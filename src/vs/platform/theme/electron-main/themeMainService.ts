@@ -16,6 +16,7 @@ import { ThemeTypeSelector } from '../common/theme.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
+import { ILogService } from '../../log/common/log.js';
 
 // These default colors match our default themes
 // editor background color ("Dark Modern", etc...)
@@ -83,7 +84,8 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	constructor(
 		@IStateService private stateService: IStateService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 
@@ -318,6 +320,16 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	getWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined {
+		try {
+			return this.doGetWindowSplash(workspace);
+		} catch (error) {
+			this.logService.error('[theme main service] Failed to get window splash', error);
+
+			return undefined;
+		}
+	}
+
+	private doGetWindowSplash(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): IPartsSplash | undefined {
 		const partSplash = this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH_KEY);
 		if (!partSplash?.layoutInfo) {
 			return partSplash; // return early: overrides currently only apply to layout info

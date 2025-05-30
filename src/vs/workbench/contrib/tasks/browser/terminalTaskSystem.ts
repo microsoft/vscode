@@ -1195,6 +1195,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-e');
 					}
+				} else if (basename === 'nu.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-c');
+					}
 				} else {
 					if (!shellSpecified) {
 						toAdd.push('/d', '/c');

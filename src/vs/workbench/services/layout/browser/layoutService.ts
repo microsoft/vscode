@@ -352,7 +352,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 
 	// Hide custom title bar when native title bar enabled and custom title bar is empty
-	if (hasNativeMenu(configurationService)) {
+	if (nativeTitleBarEnabled && hasNativeMenu(configurationService)) {
 		return false;
 	}
 
