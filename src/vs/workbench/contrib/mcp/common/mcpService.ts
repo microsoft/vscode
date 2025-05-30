@@ -11,6 +11,7 @@ import { markdownCommandLink, MarkdownString } from '../../../../base/common/htm
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -280,7 +281,7 @@ class McpToolImplementation implements IToolImpl {
 			isError: callResult.isError === true,
 		};
 
-		for (let item of callResult.content) {
+		for (const item of callResult.content) {
 			const audience = item.annotations?.audience || ['assistant'];
 			if (audience.includes('user')) {
 				if (item.type === 'text') {
@@ -289,9 +290,15 @@ class McpToolImplementation implements IToolImpl {
 			}
 
 			// Rewrite image rsources to images so they are inlined nicely
-			if (item.type === 'resource' && item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
-				item = { type: 'image', mimeType: item.resource.mimeType, data: item.resource.blob };
-			}
+			const addAsInlineData = (mimeType: string, value64: string, uri?: URI) => {
+				details.output.push({ type: 'data', mimeType, value64, uri });
+				if (isForModel) {
+					result.content.push({
+						kind: 'data',
+						value: { mimeType, data: decodeBase64(value64) }
+					});
+				}
+			};
 
 			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
@@ -303,21 +310,19 @@ class McpToolImplementation implements IToolImpl {
 					});
 				}
 			} else if (item.type === 'image' || item.type === 'audio') {
-				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
-				if (isForModel) {
-					result.content.push({
-						kind: 'data',
-						value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
-					});
-				}
+				addAsInlineData(item.mimeType, item.data);
 			} else if (item.type === 'resource') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
-				details.output.push({ type: 'resource', uri });
-				if (isForModel) {
-					result.content.push({
-						kind: 'text',
-						value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
-					});
+				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
+					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+				} else {
+					details.output.push({ type: 'resource', uri });
+					if (isForModel) {
+						result.content.push({
+							kind: 'text',
+							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
+						});
+					}
 				}
 			}
 		}

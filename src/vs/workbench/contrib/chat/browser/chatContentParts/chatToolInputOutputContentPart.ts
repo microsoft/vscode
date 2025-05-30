@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { applyDragImage } from '../../../../../base/browser/ui/dnd/dnd.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -32,6 +34,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
 import { getAttachableImageExtension, IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -55,6 +58,7 @@ export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value: Uint8Array;
 	mimeType: string;
+	uri?: URI;
 }
 
 export interface IChatCollapsibleIOResourcePart {
@@ -211,7 +215,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const entries = parts.map((part): IChatRequestVariableEntry => {
 			if (part.kind === 'data' && getAttachableImageExtension(part.mimeType)) {
-				return { kind: 'image', id: generateUuid(), name: `image.${getAttachableImageExtension(part.mimeType)}`, value: part.value, mimeType: part.mimeType, isURL: false };
+				return { kind: 'image', id: generateUuid(), name: part.uri ? basename(part.uri) : `image.${getAttachableImageExtension(part.mimeType)}`, value: part.value, mimeType: part.mimeType, isURL: false };
 			} else if (part.kind === 'resource') {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			} else if (part.kind === 'data') {
@@ -242,6 +246,23 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					getActionsContext: () => ({ parts: [part] } satisfies IChatToolOutputResourceToolbarContext),
 				});
 			}
+		};
+
+		attachments.dragStartHandler = (attachment, event, element) => {
+			if (!event.dataTransfer) {
+				return;
+			}
+
+			const index = entries.indexOf(attachment);
+			const part = parts[index];
+			if (!part.uri) {
+				return;
+			}
+
+			applyDragImage(event, element, attachment.name);
+			event.dataTransfer.effectAllowed = 'copy';
+			event.dataTransfer.setData(DataTransfers.TEXT, part.uri.toString());
+			this._instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [part.uri!], event));
 		};
 
 		el.items.appendChild(attachments.domNode!);
@@ -317,7 +338,7 @@ class SaveResourcesAction extends Action2 {
 		const defaultFilepath = await fileDialog.defaultFilePath();
 
 		const partBasename = (part: IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart) =>
-			part.kind === 'resource' ? basename(part.uri) : ('file' + (getExtensionForMimeType(part.mimeType) || ''));
+			(part.kind === 'resource' || part.uri) ? basename(part.uri!) : ('file' + (getExtensionForMimeType(part.mimeType) || ''));
 
 		const savePart = async (part: IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart, isFolder: boolean, uri: URI) => {
 			const target = isFolder ? joinPath(uri, partBasename(part)) : uri;
