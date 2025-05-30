@@ -295,7 +295,7 @@ export interface IMcpResourceTemplate {
 	readonly template: UriTemplate;
 
 	/** Gets string completions for the given template part. */
-	complete(templatePart: string, prefix: string, token: CancellationToken): Promise<string[]>;
+	complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token: CancellationToken): Promise<string[]>;
 
 	/** Gets the resolved URI from template parts. */
 	resolveURI(vars: Record<string, unknown>): URI;

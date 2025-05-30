@@ -119,19 +119,15 @@ export class McpResourcePickHelper {
 		const cts = new CancellationTokenSource();
 
 		const vars: Record<string, string | string[]> = {};
-		for (const variable of todo) {
-			vars[variable.name] = `$${variable.name.toUpperCase()}`;
-		}
-
 		quickInput.totalSteps = todo.length;
 		quickInput.ignoreFocusOut = true;
 
-		const initialCompletions = todo.map(variable => rt.complete(variable.name, '', cts.token));
+		const initialCompletions = todo.map(variable => rt.complete(variable.name, '', {}, cts.token));
 
 		try {
 			for (let i = 0; i < todo.length; i++) {
 				const variable = todo[i];
-				const resolved = await this._promptForTemplateValue(quickInput, variable, initialCompletions[i], rt.template.resolve(vars), rt);
+				const resolved = await this._promptForTemplateValue(quickInput, variable, initialCompletions[i], vars, rt);
 				if (resolved === undefined) {
 					return undefined;
 				}
@@ -144,11 +140,18 @@ export class McpResourcePickHelper {
 		}
 	}
 
-	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, initialCompletions: Promise<string[]>, uriSoFar: string, rt: IMcpResourceTemplate): Promise<string | undefined> {
+	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, initialCompletions: Promise<string[]>, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
 		const store = new DisposableStore();
 		const completions = new Map<string, Promise<string[]>>([['', initialCompletions]]);
 
-		let placeholder = localize('mcp.resource.template.placeholder', "Value for ${0} in {1}", variable.name.toUpperCase(), uriSoFar.replaceAll('%24', '$'));
+		const variablesWithPlaceholders = { ...variablesSoFar };
+		for (const variable of rt.template.components.flatMap(c => typeof c === 'object' ? c.variables : [])) {
+			if (!variablesWithPlaceholders.hasOwnProperty(variable.name)) {
+				variablesWithPlaceholders[variable.name] = `$${variable.name.toUpperCase()}`;
+			}
+		}
+
+		let placeholder = localize('mcp.resource.template.placeholder', "Value for ${0} in {1}", variable.name.toUpperCase(), rt.template.resolve(variablesWithPlaceholders).replaceAll('%24', '$'));
 		if (variable.optional) {
 			placeholder += ' (' + localize('mcp.resource.template.optional', "Optional") + ')';
 		}
@@ -174,7 +177,7 @@ export class McpResourcePickHelper {
 			const inputValue = input.value;
 			let promise = completions.get(inputValue);
 			if (!promise) {
-				promise = rt.complete(variable.name, inputValue, changeCancellation.token);
+				promise = rt.complete(variable.name, inputValue, variablesSoFar, changeCancellation.token);
 				completions.set(inputValue, promise);
 			}
 
@@ -240,6 +243,7 @@ export class McpResourcePickHelper {
 				})(),
 				server.resourceTemplates(cts.token).then(templates => {
 					writeInto.unshift(...templates);
+					onChange(servers);
 				}).catch(() => {
 					// no templat support, not rare
 				}),

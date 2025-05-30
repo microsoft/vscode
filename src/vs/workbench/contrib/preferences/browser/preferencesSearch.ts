@@ -128,7 +128,9 @@ export class LocalSearchProvider implements ISearchProvider {
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
 		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
-		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch);
+		const filteredMatches = filterMatches
+			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
+			.map(m => ({ ...m, providerName: 'local' }));
 		return Promise.resolve({
 			filterMatches: filteredMatches,
 			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
@@ -421,11 +423,9 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 		this._recordProvider.updateModel(preferencesModel);
 		this._aiSettingsSearchService.startSearch(this._filter, this._excludeSelectionStep, token);
 
-		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
-			exactMatch: false,
-			providerName
+			exactMatch: false
 		};
 	}
 
@@ -437,6 +437,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 			return [];
 		}
 
+		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
 		for (const settingKey of settings) {
 			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
@@ -446,7 +447,8 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 				matches: [settingsRecord[settingKey].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: 0 // the results are sorted upstream.
+				score: 0, // the results are sorted upstream.
+				providerName
 			});
 		}
 
@@ -516,8 +518,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getTfIdfItems(token),
-			exactMatch: false,
-			providerName: 'tfIdf'
+			exactMatch: false
 		};
 	}
 
@@ -544,7 +545,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				matches: [this._settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: info.score
+				score: info.score,
+				providerName: 'tfIdf'
 			});
 		}
 
@@ -628,8 +630,7 @@ class AiSearchProvider implements IAiSearchProvider {
 		const items = await this.getLLMRankedItems(token);
 		return {
 			filterMatches: items,
-			exactMatch: false,
-			providerName: 'llmRanked'
+			exactMatch: false
 		};
 	}
 
@@ -651,7 +652,8 @@ class AiSearchProvider implements IAiSearchProvider {
 				matches: [settingsRecord[settingKey].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: 0 // the results are sorted upstream.
+				score: 0, // the results are sorted upstream.
+				providerName: 'llmRanked'
 			});
 		}
 

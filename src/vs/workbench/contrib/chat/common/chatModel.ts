@@ -277,6 +277,19 @@ export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): o
 	return obj.kind === 'scmHistoryItem';
 }
 
+
+export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
+
+export function getAttachableImageExtension(mimeType: string): string | undefined {
+	return Object.entries(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).find(([_, value]) => value === mimeType)?.[0];
+}
+
 export interface IChatRequestVariableData {
 	variables: IChatRequestVariableEntry[];
 }
