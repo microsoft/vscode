@@ -1867,7 +1867,7 @@ export class SearchView extends ViewPane {
 
 	public async requestAIResults() {
 		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
-		if (!this.cachedResults) {
+		if (!this.cachedResults || this.cachedResults.results.length === 0) {
 			this.clearAIResults();
 		}
 		this.model.searchResult.aiTextSearchResult.hidden = false;

@@ -101,7 +101,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (o.type === 'data') {
 						const decoded = decodeBase64(o.value64).buffer;
 						if (getAttachableImageExtension(o.mimeType)) {
-							return { kind: 'data', value: decoded, mimeType: o.mimeType };
+							return { kind: 'data', value: decoded, mimeType: o.mimeType, uri: o.uri };
 						} else {
 							return toCodePart(localize('toolResultData', "Data of type {0} ({1} bytes)", o.mimeType, decoded.byteLength));
 						}
