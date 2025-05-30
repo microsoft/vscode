@@ -195,7 +195,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result = [];
 		for (const metadata of metaDatas) {
 			const meta = metadata.metadata;
-			if (meta?.promptType !== PromptsType.prompt) {
+			if (meta?.promptType !== PromptsType.mode) {
 				continue;
 			}
 
