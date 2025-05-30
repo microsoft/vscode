@@ -8,7 +8,7 @@
 	display: flex;
 	width: 100%;
 	/* padding: 4px; */
-	padding: var(--vscode-button-vertical-padding) var(--vscode-button-horizontal-padding);
+	padding: var(--vscode-spacing-button-padding-vertical) var(--vscode-spacing-button-padding-horizontal);
 	border-radius: 2px;
 	text-align: center;
 	cursor: pointer;
