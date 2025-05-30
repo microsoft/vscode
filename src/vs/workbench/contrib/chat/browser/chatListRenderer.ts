@@ -324,16 +324,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
 			if (isRequestVM(template.currentElement)) {
-				requestHover.style.display = 'block';
+				dom.show(requestHover);
 			}
 		}));
 
 		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
 			if (isRequestVM(template.currentElement)) {
-				requestHover.style.display = 'none';
+				dom.hide(requestHover);
 			}
 		}));
-
+		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
@@ -1141,7 +1141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth, isRequestVM(element));
+			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
 		}));
 
