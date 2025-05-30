@@ -665,6 +665,11 @@ export interface IMcpSamplingService {
 
 	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
 
+	/** Whether MCP sampling logs are available for this server */
+	hasLogs(server: IMcpServer): boolean;
+	/** Gets a text report of the MCP server's sampling usage */
+	getLogText(server: IMcpServer): string;
+
 	getConfig(server: IMcpServer): IMcpServerSamplingConfiguration;
 	updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown): Promise<IMcpServerSamplingConfiguration>;
 }

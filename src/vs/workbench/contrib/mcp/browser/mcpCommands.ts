@@ -156,6 +156,7 @@ export class McpServerOptionsCommand extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const samplingService = accessor.get(IMcpSamplingService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
@@ -165,7 +166,7 @@ export class McpServerOptionsCommand extends Action2 {
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'resources';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
 		}
 
 		const items: ActionItem[] = [];
@@ -196,6 +197,14 @@ export class McpServerOptionsCommand extends Action2 {
 			description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
 			action: 'configSampling'
 		});
+
+		if (samplingService.hasLogs(server)) {
+			items.push({
+				label: localize('mcp.samplingLog', 'Show Sampling Requests'),
+				description: localize('mcp.samplingLog.description', 'Show the sampling requests for this server'),
+				action: 'samplingLog',
+			});
+		}
 
 		const capabilities = server.capabilities.get();
 		if (capabilities === undefined || (capabilities & McpCapability.Resources)) {
@@ -247,6 +256,13 @@ export class McpServerOptionsCommand extends Action2 {
 				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
 			case 'resources':
 				return instantiationService.createInstance(McpResourceQuickPick, server).pick();
+			case 'samplingLog':
+				editorService.openEditor({
+					resource: undefined,
+					contents: samplingService.getLogText(server),
+					label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
+				});
+				break;
 			default:
 				assertNever(pick.action);
 		}
