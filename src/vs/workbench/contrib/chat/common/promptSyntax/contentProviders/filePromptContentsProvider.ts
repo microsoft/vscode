@@ -83,7 +83,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	 * 				  the special value that means that all contents have changed
 	 * @param cancellationToken - token that cancels this operation
 	 */
-	public async getContentsStream(
+	protected async getContentsStream(
 		_event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
