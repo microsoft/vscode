@@ -1097,6 +1097,12 @@ export class SearchResultModel extends SettingsTreeModel {
 		this.cachedUniqueSearchResults.clear();
 		this.newExtensionSearchResults = null;
 
+		if (this.rawSearchResults && order === SearchResultIdx.Local) {
+			// To prevent the Settings editor from showing
+			// stale remote results mid-search.
+			delete this.rawSearchResults[SearchResultIdx.Remote];
+		}
+
 		this.rawSearchResults ??= [];
 		if (!result) {
 			delete this.rawSearchResults[order];
