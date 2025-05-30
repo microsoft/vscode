@@ -1,18 +1,18 @@
 name: CI
 
-on: workflow_dispatch
+
 permissions: {}
 
-# on:
-#   push:
-#     branches:
-#       - main
-#       - release/*
-#   pull_request:
-#     branches:
-#       - main
-#       - release/*
-
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - release/*
+  pull_request:
+    branches:
+      - main
+      - release/*
 jobs:
   windows:
     name: Windows

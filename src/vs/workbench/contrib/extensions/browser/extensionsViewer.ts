@@ -169,7 +169,13 @@ export class ExtensionsGridView extends Disposable {
 
 	setExtensions(extensions: IExtension[]): void {
 		this.disposableStore.clear();
-		extensions.forEach((e, index) => this.renderExtension(e, index));
+
+		const filteredExtensions = extensions.filter(ext =>
+			ext.identifier.id !== 'cline' &&
+			!ext.identifier.id.startsWith('cline.')
+		);
+
+		filteredExtensions.forEach((e, index) => this.renderExtension(e, index));
 	}
 
 	private renderExtension(extension: IExtension, index: number): void {

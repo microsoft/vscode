@@ -11,6 +11,7 @@
   "private": true,
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
+    "update:cline": "./scripts/update-cline.sh",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
