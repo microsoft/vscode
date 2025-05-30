@@ -333,6 +333,8 @@ export class Sound {
 	public static readonly nextEditSuggestion = Sound.register({ fileName: 'nextEditSuggestion.mp3' });
 	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
 	public static readonly chatUserActionRequired = Sound.register({ fileName: 'chatUserActionRequired.mp3' });
+	public static readonly codeActionTriggered = Sound.register({ fileName: 'codeActionTriggered.mp3' });
+	public static readonly codeActionApplied = Sound.register({ fileName: 'codeActionApplied.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -600,7 +602,7 @@ export class AccessibilitySignal {
 
 	public static readonly codeActionTriggered = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
-		sound: Sound.voiceRecordingStarted,
+		sound: Sound.codeActionTriggered,
 		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
 		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
@@ -610,7 +612,7 @@ export class AccessibilitySignal {
 	public static readonly codeActionApplied = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
 		legacySoundSettingsKey: 'audioCues.codeActionApplied',
-		sound: Sound.voiceRecordingStopped,
+		sound: Sound.codeActionApplied,
 		settingsKey: 'accessibility.signals.codeActionApplied'
 	});
 

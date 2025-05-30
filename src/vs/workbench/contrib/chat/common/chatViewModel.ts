@@ -29,6 +29,12 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
+export function assertIsResponseVM(item: unknown): asserts item is IChatResponseViewModel {
+	if (!isResponseVM(item)) {
+		throw new Error('Expected item to be IChatResponseViewModel');
+	}
+}
+
 export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
@@ -153,6 +159,7 @@ export interface IChatCodeCitations {
 export interface IChatErrorDetailsPart {
 	kind: 'errorDetails';
 	errorDetails: IChatResponseErrorDetails;
+	isLast: boolean;
 }
 
 /**

@@ -203,11 +203,13 @@ declare module 'vscode' {
 		readonly command: string;
 		readonly language: string;
 		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+		readonly presentation?: 'hidden' | undefined;
 
 		constructor(
 			command: string,
 			language: string,
 			confirmationMessages?: LanguageModelToolConfirmationMessages,
+			presentation?: 'hidden'
 		);
 	}
 
@@ -241,25 +243,16 @@ declare module 'vscode' {
 
 	// #endregion
 
-	export interface ChatRequestToolSelection {
-		/**
-		 * A list of tools that the user selected for this request.
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[];
+	// #region ChatErrorDetailsWithConfirmation
 
-		/**
-		 * When true, only this set of tools (and toolReferences) should be used. When false, the base set of agent tools can also be included.
-		 */
-		readonly isExclusive?: boolean;
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
 	}
 
-	export interface ChatRequest {
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 */
-		readonly toolSelection: ChatRequestToolSelection | undefined;
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
 	}
+
+	// #endregion
 }

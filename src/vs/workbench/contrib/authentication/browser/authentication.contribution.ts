@@ -21,6 +21,7 @@ import { ManageAccountPreferencesForExtensionAction } from './actions/manageAcco
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
 import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
+import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -123,6 +124,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
 		this._register(registerAction2(ManageTrustedMcpServersForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForMcpServerAction));
+		this._register(registerAction2(RemoveDynamicAuthenticationProvidersAction));
 	}
 
 	private _clearPlaceholderMenuItem(): void {
