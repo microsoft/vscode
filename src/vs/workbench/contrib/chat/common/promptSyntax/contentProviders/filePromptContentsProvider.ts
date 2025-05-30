@@ -118,7 +118,6 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				throw new NotPromptFile(this.uri);
 			}
 
-
 			fileStream = await this.fileService.readFileStream(this.uri);
 
 			// after the promise above complete, this object can be already disposed or
