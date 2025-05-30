@@ -34,6 +34,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { PromptsType } from '../../../../platform/prompts/common/prompts.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -52,7 +53,7 @@ import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
-import { IPromptMetadata } from '../common/promptSyntax/parsers/types.js';
+import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IMetadata, IPromptsService } from '../common/promptSyntax/service/types.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -1213,7 +1214,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let metadata: IMetadata | undefined;
 
-		// frst check if the input has a prompt slash command
+		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (agentSlashPromptPart) {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
@@ -1244,7 +1245,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			requestInput.input = `Follow instructions from ${basename(metadata.uri)}`;
 		}
 
-		await this._applyPromptMetadata(metadata.metadata);
+		const meta = metadata.metadata;
+		if (meta?.promptType === PromptsType.prompt) {
+			await this._applyPromptMetadata(meta);
+		}
 
 		return metadata;
 	}
@@ -1252,6 +1256,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
+		}
+
+		if (!query && this.inputPart.generating) {
+			// if the user submits the input and generation finishes quickly, just submit it for them
+			const generatingAutoSubmitWindow = 500;
+			const start = Date.now();
+			await this.input.generating;
+			if (Date.now() - start > generatingAutoSubmitWindow) {
+				return;
+			}
 		}
 
 		if (this.viewModel) {
@@ -1414,6 +1428,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		welcomeOffset = Math.max(welcomeOffset - this.inputPart.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+
 		this.renderer.layout(width);
 
 		const lastItem = this.viewModel?.getItems().at(-1);
@@ -1542,7 +1557,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: IPromptMetadata): Promise<void> {
+	private async _applyPromptMetadata(metadata: TPromptMetadata): Promise<void> {
 
 		const { mode, tools } = metadata;
 

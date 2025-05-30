@@ -7,6 +7,7 @@ import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorunDelta, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isAbsolute, join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -128,7 +129,11 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					command: value.command,
 					env: value.env || {},
 					envFile: value.envFile,
-					cwd: src.path.workspaceFolder?.uri,
+					cwd: value.cwd
+						// if the cwd is defined in a workspace folder but not absolute (and not
+						// a variable or tilde-expansion) then resolve it in the workspace folder
+						? (!isAbsolute(value.cwd) && !value.cwd.startsWith('~') && !value.cwd.startsWith('${') && src.path.workspaceFolder ? join(src.path.workspaceFolder.uri.fsPath, value.cwd) : value.cwd)
+						: src.path.workspaceFolder?.uri.fsPath,
 				},
 				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
 				variableReplacement: {
@@ -159,6 +164,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					remoteAuthority: src.path.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,
+					configTarget: src.path.target,
 					scope: src.path.scope,
 				});
 			}

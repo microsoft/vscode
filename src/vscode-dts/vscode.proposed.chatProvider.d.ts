@@ -12,11 +12,29 @@ declare module 'vscode' {
 
 	// @API extension ship a d.ts files for their options
 
+	// @API the LanguageModelChatProvider2 is an alternative that combines a source, like ollama etc, with
+	// concrete models. The `provideLanguageModelChatData` would do the discovery and auth dances and later
+	// the model data is passed to the concrete function for making a requested or counting token
+
+	export interface LanguageModelChatData {
+		// like ChatResponseProviderMetadata
+	}
+
+	export interface LanguageModelChatProvider2 {
+
+		provideLanguageModelChatData(options: { force: boolean }, token: CancellationToken): ProviderResult<LanguageModelChatData[]>;
+
+		provideResponse(model: LanguageModelChatData, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+
+		provideTokenCount(model: LanguageModelChatData, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
+	}
+
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	*/
 	export interface LanguageModelChatProvider {
 
+		// TODO@API remove or keep proposed?
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
 		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;

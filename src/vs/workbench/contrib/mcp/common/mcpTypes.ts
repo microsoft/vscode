@@ -26,6 +26,7 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -53,6 +54,8 @@ export interface McpCollectionDefinition {
 	readonly isTrustedByDefault: boolean;
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
+	/** Configuration target where configuration related to this server should be stored. */
+	readonly configTarget: ConfigurationTarget;
 
 	/** Resolves a server definition. If present, always called before a server starts. */
 	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
@@ -93,6 +96,7 @@ export namespace McpCollectionDefinition {
 		readonly scope: StorageScope;
 		readonly canResolveLaunch: boolean;
 		readonly extensionId: string;
+		readonly configTarget: ConfigurationTarget;
 	}
 
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
@@ -291,7 +295,7 @@ export interface IMcpResourceTemplate {
 	readonly template: UriTemplate;
 
 	/** Gets string completions for the given template part. */
-	complete(templatePart: string, prefix: string, token: CancellationToken): Promise<string[]>;
+	complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token: CancellationToken): Promise<string[]>;
 
 	/** Gets the resolved URI from template parts. */
 	resolveURI(vars: Record<string, unknown>): URI;
@@ -365,7 +369,7 @@ export const enum McpServerTransportType {
  */
 export interface McpServerTransportStdio {
 	readonly type: McpServerTransportType.Stdio;
-	readonly cwd: URI | undefined;
+	readonly cwd: string | undefined;
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
@@ -390,7 +394,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
-		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
+		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -403,7 +407,7 @@ export namespace McpServerLaunch {
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
-					cwd: launch.cwd ? URI.revive(launch.cwd) : undefined,
+					cwd: launch.cwd,
 					command: launch.command,
 					args: launch.args,
 					env: launch.env,
@@ -433,12 +437,18 @@ export interface IMcpServerConnection extends IDisposable {
 	 * Starts the server if it's stopped. Returns a promise that resolves once
 	 * server exits a 'starting' state.
 	 */
-	start(): Promise<McpConnectionState>;
+	start(methods: IMcpClientMethods): Promise<McpConnectionState>;
 
 	/**
 	 * Stops the server.
 	 */
 	stop(): Promise<void>;
+}
+
+/** Client methods whose implementations are passed through the server connection. */
+export interface IMcpClientMethods {
+	/** Handler for `sampling/createMessage` */
+	createMessageRequestHandler?(req: MCP.CreateMessageRequest['params']): Promise<MCP.CreateMessageResult>;
 }
 
 /**
@@ -638,6 +648,51 @@ export const enum McpCapability {
 	ResourcesListChanged = 1 << 6,
 	Tools = 1 << 7,
 	ToolsListChanged = 1 << 8,
+}
+
+export interface ISamplingOptions {
+	server: IMcpServer;
+	isDuringToolCall: boolean;
+	params: MCP.CreateMessageRequest['params'];
+}
+
+export interface ISamplingResult {
+	sample: MCP.CreateMessageResult;
+}
+
+export interface IMcpSamplingService {
+	_serviceBrand: undefined;
+
+	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
+
+	getConfig(server: IMcpServer): IMcpServerSamplingConfiguration;
+	updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown): Promise<IMcpServerSamplingConfiguration>;
+}
+
+export const IMcpSamplingService = createDecorator<IMcpSamplingService>('IMcpServerSampling');
+
+export class McpError extends Error {
+	public static methodNotFound(method: string) {
+		return new McpError(MCP.METHOD_NOT_FOUND, `Method not found: ${method}`);
+	}
+
+	public static notAllowed() {
+		return new McpError(-32000, 'The user has denied permission to call this method.');
+	}
+
+	public static unknown(e: Error) {
+		const mcpError = new McpError(MCP.INTERNAL_ERROR, `Unknown error: ${e.stack}`);
+		mcpError.cause = e;
+		return mcpError;
+	}
+
+	constructor(
+		public readonly code: number,
+		message: string,
+		public readonly data?: unknown
+	) {
+		super(message);
+	}
 }
 
 export const enum McpToolName {

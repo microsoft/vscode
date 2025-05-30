@@ -45,8 +45,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment: number | undefined;
-	readonly total: number | undefined;
+	readonly increment?: number;
+	readonly total?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -125,7 +125,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string; uri?: URI } | { type: 'resource'; uri: URI })[];
 	readonly isError?: boolean;
 }
 

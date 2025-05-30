@@ -14,6 +14,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
@@ -222,6 +223,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
+	private _indexOfLastOpenedContext: number;
 
 	private _implicitContext: ChatImplicitContext | undefined;
 	public get implicitContext(): ChatImplicitContext | undefined {
@@ -368,6 +370,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private promptInstructionsAttachmentsPart: PromptInstructionsAttachmentsCollectionWidget;
 
+	/**
+	 * Number consumers holding the 'generating' lock.
+	 */
+	private _generating?: { rc: number; defer: DeferredPromise<void> };
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
@@ -409,6 +416,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 		this.onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+		this._indexOfLastOpenedContext = -1;
 		this._onDidChangeVisibility = this._register(new Emitter<boolean>());
 		this._contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
 		this.inputEditorHeight = 0;
@@ -740,6 +748,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeVisibility.fire(visible);
 	}
 
+	/** If consumers are busy generating the chat input, returns the promise resolved when they finish */
+	get generating() {
+		return this._generating?.defer.p;
+	}
+
+	/** Disables the input submissions buttons until the disposable is disposed. */
+	startGenerating(): IDisposable {
+		this.logService.trace('ChatWidget#startGenerating');
+		if (this._generating) {
+			this._generating.rc++;
+		} else {
+			this._generating = { rc: 1, defer: new DeferredPromise<void>() };
+		}
+
+		return toDisposable(() => {
+			this.logService.trace('ChatWidget#doneGenerating');
+			if (this._generating && !--this._generating.rc) {
+				this._generating.defer.complete();
+				this._generating = undefined;
+			}
+		});
+	}
+
 	get element(): HTMLElement {
 		return this.container;
 	}
@@ -977,12 +1008,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			);
 
 			this._register(this._implicitContext.onDidChangeValue(() => {
+				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 				this._handleAttachedContextChange();
 			}));
 		}
 
 		this.renderAttachedContext();
-		this._register(this._attachmentModel.onDidChange(() => this._handleAttachedContextChange()));
+		this._register(this._attachmentModel.onDidChange((e) => {
+			if (e.added.length > 0) {
+				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+			}
+			this._handleAttachedContextChange();
+		}));
 		this.renderChatEditingSessionState(null);
 
 		if (this.options.renderWorkingSet) {
@@ -1239,6 +1276,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+			this._indexOfLastOpenedContext = -1;
 		}
 
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
@@ -1247,7 +1285,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1);
+			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true };
@@ -1268,9 +1306,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else {
 				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			}
+
+			if (shouldFocusClearButton) {
+				attachmentWidget.element.focus();
+			}
+
+			if (index === Math.min(this._indexOfLastOpenedContext, this.attachmentModel.size - 1)) {
+				attachmentWidget.element.focus();
+			}
+
 			store.add(attachmentWidget);
 			store.add(attachmentWidget.onDidDelete(e => {
 				this.handleAttachmentDeletion(e, index, attachment);
+			}));
+
+			store.add(attachmentWidget.onDidOpen(e => {
+				this.handleAttachmentOpen(index, attachment);
 			}));
 		}
 
@@ -1290,6 +1341,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
+
+		this._indexOfLastOpenedContext = -1;
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {
@@ -1307,6 +1360,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._onDidChangeContext.fire({ removed: [attachment] });
 		this.renderAttachedContext();
+	}
+
+	private handleAttachmentOpen(index: number, attachment: IChatRequestVariableEntry): void {
+		this._indexOfLastOpenedContext = index;
+		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+
+		if (this._attachmentModel.size === 0) {
+			this.focus();
+		}
 	}
 
 	private handleAttachmentNavigation(e: StandardKeyboardEvent): void {

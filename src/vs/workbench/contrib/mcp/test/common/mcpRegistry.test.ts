@@ -8,7 +8,6 @@ import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -156,7 +155,8 @@ suite('Workbench - MCP - Registry', () => {
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
 			isTrustedByDefault: true,
-			scope: StorageScope.APPLICATION
+			scope: StorageScope.APPLICATION,
+			configTarget: ConfigurationTarget.USER,
 		};
 
 		// Create base definition that can be reused
@@ -169,7 +169,7 @@ suite('Workbench - MCP - Registry', () => {
 				args: [],
 				env: {},
 				envFile: undefined,
-				cwd: URI.parse('file:///test')
+				cwd: '/test',
 			}
 		};
 	});
@@ -223,7 +223,7 @@ suite('Workbench - MCP - Registry', () => {
 					PATH: '${input:testInteractive}'
 				},
 				envFile: undefined,
-				cwd: URI.parse('file:///test')
+				cwd: '/test',
 			},
 			variableReplacement: {
 				section: 'mcp',

@@ -103,7 +103,6 @@ export function isPromptOrInstructionsFile(fileUri: URI): boolean {
 	return getPromptFileType(fileUri) !== undefined;
 }
 
-
 export function getPromptFileExtension(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import * as nls from '../../../nls.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol.js';
-import { Disposable } from './extHostTypes.js';
+import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +23,10 @@ import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js'
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { equals as arraysEqual } from '../../../base/common/arrays.js';
+import { IExtHostProgress } from './extHostProgress.js';
+import { IProgressStep } from '../../../platform/progress/common/progress.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { raceCancellationError } from '../../../base/common/async.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -37,6 +42,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	declare _serviceBrand: undefined;
 
+	protected readonly _dynamicAuthProviderCtor = DynamicAuthProvider;
+
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
 
@@ -50,7 +57,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
 		@IExtHostWindow private readonly _extHostWindow: IExtHostWindow,
 		@IExtHostUrlsService private readonly _extHostUrls: IExtHostUrlsService,
-		@ILoggerService private readonly _extHostLoggerService: ILoggerService,
+		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
+		@ILoggerService private readonly _extHostLoggerService: ILoggerService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadAuthentication);
 	}
@@ -178,10 +186,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				throw new Error(`Dynamic registration failed: ${err.message}`);
 			}
 		}
-		const provider = new DynamicAuthProvider(
+		const provider = new this._dynamicAuthProviderCtor(
 			this._extHostWindow,
 			this._extHostUrls,
 			this._initData,
+			this._extHostProgress,
 			this._extHostLoggerService,
 			this._proxy,
 			serverMetadata,
@@ -234,19 +243,23 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	private readonly _tokenStore: TokenStore;
 
-	private readonly _createFlows: Array<(scopes: string[]) => Promise<IAuthorizationTokenResponse>>;
+	protected readonly _createFlows: Array<{
+		label: string;
+		handler: (scopes: string[], progress: vscode.Progress<{ message: string }>, token: vscode.CancellationToken) => Promise<IAuthorizationTokenResponse>;
+	}>;
 
-	private readonly _logger: ILogger;
+	protected readonly _logger: ILogger;
 	private readonly _disposable: DisposableStore;
 
 	constructor(
-		@IExtHostWindow private readonly _extHostWindow: IExtHostWindow,
+		@IExtHostWindow protected readonly _extHostWindow: IExtHostWindow,
 		@IExtHostUrlsService private readonly _extHostUrls: IExtHostUrlsService,
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
 		@ILoggerService loggerService: ILoggerService,
-		private readonly _proxy: MainThreadAuthenticationShape,
-		private readonly _serverMetadata: IAuthorizationServerMetadata,
-		private readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
+		protected readonly _proxy: MainThreadAuthenticationShape,
+		protected readonly _serverMetadata: IAuthorizationServerMetadata,
+		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		readonly clientId: string,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
@@ -274,7 +287,10 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		));
 		this._disposable.add(this._tokenStore.onDidChangeSessions(e => this._onDidChangeSessions.fire(e)));
 		// Will be extended later to support other flows
-		this._createFlows = [scopes => this._createWithUrlHandler(scopes)];
+		this._createFlows = [{
+			label: nls.localize('url handler', "URL Handler"),
+			handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
+		}];
 	}
 
 	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
@@ -328,14 +344,34 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	async createSession(scopes: string[], _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		this._logger.info(`Creating session for scopes: ${scopes.join(' ')}`);
 		let token: IAuthorizationTokenResponse | undefined;
-		for (const createFlow of this._createFlows) {
+		for (let i = 0; i < this._createFlows.length; i++) {
+			const { handler } = this._createFlows[i];
 			try {
-				token = await createFlow(scopes);
+				token = await this._extHostProgress.withProgressFromSource(
+					{ label: this.label, id: this.id },
+					{
+						location: ProgressLocation.Notification,
+						title: nls.localize('authenticatingTo', "Authenticating to '{0}'", this.label),
+						cancellable: true
+					},
+					(progress, token) => handler(scopes, progress, token));
 				if (token) {
 					break;
 				}
 			} catch (err) {
-				this._logger.error(`Failed to create token: ${err}`);
+				const nextMode = this._createFlows[i + 1]?.label;
+				if (!nextMode) {
+					break; // No more flows to try
+				}
+				const message = isCancellationError(err)
+					? nls.localize('userCanceledContinue', "Having trouble authenticating to '{0}'? Would you like to try a different way? ({1})", this.label, nextMode)
+					: nls.localize('continueWith', "You have not yet finished authenticating to '{0}'. Would you like to try a different way? ({1})", this.label, nextMode);
+
+				const result = await this._proxy.$showContinueNotification(message);
+				if (!result) {
+					throw new CancellationError();
+				}
+				this._logger.error(`Failed to create token via flow '${nextMode}': ${err}`);
 			}
 		}
 		if (!token) {
@@ -369,7 +405,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._disposable.dispose();
 	}
 
-	private async _createWithUrlHandler(scopes: string[]): Promise<IAuthorizationTokenResponse> {
+	private async _createWithUrlHandler(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -408,15 +444,28 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		// Open the browser for user authorization
 		this._logger.info(`Opening authorization URL for scopes: ${scopeString}`);
 		this._logger.trace(`Authorization URL: ${authorizationUrl.toString()}`);
-		await this._extHostWindow.openUri(authorizationUrl.toString(), {});
+		const opened = await this._extHostWindow.openUri(authorizationUrl.toString(), {});
+		if (!opened) {
+			throw new CancellationError();
+		}
+		progress.report({
+			message: nls.localize('completeAuth', "Complete the authentication in the browser window that has opened."),
+		});
 
 		// Wait for the authorization code via a redirect
-		const { code } = await promise;
-		this._logger.info(`Authorization code received for scopes: ${scopeString}`);
-
-		if (!code) {
-			throw new Error('Authentication failed: No authorization code received');
+		let code: string | undefined;
+		try {
+			const response = await raceCancellationError(promise, token);
+			code = response.code;
+		} catch (err) {
+			if (isCancellationError(err)) {
+				this._logger.info('Authorization code request was cancelled by the user.');
+				throw err;
+			}
+			this._logger.error(`Failed to receive authorization code: ${err}`);
+			throw new Error(`Failed to receive authorization code: ${err}`);
 		}
+		this._logger.info(`Authorization code received for scopes: ${scopeString}`);
 
 		// Exchange the authorization code for tokens
 		const tokenResponse = await this.exchangeCodeForToken(code, codeVerifier, redirectUri);

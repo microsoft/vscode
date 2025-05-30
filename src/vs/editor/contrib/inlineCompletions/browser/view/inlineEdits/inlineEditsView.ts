@@ -192,6 +192,12 @@ export class InlineEditsView extends Disposable {
 			if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
 				return this._insertion.startLineOffset.read(reader);
 			}
+
+			const ghostTextIndicator = this._ghostTextIndicator.read(reader);
+			if (ghostTextIndicator) {
+				return getGhostTextTopOffset(ghostTextIndicator, this._editor);
+			}
+
 			return 0;
 		});
 		this._sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
@@ -579,4 +585,38 @@ function _growEdits(replacements: TextReplacement[], originalText: AbstractText,
 	}
 
 	return result;
+}
+
+function getGhostTextTopOffset(ghostTextIndicator: GhostTextIndicator, editor: ICodeEditor): number {
+	const replacements = ghostTextIndicator.model.inlineEdit.edit.replacements;
+	if (replacements.length !== 1) {
+		return 0;
+	}
+
+	const textModel = editor.getModel();
+	if (!textModel) {
+		return 0;
+	}
+
+	const EOL = textModel.getEOL();
+	const replacement = replacements[0];
+	if (replacement.range.isEmpty() && replacement.text.startsWith(EOL)) {
+		const lineHeight = editor.getLineHeightForPosition(replacement.range.getStartPosition());
+		return countPrefixRepeats(replacement.text, EOL) * lineHeight;
+	}
+
+	return 0;
+}
+
+function countPrefixRepeats(str: string, prefix: string): number {
+	if (!prefix.length) {
+		return 0;
+	}
+	let count = 0;
+	let i = 0;
+	while (str.startsWith(prefix, i)) {
+		count++;
+		i += prefix.length;
+	}
+	return count;
 }
