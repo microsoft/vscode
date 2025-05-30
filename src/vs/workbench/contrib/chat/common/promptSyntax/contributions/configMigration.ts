@@ -8,7 +8,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { asBoolean } from '../../../../../../platform/prompts/common/config.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY } from '../../../../../../platform/prompts/common/constants.js';
+import { CONFIG_KEY, PROMPT_LOCATIONS_CONFIG_KEY } from '../../../../../../platform/prompts/common/prompts.js';
 
 /**
  * Contribution that migrates the old config setting value to a new one.

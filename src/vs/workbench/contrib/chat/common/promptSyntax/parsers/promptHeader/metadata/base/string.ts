@@ -12,16 +12,16 @@ import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../..
 /**
  * Base class for all metadata records with a `string` value.
  */
-export abstract class PromptStringMetadata extends PromptMetadataRecord {
+export abstract class PromptStringMetadata extends PromptMetadataRecord<string> {
 	/**
 	 * Value token reference of the record.
 	 */
 	protected valueToken: FrontMatterString | FrontMatterSequence | undefined;
 
 	/**
-	 * Clean text value of the record.
+	 * String value of a metadata record.
 	 */
-	public get text(): string | undefined {
+	public override get value(): string | undefined {
 		return this.valueToken?.cleanText;
 	}
 

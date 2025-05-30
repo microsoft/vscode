@@ -69,6 +69,10 @@ export function isSCMHistoryItemChangeViewModelTreeElement(element: any): elemen
 	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
 }
 
+export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
+	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
+}
+
 const compareActions = (a: IAction, b: IAction) => {
 	if (a instanceof MenuItemAction && b instanceof MenuItemAction) {
 		return a.id === b.id && a.enabled === b.enabled && a.hideActions?.isHidden === b.hideActions?.isHidden;

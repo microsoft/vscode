@@ -27,7 +27,11 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 	const titles: string[] = toolInvocation.filter(t => t.confirmationMessages?.title).map(v => {
 		let input = '';
 		if (v.toolSpecificData) {
-			input = v.toolSpecificData?.kind === 'terminal' ? v.toolSpecificData.command : JSON.stringify(v.toolSpecificData.rawInput);
+			input = v.toolSpecificData?.kind === 'terminal'
+				? v.toolSpecificData.command
+				: v.toolSpecificData?.kind === 'extensions'
+					? JSON.stringify(v.toolSpecificData.extensions)
+					: JSON.stringify(v.toolSpecificData.rawInput);
 		}
 		const title = v.confirmationMessages?.title || '';
 		return (title + (input ? ': ' + input : '')).trim();
@@ -81,7 +85,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				toolInvocationHint = this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocation);
 			} else { // all completed
 				for (const invocation of toolInvocation) {
-					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", invocation.confirmationMessages?.title);
+					toolInvocationHint += localize('toolCompletedHint', "Tool {0} completed.", typeof invocation.confirmationMessages?.title === 'string' ? invocation.confirmationMessages?.title : invocation.confirmationMessages?.title.value);
 				}
 			}
 		}

@@ -147,7 +147,7 @@ export interface ILanguageModelChatMetadata {
 }
 
 export interface ILanguageModelChatResponse {
-	stream: AsyncIterable<IChatResponseFragment>;
+	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
 	result: Promise<any>;
 }
 

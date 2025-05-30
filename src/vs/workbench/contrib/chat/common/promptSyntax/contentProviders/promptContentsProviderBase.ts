@@ -13,6 +13,8 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Options of the {@link PromptContentsProviderBase} class.
@@ -54,6 +56,27 @@ export abstract class PromptContentsProviderBase<
 	public abstract override toString(): string;
 	public abstract get languageId(): string;
 	public abstract get sourceName(): string;
+
+	/**
+	 * Prompt type used to determine how to interpret file contents.
+	 */
+	public get promptType(): PromptsType | 'non-prompt' {
+		const { languageId } = this;
+
+		if (languageId === PROMPT_LANGUAGE_ID) {
+			return PromptsType.prompt;
+		}
+
+		if (languageId === INSTRUCTIONS_LANGUAGE_ID) {
+			return PromptsType.instructions;
+		}
+
+		if (languageId === MODE_LANGUAGE_ID) {
+			return PromptsType.mode;
+		}
+
+		return 'non-prompt';
+	}
 
 	/**
 	 * Function to get contents stream for the provider. This function should

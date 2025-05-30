@@ -186,11 +186,16 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		textModel: ITextModel,
 	): InlineCompletionItem {
 		const identity = new InlineSuggestionIdentity();
-		const textEdit = new TextReplacement(data.range, data.insertText);
-		const edit = getPositionOffsetTransformerFromTextModel(textModel).getStringReplacement(textEdit);
+		const transformer = getPositionOffsetTransformerFromTextModel(textModel);
+
+		const insertText = data.insertText.replace(/\r\n|\r|\n/g, textModel.getEOL());
+
+		const edit = reshapeInlineCompletion(new StringReplacement(transformer.getOffsetRange(data.range), insertText), textModel);
+		const textEdit = transformer.getSingleTextEdit(edit);
+
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation, textModel) : undefined;
 
-		return new InlineCompletionItem(edit, textEdit, data.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
+		return new InlineCompletionItem(edit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
 	}
 
 	public readonly isInlineEdit = false;
@@ -456,7 +461,7 @@ function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: str
 			const edit = new StringReplacement(originalRange, replaceText);
 
 			const originalText = textModel.getValueInRange(rangeInModel);
-			return reshapeEdit(edit, originalText, innerChanges.length, textModel);
+			return reshapeInlineEdit(edit, originalText, innerChanges.length, textModel);
 		})
 	);
 
@@ -591,7 +596,18 @@ class SingleUpdatedNextEdit {
 	}
 }
 
-function reshapeEdit(edit: StringReplacement, originalText: string, totalInnerEdits: number, textModel: ITextModel): StringReplacement {
+function reshapeInlineCompletion(edit: StringReplacement, textModel: ITextModel): StringReplacement {
+	// If the insertion is a multi line insertion starting on the next line
+	// Move it forwards so that the multi line insertion starts on the current line
+	const eol = textModel.getEOL();
+	if (edit.replaceRange.isEmpty && edit.newText.includes(eol)) {
+		edit = reshapeMultiLineInsertion(edit, textModel);
+	}
+
+	return edit;
+}
+
+function reshapeInlineEdit(edit: StringReplacement, originalText: string, totalInnerEdits: number, textModel: ITextModel): StringReplacement {
 	// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
 	const eol = textModel.getEOL();
 	if (edit.newText.endsWith(eol) && originalText.endsWith(eol)) {
@@ -602,7 +618,11 @@ function reshapeEdit(edit: StringReplacement, originalText: string, totalInnerEd
 	// If the insertion ends with a new line and is inserted at the start of a line which has text,
 	// we move the insertion to the end of the previous line if possible
 	if (totalInnerEdits === 1 && edit.replaceRange.isEmpty && edit.newText.includes(eol)) {
-		edit = reshapeMultiLineInsertion(edit, textModel);
+		const startPosition = textModel.getPositionAt(edit.replaceRange.start);
+		const hasTextOnInsertionLine = textModel.getLineLength(startPosition.lineNumber) !== 0;
+		if (hasTextOnInsertionLine) {
+			edit = reshapeMultiLineInsertion(edit, textModel);
+		}
 	}
 
 	// The diff algorithm extended a simple edit to the entire word
@@ -641,7 +661,7 @@ function reshapeMultiLineInsertion(edit: StringReplacement, textModel: ITextMode
 
 	// If the insertion ends with a new line and is inserted at the start of a line which has text,
 	// we move the insertion to the end of the previous line if possible
-	if (startColumn === 1 && startLineNumber > 1 && textModel.getLineLength(startLineNumber) !== 0 && edit.newText.endsWith(eol) && !edit.newText.startsWith(eol)) {
+	if (startColumn === 1 && startLineNumber > 1 && edit.newText.endsWith(eol) && !edit.newText.startsWith(eol)) {
 		return new StringReplacement(edit.replaceRange.delta(-1), eol + edit.newText.slice(0, -eol.length));
 	}
 
