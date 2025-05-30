@@ -16,11 +16,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpResourceURI, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -279,12 +280,17 @@ class McpToolImplementation implements IToolImpl {
 			isError: callResult.isError === true,
 		};
 
-		for (const item of callResult.content) {
+		for (let item of callResult.content) {
 			const audience = item.annotations?.audience || ['assistant'];
 			if (audience.includes('user')) {
 				if (item.type === 'text') {
 					progress.report({ message: item.text });
 				}
+			}
+
+			// Rewrite image rsources to images so they are inlined nicely
+			if (item.type === 'resource' && item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
+				item = { type: 'image', mimeType: item.resource.mimeType, data: item.resource.blob };
 			}
 
 			const isForModel = audience.includes('assistant');
@@ -304,8 +310,15 @@ class McpToolImplementation implements IToolImpl {
 						value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
 					});
 				}
-			} else {
-				// unsupported for now.
+			} else if (item.type === 'resource') {
+				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
+				details.output.push({ type: 'resource', uri });
+				if (isForModel) {
+					result.content.push({
+						kind: 'text',
+						value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
+					});
+				}
 			}
 		}
 
