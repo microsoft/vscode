@@ -13,25 +13,20 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
  */
 export function objectStreamFromTextModel(
 	model: ITextModel,
-	startLineNumber: number = 1,
 	cancellationToken?: CancellationToken,
 ): ObjectStream<VSBuffer> {
-	return new ObjectStream(modelToGenerator(model, startLineNumber), cancellationToken);
+	return new ObjectStream(modelToGenerator(model), cancellationToken);
 }
 
 /**
  * Create a generator out of a provided text model.
  */
-// TODO: @legomushroom - make private?
-export const modelToGenerator = (
+const modelToGenerator = (
 	model: ITextModel,
-	startLineNumber: number = 1,
 ): Generator<VSBuffer, undefined> => {
-	// TODO: @legomushroom - validate `startLineNumber` argument
-
 	return (function* (): Generator<VSBuffer, undefined> {
 		const totalLines = model.getLineCount();
-		let currentLine = startLineNumber;
+		let currentLine = 1;
 
 		while (currentLine <= totalLines) {
 			if (model.isDisposed()) {

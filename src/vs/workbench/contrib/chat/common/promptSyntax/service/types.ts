@@ -95,11 +95,10 @@ export interface ICustomChatMode {
 	readonly tools?: readonly string[];
 
 	/**
-	 * TODO: @legomushroom
+	 * Contents of the custom chat mode file body.
 	 */
 	readonly body: string;
 }
-
 
 /**
  * Type of combined tools metadata for the case

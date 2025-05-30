@@ -346,21 +346,6 @@ export abstract class BaseDecoder<
 		return asyncDecoder[Symbol.asyncIterator]();
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
-	[Symbol.iterator](): Iterator<Promise<T | null>> {
-		throw new Error('TODO: @legomushroom');
-		// assert(
-		// 	!this._ended,
-		// 	'Cannot iterate on messages of the stream that has already ended.',
-		// );
-
-		// const asyncDecoder = this._register(new AsyncDecoder(this));
-
-		// return asyncDecoder[Symbol.asyncIterator]();
-	}
-
 	public override dispose(): void {
 		this.settledPromise.complete();
 

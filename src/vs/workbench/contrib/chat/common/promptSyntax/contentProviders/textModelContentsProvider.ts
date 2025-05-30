@@ -62,7 +62,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
-		return objectStreamFromTextModel(this.model, 1, cancellationToken);
+		return objectStreamFromTextModel(this.model, cancellationToken);
 	}
 
 	public override createNew(
