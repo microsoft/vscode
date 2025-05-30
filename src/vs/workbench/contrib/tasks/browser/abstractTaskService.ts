@@ -2027,7 +2027,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				await this.run(task);
+				// Try to get the fresh task definition from current configuration
+				const workspaceFolder = task.getWorkspaceFolder();
+				const taskKey = task.getKey() || task._label;
+				
+				let taskToRun = task; // fallback to original task
+				if (workspaceFolder && taskKey) {
+					const freshTask = await this.getTask(workspaceFolder, taskKey, false, task.type);
+					if (freshTask) {
+						taskToRun = freshTask;
+					}
+				}
+				
+				await this.run(taskToRun);
 			} catch {
 				// eat the error, we don't care about it here
 			}
