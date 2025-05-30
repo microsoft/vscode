@@ -28,14 +28,15 @@ import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
 import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
-import { VSBuffer, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
+import { LinesDecoder } from '../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
 import { isPromptOrInstructionsFile, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
@@ -114,13 +115,27 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			? this.header.range.endLineNumber + 1
 			: 1;
 
-
-		const result = await consumeStream(
-			await this.promptContentsProvider.getLines(startLineNumber),
-			VSBuffer.concat,
+		const decoder = new LinesDecoder(
+			await this.promptContentsProvider.contents,
 		);
 
-		return result.toString();
+		const stream = newWriteableBufferStream();
+		for await (const token of decoder) {
+			if (token === null) {
+				break;
+			}
+
+			const { range, text } = token;
+
+			// skip lines before the start line number
+			if (range.startLineNumber < startLineNumber) {
+				continue;
+			}
+
+			await stream.write(VSBuffer.fromString(text));
+		}
+
+		return (await consumeStream(stream, VSBuffer.concat)).toString();
 	}
 
 	/**

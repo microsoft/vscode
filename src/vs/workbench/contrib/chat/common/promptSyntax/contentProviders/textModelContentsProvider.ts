@@ -62,18 +62,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		_event: IModelContentChangedEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
-		return this.getLines(1, cancellationToken);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	// TODO: @legomushroom - merge with `getContentsStream()`?
-	public override async getLines(
-		startLineNumber: number,
-		cancellationToken?: CancellationToken,
-	): Promise<VSBufferReadableStream> {
-		return objectStreamFromTextModel(this.model, startLineNumber, cancellationToken);
+		return objectStreamFromTextModel(this.model, 1, cancellationToken);
 	}
 
 	public override createNew(

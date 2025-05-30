@@ -8,15 +8,14 @@ import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { LinesDecoder } from '../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
 import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 
 /**
  * Prompt contents provider for a file on the disk referenced by
@@ -84,7 +83,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	 * 				  the special value that means that all contents have changed
 	 * @param cancellationToken - token that cancels this operation
 	 */
-	protected async getContentsStream(
+	public async getContentsStream(
 		_event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
@@ -138,34 +137,6 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 			throw new OpenFailed(this.uri, error);
 		}
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public override async getLines(
-		startLineNumber: number = 1,
-		cancellationToken?: CancellationToken,
-	): Promise<VSBufferReadableStream> {
-		// TODO: @legomushroom - validate `startLineNumber` argument
-		const contentsStream = await this.getContentsStream('full', cancellationToken);
-		const decoder = new LinesDecoder(contentsStream);
-
-		const stream = newWriteableBufferStream();
-		for await (const token of decoder) {
-			if (token === null) {
-				break;
-			}
-
-			// skip lines before the start line number
-			if (token.range.startLineNumber < startLineNumber) {
-				continue;
-			}
-
-			await stream.write(VSBuffer.fromString(token.text));
-		}
-
-		return stream;
 	}
 
 	public override createNew(
