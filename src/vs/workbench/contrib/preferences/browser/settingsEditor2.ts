@@ -1793,9 +1793,12 @@ export class SettingsEditor2 extends EditorPane {
 			}
 			this.searchResultModel.showAiResults = false;
 
-			// Show the results because the embeddings might take a while,
-			// and because the remote results are always appended to the end.
-			this.onDidFinishSearch(expandResults, undefined);
+			if (localResults && localResults.filterMatches.length > 0) {
+				// The remote results might take a while and
+				// are always appended to the end anyway, so
+				// show some results now.
+				this.onDidFinishSearch(expandResults, undefined);
+			}
 
 			if (!localResults || !localResults.exactMatch) {
 				await this.doRemoteSearch(query, searchInProgress.token);
