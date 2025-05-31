@@ -6,6 +6,7 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
+import { exec } from 'child_process';
 import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
@@ -16,6 +17,123 @@ import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import * as path from '../../../base/common/path.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { isWindows } from '../../../base/common/platform.js';
+
+/**
+ * Manages graceful shutdown of MCP stdio connections following the MCP specification.
+ * 
+ * Per spec, shutdown should:
+ * 1. Close the input stream to the child process
+ * 2. Wait for the server to exit, or send SIGTERM if it doesn't exit within 2 seconds
+ * 3. Send SIGKILL if the server doesn't exit within 2 seconds after SIGTERM
+ * 4. Allow forceful killing if called twice
+ */
+class McpStdioConnectionManager {
+	private static readonly GRACE_TIME_MS = 2000;
+
+	private _child: ChildProcessWithoutNullStreams | undefined;
+	private _shutdownInProgress = false;
+	private _shutdownTimeouts: NodeJS.Timeout[] = [];
+
+	constructor(
+		child: ChildProcessWithoutNullStreams,
+		private readonly _onStateChange: (state: McpConnectionState) => void
+	) {
+		this._child = child;
+	}
+
+	/**
+	 * Initiates graceful shutdown. If called while shutdown is already in progress,
+	 * forces immediate termination.
+	 */
+	public stop(): void {
+		if (this._shutdownInProgress) {
+			// Second call - force kill immediately
+			this._forceKill();
+			return;
+		}
+
+		this._shutdownInProgress = true;
+		this._gracefulShutdown();
+	}
+
+	private _gracefulShutdown(): void {
+		if (!this._child) {
+			this._onStateChange({ state: McpConnectionState.Kind.Stopped });
+			return;
+		}
+
+		// Step 1: Close the input stream
+		if (this._child.stdin && !this._child.stdin.destroyed) {
+			this._child.stdin.end();
+		}
+
+		// Step 2: Wait for natural exit, then SIGTERM if needed
+		const sigTermTimeout = setTimeout(() => {
+			if (this._child && !this._child.killed) {
+				this._sendSigterm();
+			}
+		}, McpStdioConnectionManager.GRACE_TIME_MS);
+		this._shutdownTimeouts.push(sigTermTimeout);
+	}
+
+	private _sendSigterm(): void {
+		if (!this._child) {
+			return;
+		}
+
+		if (!isWindows) {
+			this._child.kill('SIGTERM');
+		} else {
+			// Use taskkill for Windows
+			this._windowsKill(this._child.pid);
+		}
+
+		// Step 3: Wait for exit after SIGTERM, then SIGKILL if needed
+		const sigKillTimeout = setTimeout(() => {
+			if (this._child && !this._child.killed) {
+				this._forceKill();
+			}
+		}, McpStdioConnectionManager.GRACE_TIME_MS);
+		this._shutdownTimeouts.push(sigKillTimeout);
+	}
+
+	private _forceKill(): void {
+		if (!this._child) {
+			return;
+		}
+
+		if (!isWindows) {
+			this._child.kill('SIGKILL');
+		} else {
+			// Force kill on Windows
+			this._windowsKill(this._child.pid, true);
+		}
+	}
+
+	private _windowsKill(pid: number | undefined, force = false): void {
+		if (!pid) {
+			return;
+		}
+
+		const windir = process.env['WINDIR'] || 'C:\\Windows';
+		const taskKill = path.join(windir, 'System32', 'taskkill.exe');
+		const args = force ? `/F /T /PID ${pid}` : `/T /PID ${pid}`;
+
+		exec(`"${taskKill}" ${args}`, (error) => {
+			if (error && this._child) {
+				// Fallback to Node.js kill if taskkill fails
+				this._child.kill(force ? 'SIGKILL' : 'SIGTERM');
+			}
+		});
+	}
+
+	public dispose(): void {
+		this._shutdownTimeouts.forEach(timeout => clearTimeout(timeout));
+		this._shutdownTimeouts = [];
+		this._child = undefined;
+	}
+}
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -26,7 +144,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	}
 
 	private nodeServers = new Map<number, {
-		abortCtrl: AbortController;
+		connectionManager: McpStdioConnectionManager;
 		child: ChildProcessWithoutNullStreams;
 	}>();
 
@@ -41,7 +159,8 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	override $stopMcp(id: number): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
-			nodeServer.abortCtrl.abort();
+			nodeServer.connectionManager.stop();
+			nodeServer.connectionManager.dispose();
 			this.nodeServers.delete(id);
 		} else {
 			super.$stopMcp(id);
@@ -64,6 +183,8 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			message: typeof err === 'string' ? err : err.message,
 		});
 
+		const onStateChange = (state: McpConnectionState) => this._proxy.$onDidChangeState(id, state);
+
 		// MCP servers are run on the same authority where they are defined, so
 		// reading the envfile based on its path off the filesystem here is fine.
 		const env = { ...process.env };
@@ -81,7 +202,6 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			env[key] = value === null ? undefined : String(value);
 		}
 
-		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			const home = homedir();
@@ -101,15 +221,16 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			child = spawn(executable, args, {
 				stdio: 'pipe',
 				cwd,
-				signal: abortCtrl.signal,
 				env,
 				shell,
 			});
 		} catch (e) {
 			onError(e);
-			abortCtrl.abort();
 			return;
 		}
+
+		// Create the connection manager for graceful shutdown
+		const connectionManager = new McpStdioConnectionManager(child, onStateChange);
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 
@@ -125,22 +246,24 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
 		child.on('error', e => {
-			if (abortCtrl.signal.aborted) {
+			onError(e);
+		});
+		child.on('exit', code => {
+			// Clean up the connection manager when process exits
+			connectionManager.dispose();
+			this.nodeServers.delete(id);
+			
+			if (code === 0) {
 				this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
 			} else {
-				onError(e);
-			}
-		});
-		child.on('exit', code =>
-			code === 0 || abortCtrl.signal.aborted
-				? this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped })
-				: this._proxy.$onDidChangeState(id, {
+				this._proxy.$onDidChangeState(id, {
 					state: McpConnectionState.Kind.Error,
 					message: `Process exited with code ${code}`,
-				})
-		);
+				});
+			}
+		});
 
-		this.nodeServers.set(id, { abortCtrl, child });
+		this.nodeServers.set(id, { connectionManager, child });
 	}
 }
 
