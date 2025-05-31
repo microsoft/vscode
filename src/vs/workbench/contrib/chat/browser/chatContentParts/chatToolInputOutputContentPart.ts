@@ -107,11 +107,13 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
+		width: number,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
+		this._currentWidth = width;
 
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
 		const iconEl = dom.h('.chat-confirmation-widget-title-icon');

@@ -42,6 +42,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		input: string,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
+		currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -116,6 +117,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			},
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			currentWidthDelegate(),
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
