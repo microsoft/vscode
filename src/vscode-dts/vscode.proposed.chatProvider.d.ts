@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 
 	export interface ChatResponseFragment2 {
@@ -29,15 +31,58 @@ declare module 'vscode' {
 		provideTokenCount(model: LanguageModelChatData, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
 
+	export enum LanguageModelRequestInitiatorKind {
+		/**
+		 * Used when an extension is making a request to the language model.
+		 */
+		Extension = 1,
+		/**
+		 * Used when an MCP server is making a request to the language model.
+		 */
+		McpServer = 2,
+	}
+
+	/**
+	 * Passed to {@link LanguageModelChatProvider.provideLanguageModelResponse}
+	 * when it is being called from an extension.
+	 */
+	export interface ExtensionLanguageModelRequestInitiator {
+		/**
+		 * The kind of initiator making the request.
+		 */
+		kind: LanguageModelRequestInitiatorKind.Extension;
+		/**
+		 * ID of the extension making the request.
+		 */
+		extensionId: string;
+	}
+
+	/**
+	 * Passed to {@link LanguageModelChatProvider.provideLanguageModelResponse}
+	 * when it is being called from a Model Context Protocol server.
+	 */
+	export interface McpServerLanguageModelRequestInitiator {
+		/**
+		 * The kind of initiator making the request.
+		 */
+		kind: LanguageModelRequestInitiatorKind.McpServer;
+		/**
+		 * Label of the MCP server.
+		 */
+		label: string;
+	}
+
+	export type LanguageModelRequestInitiator = ExtensionLanguageModelRequestInitiator | McpServerLanguageModelRequestInitiator;
+
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	*/
 	export interface LanguageModelChatProvider {
 
 		// TODO@API remove or keep proposed?
-		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
+		onDidReceiveLanguageModelResponse2?: Event<{ readonly initiator: LanguageModelRequestInitiator; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, initiator: LanguageModelRequestInitiator, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
