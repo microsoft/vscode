@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -15,7 +15,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS, isCI } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { generateUuid } from '../../base/common/uuid.js';
@@ -122,6 +122,7 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1385,9 +1386,25 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
-		// macOS: rosetta translation warning
-		if (isMacintosh && app.runningUnderARM64Translation) {
-			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		if (isMacintosh) {
+			// macOS: rosetta translation warning
+			if (app.runningUnderARM64Translation) {
+				this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+			}
+
+			// macOS: detect non-standard app installation
+			if (!app.isInApplicationsFolder()) {
+				// Only offer to move to Applications folder under the following scenarios:
+				// * Application was not launched from the cli
+				// * Application is not running in portable mode
+				// * Application is not running in an CI environment
+				// * Application was not launched with --disable-app-install-dir-detection
+				const should_move = !this.environmentMainService.disableAppInstallDirDetection &&
+					!isCI && !isLaunchedFromCli(process.env) && !process.env['VSCODE_PORTABLE'];
+				if (should_move) {
+					this.moveToApplicationsFolder();
+				}
+			}
 		}
 	}
 
@@ -1470,5 +1487,48 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validatedevDeviceId(this.stateService, this.logService);
+	}
+
+	private async moveToApplicationsFolder(): Promise<void> {
+		const { response } = await dialog.showMessageBox(massageMessageBoxOptions({
+			type: 'info',
+			buttons: [
+				localize({ key: 'move', comment: ['&& denotes a mnemonic'] }, "&&Move to Applications"),
+				localize({ key: 'doNotMove', comment: ['&& denotes a mnemonic'] }, "&&Do not Move")
+			],
+			message: localize('moveToApplicationsFolderWarning', "{0} works best when run from the Applications folder", this.productService.nameLong),
+			cancelId: 1
+		}, this.productService).options);
+
+		if (response === 0) {
+			try {
+				const result = app.moveToApplicationsFolder({
+					conflictHandler: conflictType => {
+						if (conflictType === 'exists') {
+							const response = dialog.showMessageBoxSync(massageMessageBoxOptions({
+								type: 'warning',
+								buttons: [
+									localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Replace in Applications"),
+									localize({ key: 'doNotMove', comment: ['&& denotes a mnemonic'] }, "&&Do not Move")
+								],
+								message: localize('applicationAlreadyExists', "Another version of of {0} already exists in the Applications folder. Would you like to replace it?", this.productService.nameLong),
+								cancelId: 1
+							}, this.productService).options);
+							this.logService.trace(`update#moveToApplicationsFolder: received ${response} to replace existing version.`);
+							return (response === 0);
+						}
+						// No action needed when conflictType === existsAndRunning, since
+						// our singleton logic would attach to running application when using same user-data-dir.
+						// Different user-data-dir requires launching from cli in which case the detection would
+						// never happen.
+						this.logService.trace(`update#moveToApplicationsFolder: not performing move operation for conflictType ${conflictType}.`);
+						return false;
+					}
+				});
+				this.logService.trace(`update#moveToApplicationsFolder: ${result ? 'success' : 'failed'}.`);
+			} catch (error) {
+				this.logService.trace(`update#moveToApplicationsFolder: failed with ${toErrorMessage(error)}`);
+			}
+		}
 	}
 }
