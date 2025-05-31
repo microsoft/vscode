@@ -331,7 +331,8 @@ export enum EditorOption {
 	defaultColorDecorators = 154,
 	colorDecoratorsActivatedOn = 155,
 	inlineCompletionsAccessibilityVerbose = 156,
-	effectiveExperimentalEditContextEnabled = 157
+	effectiveExperimentalEditContextEnabled = 157,
+	scrollOnMiddleClick = 158
 }
 
 /**
