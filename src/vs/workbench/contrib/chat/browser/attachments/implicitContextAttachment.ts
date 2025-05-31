@@ -97,6 +97,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
 				this.convertToRegularAttachment();
 			}
 		}));
