@@ -121,15 +121,21 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	private onDidFilesChange(e: FileChangesEvent): void {
 		for (const model of this.models) {
-			if (model.isDirty()) {
-				continue; // never reload dirty models
-			}
-
 			// Trigger a model resolve for any update or add event that impacts
 			// the model. We also consider the added event because it could
 			// be that a file was added and updated right after.
 			if (e.contains(model.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
-				this.queueModelReload(model);
+				if (model.isDirty()) {
+					continue; // never reload dirty models
+				}
+
+				// For non-file schemes, we should prioritize reloading since the content 
+				// might have changed from what was written (virtual file systems)
+				if (model.resource.scheme !== 'file') {
+					this.queueModelReload(model);
+				} else {
+					this.queueModelReload(model);
+				}
 			}
 		}
 	}
