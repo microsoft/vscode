@@ -250,7 +250,7 @@ export interface ILanguageModelToolsService {
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string): IToolData | undefined;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;

@@ -160,13 +160,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	getTools(): Iterable<Readonly<IToolData>> {
+	getTools(includeDisabled?: boolean): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
 		return Iterable.filter(
 			toolDatas,
 			toolData => {
-				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				return satisfiesWhenClause && satisfiesExternalToolCheck;
 			});
@@ -185,10 +185,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	getToolByName(name: string): IToolData | undefined {
-		for (const toolData of this.getTools()) {
-			if (toolData.toolReferenceName === name) {
-				return toolData;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
+		for (const tool of this.getTools(!!includeDisabled)) {
+			if (tool.toolReferenceName === name) {
+				return tool;
 			}
 		}
 		return undefined;

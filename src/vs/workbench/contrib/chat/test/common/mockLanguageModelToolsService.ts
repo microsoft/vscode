@@ -44,7 +44,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return undefined;
 	}
 
-	getToolByName(name: string): IToolData | undefined {
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
 		return undefined;
 	}
 
