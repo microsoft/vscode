@@ -1874,12 +1874,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (const [key, activeData] of Object.entries(this._activeTasks)) {
 			const oldTask = activeData.task;
 			const workspaceFolder = oldTask.getWorkspaceFolder();
-			const taskIdentifier = oldTask.configurationProperties.identifier || oldTask._label;
 			
-			if (workspaceFolder && taskIdentifier) {
+			if (workspaceFolder) {
 				try {
-					// Try to resolve the fresh task definition
-					const freshTask = await getTask(workspaceFolder, taskIdentifier);
+					// Try to resolve the fresh task definition using the task's label
+					// This is the most reliable identifier for user-defined tasks in tasks.json
+					const freshTask = await getTask(workspaceFolder, oldTask._label);
 					if (freshTask) {
 						// Update the task in the active tasks dictionary
 						activeData.task = freshTask;

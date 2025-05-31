@@ -2035,7 +2035,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				await this.run(task);
+				// Get the current active task definition (which should be updated if config changed)
+				const currentTask = this._taskSystem.getLastInstance(task) || this._taskSystem.getFirstInstance(task) || task;
+				await this.run(currentTask);
 			} catch {
 				// eat the error, we don't care about it here
 			}
