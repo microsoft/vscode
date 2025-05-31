@@ -117,6 +117,7 @@ export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly isPasted?: boolean;
 	readonly isURL?: boolean;
 	readonly mimeType?: string;
+	readonly url?: string;
 }
 
 export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {

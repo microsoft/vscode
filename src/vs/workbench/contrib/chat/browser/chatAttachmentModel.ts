@@ -160,7 +160,7 @@ export class ChatAttachmentModel extends Disposable {
 		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
 			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, extractedImages);
+				return await resolveImageEditorAttachContext(this.fileService, this.dialogService, uri, undefined, extractedImages);
 			}
 		}
 

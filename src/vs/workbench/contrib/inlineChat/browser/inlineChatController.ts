@@ -1192,7 +1192,7 @@ export class InlineChatController1 implements IEditorContribution {
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, undefined, extractedImages);
 			}
 		}
 
@@ -1487,7 +1487,7 @@ export class InlineChatController2 implements IEditorContribution {
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, undefined, extractedImages);
 			}
 		}
 		return undefined;
