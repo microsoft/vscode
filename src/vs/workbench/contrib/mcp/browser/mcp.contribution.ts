@@ -31,10 +31,11 @@ import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpResourceFilesystem } from '../common/mcpResourceFilesystem.js';
+import { McpSamplingService } from '../common/mcpSamplingService.js';
 import { McpService } from '../common/mcpService.js';
-import { HasInstalledMcpServersContext, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
-import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, InstallFromActivation, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
@@ -49,6 +50,7 @@ registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
 registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
+registerSingleton(IMcpSamplingService, McpSamplingService, InstantiationType.Delayed);
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
@@ -76,6 +78,7 @@ registerAction2(RestartServer);
 registerAction2(ShowConfiguration);
 registerAction2(McpBrowseCommand);
 registerAction2(McpBrowseResourcesCommand);
+registerAction2(McpConfigureSamplingModels);
 
 registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2('mcpAddContext', McpAddContextContribution, WorkbenchPhase.Eventually);

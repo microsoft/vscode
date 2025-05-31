@@ -61,7 +61,7 @@ export class McpPromptArgumentPick extends Disposable {
 		this.quickPick = this._register(_quickInputService.createQuickPick({ useSeparators: true }));
 	}
 
-	public async createArgs(): Promise<Record<string, string | undefined> | undefined> {
+	public async createArgs(token?: CancellationToken): Promise<Record<string, string | undefined> | undefined> {
 		const { quickPick, prompt } = this;
 
 		quickPick.totalSteps = prompt.arguments.length;
@@ -76,13 +76,13 @@ export class McpPromptArgumentPick extends Disposable {
 			const restore = backSnapshots.at(i);
 			quickPick.step = i + 1;
 			quickPick.placeholder = arg.required ? arg.description : `${arg.description || ''} (${localize('optional', 'Optional')})`;
-			quickPick.title = arg.name;
+			quickPick.title = localize('mcp.prompt.pick.title', 'Value for: {0}', arg.name);
 			quickPick.value = restore?.value ?? ((args.hasOwnProperty(arg.name) && args[arg.name]) || '');
 			quickPick.items = restore?.items ?? [];
 			quickPick.activeItems = restore?.activeItems ?? [];
 			quickPick.buttons = i > 0 ? [this._quickInputService.backButton] : [];
 
-			const value = await this._getArg(arg, !!restore);
+			const value = await this._getArg(arg, !!restore, token);
 			if (value.type === 'back') {
 				i -= 2;
 			} else if (value.type === 'cancel') {
@@ -102,7 +102,7 @@ export class McpPromptArgumentPick extends Disposable {
 		return args;
 	}
 
-	private async _getArg(arg: MCP.PromptArgument, didRestoreState: boolean): Promise<Action> {
+	private async _getArg(arg: MCP.PromptArgument, didRestoreState: boolean, token?: CancellationToken): Promise<Action> {
 		const { quickPick } = this;
 		const store = new DisposableStore();
 
@@ -157,6 +157,11 @@ export class McpPromptArgumentPick extends Disposable {
 
 		try {
 			const value = await new Promise<PickItem | 'back' | undefined>(resolve => {
+				if (token) {
+					store.add(token.onCancellationRequested(() => {
+						resolve(undefined);
+					}));
+				}
 				store.add(quickPick.onDidChangeValue(value => {
 					quickPick.validationMessage = undefined;
 					input$.set(value, undefined);

@@ -511,6 +511,11 @@ export class DisassemblyView extends EditorPane {
 					continue;
 				}
 
+				if (address === -1n) {
+					// Ignore invalid instructions returned by the adapter.
+					continue;
+				}
+
 				const entry: IDisassembledInstructionEntry = {
 					allowBreakpoint: true,
 					isBreakpointSet: false,

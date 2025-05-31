@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { autorunWithStore, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -144,6 +144,7 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 				id: adapter.id,
 				label: discoverySourceLabel[adapter.discoverySource] + this.suffix,
 				remoteAuthority: adapter.remoteAuthority,
+				configTarget: ConfigurationTarget.USER,
 				scope: StorageScope.PROFILE,
 				isTrustedByDefault: false,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
