@@ -7,7 +7,8 @@
 	cursor: all-scroll;
 	position: absolute;
 	z-index: 1;
-	background-color: white;
+	background-color: var(--vscode-editor-foreground, white);
+	border: 1px solid var(--vscode-editor-background, black);
 	opacity: 0.5;
 	width: 5px;
 	height: 5px;

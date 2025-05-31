@@ -176,9 +176,13 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	}
 
 	createDot() {
+		const workbench = this.getWindow().document.querySelector('.monaco-workbench');
+		if (!workbench) {
+			return;
+		}
 		this.dot = document.createElement('div');
 		this.dot.classList.add('scroll-editor-on-middle-click-dot', 'hidden');
-		this.getWindow().document.body.append(this.dot);
+		workbench.append(this.dot);
 		this._register(toDisposable(() => {
 			if (this.dot) {
 				this.dot.remove();
