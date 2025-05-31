@@ -936,7 +936,7 @@ function renderGP(policies: Policy[], translations: Translations) {
 	const regKey = product.win32RegValueName;
 
 	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-	const categories = [...new Set(policies.map(p => p.category))];
+	const categories = [...Object.values(policies.reduce((acc, p) => ({ ...acc, [p.category.name.nlsKey]: p.category }), {}))] as Category[];
 
 	return {
 		admx: renderADMX(regKey, versions, categories, policies),
