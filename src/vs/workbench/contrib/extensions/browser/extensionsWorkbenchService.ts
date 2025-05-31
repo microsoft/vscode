@@ -93,6 +93,8 @@ export class Extension implements IExtension {
 
 	private galleryResourcesCache = new Map<string, any>();
 
+	private _missingFromGallery: boolean | undefined;
+
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		private runtimeStateProvider: IExtensionStateProvider<ExtensionRuntimeState | undefined>,
@@ -132,6 +134,14 @@ export class Extension implements IExtension {
 	set gallery(gallery: IGalleryExtension | undefined) {
 		this._gallery = gallery;
 		this.galleryResourcesCache.clear();
+	}
+
+	get missingFromGallery(): boolean {
+		return !!this._missingFromGallery;
+	}
+
+	set missingFromGallery(missing: boolean) {
+		this._missingFromGallery = missing;
 	}
 
 	get type(): ExtensionType {
@@ -655,7 +665,7 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<void> {
+	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, extensionInfo?: IExtensionInfo[]): Promise<void> {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
@@ -665,6 +675,23 @@ class Extensions extends Disposable {
 			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
 				extension.gallery = gallery;
 				this._onChange.fire({ extension });
+			}
+		}
+		// Detect extensions that do not have a corresponding gallery entry.
+		// This indicates that it was likely removed from the gallery
+		if (extensionInfo) {
+			for (const extension of this.local) {
+				if (!extension.identifier.uuid) {
+					continue;
+				}
+				if (!extensionInfo.some(f => areSameExtensions(f, extension.identifier))) {
+					continue;
+				}
+				const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
+				if (!gallery) {
+					extension.missingFromGallery = true;
+					this._onChange.fire({ extension });
+				}
 			}
 		}
 	}
@@ -1331,7 +1358,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
-		this.syncInstalledExtensionsWithGallery(galleryExtensions);
+		this.syncInstalledExtensionsWithGallery(galleryExtensions, extensionInfos);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -1871,7 +1898,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.logService.trace(`Checking updates for extensions`, infos.map(e => e.id).join(', '));
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), updateCheck: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
-				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions, infos);
 			}
 		}
 	}
@@ -1944,7 +1971,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
+	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], extensionInfo?: IExtensionInfo[]): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -1958,7 +1985,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extensions.length) {
 			return;
 		}
-		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion())));
+		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), extensionInfo)));
 		if (this.outdated.length) {
 			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
