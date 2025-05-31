@@ -521,7 +521,7 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Find completions for an argument
 	 */
-	complete(params: MCP.CompleteRequest['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
-		return this.sendRequest<MCP.CompleteRequest, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
+	complete(params: MCP.CompleteRequest2['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
+		return this.sendRequest<MCP.CompleteRequest2, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
 	}
 }

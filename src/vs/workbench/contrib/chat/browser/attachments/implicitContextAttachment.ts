@@ -25,6 +25,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatWidgetService } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
@@ -43,6 +44,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -95,6 +97,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
 				this.convertToRegularAttachment();
 			}
 		}));
@@ -127,5 +131,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
 		this.attachmentModel.addFile(file);
+		this.chatWidgetService.lastFocusedWidget?.focusInput();
 	}
 }

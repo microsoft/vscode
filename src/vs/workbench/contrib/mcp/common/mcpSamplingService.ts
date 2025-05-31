@@ -7,15 +7,18 @@ import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService, LanguageModelInitiatorKind } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
+import { McpSamplingLog } from './mcpSamplingLog.js';
 import { IMcpSamplingService, IMcpServer, ISamplingOptions, ISamplingResult, McpError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
@@ -26,8 +29,7 @@ const enum ModelMatch {
 	NoMatchingModel,
 }
 
-
-export class McpSamplingService implements IMcpSamplingService {
+export class McpSamplingService extends Disposable implements IMcpSamplingService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessionSets = {
@@ -35,14 +37,18 @@ export class McpSamplingService implements IMcpSamplingService {
 		allowedOutsideChat: new Map<string, boolean>(),
 	};
 
+	private readonly _logs: McpSamplingLog;
+
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
-		// Initialize the service with the language models service
+		super();
+		this._logs = this._register(instaService.createInstance(McpSamplingLog));
 	}
 
 	async sample(opts: ISamplingOptions, token = CancellationToken.None): Promise<ISamplingResult> {
@@ -85,6 +91,7 @@ export class McpSamplingService implements IMcpSamplingService {
 
 		try {
 			await Promise.all([response.result, streaming]);
+			this._logs.add(opts.server, opts.params.messages, responseText, model);
 			return {
 				sample: {
 					model,
@@ -95,6 +102,14 @@ export class McpSamplingService implements IMcpSamplingService {
 		} catch (err) {
 			throw McpError.unknown(err);
 		}
+	}
+
+	hasLogs(server: IMcpServer): boolean {
+		return this._logs.has(server);
+	}
+
+	getLogText(server: IMcpServer): string {
+		return this._logs.getAsText(server);
 	}
 
 	private async _getMatchingModel(opts: ISamplingOptions): Promise<string> {

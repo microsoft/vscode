@@ -93,7 +93,7 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress?: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch | AISearchKeyword) => any,
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>(),
 		readonly keywords: AISearchKeyword[] = []
@@ -119,6 +119,7 @@ class SearchOperation {
 
 	addKeyword(result: AISearchKeyword): void {
 		this.keywords.push(result);
+		this.progress?.(result);
 	}
 }
 
@@ -209,7 +210,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		searchOp.addKeyword(data);
 	}
 
-	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken, onKeywordResult?: (keyword: AISearchKeyword) => void): Promise<ISearchCompleteStats> {
+	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken): Promise<ISearchCompleteStats> {
 		switch (query.type) {
 			case QueryType.File:
 				return this._proxy.$provideFileSearchResults(this._handle, session, query, token);

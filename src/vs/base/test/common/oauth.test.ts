@@ -10,6 +10,8 @@ import {
 	getDefaultMetadataForUrl,
 	getMetadataWithDefaultValues,
 	isAuthorizationAuthorizeResponse,
+	isAuthorizationDeviceResponse,
+	isAuthorizationDeviceTokenErrorResponse,
 	isAuthorizationDynamicClientRegistrationResponse,
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
@@ -18,7 +20,8 @@ import {
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	IAuthorizationJWTClaims,
-	IAuthorizationServerMetadata
+	IAuthorizationServerMetadata,
+	DEFAULT_AUTH_FLOW_PORT
 } from '../../common/oauth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { encodeBase64, VSBuffer } from '../../common/buffer.js';
@@ -114,6 +117,81 @@ suite('OAuth', () => {
 			assert.strictEqual(isDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
 			assert.strictEqual(isDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
 			assert.strictEqual(isDynamicClientRegistrationResponse('not an object'), false);
+		});
+
+		test('isAuthorizationDeviceResponse should correctly identify device authorization response', () => {
+			// Valid response
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify',
+				expires_in: 1800
+			}), true);
+
+			// Valid response with optional fields
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify',
+				verification_uri_complete: 'https://example.com/verify?user_code=ABCD-EFGH',
+				expires_in: 1800,
+				interval: 5
+			}), true);
+
+			// Invalid cases
+			assert.strictEqual(isAuthorizationDeviceResponse(null), false);
+			assert.strictEqual(isAuthorizationDeviceResponse(undefined), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({}), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ device_code: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ user_code: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ verification_uri: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ expires_in: 1800 }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify'
+				// Missing expires_in
+			}), false);
+			assert.strictEqual(isAuthorizationDeviceResponse('not an object'), false);
+		});
+
+		test('isAuthorizationDeviceTokenErrorResponse should correctly identify device token error response', () => {
+			// Valid error response
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+				error: 'authorization_pending',
+				error_description: 'The authorization request is still pending'
+			}), true);
+
+			// Valid error response with different error codes
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+				error: 'slow_down',
+				error_description: 'Polling too fast'
+			}), true);
+
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+				error: 'access_denied',
+				error_description: 'The user denied the request'
+			}), true);
+
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+				error: 'expired_token',
+				error_description: 'The device code has expired'
+			}), true);
+
+			// Valid response with optional error_uri
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+				error: 'invalid_request',
+				error_description: 'The request is missing a required parameter',
+				error_uri: 'https://example.com/error'
+			}), true);
+
+			// Invalid cases
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(null), false);
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(undefined), false);
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({}), false);
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error: 'missing-description' }), false);
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error_description: 'missing-error' }), false);
+			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse('not an object'), false);
 		});
 	});
 
@@ -257,8 +335,7 @@ suite('OAuth', () => {
 
 			const result = await fetchDynamicRegistration(
 				'https://auth.example.com/register',
-				'Test Client',
-				['https://custom-redirect.com/callback']
+				'Test Client'
 			);
 
 			// Verify fetch was called correctly
@@ -272,12 +349,15 @@ suite('OAuth', () => {
 			const requestBody = JSON.parse(options.body as string);
 			assert.strictEqual(requestBody.client_name, 'Test Client');
 			assert.strictEqual(requestBody.client_uri, 'https://code.visualstudio.com');
-			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token']);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
 			assert.deepStrictEqual(requestBody.response_types, ['code']);
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'https://custom-redirect.com/callback'
+				'http://localhost/',
+				'http://127.0.0.1/',
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 
 			// Verify response is processed correctly

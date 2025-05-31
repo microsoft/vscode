@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { mapValues } from '../../../../base/common/objects.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -616,8 +617,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		store.add(handler.onDidChangePromptList(() => {
-			handler.logger.info('Prompts list changed, refreshing tools...');
-			updateTools(undefined);
+			handler.logger.info('Prompts list changed, refreshing prompts...');
+			updatePrompts(undefined);
 		}));
 
 		transaction(tx => {
@@ -842,10 +843,11 @@ class McpResourceTemplate implements IMcpResourceTemplate {
 		return McpResourceURI.fromServer(this._server.definition, serverUri);
 	}
 
-	async complete(templatePart: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+	async complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token?: CancellationToken): Promise<string[]> {
 		const result = await McpServer.callOn(this._server, h => h.complete({
 			ref: { type: 'ref/resource', uri: this._definition.uriTemplate },
-			argument: { name: templatePart, value: prefix, }
+			argument: { name: templatePart, value: prefix },
+			resolved: mapValues(alreadyResolved, v => Array.isArray(v) ? v.join('/') : v),
 		}, token), token);
 		return result.completion.values;
 	}

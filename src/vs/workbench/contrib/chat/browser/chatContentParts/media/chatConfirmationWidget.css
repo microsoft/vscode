@@ -138,3 +138,19 @@
 .chat-confirmation-widget.hideButtons .chat-buttons-container {
 	display: none;
 }
+
+.chat-collapsible-io-resource-group {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 8px !important;
+
+	.chat-collapsible-io-resource-items {
+		display: flex;
+		align-items: center;
+
+		.chat-attached-context {
+			margin-bottom: 0 !important;
+		}
+	}
+}

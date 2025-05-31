@@ -190,6 +190,8 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
+	$showContinueNotification(message: string): Promise<boolean>;
+	$showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean>;
 	$registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void>;
 	$setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }

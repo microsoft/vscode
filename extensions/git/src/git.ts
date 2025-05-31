@@ -342,6 +342,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
 		return GitErrorCodes.DirtyWorkTree;
+	} else if (/detected dubious ownership in repository at/.test(stderr)) {
+		return GitErrorCodes.NotASafeGitRepository;
 	}
 
 	return undefined;
