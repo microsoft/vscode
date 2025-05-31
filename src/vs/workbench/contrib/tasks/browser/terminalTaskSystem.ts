@@ -1874,7 +1874,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		for (const [key, activeData] of Object.entries(this._activeTasks)) {
 			const oldTask = activeData.task;
 			const workspaceFolder = oldTask.getWorkspaceFolder();
-			const taskIdentifier = oldTask.configurationProperties.identifier;
+			const taskIdentifier = oldTask.configurationProperties.identifier || oldTask._label;
 			
 			if (workspaceFolder && taskIdentifier) {
 				try {
