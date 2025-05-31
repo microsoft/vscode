@@ -422,14 +422,17 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		// Prepare the authorization request URL
-		const scopeString = scopes.join(' ');
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
 		authorizationUrl.searchParams.append('client_id', this.clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
-		authorizationUrl.searchParams.append('scope', scopeString);
 		authorizationUrl.searchParams.append('state', state.toString());
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
+		const scopeString = scopes.join(' ');
+		if (scopeString) {
+			// If non-empty scopes are provided, include scope parameter in the request
+			authorizationUrl.searchParams.append('scope', scopeString);
+		}
 		if (this._resourceMetadata?.resource) {
 			// If a resource is specified, include it in the request
 			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);

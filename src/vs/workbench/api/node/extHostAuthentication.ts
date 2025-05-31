@@ -242,13 +242,15 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
 
 		// Prepare the authorization request URL
-		const scopeString = scopes.join(' ');
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
 		authorizationUrl.searchParams.append('client_id', this.clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
-		authorizationUrl.searchParams.append('scope', scopeString);
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
+		const scopeString = scopes.join(' ');
+		if (scopeString) {
+			authorizationUrl.searchParams.append('scope', scopeString);
+		}
 		if (this._resourceMetadata?.resource) {
 			// If a resource is specified, include it in the request
 			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
@@ -321,7 +323,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		// Step 1: Request device and user codes
 		const deviceCodeRequest = new URLSearchParams();
 		deviceCodeRequest.append('client_id', this.clientId);
-		deviceCodeRequest.append('scope', scopeString);
+		if (scopeString) {
+			deviceCodeRequest.append('scope', scopeString);
+		}
+		if (this._resourceMetadata?.resource) {
+			// If a resource is specified, include it in the request
+			deviceCodeRequest.append('resource', this._resourceMetadata.resource);
+		}
 
 		let deviceCodeResponse: Response;
 		try {
