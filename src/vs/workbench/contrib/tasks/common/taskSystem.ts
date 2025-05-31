@@ -118,4 +118,5 @@ export interface ITaskSystem {
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
 	getFirstInstance(task: Task): Task | undefined;
+	updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskKey: string) => Promise<Task | undefined>): Promise<void>;
 }

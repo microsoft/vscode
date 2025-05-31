@@ -1869,6 +1869,29 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return 'other';
 	}
 
+	public async updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskKey: string) => Promise<Task | undefined>): Promise<void> {
+		// Update the task definitions in _activeTasks with fresh definitions from configuration
+		for (const [key, activeData] of Object.entries(this._activeTasks)) {
+			const oldTask = activeData.task;
+			const workspaceFolder = oldTask.getWorkspaceFolder();
+			const taskKey = oldTask.getKey() || oldTask._label;
+			
+			if (workspaceFolder && taskKey) {
+				try {
+					// Try to resolve the fresh task definition
+					const freshTask = await getTask(workspaceFolder, taskKey);
+					if (freshTask) {
+						// Update the task in the active tasks dictionary
+						activeData.task = freshTask;
+					}
+				} catch {
+					// If we can't resolve the fresh task, keep the old one
+					// This maintains backward compatibility
+				}
+			}
+		}
+	}
+
 	public getTaskForTerminal(instanceId: number): Task | undefined {
 		for (const key in this._activeTasks) {
 			const activeTask = this._activeTasks[key];

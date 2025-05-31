@@ -323,6 +323,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			this._setTaskLRUCacheLimit();
 			await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			
+			// Update active task definitions when configuration changes
+			if (this._taskSystem) {
+				await this._taskSystem.updateActiveTaskDefinitions(async (workspaceFolder: IWorkspaceFolder, taskKey: string) => {
+					return this.getTask(workspaceFolder, taskKey, false);
+				});
+			}
+			
 			this._onDidChangeTaskConfig.fire();
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
@@ -2027,19 +2035,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				// Try to get the fresh task definition from current configuration
-				const workspaceFolder = task.getWorkspaceFolder();
-				const taskKey = task.getKey() || task._label;
-				
-				let taskToRun = task; // fallback to original task
-				if (workspaceFolder && taskKey) {
-					const freshTask = await this.getTask(workspaceFolder, taskKey, false, task.type);
-					if (freshTask) {
-						taskToRun = freshTask;
-					}
-				}
-				
-				await this.run(taskToRun);
+				await this.run(task);
 			} catch {
 				// eat the error, we don't care about it here
 			}
