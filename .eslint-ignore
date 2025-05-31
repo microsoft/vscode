@@ -4,6 +4,7 @@
 **/extensions/**/build/**
 **/extensions/**/colorize-fixtures/**
 **/extensions/css-language-features/server/test/pathCompletionFixtures/**
+**/extensions/sample-diagnostic-extension/**
 **/extensions/html-language-features/server/lib/jquery.d.ts
 **/extensions/html-language-features/server/src/test/pathCompletionFixtures/**
 **/extensions/ipynb/notebook-out/**

@@ -243,7 +243,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 		if (schemaErrorIndex !== -1) {
 			const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message.toString());
 			if (!schemaDownloadEnabled) {
 				diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
 			}
@@ -492,7 +492,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-					fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
+					fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message.toString());
 				} else {
 					schemaResolutionErrorStatusBarItem.hide();
 				}
