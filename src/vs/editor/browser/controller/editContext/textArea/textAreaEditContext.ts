@@ -112,6 +112,7 @@ const canUseZeroSizeTextarea = (browser.isFirefox);
 
 export class TextAreaEditContext extends AbstractEditContext {
 
+	private readonly _ownerId: number;
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
 	private _scrollLeft: number;
@@ -146,6 +147,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(
+		ownerId: number,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -155,6 +157,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 	) {
 		super(context);
 
+		this._ownerId = ownerId;
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
@@ -742,9 +745,10 @@ export class TextAreaEditContext extends AbstractEditContext {
 				}
 
 				// Try to render the textarea with the color/font style to match the text under it
-				const viewPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(startPosition.lineNumber, 1));
-				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
-				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
+				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
+				const viewModel = this._context.viewModel;
+				const fontSize = this._getFontSizeAtPosition(this._primaryCursorPosition);
+				const viewLineData = viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
@@ -766,7 +770,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 					italic: presentation.italic,
 					bold: presentation.bold,
 					underline: presentation.underline,
-					strikethrough: presentation.strikethrough
+					strikethrough: presentation.strikethrough,
+					fontSize
 				});
 			}
 			return;
@@ -845,6 +850,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
+		// TODO: Maybe should remove font size when using text area?
+		// TODO: Decide how to handle this in the text area case
+		if (renderData.fontSize) {
+			ta.setFontSize(renderData.fontSize);
+		}
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
@@ -876,6 +886,20 @@ export class TextAreaEditContext extends AbstractEditContext {
 			}
 		}
 	}
+
+	private _getFontSizeAtPosition(position: Position): number {
+		const viewModel = this._context.viewModel;
+		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
+		const fontDecorations = viewModel.model.getFontDecorationsInRange(Range.fromPositions(modelPosition), this._ownerId);
+		let fontSize = this._fontInfo.fontSize;
+		for (const fontDecoration of fontDecorations) {
+			if (fontDecoration.options.fontSize) {
+				fontSize = fontDecoration.options.fontSize;
+				break;
+			}
+		}
+		return fontSize;
+	}
 }
 
 interface IRenderData {
@@ -889,6 +913,7 @@ interface IRenderData {
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
+	fontSize?: number;
 	underline?: boolean;
 	strikethrough?: boolean;
 }

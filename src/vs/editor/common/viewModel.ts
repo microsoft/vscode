@@ -13,11 +13,12 @@ import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
-import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
+import { InlineDecorations } from './viewModel/viewModelDecorations.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -76,7 +77,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;
@@ -340,7 +341,7 @@ export class ViewLineRenderingData {
 	/**
 	 * Inline decorations at this view line.
 	 */
-	public readonly inlineDecorations: InlineDecoration[];
+	public readonly inlineDecorations: InlineDecorations;
 	/**
 	 * The tab size for this view model.
 	 */
@@ -358,7 +359,7 @@ export class ViewLineRenderingData {
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
-		inlineDecorations: InlineDecoration[],
+		inlineDecorations: InlineDecorations,
 		tabSize: number,
 		startVisibleColumn: number,
 	) {
@@ -412,7 +413,8 @@ export class SingleLineInlineDecoration {
 		public readonly startOffset: number,
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean
+		public readonly inlineClassNameAffectsLetterSpacing: boolean,
+		public readonly affectsFont: boolean
 	) {
 	}
 

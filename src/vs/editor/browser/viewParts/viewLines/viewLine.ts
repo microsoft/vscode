@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -91,7 +91,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (isHighContrast(this._options.themeType) || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(this._options.themeType) || this._renderedViewLine?.getRenderWhitespace() === RenderWhitespace.Selection) {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -114,11 +114,18 @@ export class ViewLine implements IVisibleLine {
 
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
-		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations.decorations, lineNumber, lineData.minColumn, lineData.maxColumn);
+		const lineHasVariableFonts = lineData.inlineDecorations.affectsFonts;
+		let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+		if (lineHasVariableFonts || options.experimentalWhitespaceRendering === 'off') {
+			renderWhitespace = options.renderWhitespace;
+		} else {
+			renderWhitespace = 'none';
+		}
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: OffsetRange[] | null = null;
-		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(options.themeType) || renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -134,7 +141,7 @@ export class ViewLine implements IVisibleLine {
 					if (isHighContrast(options.themeType)) {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					}
-					if (this._options.renderWhitespace === 'selection') {
+					if (renderWhitespace === 'selection') {
 						if (!selectionsOnLine) {
 							selectionsOnLine = [];
 						}
@@ -161,7 +168,7 @@ export class ViewLine implements IVisibleLine {
 			options.middotWidth,
 			options.wsmiddotWidth,
 			options.stopRenderingLineAfter,
-			options.renderWhitespace,
+			renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine
@@ -187,7 +194,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		if (!lineHasVariableFonts && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,
@@ -301,6 +308,7 @@ interface IRenderedViewLine {
 	readonly input: RenderLineInput;
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
+	getRenderWhitespace(): RenderWhitespace;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
 	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
@@ -344,6 +352,13 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		this._characterMapping = characterMapping;
 		this._charWidth = renderLineInput.spaceWidth;
+	}
+
+	/**
+	 * The render whitespace setting for this line
+	 */
+	public getRenderWhitespace(): RenderWhitespace {
+		return this.input.renderWhitespace;
 	}
 
 	public getWidth(context: DomReadingContext | null): number {
@@ -476,6 +491,13 @@ class RenderedViewLine implements IRenderedViewLine {
 
 	protected _getReadingTarget(myDomNode: FastDomNode<HTMLElement>): HTMLElement {
 		return <HTMLSpanElement>myDomNode.domNode.firstChild;
+	}
+
+	/**
+	 * The render whitespace setting for this line
+	 */
+	public getRenderWhitespace(): RenderWhitespace {
+		return this.input.renderWhitespace;
 	}
 
 	/**

@@ -589,7 +589,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	fontSize: 'font-size:{0};',
+	fontSize: 'font-size:{0}px;',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -614,6 +614,7 @@ class DecorationCSSRules {
 	private _theme: IColorTheme;
 	private readonly _className: string;
 	private readonly _unThemedSelector: string;
+	private readonly _lineBreaksSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
 	private readonly _ruleType: ModelDecorationCSSRuleType;
@@ -635,7 +636,8 @@ class DecorationCSSRules {
 		}
 		this._className = className;
 
-		this._unThemedSelector = CSSNameHelper.getSelector(this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._unThemedSelector = CSSNameHelper.getSelector('monaco-editor', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
+		this._lineBreaksSelector = CSSNameHelper.getSelector('dom-line-breaks-computer', this._providerArgs.key, this._providerArgs.parentTypeKey, ruleType);
 
 		this._buildCSS();
 
@@ -720,14 +722,17 @@ class DecorationCSSRules {
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
 			sheet.insertRule(this._unThemedSelector, unthemedCSS);
+			sheet.insertRule(this._lineBreaksSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
 			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
+			sheet.insertRule(this._lineBreaksSelector, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
 			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
+			sheet.insertRule(this._lineBreaksSelector, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
@@ -735,6 +740,7 @@ class DecorationCSSRules {
 
 	private _removeCSS(): void {
 		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
+		this._providerArgs.styleSheet.removeRulesContainingSelector(this._lineBreaksSelector);
 	}
 
 	/**
@@ -759,7 +765,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -833,7 +839,7 @@ class DecorationCSSRules {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	private resolveValue(value: string | ThemeColor): string {
+	private resolveValue(value: string | number | ThemeColor | undefined): string | undefined {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
 			const color = this._theme.getColor(value.id);
@@ -842,7 +848,7 @@ class DecorationCSSRules {
 			}
 			return 'transparent';
 		}
-		return value;
+		return value ? value.toString() : undefined;
 	}
 }
 
@@ -862,8 +868,8 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
-		let selector = '.monaco-editor .' + this.getClassName(key, ruleType);
+	public static getSelector(className: string, key: string, parentKey: string | undefined, ruleType: ModelDecorationCSSRuleType): string {
+		let selector = `.${className} .` + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);
 		}

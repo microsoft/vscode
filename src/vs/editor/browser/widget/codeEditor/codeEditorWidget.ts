@@ -21,7 +21,6 @@ import * as editorBrowser from '../../editorBrowser.js';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
 import { ICodeEditorService } from '../../services/codeEditorService.js';
 import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from '../../view.js';
-import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
 import { ICommandDelegate } from '../../view/viewController.js';
 import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
 import { CodeEditorContributions } from './codeEditorContributions.js';
@@ -44,10 +43,9 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
-import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
 import * as nls from '../../../../nls.js';
@@ -60,6 +58,9 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
+import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -93,6 +94,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
+
+	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onDidChangeFont: Event<ModelFontChangedEvent> = this._onDidChangeFont.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -1293,14 +1297,27 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(this._configuration.options));
+		const options = this._configuration.options;
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
 	}
 
 	public getDecorationsInRange(range: Range): IModelDecoration[] | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(this._configuration.options));
+		const options = this._configuration.options;
+		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts));
+	}
+
+	public getFontDecorationsInRange(range: Range): IModelDecoration[] | null {
+		if (!this._modelData) {
+			return null;
+		}
+		const options = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!options) {
+			return [];
+		}
+		return this._modelData.model.getFontDecorationsInRange(range, this._id);
 	}
 
 	/**
@@ -1672,14 +1689,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
 		this._configuration.setModelLineCount(model.getLineCount());
 
+		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement));
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(this._configuration.options);
+		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
+
 		const attachedView = model.onBeforeAttached();
 
 		const viewModel = new ViewModel(
 			this._id,
 			this._configuration,
 			model,
-			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
-			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
+			lineBreaksComputerFactory,
 			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
 			this._themeService,
@@ -1793,7 +1813,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case OutgoingViewModelEventKind.ModelLineHeightChanged:
 					this._onDidChangeLineHeight.fire(e.event);
 					break;
-
+				case OutgoingViewModelEventKind.ModelFontChangedEvent:
+					this._onDidChangeFont.fire(e.event);
+					break;
 			}
 		}));
 
@@ -1897,6 +1919,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const view = new View(
 			this._domElement,
+			this._id,
 			this.getId(),
 			commandDelegate,
 			this._configuration,

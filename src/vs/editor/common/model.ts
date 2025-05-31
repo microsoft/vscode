@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -224,6 +224,22 @@ export interface IModelDecorationOptions {
 	 */
 	lineHeight?: number | null;
 	/**
+	 * Font family
+	 */
+	fontFamily?: string | null;
+	/**
+	 * Font size
+	 */
+	fontSize?: number | null;
+	/**
+	 * Font weight
+	 */
+	fontWeight?: string | null;
+	/**
+	 * Font style
+	 */
+	fontStyle?: string | null;
+	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
@@ -282,6 +298,12 @@ export interface IModelDecorationOptions {
 	 * @internal
 	*/
 	hideInStringTokens?: boolean | null;
+
+	/**
+	 * Affects the font family or font size
+	 * @internal
+	 */
+	affectsFont?: boolean | null;
 }
 
 /**
@@ -635,7 +657,7 @@ export class FindMatch {
  */
 export const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
+	NeverGrowsWhenTypingAtEdges = 1, // <--- use this one
 	GrowsOnlyWhenTypingBefore = 2,
 	GrowsOnlyWhenTypingAfter = 3,
 }
@@ -1063,7 +1085,14 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 * @return An array with the decorations
 	 */
-	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the font decorations for the line `lineNumber` as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * @internal
+	 */
+	getFontDecorationsInRange(range: IRange, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.
@@ -1073,7 +1102,7 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 * @return An array with the decorations
 	 */
-	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
@@ -1085,7 +1114,7 @@ export interface ITextModel {
 	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.
@@ -1112,6 +1141,13 @@ export interface ITextModel {
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 */
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
+	 * Gets the decorations that contain injected text in the given range
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * @internal
+	 */
+	getInjectedTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations that contain custom line heights.
@@ -1257,6 +1293,14 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	/**
+	* An event emitted when the font from decorations changes.
+	* This event is emitted only when adding, removing or changing a decoration
+	* and not when doing edits in the model (i.e. when decoration ranges change)
+	* @internal
+	* @event
+	*/
+	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event
