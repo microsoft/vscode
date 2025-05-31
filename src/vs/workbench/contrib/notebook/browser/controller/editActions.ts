@@ -13,7 +13,7 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { LineCommentCommand, Type } from '../../../../../editor/contrib/comment/browser/lineCommentCommand.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -465,6 +465,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 			const item: ILanguagePickInput = {
 				label: languageName,
 				iconClasses: getIconClasses(modelService, languageService, this.getFakeResource(languageName, languageService)),
+				iconAttributes: getIconAttributes(this.getFakeResource(languageName, languageService)),
 				description,
 				languageId
 			};
