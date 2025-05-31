@@ -47,6 +47,10 @@ export class RenderLineInput {
 	 * and ordered by position within the line.
 	 */
 	public readonly selectionsOnLine: OffsetRange[] | null;
+	/**
+	 * When rendering an empty line, whether to render a new line instead
+	 */
+	public readonly renderNewLineWhenEmpty: boolean;
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -67,7 +71,8 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: OffsetRange[] | null
+		selectionsOnLine: OffsetRange[] | null,
+		renderNewLineWhenEmpty: boolean = false
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -96,6 +101,7 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
+		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -368,7 +374,11 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 		}
 
 		// completely empty line
-		sb.appendString('<span><span></span></span>');
+		if (input.renderNewLineWhenEmpty) {
+			sb.appendString('<span><span>\n</span></span>');
+		} else {
+			sb.appendString('<span><span></span></span>');
+		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,

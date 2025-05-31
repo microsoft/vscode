@@ -16,6 +16,7 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -771,6 +772,11 @@ export interface IEditorOptions {
 	 * Sets whether the new experimental edit context should be used instead of the text area.
 	 */
 	experimentalEditContextEnabled?: boolean;
+
+	/**
+	 * Controls whether to render rich HTML screen reader content when the EditContext is enabled
+	 */
+	renderRichScreenReaderContent?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -5589,6 +5595,7 @@ export const enum EditorOption {
 	readOnly,
 	readOnlyMessage,
 	renameOnType,
+	renderRichScreenReaderContent,
 	renderControlCharacters,
 	renderFinalNewline,
 	renderLineHighlight,
@@ -5918,6 +5925,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
+		}
+	)),
+	renderRichScreenReaderContent: register(new EditorBooleanOption(
+		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', product.quality !== 'stable' && platform.isWindows,
+		{
+			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.experimentalEditContext` is enabled."),
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
