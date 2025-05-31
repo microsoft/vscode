@@ -115,18 +115,23 @@ function* collectReferences(node, stack, requiresInvocationDepth = 0, seen = new
             continue;
         }
         seen.add(container);
-        const nextStack = [...stack, use];
+        stack.push(use); // Modify: push to current stack
+
         let nextRequiresInvocationDepth = requiresInvocationDepth;
         if (isInvocation(use) && nextRequiresInvocationDepth > 0) {
             nextRequiresInvocationDepth--;
         }
+
         if (ts.isPropertyDeclaration(container) && nextRequiresInvocationDepth === 0) {
-            yield { stack: nextStack, container };
+            // IMPORTANT: Since we are mutating the stack, we need to yield a copy for the result
+            yield { stack: [...stack], container }; // Modify: yield a copy of the stack
         }
         else if (requiresInvocation(container)) {
             nextRequiresInvocationDepth++;
         }
-        yield* collectReferences(container.name ?? container, nextStack, nextRequiresInvocationDepth, seen);
+
+        yield* collectReferences(container.name ?? container, stack, nextRequiresInvocationDepth, seen); // Modify: pass current stack
+        stack.pop(); // Modify: pop after recursive call
     }
 }
 function requiresInvocation(definition) {
