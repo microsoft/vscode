@@ -330,6 +330,7 @@ export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
 export class Workspace implements IWorkspace {
 
 	private foldersMap: TernarySearchTree<URI, WorkspaceFolder>;
+	private foldersMapPrioritizingQueryAndFragment: TernarySearchTree<URI, WorkspaceFolder>;
 
 	private _folders!: WorkspaceFolder[];
 	get folders(): WorkspaceFolder[] { return this._folders; }
@@ -345,7 +346,8 @@ export class Workspace implements IWorkspace {
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
 	) {
-		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
+		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing);
+		this.foldersMapPrioritizingQueryAndFragment = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
 	}
 
@@ -378,13 +380,25 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this.foldersMap.findSubstr(resource) || null;
+		// First lookup prioritizes query & fragment match over path match
+		let folder = this.foldersMapPrioritizingQueryAndFragment.findSubstr(resource);
+		if (!folder) {
+			// Fall back to a lookup ignoring query and fragment
+			folder = this.foldersMap.findSubstr(resource.with({
+				scheme: resource.scheme,
+				authority: resource.authority,
+				path: resource.path
+			}));
+		}
+		return folder || null;
 	}
 
 	private updateFoldersMap(): void {
-		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
+		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing);
+		this.foldersMapPrioritizingQueryAndFragment = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		for (const folder of this.folders) {
 			this.foldersMap.set(folder.uri, folder);
+			this.foldersMapPrioritizingQueryAndFragment.set(folder.uri, folder);
 		}
 	}
 
