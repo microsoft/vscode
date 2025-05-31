@@ -9,7 +9,7 @@ import { TerminateResponse } from '../../../../base/common/processes.js';
 import { Event } from '../../../../base/common/event.js';
 import { Platform } from '../../../../base/common/platform.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
+import { Task, ITaskEvent, ITaskIdentifier, KeyedTaskIdentifier } from './tasks.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 export const enum TaskErrors {
@@ -118,5 +118,5 @@ export interface ITaskSystem {
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
 	getFirstInstance(task: Task): Task | undefined;
-	updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskKey: string) => Promise<Task | undefined>): Promise<void>;
+	updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskIdentifier: string | ITaskIdentifier) => Promise<Task | undefined>): Promise<void>;
 }

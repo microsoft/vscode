@@ -326,8 +326,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			
 			// Update active task definitions when configuration changes
 			if (this._taskSystem) {
-				await this._taskSystem.updateActiveTaskDefinitions(async (workspaceFolder: IWorkspaceFolder, taskKey: string) => {
-					return this.getTask(workspaceFolder, taskKey, false);
+				await this._taskSystem.updateActiveTaskDefinitions(async (workspaceFolder: IWorkspaceFolder, taskIdentifier: string | ITaskIdentifier) => {
+					return this.getTask(workspaceFolder, taskIdentifier, false);
 				});
 			}
 			

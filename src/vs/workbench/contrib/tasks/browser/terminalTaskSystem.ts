@@ -40,7 +40,7 @@ import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
 import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, ITaskIdentifier, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
@@ -1869,17 +1869,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return 'other';
 	}
 
-	public async updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskKey: string) => Promise<Task | undefined>): Promise<void> {
+	public async updateActiveTaskDefinitions(getTask: (workspaceFolder: IWorkspaceFolder, taskIdentifier: string | ITaskIdentifier) => Promise<Task | undefined>): Promise<void> {
 		// Update the task definitions in _activeTasks with fresh definitions from configuration
 		for (const [key, activeData] of Object.entries(this._activeTasks)) {
 			const oldTask = activeData.task;
 			const workspaceFolder = oldTask.getWorkspaceFolder();
-			const taskKey = oldTask.getKey() || oldTask._label;
+			const taskIdentifier = oldTask.configurationProperties.identifier;
 			
-			if (workspaceFolder && taskKey) {
+			if (workspaceFolder && taskIdentifier) {
 				try {
 					// Try to resolve the fresh task definition
-					const freshTask = await getTask(workspaceFolder, taskKey);
+					const freshTask = await getTask(workspaceFolder, taskIdentifier);
 					if (freshTask) {
 						// Update the task in the active tasks dictionary
 						activeData.task = freshTask;
