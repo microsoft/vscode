@@ -1324,16 +1324,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.input.validateCurrentMode();
 
-			let userSelectedTools: Record<string, boolean> | undefined;
-			if (this.input.currentMode2.customTools) {
-				userSelectedTools = this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
-			} else if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = {};
-				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
-					userSelectedTools[tool.id] = enablement;
-				}
-			}
-
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				mode: this.inputPart.currentMode,
 				userSelectedModelId: this.inputPart.currentLanguageModel,
@@ -1342,7 +1332,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext: requestInputs.attachedContext,
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools,
+				userSelectedTools: this.getUserSelectedTools(),
 			});
 
 			if (result) {
@@ -1364,6 +1354,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return result.responseCreatedPromise;
 			}
 		}
+		return undefined;
+	}
+
+	getUserSelectedTools(): Record<string, boolean> | undefined {
+		if (this.input.currentMode2.customTools) {
+			return this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
+		} else if (this.input.currentMode === ChatMode.Agent) {
+			const userSelectedTools: Record<string, boolean> = {};
+			for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
+				userSelectedTools[tool.id] = enablement;
+			}
+			return userSelectedTools;
+		}
+
 		return undefined;
 	}
 
