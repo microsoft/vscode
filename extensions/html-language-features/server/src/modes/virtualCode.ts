@@ -17,7 +17,9 @@ export class HTMLVirtualCode implements VirtualCode {
 	mappings: CodeMapping[];
 	embeddedCodes: VirtualCode[];
 
-	constructor(public snapshot: ts.IScriptSnapshot) {
+	constructor(
+		public snapshot: ts.IScriptSnapshot
+	) {
 		this.documentRegions = getDocumentRegions(
 			htmlLanguageService ??= getLanguageService(),
 			snapshot.getText(0, snapshot.getLength())
@@ -29,23 +31,50 @@ export class HTMLVirtualCode implements VirtualCode {
 			data: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
 		}];
 		this.embeddedCodes = [
-			...getGlobalScriptVirtualCodes(this.documentRegions),
+			...getScriptVirtualCodes(this.documentRegions),
 			...getOtherLanguageVirtualCodes(this.documentRegions),
 		];
 	}
 }
 
-function* getGlobalScriptVirtualCodes(documentRegions: HTMLDocumentRegions): Generator<VirtualCode> {
+function* getScriptVirtualCodes(documentRegions: HTMLDocumentRegions): Generator<VirtualCode> {
+	const mappings: CodeMapping[] = [];
+	const importedScripts = documentRegions.getImportedScripts();
 	const globalScripts = documentRegions
 		.getEmbeddedRegions()
 		.filter(isGlobalScript);
-	let scriptIndex = 0;
 
-	if (globalScripts.length === 1) {
-		const globalScript = globalScripts[0];
+	let text = '';
+
+	for (const script of importedScripts) {
+		if (script.startsWith('http://') || script.startsWith('https://') || script.startsWith('//')) {
+			continue;
+		}
+		else if (script.startsWith('file://')) {
+			text += `/// <reference path="${script.slice('file://'.length)}" />\n`;
+		}
+		else if (script.startsWith('/') || script.startsWith('./') || script.startsWith('../') || script.includes(':/')) {
+			text += `/// <reference path="${script}" />\n`;
+		} else {
+			text += `/// <reference path="./${script}" />\n`;
+		}
+	}
+
+	for (let i = 0; i < globalScripts.length; i++) {
+		const globalScript = globalScripts[i];
+		mappings.push({
+			sourceOffsets: [globalScript.start],
+			generatedOffsets: [text.length + globalScript.generatedStart],
+			lengths: [globalScript.length],
+			data: { verification: true, completion: true, semantic: true, navigation: true },
+		});
+		text += globalScript.content;
+		if (i < globalScripts.length - 1) {
+			text += '\n;\n';
+		}
 		yield {
-			languageId: 'javascript',
-			id: 'global_script',
+			languageId: globalScript.languageId!,
+			id: 'global_script_' + i + '_syntax',
 			snapshot: {
 				getText(start, end) {
 					return globalScript.content.substring(start, end);
@@ -61,65 +90,27 @@ function* getGlobalScriptVirtualCodes(documentRegions: HTMLDocumentRegions): Gen
 				sourceOffsets: [globalScript.start],
 				generatedOffsets: [globalScript.generatedStart],
 				lengths: [globalScript.length],
-				data: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
+				data: { structure: true, format: true },
 			}],
 		};
 	}
-	else if (globalScripts.length >= 2) {
-		let text = '';
-		const mappings: CodeMapping[] = [];
-		for (let i = 0; i < globalScripts.length; i++) {
-			const globalScript = globalScripts[i];
-			mappings.push({
-				sourceOffsets: [globalScript.start],
-				generatedOffsets: [text.length + globalScript.generatedStart],
-				lengths: [globalScript.length],
-				data: { verification: true, completion: true, semantic: true, navigation: true },
-			});
-			text += globalScript.content;
-			if (i < globalScripts.length - 1) {
-				text += '\n;\n';
-			}
-			const index = scriptIndex++;
-			yield {
-				languageId: globalScript.languageId!,
-				id: 'global_script_' + index + '_syntax',
-				snapshot: {
-					getText(start, end) {
-						return globalScript.content.substring(start, end);
-					},
-					getLength() {
-						return globalScript.content.length;
-					},
-					getChangeRange() {
-						return undefined;
-					},
-				},
-				mappings: [{
-					sourceOffsets: [globalScript.start],
-					generatedOffsets: [globalScript.generatedStart],
-					lengths: [globalScript.length],
-					data: { structure: true, format: true },
-				}],
-			};
-		}
-		yield {
-			languageId: 'javascript',
-			id: 'global_script',
-			snapshot: {
-				getText(start, end) {
-					return text.substring(start, end);
-				},
-				getLength() {
-					return text.length;
-				},
-				getChangeRange() {
-					return undefined;
-				},
+
+	yield {
+		languageId: 'javascript',
+		id: 'global_script',
+		snapshot: {
+			getText(start, end) {
+				return text.substring(start, end);
 			},
-			mappings,
-		};
-	}
+			getLength() {
+				return text.length;
+			},
+			getChangeRange() {
+				return undefined;
+			},
+		},
+		mappings,
+	};
 }
 
 function* getOtherLanguageVirtualCodes(documentRegions: HTMLDocumentRegions): Generator<VirtualCode> {

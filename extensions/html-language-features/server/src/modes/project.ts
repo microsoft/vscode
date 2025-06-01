@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageServer, LanguageServerProject } from '@volar/language-server';
+import type { LanguageServer, LanguageServerProject } from '@volar/language-server';
 import { createUriConverter } from '@volar/language-server/browser';
-import { LanguagePlugin, LanguageService } from '@volar/language-service';
-import * as ts from 'typescript';
-import { URI, Utils } from 'vscode-uri';
+import type { LanguagePlugin, LanguageService, TextDocument } from '@volar/language-service';
+import type * as ts from 'typescript';
+import type { URI } from 'vscode-uri';
 import { JQUERY_PATH } from './javascriptLibs';
 import { createLanguageService } from './languageService';
-import { HTMLVirtualCode } from './virtualCode';
 
 export const compilerOptions: ts.CompilerOptions = {
 	allowNonTsExtensions: true,
@@ -24,12 +23,11 @@ export const compilerOptions: ts.CompilerOptions = {
 export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
 	let server: LanguageServer;
 	let languageService: LanguageService | undefined;
-	let projectVersion = '';
-	let currentDirectory = '';
 	let tsLocalized: any;
 	let uriConverter: ReturnType<typeof createUriConverter>;
-
-	const currentRootFiles: string[] = [];
+	let currentUri: URI;
+	let currentDocument: TextDocument | undefined;
+	let currentDirectory = '';
 
 	return {
 		setup(_server) {
@@ -42,6 +40,10 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			}
 		},
 		async getLanguageService(uri) {
+			currentUri = uri;
+			currentDocument = server.documents.get(uri);
+			currentDirectory = getRootFolder(uri) ?? '';
+
 			if (!languageService) {
 				languageService = createLanguageService(
 					server,
@@ -51,10 +53,13 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 							return currentDirectory;
 						},
 						getProjectVersion() {
-							return projectVersion;
+							return currentUri.toString() + '::' + currentDocument?.version;
 						},
 						getScriptFileNames() {
-							return currentRootFiles;
+							return [
+								JQUERY_PATH,
+								uriConverter.asFileName(currentUri),
+							];
 						},
 						getCompilationSettings() {
 							return compilerOptions;
@@ -64,7 +69,6 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 					uriConverter
 				);
 			}
-			updateRootFiles(uri, languageService);
 			return languageService;
 		},
 		async getExistingLanguageServices() {
@@ -75,41 +79,6 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			languageService = undefined;
 		},
 	};
-
-	function updateRootFiles(uri: URI, languageService: LanguageService) {
-		const document = server.documents.get(uri);
-		if (!document) {
-			return;
-		}
-		const newProjectVersion = document.uri.toString() + '::' + document.version;
-		if (newProjectVersion === projectVersion) {
-			return;
-		}
-		projectVersion = newProjectVersion;
-		currentDirectory = getRootFolder(uri) ?? '';
-
-		currentRootFiles.length = 0;
-		currentRootFiles.push(JQUERY_PATH);
-		currentRootFiles.push(uriConverter.asFileName(uri));
-
-		const sourceScript = languageService.context.language.scripts.get(uri);
-		if (sourceScript?.generated?.root instanceof HTMLVirtualCode) {
-			const regions = sourceScript.generated.root.documentRegions;
-			for (const script of regions.getImportedScripts()) {
-				if (script.startsWith('http://') || script.startsWith('https://') || script.startsWith('//')) {
-					continue;
-				}
-				else if (script.startsWith('file://')) {
-					const scriptUri = URI.parse(script);
-					currentRootFiles.push(uriConverter.asFileName(scriptUri));
-				}
-				else {
-					const scriptUri = Utils.resolvePath(Utils.dirname(uri), script);
-					currentRootFiles.push(uriConverter.asFileName(scriptUri));
-				}
-			}
-		}
-	}
 
 	function getRootFolder(uri: URI) {
 		for (const folder of server.workspaceFolders.all) {
