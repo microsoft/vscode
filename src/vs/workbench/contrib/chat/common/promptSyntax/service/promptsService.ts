@@ -208,7 +208,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					await parser.settled();
 
 					const { metadata } = parser;
-					const tools = (metadata?.promptType === PromptsType.mode)
+					const tools = (metadata && ('tools' in metadata))
 						? metadata.tools
 						: undefined;
 
