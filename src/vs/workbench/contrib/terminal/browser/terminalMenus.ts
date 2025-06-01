@@ -619,6 +619,15 @@ export function setupTerminalMenus(): void {
 		]
 	);
 
+	MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
+		command: {
+			id: TerminalCommandId.ClearMultiple,
+			title: localize('workbench.action.terminal.clearMultiple', "Clear Multiple Terminals")
+		},
+		group: ContextMenuGroup.Clear,
+		order: 2
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
 			id: TerminalCommandId.MoveToTerminalPanel,

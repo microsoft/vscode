@@ -459,6 +459,7 @@ export const enum TerminalCommandId {
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
 	Clear = 'workbench.action.terminal.clear',
+	ClearMultiple = 'workbench.action.terminal.clearMultiple',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	ChangeIconActiveTab = 'workbench.action.terminal.changeIconActiveTab',
@@ -490,6 +491,7 @@ export const enum TerminalCommandId {
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
+	TerminalCommandId.ClearMultiple,
 	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,

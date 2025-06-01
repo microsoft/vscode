@@ -61,6 +61,8 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { clearMultipleTerminals } from './clearMultipleTerminals.js';
+import { TerminalService } from './terminalService.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1315,6 +1317,17 @@ export function registerTerminalActions() {
 			when: ContextKeyExpr.or(ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()), ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal))),
 		}],
 		run: (activeInstance) => activeInstance.clearBuffer()
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.ClearMultiple,
+		title: localize('workbench.action.terminal.clearMultiple', 'Clear Multiple Terminals'),
+		precondition: TerminalContextKeys.isOpen,
+		run: async (c, accessor) => {
+			const terminalService = accessor.get(ITerminalService) as TerminalService;
+			const quickInputService = accessor.get(IQuickInputService);
+			await clearMultipleTerminals(terminalService, quickInputService);
+		}
 	});
 
 	registerTerminalAction({
