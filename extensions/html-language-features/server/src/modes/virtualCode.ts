@@ -51,13 +51,17 @@ function* getScriptVirtualCodes(documentRegions: HTMLDocumentRegions): Generator
 			continue;
 		}
 		else if (script.startsWith('file://')) {
-			text += `/// <reference path="${script.slice('file://'.length)}" />\n`;
+			text += `import '${script.slice('file://'.length)}';\n`;
 		}
 		else if (script.startsWith('/') || script.startsWith('./') || script.startsWith('../') || script.includes(':/')) {
-			text += `/// <reference path="${script}" />\n`;
+			text += `import '${script}';\n`;
 		} else {
-			text += `/// <reference path="./${script}" />\n`;
+			text += `import './${script}';\n`;
 		}
+	}
+
+	if (importedScripts.length) {
+		text += '\n';
 	}
 
 	for (let i = 0; i < globalScripts.length; i++) {
