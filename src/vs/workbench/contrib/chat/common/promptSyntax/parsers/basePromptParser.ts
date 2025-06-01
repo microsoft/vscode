@@ -622,10 +622,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		}
 
 		if (this.header instanceof InstructionsHeader) {
-			return {
-				promptType,
-				...this.header.metadata,
-			};
+			return { promptType, ...this.header.metadata };
 		}
 
 		const { tools, mode, description } = this.header.metadata;
@@ -650,10 +647,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			result.mode = resultingMode;
 		}
 
-		return {
-			promptType,
-			...result,
-		};
+		return { promptType, ...result };
 	}
 
 	/**
