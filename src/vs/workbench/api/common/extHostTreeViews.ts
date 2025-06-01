@@ -416,6 +416,19 @@ class ExtHostTreeView<T> extends Disposable {
 		}));
 	}
 
+	private _loadingPromise: Promise<any> | undefined;
+	private trackAsLoading<T>(promise: Promise<T>): Promise<T> {
+		const chainedPromise = this._loadingPromise ? this._loadingPromise.finally(() => promise) : promise;
+		const last = chainedPromise.catch(() => { }).finally(() => {
+			if (this._loadingPromise === last) {
+				this._loadingPromise = undefined;
+			}
+		});
+		this._loadingPromise = last;
+
+		return promise;
+	}
+
 	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
@@ -426,7 +439,7 @@ class ExtHostTreeView<T> extends Disposable {
 		let childrenNodes: TreeNode[] | undefined = this.getChildrenNodes(parentHandle); // Get it from cache
 
 		if (!childrenNodes) {
-			childrenNodes = await this.fetchChildrenNodes(parentElement);
+			childrenNodes = await this.trackAsLoading(this.fetchChildrenNodes(parentElement));
 		}
 
 		return childrenNodes ? childrenNodes.map(n => n.item) : undefined;
@@ -698,7 +711,11 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _refreshCancellationSource = new CancellationTokenSource();
 
-	private refresh(elements: (T | Root)[]): Promise<void> {
+	private async refresh(elements: (T | Root)[]): Promise<void> {
+		while (this._loadingPromise) {
+			await this._loadingPromise;
+		}
+
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
 			// Cancel any pending children fetches
@@ -713,7 +730,7 @@ class ExtHostTreeView<T> extends Disposable {
 				return this.refreshHandles(handlesToRefresh);
 			}
 		}
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
