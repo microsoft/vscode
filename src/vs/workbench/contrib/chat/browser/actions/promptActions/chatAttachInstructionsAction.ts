@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget, IChatWidgetService } from '../../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -32,11 +32,18 @@ import { KeybindingWeight } from '../../../../../../platform/keybinding/common/k
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
  */
 const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
+
+/**
+ * Action ID for the `Manage Instruction` action.
+ */
+const MANAGE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.manage.instructions';
+
 
 /**
  * Options for the {@link AttachInstructionsAction} action.
@@ -93,7 +100,6 @@ class AttachInstructionsAction extends Action2 {
 		options?: IAttachInstructionsActionOptions,
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
-		const promptsService = accessor.get(IPromptsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
 
@@ -130,14 +136,12 @@ class AttachInstructionsAction extends Action2 {
 			return;
 		}
 
-		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		const placeholder = localize(
 			'commands.instructions.select-dialog.placeholder',
 			'Select instructions files to attach',
 		);
 
-		const result = await pickers.selectPromptFile({ promptFiles, resource, placeholder, type: PromptsType.instructions });
+		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
 			const widget = await attachInstructionsFiles(
@@ -148,6 +152,48 @@ class AttachInstructionsAction extends Action2 {
 		}
 	}
 }
+
+class ManageInstructionsFilesAction extends Action2 {
+	constructor() {
+		super({
+			id: MANAGE_INSTRUCTIONS_ACTION_ID,
+			title: localize2('manage-instructions.capitalized.ellipses', "Manage Instructions Files..."),
+			icon: Codicon.bookmark,
+			f1: true,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ViewTitle,
+
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 11,
+				group: '1_open'
+			},
+
+		});
+	}
+
+	public override async run(
+		accessor: ServicesAccessor,
+	): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const pickers = instaService.createInstance(PromptFilePickers);
+
+		const placeholder = localize(
+			'commands.prompt.manage-dialog.placeholder',
+			'Select the instructions file to edit'
+		);
+
+		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.instructions, optionEdit: false });
+		if (result !== undefined) {
+			await openerService.open(result.promptFile);
+		}
+
+	}
+}
+
 
 function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -182,6 +228,7 @@ const getActiveInstructionsFileUri = (accessor: ServicesAccessor): URI | undefin
  */
 export const registerAttachPromptActions = () => {
 	registerAction2(AttachInstructionsAction);
+	registerAction2(ManageInstructionsFilesAction);
 };
 
 
