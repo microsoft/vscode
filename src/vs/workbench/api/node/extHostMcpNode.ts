@@ -65,7 +65,12 @@ class McpStdioConnectionManager {
 
 		// Step 1: Close the input stream
 		if (this._child.stdin && !this._child.stdin.destroyed) {
-			this._child.stdin.end();
+			try {
+				this._child.stdin.end();
+			} catch (error) {
+				// If stdin.end() fails, continue with termination sequence
+				// This can happen if the stream is already in an error state
+			}
 		}
 
 		// Step 2: Wait for natural exit, then SIGTERM if needed
@@ -129,9 +134,13 @@ class McpStdioConnectionManager {
 	}
 
 	public dispose(): void {
+		this._clearTimeouts();
+		this._child = undefined;
+	}
+
+	private _clearTimeouts(): void {
 		this._shutdownTimeouts.forEach(timeout => clearTimeout(timeout));
 		this._shutdownTimeouts = [];
-		this._child = undefined;
 	}
 }
 
