@@ -194,7 +194,7 @@ export async function showToolsPicker(
 					type: 'item',
 					picked,
 					toolset: toolSetOrTool,
-					label: toolSetOrTool.toolReferenceName,
+					label: toolSetOrTool.referenceName,
 					description: toolSetOrTool.description,
 					indented: true,
 					buttons

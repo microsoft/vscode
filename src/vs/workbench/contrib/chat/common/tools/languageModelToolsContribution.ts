@@ -136,6 +136,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 
 export interface IRawToolSetContribution {
 	name: string;
+	/**
+	 * @deprecated
+	 */
 	referenceName?: string;
 	description: string;
 	icon?: string;
@@ -161,11 +164,7 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 			required: ['name', 'description', 'tools'],
 			properties: {
 				name: {
-					description: localize('toolSetName', "A name for this tool set."),
-					type: 'string',
-				},
-				referenceName: {
-					description: localize('toolSetReferenceName', "A name that users can use to reference this tool set. Name must not contain whitespace."),
+					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain white."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -339,8 +338,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const obj = languageModelToolsService.createToolSet(
 						source,
 						toToolSetKey(extension.description.identifier, toolSet.name),
-						toolSet.name,
-						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, toolReferenceName: toolSet.referenceName, description: toolSet.description }
+						toolSet.referenceName ?? toolSet.name,
+						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
 					);
 
 					transaction(tx => {

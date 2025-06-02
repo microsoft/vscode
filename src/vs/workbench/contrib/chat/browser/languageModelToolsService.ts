@@ -467,8 +467,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.toolReferenceName)) {
-				result[toolSet.toolReferenceName] = true;
+			if (toolOrToolset.has(toolSet.referenceName)) {
+				result[toolSet.referenceName] = true;
 			}
 			for (const tool of toolSet.getTools()) {
 				if (toolOrToolset.has(tool.id)) {
@@ -486,14 +486,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
-			if (toolSet.toolReferenceName === name) {
+			if (toolSet.referenceName === name) {
 				return toolSet;
 			}
 		}
 		return undefined;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -505,7 +505,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description);
 
 		this._toolSets.add(result);
 		return result;
