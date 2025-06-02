@@ -251,8 +251,7 @@ class McpToolImplementation implements IToolImpl {
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
-			"{0} Note that MCP servers or malicious conversation content may attempt to misuse '{1}' through tools.",
-			'$(info)',
+			"Note that MCP servers or malicious conversation content may attempt to misuse '{0}' through tools.",
 			this._productService.nameShort
 		);
 
@@ -263,7 +262,8 @@ class McpToolImplementation implements IToolImpl {
 		return {
 			confirmationMessages: needsConfirmation ? {
 				title: new MarkdownString(localize('msg.title', "Run {0}", title)),
-				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
+				message: new MarkdownString(tool.definition.description, { supportThemeIcons: true }),
+				disclaimer: mcpToolWarning,
 				allowAutoConfirm: true,
 			} : undefined,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
