@@ -22,7 +22,6 @@ interface IFolderQuickPickItem extends IQuickPickItem {
 
 /**
  * Asks the user for a specific prompt folder, if multiple folders provided.
- * Returns immediately if only one folder available.
  */
 export async function askForPromptSourceFolder(
 	accessor: ServicesAccessor,
@@ -45,7 +44,7 @@ export async function askForPromptSourceFolder(
 		return;
 	}
 
-	// if there is only one folder, no need to ask
+	// if there is only one folder and it's for new, no need to ask
 	if (!existingFolder && folders.length === 1) {
 		return folders[0];
 	}
