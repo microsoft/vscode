@@ -247,6 +247,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -290,6 +291,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, undefined);
+			instantiationService.invokeFunction(accessor => {
+				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+			});
 		}
 
 		this.attachClearButton();

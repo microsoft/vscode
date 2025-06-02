@@ -28,7 +28,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly _contextResourceLabels: ResourceLabels;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
-	public dragStartHandler?: (attachment: IChatRequestVariableEntry, event: DragEvent, element: HTMLElement) => void;
 
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
@@ -94,7 +93,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 			}
 
 			this._register(dom.addDisposableListener(widget.element, 'contextmenu', e => this.contextMenuHandler?.(attachment, e)));
-			this._register(dom.addDisposableListener(widget.element, 'dragstart', e => this.dragStartHandler?.(attachment, e, widget.element)));
 
 			if (this.attachedContextDisposables.isDisposed) {
 				widget.dispose();
