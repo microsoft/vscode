@@ -2943,6 +2943,7 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
+			modeInstructions: request.modeInstructions,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
