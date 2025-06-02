@@ -72,6 +72,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -961,6 +962,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -2597,6 +2599,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const extension = e.local ? e : this.local.find(local => areSameExtensions(local.identifier, e.identifier));
 		if (!extension?.local) {
 			throw new Error('Missing local');
+		}
+
+		if (extension.local.isApplicationScoped && this.userDataProfilesService.profiles.length > 1) {
+			const { confirmed } = await this.dialogService.confirm({
+				title: nls.localize('uninstallApplicationScoped', "Uninstall Extension"),
+				type: Severity.Info,
+				message: nls.localize('uninstallApplicationScopedMessage', "Would you like to Uninstall {0} from all profiles?", extension.displayName),
+				primaryButton: nls.localize('uninstallAllProfiles', "Uninstall (All Profiles)")
+			});
+			if (!confirmed) {
+				throw new CancellationError();
+			}
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
