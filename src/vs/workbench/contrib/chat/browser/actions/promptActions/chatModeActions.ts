@@ -17,16 +17,16 @@ import { PromptsType } from '../../../../../../platform/prompts/common/prompts.j
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 
 /**
- * Action ID for the `Manage Custom Chat Mode` action.
+ * Action ID for the `Configure Custom Chat Mode` action.
  */
-const MANAGE_CUSTOM_MODE_ACTION_ID = 'workbench.action.chat.manage.mode';
+const COMFIGURE_MODES_ACTION_ID = 'workbench.action.chat.manage.mode';
 
 class ManageModeAction extends Action2 {
 	constructor() {
 		super({
-			id: MANAGE_CUSTOM_MODE_ACTION_ID,
-			title: localize2('manage-mode.capitalized', "Manage Chat Modes..."),
-			shortTitle: localize('manage-mode', "Manage Modes..."),
+			id: COMFIGURE_MODES_ACTION_ID,
+			title: localize2('configure-modes', "Configure Chat Modes"),
+			shortTitle: localize('manage-mode', "Configure Modes"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -50,7 +50,7 @@ class ManageModeAction extends Action2 {
 
 		const placeholder = localize(
 			'commands.mode.select-dialog.placeholder',
-			'Select the custom chat mode to edit'
+			'Select the chat mode file to open'
 		);
 
 		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.mode, optionEdit: false });

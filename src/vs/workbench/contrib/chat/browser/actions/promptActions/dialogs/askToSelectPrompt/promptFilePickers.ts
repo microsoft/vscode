@@ -24,6 +24,8 @@ import { askForPromptFileName } from '../../../../promptSyntax/contributions/cre
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 import { askForPromptSourceFolder } from '../../../../promptSyntax/contributions/createPromptCommand/dialogs/askForPromptSourceFolder.js';
+import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -48,7 +50,7 @@ export interface ISelectOptions {
 	readonly optionEdit?: boolean;
 	readonly optionDelete?: boolean;
 	readonly optionRename?: boolean;
-	readonly optionMove?: boolean;
+	readonly optionCopy?: boolean;
 }
 
 export interface ISelectPromptResult {
@@ -153,14 +155,14 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
  */
 const RENAME_BUTTON: IQuickInputButton = Object.freeze({
 	tooltip: localize('rename', "Rename"),
-	iconClass: ThemeIcon.asClassName(Codicon.pencil),
+	iconClass: ThemeIcon.asClassName(Codicon.replace),
 });
 
 /**
  * Button that copies a prompt file.
  */
 const COPY_BUTTON: IQuickInputButton = Object.freeze({
-	tooltip: localize('copy', "Copy"),
+	tooltip: localize('copy', "Copy or Move (press {0})", UILabelProvider.modifierLabels[OS].ctrlKey),
 	iconClass: ThemeIcon.asClassName(Codicon.copy),
 });
 
@@ -186,7 +188,7 @@ export class PromptFilePickers {
 	async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
 		const quickPick = this._quickInputService.createQuickPick<IPromptPickerQuickPickItem>();
 		quickPick.busy = true;
-		quickPick.placeholder = localize('searching', 'Searching for files...');
+		quickPick.placeholder = localize('searching', 'Searching file system...');
 		try {
 			const fileOptions = await this._createPromptPickItems(options);
 			const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
@@ -260,11 +262,11 @@ export class PromptFilePickers {
 		if (options.optionEdit !== false) {
 			buttons.push(EDIT_BUTTON);
 		}
+		if (options.optionCopy !== false) {
+			buttons.push(COPY_BUTTON);
+		}
 		if (options.optionRename !== false) {
 			buttons.push(RENAME_BUTTON);
-		}
-		if (options.optionMove !== false) {
-			buttons.push(COPY_BUTTON);
 		}
 		if (options.optionDelete !== false) {
 			buttons.push(DELETE_BUTTON);
@@ -380,7 +382,8 @@ export class PromptFilePickers {
 		// `copy` button was pressed, open the prompt file in editor
 		if (button === COPY_BUTTON) {
 			const currentFolder = dirname(value);
-			const newFolder = await this._instaService.invokeFunction(askForPromptSourceFolder, options.type, currentFolder);
+			const isMove = quickPick.keyMods.ctrlCmd;
+			const newFolder = await this._instaService.invokeFunction(askForPromptSourceFolder, options.type, currentFolder, isMove);
 			if (!newFolder) {
 				return;
 			}
@@ -389,7 +392,12 @@ export class PromptFilePickers {
 				return;
 			}
 			const newFile = joinPath(newFolder.uri, newName);
-			await this._fileService.copy(value, newFile);
+			if (isMove) {
+				await this._fileService.move(value, newFile);
+			} else {
+				await this._fileService.copy(value, newFile);
+			}
+
 			await this._openerService.open(newFile);
 
 			return;
