@@ -821,9 +821,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				return this.model.getLineContent(lineNumber);
 			},
 			getLineTokens: (lineNumber: number) => {
-				const tokenization = this.model.tokenization;
-				tokenization.forceTokenization(lineNumber);
-				return tokenization.getLineTokens(lineNumber);
+				return this._lines.getViewLineData(lineNumber).tokens;
 			},
 			getInlineDecorations: (lineNumber: number) => {
 				const inlineDecorations = this.getViewLineRenderingData(lineNumber).inlineDecorations;
