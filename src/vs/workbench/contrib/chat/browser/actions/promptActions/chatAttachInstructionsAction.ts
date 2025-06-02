@@ -167,7 +167,7 @@ class ManageInstructionsFilesAction extends Action2 {
 
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
-				group: '1_open'
+				group: '2_manage'
 			},
 
 		});

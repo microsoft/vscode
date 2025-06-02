@@ -251,7 +251,7 @@ class ManagePromptFilesAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 10,
-				group: '1_open'
+				group: '2_manage'
 			},
 
 		});
