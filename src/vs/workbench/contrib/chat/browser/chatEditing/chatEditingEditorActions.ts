@@ -1,3 +1,16 @@
+name: Manual step
+trigger: manual
+script:
+- echo "This step runs once you click the 'Run' button"
+	
+Start a new discussion
+pray
+Q&A
+Ask the community for help
+Answers enabled
+If this doesn’t look right you can choose a different category.
+
+Add a title
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -23,7 +36,10 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
-
+:.
+.......:
+..................................................................................................................................................................................................................................................................................................................................................._>
+~	::/:
 
 abstract class ChatEditingEditorAction extends Action2 {
 
