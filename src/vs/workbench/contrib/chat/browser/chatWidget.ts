@@ -1333,6 +1333,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext: requestInputs.attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				userSelectedTools: this.getUserSelectedTools(),
+				modeInstructions: this.input.currentMode2.body
 			});
 
 			if (result) {
@@ -1369,6 +1370,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		return undefined;
+	}
+
+	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		return {
+			modeInstructions: this.input.currentMode2.body,
+			userSelectedTools: this.getUserSelectedTools(),
+			mode: this.input.currentMode,
+		};
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
