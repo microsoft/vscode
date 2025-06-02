@@ -270,7 +270,12 @@ class McpHTTPHandle extends Disposable {
 			this._mode = { value: HttpMode.Http, sessionId: nextSessionId };
 		}
 
-		if (this._mode.value === HttpMode.Unknown && res.status >= 400 && res.status < 500) {
+		if (this._mode.value === HttpMode.Unknown &&
+			// We care about 4xx errors...
+			res.status >= 400 && res.status < 500
+			// ...except for 401 and 403, which are auth errors
+			&& res.status !== 401 && res.status !== 403
+		) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
 			this._sseFallbackWithMessage(message);
 			return;

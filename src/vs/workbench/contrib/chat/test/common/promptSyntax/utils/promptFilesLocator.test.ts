@@ -160,6 +160,7 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
 			test('• object config value', async () => {
@@ -173,6 +174,7 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
 			test('• array config value', async () => {
@@ -186,6 +188,7 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
 			test('• null config value', async () => {
@@ -196,6 +199,7 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
 			test('• string config value', async () => {
@@ -206,6 +210,7 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 		});
 
@@ -262,6 +267,7 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
 			suite('• absolute', () => {
@@ -339,6 +345,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -497,6 +504,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -581,6 +589,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -739,6 +748,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -819,6 +829,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -977,6 +988,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -1063,6 +1075,7 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
+		locator.dispose();
 	});
 
 	test('• with disabled `.github/prompts` location', async () => {
@@ -1148,6 +1161,7 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
+		locator.dispose();
 	});
 
 	suite('• multi-root workspace', () => {
@@ -1269,6 +1283,7 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
 			test('• with top-level `.github` folder', async () => {
@@ -1391,6 +1406,7 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
 			test('• with disabled `.github/prompts` location', async () => {
@@ -1510,6 +1526,7 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
 			test('• mixed', async () => {
@@ -1639,6 +1656,7 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 		});
 
@@ -1750,6 +1768,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -1955,6 +1974,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -2079,6 +2099,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -2314,6 +2335,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -2431,6 +2453,7 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find correct prompts.',
 			);
+			locator.dispose();
 		});
 	});
 });

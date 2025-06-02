@@ -62,12 +62,16 @@ export class ChatModeService implements IChatModeService {
 	}
 }
 
+/**
+ * TODO This data object is not quite the right pattern, needs to live-update on file changes
+ */
 export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
 	readonly kind: ChatMode;
 	readonly customTools?: readonly string[];
+	readonly body?: string;
 }
 
 export function isIChatMode(mode: unknown): mode is IChatMode {
@@ -97,6 +101,10 @@ export class CustomChatMode implements IChatMode {
 		return this.customChatMode.tools;
 	}
 
+	get body(): string {
+		return this.customChatMode.body;
+	}
+
 	public readonly kind = ChatMode.Agent;
 
 	constructor(
@@ -112,7 +120,8 @@ export class CustomChatMode implements IChatMode {
 			name: this.name,
 			description: this.description,
 			kind: this.kind,
-			customTools: this.customTools
+			customTools: this.customTools,
+			body: this.body
 		};
 	}
 }

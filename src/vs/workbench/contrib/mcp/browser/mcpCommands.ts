@@ -39,9 +39,9 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
-import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
+import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 
 // acroynms do not get localized
@@ -155,6 +155,8 @@ export class McpServerOptionsCommand extends Action2 {
 		const mcpRegistry = accessor.get(IMcpRegistry);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const samplingService = accessor.get(IMcpSamplingService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
@@ -164,7 +166,7 @@ export class McpServerOptionsCommand extends Action2 {
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
 		}
 
 		const items: ActionItem[] = [];
@@ -195,6 +197,22 @@ export class McpServerOptionsCommand extends Action2 {
 			description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
 			action: 'configSampling'
 		});
+
+		if (samplingService.hasLogs(server)) {
+			items.push({
+				label: localize('mcp.samplingLog', 'Show Sampling Requests'),
+				description: localize('mcp.samplingLog.description', 'Show the sampling requests for this server'),
+				action: 'samplingLog',
+			});
+		}
+
+		const capabilities = server.capabilities.get();
+		if (capabilities === undefined || (capabilities & McpCapability.Resources)) {
+			items.push({
+				label: localize('mcp.resources', 'Browse Resources'),
+				action: 'resources',
+			});
+		}
 
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
 		if (configTarget) {
@@ -236,6 +254,15 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'configSampling':
 				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
+			case 'resources':
+				return instantiationService.createInstance(McpResourceQuickPick, server).pick();
+			case 'samplingLog':
+				editorService.openEditor({
+					resource: undefined,
+					contents: samplingService.getLogText(server),
+					label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
+				});
+				break;
 			default:
 				assertNever(pick.action);
 		}
