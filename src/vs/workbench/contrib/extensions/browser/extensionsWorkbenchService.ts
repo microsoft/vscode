@@ -71,6 +71,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { fromNow } from '../../../../base/common/date.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1895,8 +1896,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installGalleryExtensions(toUpdate);
 	}
 
-	async downloadVSIX(extensionId: string, preRelease: boolean): Promise<void> {
-		let [galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true }, CancellationToken.None);
+	async downloadVSIX(extensionId: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void> {
+		let version: string | undefined;
+		if (versionKind === 'any') {
+			version = await this.pickVersionToDownload(extensionId);
+			if (!version) {
+				return;
+			}
+		}
+
+		const extensionInfo = version ? { id: extensionId, version } : { id: extensionId, preRelease: versionKind === 'prerelease' };
+		const queryOptions: IExtensionQueryOptions = version ? {} : { compatible: true };
+
+		let [galleryExtension] = await this.galleryService.getExtensions([extensionInfo], queryOptions, CancellationToken.None);
 		if (!galleryExtension) {
 			throw new Error(nls.localize('extension not found', "Extension '{0}' not found.", extensionId));
 		}
@@ -1911,7 +1923,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				});
 			}
 		}
-		if (options.length) {
+		if (options.length > 1) {
 			const message = nls.localize('platform placeholder', "Please select the platform for which you want to download the VSIX");
 			const option = await this.quickInputService.pick(options.sort((a, b) => a.label.localeCompare(b.label)), { placeHolder: message });
 			if (!option) {
@@ -1921,7 +1933,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (targetPlatform !== galleryExtension.properties.targetPlatform) {
-			[galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true, targetPlatform }, CancellationToken.None);
+			[galleryExtension] = await this.galleryService.getExtensions([extensionInfo], { ...queryOptions, targetPlatform }, CancellationToken.None);
 		}
 
 		const result = await this.fileDialogService.showOpenDialog({
@@ -1942,6 +1954,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
 			this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
 		});
+	}
+
+	private async pickVersionToDownload(extensionId: string): Promise<string | undefined> {
+		const allVersions = await this.galleryService.getAllVersions({ id: extensionId });
+		if (!allVersions.length) {
+			await this.dialogService.info(nls.localize('no versions', "This extension has no other versions."));
+			return;
+		}
+
+		const picks = allVersions.map((v, i) => {
+			return {
+				id: v.version,
+				label: v.version,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${nls.localize('pre-release', "pre-release")})` : ''}`,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
+			};
+		});
+		const pick = await this.quickInputService.pick(picks,
+			{
+				placeHolder: nls.localize('selectVersion', "Select Version to Download"),
+				matchOnDetail: true
+			});
+		return pick?.id;
 	}
 
 	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
