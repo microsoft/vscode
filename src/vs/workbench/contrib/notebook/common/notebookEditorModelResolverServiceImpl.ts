@@ -215,7 +215,6 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			}
 		}
 
-
 		const resource = this._uriIdentService.asCanonicalUri(uri ?? this.createUntitledUri(viewType!));
 
 		const existingNotebook = this._notebookService.getNotebookTextModel(resource);
