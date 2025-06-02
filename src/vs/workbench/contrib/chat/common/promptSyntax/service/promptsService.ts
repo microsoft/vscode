@@ -53,9 +53,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public logTime: TLogFunction;
 
 	/**
-	 * Emitter for the custom chat modes change event.
+	 * Lazily created event that is fired when the custom chat modes change.
 	 */
-	public readonly onDidChangeCustomChatModes: Event<void>;
+	private onDidChangeCustomChatModesEvent: Event<void> | undefined;
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -67,11 +67,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
-		this.onDidChangeCustomChatModes = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
-
-		this.onDidChangeCustomChatModes(() => {
-			console.log('Custom chat modes changed');
-		});
 
 		this.logTime = this.logger.trace.bind(this.logger);
 
@@ -105,6 +100,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 			})
 		);
 	}
+
+	/**
+	 * Emitter for the custom chat modes change event.
+	 */
+	public get onDidChangeCustomChatModes(): Event<void> {
+		if (!this.onDidChangeCustomChatModesEvent) {
+			this.onDidChangeCustomChatModesEvent = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
+		}
+		return this.onDidChangeCustomChatModesEvent;
+	}
+
 
 	/**
 	 * @throws {Error} if:
