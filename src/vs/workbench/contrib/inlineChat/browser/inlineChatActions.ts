@@ -68,11 +68,15 @@ export class StartSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: START_INLINE_CHAT,
-			menu: {
+			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 3,
-			}
+			}, {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'a_open',
+				order: 1
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor, ...args: any[]): any {
