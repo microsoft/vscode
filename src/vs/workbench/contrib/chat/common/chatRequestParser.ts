@@ -165,7 +165,8 @@ export class ChatRequestParser {
 
 		const toolset = toolSetsByName.get(name);
 		if (toolset) {
-			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon);
+			const value = Array.from(toolset.getTools()).map(t => new ChatRequestToolPart(varRange, varEditorRange, t.toolReferenceName ?? t.displayName, t.id, t.displayName, t.icon).toVariableEntry());
+			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon, value);
 		}
 
 		return;

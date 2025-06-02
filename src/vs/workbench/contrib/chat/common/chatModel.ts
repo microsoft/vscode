@@ -74,7 +74,7 @@ export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 
 export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'toolset';
-	readonly value: undefined;
+	readonly value: IChatRequestToolEntry[];
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
