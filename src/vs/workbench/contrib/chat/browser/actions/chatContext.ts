@@ -78,14 +78,14 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 			if (entry instanceof ToolSet) {
 				items.push({
 					toolInfo: ToolDataSource.classify(entry.source),
-					label: entry.toolReferenceName,
+					label: entry.referenceName,
 					description: entry.description,
 					asAttachment: (): IChatRequestToolSetEntry => {
 						return {
 							kind: 'toolset',
 							id: entry.id,
 							icon: entry.icon,
-							name: entry.displayName,
+							name: entry.referenceName,
 							value: undefined,
 						};
 					}

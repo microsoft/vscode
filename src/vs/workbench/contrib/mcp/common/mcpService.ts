@@ -212,7 +212,6 @@ export class McpService extends Disposable implements IMcpService {
 				def.serverDefinition.id, def.serverDefinition.label,
 				{
 					icon: Codicon.mcp,
-					toolReferenceName: def.serverDefinition.label,
 					description: localize('mcp.toolset', "{0}: All Tools", def.serverDefinition.label)
 				}
 			);
