@@ -7,15 +7,14 @@
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
-	/* padding: 4px; */
-	padding: var(--vscode-spacing-button-padding-vertical) var(--vscode-spacing-button-padding-horizontal);
-	border-radius: 2px;
+	padding: var(--vscode-button-padding-vertical) var(--vscode-button-padding-horizontal);
+	border-radius: var(--vscode-button-corner-radius);
 	text-align: center;
 	cursor: pointer;
 	justify-content: center;
 	align-items: center;
-	border: 1px solid var(--vscode-button-border, transparent);
-	line-height: 18px;
+	border: var(--vscode-base-line-width-s) solid var(--vscode-button-border, transparent);
+	line-height: var(--vscode-button-line-height);
 }
 
 .monaco-text-button:focus {
@@ -40,7 +39,7 @@
 .monaco-text-button.monaco-text-button-with-short-label {
 	flex-direction: row;
 	flex-wrap: wrap;
-	padding: 0 4px;
+	padding: 0 var(--vscode-button-padding-horizontal);
 	overflow: hidden;
 	height: 28px;
 }
@@ -62,7 +61,7 @@
 	align-items: center;
 	font-weight: normal;
 	font-style: inherit;
-	padding: 4px 0;
+	padding: var(--vscode-button-padding-vertical) 0;
 }
 
 .monaco-button-dropdown {
@@ -89,25 +88,25 @@
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator {
-	padding: 4px 0;
+	padding: var(--vscode-button-padding-vertical) 0;
 	cursor: default;
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {
 	height: 100%;
-	width: 1px;
+	width: var(--vscode-base-line-width-s);
 }
 
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
-	border: 1px solid var(--vscode-button-border, transparent);
+	border: var(--vscode-base-line-width-s) solid var(--vscode-button-border, transparent);
 	border-left-width: 0 !important;
-	border-radius: 0 2px 2px 0;
+	border-radius: 0 var(--vscode-button-corner-radius) var(--vscode-button-corner-radius) 0;
 	display: flex;
 	align-items: center;
 }
 
 .monaco-button-dropdown > .monaco-button.monaco-text-button {
-	border-radius: 2px 0 0 2px;
+	border-radius: var(--vscode-button-corner-radius) 0 0 var(--vscode-button-corner-radius);
 }
 
 .monaco-description-button {
@@ -120,7 +119,7 @@
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
 	font-size: 11px;
-	padding: 4px 20px;
+	padding: var(--vscode-button-padding-vertical) 20px;
 }
 
 .monaco-description-button .monaco-button-label,
@@ -162,8 +161,8 @@
 
 .monaco-button-dropdown.default-colors .monaco-button-dropdown-separator {
 	background-color: var(--vscode-button-background);
-	border-top: 1px solid var(--vscode-button-border);
-	border-bottom: 1px solid var(--vscode-button-border);
+	border-top: var(--vscode-base-line-width-s) solid var(--vscode-button-border);
+	border-bottom: var(--vscode-base-line-width-s) solid var(--vscode-button-border);
 }
 
 .monaco-button-dropdown.default-colors .monaco-button.secondary + .monaco-button-dropdown-separator {

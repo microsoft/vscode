@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export * from './sizeUtils.js';
+// Remember to include this file in vscode/src/vs/platform/theme/common/sizeRegistry.ts
 
-// export * from './sizes/baseSizes.js';
-// export * from './sizes/buttonSizes.js';
+import * as nls from '../../../../nls.js';
+import { registerSize } from '../sizeUtils.js';
 
-// export * from './sizes/testSizes.js';
-export * from './sizes/spacingSizes.js';
-export * from './sizes/controlsSizes.js';
-export * from './sizes/strokeSizes.js';
+export const baseLineWidthS = registerSize('base.line.width.s', { default: '1px' }, nls.localize('baseLineWidthS', "Line Width S"));
