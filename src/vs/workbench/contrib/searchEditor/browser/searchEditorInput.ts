@@ -56,7 +56,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.Singleton;
+		let capabilities = EditorInputCapabilities.None;
 		if (!this.backingUri) {
 			capabilities |= EditorInputCapabilities.Untitled;
 		}
