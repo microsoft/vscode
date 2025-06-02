@@ -873,7 +873,6 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
-	// if (tokens.length) {
 	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
 	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
@@ -882,7 +881,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			lineDecorationIndex++;
 		}
 	}
-	// }
+
 	return result;
 }
 

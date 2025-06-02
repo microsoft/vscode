@@ -217,14 +217,14 @@ export class ModelRawLineChanged {
 	/**
 	 * The line that has changed.
 	 */
-	public readonly lineNumber: number;
+	public readonly oldLineNumber: number;
 	/**
 	 * The new line number the old one is mapped to
 	 */
 	public readonly newLineNumber: number;
 
 	constructor(lineNumber: number, newLineNumber: number) {
-		this.lineNumber = lineNumber;
+		this.oldLineNumber = lineNumber;
 		this.newLineNumber = newLineNumber;
 	}
 }
@@ -315,11 +315,11 @@ export class ModelRawLinesInserted {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	public readonly fromLineNumber: number;
+	public readonly oldFromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly toLineNumber: number;
+	public readonly oldToLineNumber: number;
 	/**
 	 * The new from line number of the inserted lines.
 	 */
@@ -329,9 +329,9 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly newToLineNumber: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+	constructor(oldFromLineNumber: number, oldToLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
+		this.oldFromLineNumber = oldFromLineNumber;
+		this.oldToLineNumber = oldToLineNumber;
 		this.newFromLineNumber = newFromLineNumber;
 		this.newToLineNumber = newToLineNumber;
 	}

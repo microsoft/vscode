@@ -323,7 +323,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineBreaksComputer.addRequest(change.lineNumber, null);
+							lineBreaksComputer.addRequest(change.newLineNumber, null);
 							break;
 						}
 					}
@@ -352,7 +352,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
 							const insertedLineBreaks = lineBreakQueue.takeCount(change.newToLineNumber - change.newFromLineNumber + 1);
-							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
+							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.oldFromLineNumber, change.oldToLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -363,7 +363,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						case textModelEvents.RawContentChangedType.LineChanged: {
 							const changedLineBreakData = lineBreakQueue.dequeue()!;
 							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
-								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
+								this._lines.onModelLineChanged(versionId, change.oldLineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emitViewEvent(linesChangedEvent);
@@ -430,7 +430,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 		this._register(this.model.onDidChangeFont((e) => {
 			try {
-				// TODO: Is this correct?
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				const lineBreaksComputer = this._lines.createLineBreaksComputer(this._getLineBreaksComputerContext());
 				for (const change of e.changes) {
@@ -438,23 +437,41 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
+				let lineMappingHasChanged = false;
 				for (const change of e.changes) {
 					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const [_lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
+					const [lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
 						this._lines.onModelLineChanged(change.versionId, change.lineNumber, changedLineBreakData);
+					lineMappingHasChanged = lineMappingChanged;
 					if (linesChangedEvent) {
 						eventsCollector.emitViewEvent(linesChangedEvent);
 					}
 				}
 				this.viewLayout.onHeightMaybeChanged();
-				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-				this._cursor.onLineMappingChanged(eventsCollector);
-				this._decorations.onLineMappingChanged();
+				if (lineMappingHasChanged) {
+					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+					this._cursor.onLineMappingChanged(eventsCollector);
+					this._decorations.onLineMappingChanged();
+				}
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
 			}
+			// Update the configuration and reset the centered view line
+			const viewportStartWasValid = this._viewportStart.isValid;
+			this._viewportStart.invalidate();
+			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
+
+			// Recover viewport
+			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
+				const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
+				if (modelRange) {
+					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
+					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
+				}
+			}
 			this._handleVisibleLinesChanged();
 		}));
 

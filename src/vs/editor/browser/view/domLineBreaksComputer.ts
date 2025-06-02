@@ -60,7 +60,6 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 			return null;
 		}
 	}
-
 	const options = config.options;
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const wrappingIndent = options.get(EditorOption.wrappingIndent);

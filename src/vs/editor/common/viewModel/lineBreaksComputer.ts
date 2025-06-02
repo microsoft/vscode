@@ -19,7 +19,7 @@ export class LineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	}
 }
 
-enum LineBreaksComputerType {
+enum LineBreaksComputationType {
 	Dom = 'dom',
 	Monospace = 'monospace'
 }
@@ -28,7 +28,7 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 
 	private readonly _domLineBreaksComputer: ILineBreaksComputer;
 	private readonly _monospaceLineBreaksComputer: ILineBreaksComputer;
-	private readonly _lineBreaksComputerMapping: LineBreaksComputerType[] = [];
+	private readonly _lineBreaksComputationMapping: LineBreaksComputationType[] = [];
 	private readonly _config: IEditorConfiguration;
 	private readonly _context: ILineBreaksComputerContext;
 
@@ -50,10 +50,10 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 		const allowVariableFonts = this._config.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getInlineDecorations(lineNumber).affectsFonts)) {
 			this._domLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
-			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Dom);
+			this._lineBreaksComputationMapping.push(LineBreaksComputationType.Dom);
 		} else {
 			this._monospaceLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
-			this._lineBreaksComputerMapping.push(LineBreaksComputerType.Monospace);
+			this._lineBreaksComputationMapping.push(LineBreaksComputationType.Monospace);
 		}
 	}
 
@@ -61,12 +61,12 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 		const domLineBreaks = this._domLineBreaksComputer.finalize();
 		const monospaceLineBreaks = this._monospaceLineBreaksComputer.finalize();
 		const result: (ModelLineProjectionData | null)[] = [];
-		for (let i = 0; i < this._lineBreaksComputerMapping.length; i++) {
-			switch (this._lineBreaksComputerMapping[i]) {
-				case LineBreaksComputerType.Dom:
+		for (let i = 0; i < this._lineBreaksComputationMapping.length; i++) {
+			switch (this._lineBreaksComputationMapping[i]) {
+				case LineBreaksComputationType.Dom:
 					result.push(domLineBreaks.shift() ?? null);
 					break;
-				case LineBreaksComputerType.Monospace:
+				case LineBreaksComputationType.Monospace:
 					result.push(monospaceLineBreaks.shift() ?? null);
 					break;
 			}
