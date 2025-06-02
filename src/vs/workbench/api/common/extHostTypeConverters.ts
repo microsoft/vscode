@@ -2921,7 +2921,16 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(
+		request: IChatAgentRequest,
+		location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined,
+		model: vscode.LanguageModelChat,
+		diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][],
+		tools: Map<string, boolean>,
+		extension: IRelaxedExtensionDescription,
+		toolInvocationToken: vscode.ChatParticipantToolToken,
+		logService: ILogService
+	): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
 		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
 		const requestWithAllProps: vscode.ChatRequest = {
@@ -2939,7 +2948,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
+			toolInvocationToken,
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
@@ -2961,7 +2970,6 @@ export namespace ChatAgentRequest {
 			delete requestWithAllProps.rejectedConfirmationData;
 			delete (requestWithAllProps as any).tools;
 		}
-
 
 		return requestWithAllProps;
 	}
