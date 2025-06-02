@@ -167,7 +167,7 @@ export class LineCommentCommand implements ICommand {
 
 			if (shouldRemoveComments && insertSpace) {
 				// Remove a following space if present
-				const commentStrEndOffset = lineCommentNoIndent ? 0 : lineContentStartOffset + lineData.commentStrLength;
+				const commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
 				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === CharCode.Space) {
 					lineData.commentStrLength += 1;
 				}
