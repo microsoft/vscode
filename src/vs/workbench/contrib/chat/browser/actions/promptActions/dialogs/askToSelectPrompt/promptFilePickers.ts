@@ -7,7 +7,6 @@ import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
-import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
 import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { dirname, extUri, joinPath } from '../../../../../../../../base/common/resources.js';
@@ -177,6 +176,7 @@ export class PromptFilePickers {
 	async selectPromptFile(options: ISelectOptions): Promise<ISelectPromptResult | undefined> {
 		const quickPick = this._quickInputService.createQuickPick<IPromptPickerQuickPickItem>();
 		quickPick.busy = true;
+		quickPick.placeholder = localize('searching', 'Searching for files...');
 		try {
 			const fileOptions = await this._createPromptPickItems(options);
 			const activeItem = options.resource && fileOptions.find(f => extUri.isEqual(f.value, options.resource));
@@ -256,7 +256,7 @@ export class PromptFilePickers {
 		if (options.optionDelete !== false) {
 			buttons.push(DELETE_BUTTON);
 		}
-		const promptFiles = await this._promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+		const promptFiles = await this._promptsService.listPromptFiles(options.type, CancellationToken.None);
 
 		const fileOptions = promptFiles.map((promptFile) => {
 			return this._createPromptPickItem(promptFile, buttons);
@@ -264,7 +264,7 @@ export class PromptFilePickers {
 
 		// if a resource is provided, create an `activeItem` for it to pre-select
 		// it in the UI, and sort the list so the active item appears at the top
-		let activeItem: WithUriValue<IQuickPickItem> | undefined;
+		let activeItem: IPromptPickerQuickPickItem | undefined;
 		if (options.resource) {
 			activeItem = fileOptions.find((file) => {
 				return extUri.isEqual(file.value, options.resource);
@@ -318,7 +318,7 @@ export class PromptFilePickers {
 		}
 	}
 
-	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[]): WithUriValue<IQuickPickItem> {
+	private _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[]): IPromptPickerQuickPickItem {
 		const { uri, storage } = promptFile;
 		const fileWithoutExtension = getCleanPromptName(uri);
 
@@ -343,7 +343,7 @@ export class PromptFilePickers {
 		};
 	}
 
-	private async _handleButtonClick(quickPick: IQuickPick<WithUriValue<IQuickPickItem>>, context: IQuickPickItemButtonEvent<WithUriValue<IQuickPickItem>>, options: ISelectOptions): Promise<void> {
+	private async _handleButtonClick(quickPick: IQuickPick<IPromptPickerQuickPickItem>, context: IQuickPickItemButtonEvent<IPromptPickerQuickPickItem>, options: ISelectOptions): Promise<void> {
 		const { item, button } = context;
 		const { value, } = item;
 
@@ -358,15 +358,16 @@ export class PromptFilePickers {
 			// don't close the main prompt selection dialog by the confirmation dialog
 			const previousIgnoreFocusOut = quickPick.ignoreFocusOut;
 			quickPick.ignoreFocusOut = true;
-
-			const currentFolder = dirname(value);
-			const newName = await this._instaService.invokeFunction(askForPromptFileName, options.type, currentFolder);
-			if (newName) {
-				await this._fileService.move(value, joinPath(currentFolder, newName));
+			try {
+				const currentFolder = dirname(value);
+				const newName = await this._instaService.invokeFunction(askForPromptFileName, options.type, currentFolder);
+				if (newName) {
+					await this._fileService.move(value, joinPath(currentFolder, newName));
+				}
+			} finally {
+				quickPick.ignoreFocusOut = previousIgnoreFocusOut;
+				quickPick.items = await this._createPromptPickItems(options);
 			}
-
-			quickPick.ignoreFocusOut = previousIgnoreFocusOut;
-			quickPick.items = await this._createPromptPickItems(options);
 			return;
 		}
 
@@ -378,7 +379,7 @@ export class PromptFilePickers {
 				`Expected maximum one active item, got '${quickPick.activeItems.length}'.`,
 			);
 
-			const activeItem: WithUriValue<IQuickPickItem> | undefined = quickPick.activeItems[0];
+			const activeItem: IPromptPickerQuickPickItem | undefined = quickPick.activeItems[0];
 
 			// sanity checks - prompt file exists and is not a folder
 			const info = await this._fileService.stat(value);
@@ -433,7 +434,7 @@ export class PromptFilePickers {
 				// we set the previous item as new active, or the next item
 				// if removed prompt item was in the beginning of the list
 				const newActiveItemIndex = Math.max(removedIndex - 1, 0);
-				const newActiveItem: WithUriValue<IQuickPickItem> | undefined = quickPick.items[newActiveItemIndex];
+				const newActiveItem: IPromptPickerQuickPickItem | undefined = quickPick.items[newActiveItemIndex];
 
 				quickPick.activeItems = newActiveItem ? [newActiveItem] : [];
 			}
