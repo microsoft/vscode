@@ -2368,6 +2368,9 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
 	readonly fontSize: number | null;
+	readonly fontFamily: string | null;
+	readonly fontWeight: string | null;
+	readonly fontStyle: string | null;
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
@@ -2405,7 +2408,10 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.lineHeight = options.lineHeight ? Math.min(options.lineHeight, LINE_HEIGHT_CEILING) : null;
-		this.fontSize = options.fontSize ?? null;
+		this.fontSize = options.fontSize || null;
+		this.fontFamily = options.fontFamily || null;
+		this.fontWeight = options.fontWeight || null;
+		this.fontStyle = options.fontStyle || null;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;

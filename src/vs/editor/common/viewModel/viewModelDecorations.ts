@@ -137,7 +137,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
 		const options = this.configuration.options;
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(options), options.get(EditorOption.effectiveAllowVariableFonts), onlyMinimapDecorations, onlyMarginDecorations);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(options), !options.get(EditorOption.effectiveAllowVariableFonts), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 
