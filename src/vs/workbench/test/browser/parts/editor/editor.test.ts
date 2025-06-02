@@ -237,6 +237,28 @@ suite('Workbench editor utils', () => {
 
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileWithPreferredResource)?.toString(), resource.toString());
 		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileWithPreferredResource)?.toString(), preferredResource.toString());
+
+		// Test typed merge editor input
+		const mockTypedMergeInput = {
+			base: URI.file('/test/base.txt'),
+			input1: { uri: URI.file('/test/input1.txt'), title: 'Input 1', detail: '', description: '' },
+			input2: { uri: URI.file('/test/input2.txt'), title: 'Input 2', detail: '', description: '' },
+			result: URI.file('/test/result.txt'),
+			resource: URI.file('/test/result.txt'),
+			typeId: 'mergeEditor.Input',
+			getName: () => 'Merge Editor',
+			isReadonly: () => false,
+			isDirty: () => false,
+			matches: () => false,
+			dispose: () => {}
+		} as any;
+
+		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(mockTypedMergeInput)?.toString(), mockTypedMergeInput.result.toString());
+		assert.strictEqual(EditorResourceAccessor.getOriginalUri(mockTypedMergeInput)?.toString(), mockTypedMergeInput.result.toString());
+		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(mockTypedMergeInput, { filterByScheme: Schemas.file })?.toString(), mockTypedMergeInput.result.toString());
+		assert.strictEqual(EditorResourceAccessor.getOriginalUri(mockTypedMergeInput, { filterByScheme: Schemas.file })?.toString(), mockTypedMergeInput.result.toString());
+		assert.ok(!EditorResourceAccessor.getCanonicalUri(mockTypedMergeInput, { filterByScheme: Schemas.untitled }));
+		assert.ok(!EditorResourceAccessor.getOriginalUri(mockTypedMergeInput, { filterByScheme: Schemas.untitled }));
 	});
 
 	test('EditorResourceAccessor - untyped inputs', () => {
