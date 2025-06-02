@@ -213,7 +213,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, /\/[\w.]*/g);
 				if (!range) {
 					return null;
 				}

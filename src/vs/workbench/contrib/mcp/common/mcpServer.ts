@@ -30,7 +30,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -657,7 +657,7 @@ class McpPrompt implements IMcpPrompt {
 		private readonly _server: McpServer,
 		private readonly _definition: MCP.Prompt,
 	) {
-		this.id = (this._server.definition.label + '.' + _definition.name).replace(/[^a-z0-9_.-]/gi, '_');
+		this.id = mcpPromptReplaceSpecialChars(this._server.definition.label + '.' + _definition.name);
 		this.name = _definition.name;
 		this.description = _definition.description;
 		this.arguments = _definition.arguments || [];
