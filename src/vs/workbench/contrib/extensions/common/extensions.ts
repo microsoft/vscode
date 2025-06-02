@@ -107,6 +107,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
+	readonly missingFromGallery?: boolean;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');

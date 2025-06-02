@@ -125,12 +125,10 @@ export class McpResourcePickHelper {
 		quickInput.totalSteps = todo.length;
 		quickInput.ignoreFocusOut = true;
 
-		const initialCompletions = todo.map(variable => rt.complete(variable.name, '', {}, cts.token));
-
 		try {
 			for (let i = 0; i < todo.length; i++) {
 				const variable = todo[i];
-				const resolved = await this._promptForTemplateValue(quickInput, variable, initialCompletions[i], vars, rt);
+				const resolved = await this._promptForTemplateValue(quickInput, variable, vars, rt);
 				if (resolved === undefined) {
 					return undefined;
 				}
@@ -143,9 +141,9 @@ export class McpResourcePickHelper {
 		}
 	}
 
-	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, initialCompletions: Promise<string[]>, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
+	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
 		const store = new DisposableStore();
-		const completions = new Map<string, Promise<string[]>>([['', initialCompletions]]);
+		const completions = new Map<string, Promise<string[]>>([]);
 
 		const variablesWithPlaceholders = { ...variablesSoFar };
 		for (const variable of rt.template.components.flatMap(c => typeof c === 'object' ? c.variables : [])) {
