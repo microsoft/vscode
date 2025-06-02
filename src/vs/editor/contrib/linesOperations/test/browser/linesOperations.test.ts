@@ -838,7 +838,9 @@ suite('Editor Contrib - Line Operations', () => {
 				'alreadyCamel',
 				'ReTain_any_CAPitalization',
 				'my_var.test_function()',
-				'öçş_öç_şğü_ğü'
+				'öçş_öç_şğü_ğü',
+				'multi line camel case test?',
+				"here it comes-and-goes!"
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
@@ -870,6 +872,11 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(7, 1, 7, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
+
+				editor.setSelection(new Selection(8, 1, 9, 24));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'multiLineCamelCaseTest?');
+				assert.strictEqual(model.getLineContent(9), 'hereItComesAndGoes!');
 			}
 		);
 
@@ -990,6 +997,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'Capital_Snake_Case',
 				'parseHTML4String',
 				'Kebab-Case',
+				'multi line pascal case test?',
+				"here it comes-and-goes!"
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const pascalCaseAction = new PascalCaseAction();
@@ -1043,6 +1052,12 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(11, 1, 12, 29));
+				executeAction(pascalCaseAction, editor);
+				assert.deepStrictEqual(model.getLineContent(11), 'MultiLinePascalCaseTest?');
+				assert.deepStrictEqual(model.getLineContent(12), 'HereItComesAndGoes!');
+				assertSelection(editor, new Selection(11, 1, 12, 20));
 			}
 		);
 	});
