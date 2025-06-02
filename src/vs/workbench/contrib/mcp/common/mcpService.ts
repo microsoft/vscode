@@ -18,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { getAttachableImageExtension } from '../../chat/common/chatModel.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
@@ -91,7 +91,7 @@ export class McpService extends Disposable implements IMcpService {
 		await Promise.all(todo);
 	}
 
-	private _syncTools(server: McpServer, store: DisposableStore) {
+	private _syncTools(server: McpServer, toolSet: ToolSet, source: ToolDataSource, store: DisposableStore) {
 		const tools = new Map</* tool ID */string, ISyncedToolData>();
 
 		store.add(autorun(reader => {
@@ -103,6 +103,7 @@ export class McpService extends Disposable implements IMcpService {
 			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
 				store.add(this._toolsService.registerToolData(toolData));
 				store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+				store.add(toolSet.addTool(toolData));
 			};
 
 			for (const tool of server.tools.read(reader)) {
@@ -110,7 +111,7 @@ export class McpService extends Disposable implements IMcpService {
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
-					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
+					source,
 					icon: Codicon.tools,
 					displayName: tool.definition.annotations?.title || tool.definition.name,
 					toolReferenceName: tool.id,
@@ -205,8 +206,19 @@ export class McpService extends Disposable implements IMcpService {
 				def.toolPrefix,
 			);
 
+			const source: ToolDataSource = { type: 'mcp', label: object.definition.label, collectionId: object.collection.id, definitionId: object.definition.id };
+			const toolSet = this._toolsService.createToolSet(
+				source,
+				def.serverDefinition.id, def.serverDefinition.label,
+				{
+					icon: Codicon.mcp,
+					toolReferenceName: def.serverDefinition.label,
+					description: localize('mcp.toolset', "{0}: All Tools", def.serverDefinition.label)
+				}
+			);
+			store.add(toolSet);
 			store.add(object);
-			this._syncTools(object, store);
+			this._syncTools(object, toolSet, source, store);
 
 			nextServers.push({ object, dispose: () => store.dispose(), toolPrefix: def.toolPrefix });
 		}
