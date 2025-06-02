@@ -31,6 +31,7 @@ interface DotAccessorContext {
 interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
 	readonly isMemberCompletion: boolean;
+	readonly isMemberStringCompletion: boolean;
 
 	readonly dotAccessorContext?: DotAccessorContext;
 
@@ -40,6 +41,8 @@ interface CompletionContext {
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
 	readonly optionalReplacementRange: vscode.Range | undefined;
+
+	readonly triggerCharacter?: vscode.CompletionContext['triggerCharacter'];
 }
 
 type ResolvedCompletionItem = {
@@ -507,7 +510,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		defaultCommitCharacters: readonly string[] | undefined,
 	): string[] | undefined {
 		let commitCharacters = entry.commitCharacters ?? (defaultCommitCharacters ? Array.from(defaultCommitCharacters) : undefined);
-		if (commitCharacters) {
+		if (commitCharacters && !context.isMemberStringCompletion) {
 			if (context.enableCallCompletions
 				&& !context.isNewIdentifierLocation
 				&& entry.kind !== PConst.Kind.warning
@@ -515,6 +518,14 @@ class MyCompletionItem extends vscode.CompletionItem {
 				commitCharacters.push('(');
 			}
 			return commitCharacters;
+		}
+
+		if (context.isMemberStringCompletion) {
+			// We want to be able to commit on closing quotes, so we add them as commit characters
+			if (context.triggerCharacter) {
+				return [context.triggerCharacter];
+			}
+			return undefined;
 		}
 
 		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
@@ -777,6 +788,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				dotAccessorContext = { range, text };
 			}
 		}
+		const isMemberStringCompletion = isMemberCompletion && (
+			context.triggerCharacter === '"' ||
+			context.triggerCharacter === '\'' ||
+			context.triggerCharacter === '`'
+		);
 		const isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
 		const entries = response.body.entries;
 		const metadata = response.metadata;
@@ -789,12 +805,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const completionContext: CompletionContext = {
 			isNewIdentifierLocation,
 			isMemberCompletion,
+			isMemberStringCompletion,
 			dotAccessorContext,
 			enableCallCompletions: !completionConfiguration.completeFunctionCalls,
 			wordRange,
 			line: line.text,
 			completeFunctionCalls: completionConfiguration.completeFunctionCalls,
 			optionalReplacementRange,
+			triggerCharacter: context.triggerCharacter,
 		};
 
 		let includesPackageJsonImport = false;
