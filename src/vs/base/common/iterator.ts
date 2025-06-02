@@ -56,6 +56,16 @@ export namespace Iterable {
 		return false;
 	}
 
+	export function every<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
+		for (const element of iterable) {
+			if (!predicate(element, i++)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined {
