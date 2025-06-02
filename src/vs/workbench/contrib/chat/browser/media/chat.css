@@ -1883,6 +1883,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-bottom: 0px;
 	}
 
+	.interactive-item-container.interactive-request.confirmation-message {
+		align-items: flex-start;
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown {
 		background-color: var(--vscode-chat-requestBubbleBackground);
 		border-radius: 8px;

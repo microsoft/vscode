@@ -444,14 +444,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
-
-		if (isRequestVM(element) && element.confirmation) {
-			this.renderConfirmationAction(element, templateData);
-		}
+		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
 		templateData.header?.classList.toggle('header-disabled', !shouldShowHeader);
+
+		if (isRequestVM(element) && element.confirmation) {
+			this.renderConfirmationAction(element, templateData);
+		}
 
 		// Do a progressive render if
 		// - This the last response in the list
@@ -513,6 +514,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.detail);
 		if (element.confirmation) {
 			templateData.detail.textContent = localize('chatConfirmationAction', 'selected "{0}"', element.confirmation);
+			templateData.header?.classList.remove('header-disabled');
 		}
 	}
 
