@@ -27,7 +27,7 @@ import { LanguageBracketsConfiguration } from './supports/languageBracketsConfig
  */
 export interface ICommentsConfiguration {
 	lineCommentToken?: string;
-	lineCommentTokenFirstColumn?: boolean;
+	lineCommentNoIndent?: boolean;
 	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
 }
@@ -457,15 +457,20 @@ export class ResolvedLanguageConfiguration {
 		const comments: ICommentsConfiguration = {};
 
 		if (commentRule.lineComment) {
-			comments.lineCommentToken = commentRule.lineComment;
+			if (typeof commentRule.lineComment === 'string') {
+				comments.lineCommentToken = commentRule.lineComment;
+			} else {
+				// LineCommentConfig object
+				comments.lineCommentToken = commentRule.lineComment.comment;
+				if (commentRule.lineComment.noIndent !== undefined) {
+					comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
+				}
+			}
 		}
 		if (commentRule.blockComment) {
 			const [blockStart, blockEnd] = commentRule.blockComment;
 			comments.blockCommentStartToken = blockStart;
 			comments.blockCommentEndToken = blockEnd;
-		}
-		if (typeof commentRule.lineCommentTokenFirstColumn !== 'undefined' && commentRule.lineCommentTokenFirstColumn !== null) {
-			comments.lineCommentTokenFirstColumn = commentRule.lineCommentTokenFirstColumn;
 		}
 
 		return comments;

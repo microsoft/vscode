@@ -49,7 +49,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	);
 
 	const testLineCommentCommandTokenFirstColumn = createTestCommandHelper(
-		{ lineComment: '!@#', lineCommentTokenFirstColumn: true, blockComment: ['<!@#', '#@!>'] },
+		{ lineComment: { comment: '!@#', noIndent: true }, blockComment: ['<!@#', '#@!>'] },
 		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 

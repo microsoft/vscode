@@ -1,7 +1,9 @@
 {
 	"comments": {
-		"lineComment": "#",
-		"lineCommentTokenFirstColumn": true
+		"lineComment": {
+			"comment": "#",
+			"noIndent": true
+		}
 	},
 	"brackets": [
 		[

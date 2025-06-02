@@ -115,10 +115,10 @@ export class LineCommentCommand implements ICommand {
 	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string): IPreflightData {
 		let onlyWhitespaceLines = true;
 
-		let lineCommentTokenFirstColumn = false;
+		let lineCommentNoIndent = false;
 		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
-		if (config && config.lineCommentTokenFirstColumn !== undefined) {
-			lineCommentTokenFirstColumn = config.lineCommentTokenFirstColumn;
+		if (config && config.lineCommentNoIndent !== undefined) {
+			lineCommentNoIndent = config.lineCommentNoIndent;
 		}
 
 		let shouldRemoveComments: boolean;
@@ -146,15 +146,15 @@ export class LineCommentCommand implements ICommand {
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
 				lineData.ignore = ignoreEmptyLines;
-				lineData.commentStrOffset = lineCommentTokenFirstColumn ? 0 : lineContent.length;
+				lineData.commentStrOffset = lineCommentNoIndent ? 0 : lineContent.length;
 				continue;
 			}
 
 			onlyWhitespaceLines = false;
 			lineData.ignore = false;
-			lineData.commentStrOffset = lineCommentTokenFirstColumn ? 0 : lineContentStartOffset;
+			lineData.commentStrOffset = lineCommentNoIndent ? 0 : lineContentStartOffset;
 
-			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineCommentTokenFirstColumn ? 0 : lineContentStartOffset)) {
+			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineCommentNoIndent ? 0 : lineContentStartOffset)) {
 				if (type === Type.Toggle) {
 					// Every line so far has been a line comment, but this one is not
 					shouldRemoveComments = false;
@@ -167,7 +167,7 @@ export class LineCommentCommand implements ICommand {
 
 			if (shouldRemoveComments && insertSpace) {
 				// Remove a following space if present
-				const commentStrEndOffset = lineCommentTokenFirstColumn ? 0 : lineContentStartOffset + lineData.commentStrLength;
+				const commentStrEndOffset = lineCommentNoIndent ? 0 : lineContentStartOffset + lineData.commentStrLength;
 				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === CharCode.Space) {
 					lineData.commentStrLength += 1;
 				}

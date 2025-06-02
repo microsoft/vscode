@@ -8,7 +8,7 @@ import { ParseError, parse, getNodeType } from '../../../../base/common/json.js'
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import * as types from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, LineCommentConfig, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
@@ -161,19 +161,25 @@ export class LanguageConfigurationFileHandler extends Disposable {
 
 		let result: CommentRule | undefined = undefined;
 		if (typeof source.lineComment !== 'undefined') {
-			if (typeof source.lineComment !== 'string') {
-				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string.`);
-			} else {
+			if (typeof source.lineComment === 'string') {
 				result = result || {};
 				result.lineComment = source.lineComment;
-			}
-		}
-		if (typeof source.lineCommentTokenFirstColumn !== 'undefined') {
-			if (typeof source.lineCommentTokenFirstColumn !== 'boolean') {
-				console.warn(`[${languageId}]: language configuration: expected \`comments.lineCommentTokenColumn\` to be a boolean.`);
+			} else if (types.isObject(source.lineComment)) {
+				const lineCommentObj = source.lineComment as any;
+				if (typeof lineCommentObj.comment === 'string') {
+					result = result || {};
+					const lineCommentConfig: LineCommentConfig = {
+						comment: lineCommentObj.comment
+					};
+					if (typeof lineCommentObj.noIndent === 'boolean') {
+						lineCommentConfig.noIndent = lineCommentObj.noIndent;
+					}
+					result.lineComment = lineCommentConfig;
+				} else {
+					console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment.comment\` to be a string.`);
+				}
 			} else {
-				result = result || {};
-				result.lineCommentTokenFirstColumn = source.lineCommentTokenFirstColumn;
+				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string or an object with comment property.`);
 			}
 		}
 		if (typeof source.blockComment !== 'undefined') {
@@ -527,7 +533,7 @@ const schema: IJSONSchema = {
 		comments: {
 			default: {
 				blockComment: ['/*', '*/'],
-				lineComment: '//'
+				lineComment: { comment: '//', noIndent: false }
 			},
 			description: nls.localize('schema.comments', 'Defines the comment symbols'),
 			type: 'object',
@@ -544,8 +550,21 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'string',
-					description: nls.localize('schema.lineComment', 'The character sequence that starts a line comment.')
+					type: 'object',
+					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+					properties: {
+						comment: {
+							type: 'string',
+							description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+						},
+						noIndent: {
+							type: 'boolean',
+							description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
+							default: false
+						}
+					},
+					required: ['comment'],
+					additionalProperties: false
 				}
 			}
 		},
