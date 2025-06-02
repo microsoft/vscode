@@ -11,11 +11,11 @@ import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingInde
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText } from '../../common/textModelEvents.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { CharacterMapping, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { assertIsDefined } from '../../../base/common/types.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
+import { LineInjectedText } from '../../common/textModelEvents.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -42,6 +42,8 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		};
 	}
 }
+
+let containerNode: HTMLDivElement | null = null;
 
 function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
@@ -78,7 +80,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 
+	containerNode?.remove();
 	const containerDomNode = document.createElement('div');
+	containerNode = containerDomNode;
 	containerDomNode.classList.add('dom-line-breaks-computer');
 	applyFontInfo(containerDomNode, fontInfo);
 
@@ -120,7 +124,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	containerDomNode.innerHTML = trustedhtml as string;
 
 	containerDomNode.style.position = 'absolute';
-	containerDomNode.style.top = '10000';
+	containerDomNode.style.top = '200px';
+	containerDomNode.style.zIndex = '20';
+	containerDomNode.style.background = 'white';
 	if (wordBreak === 'keepAll') {
 		// word-break: keep-all; overflow-wrap: anywhere
 		containerDomNode.style.wordBreak = 'keep-all';
@@ -166,7 +172,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
-	containerDomNode.remove();
+	// containerDomNode.remove();
 	return result;
 }
 
@@ -176,11 +182,14 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const fontLigatures = options.get(EditorOption.fontLigatures);
 	const inlineDecorations = context.getInlineDecorations(lineNumber);
+	console.log('lineNumber : ', lineNumber);
 	const lineDecorations = LineDecoration.filter(inlineDecorations.decorations, lineNumber, 0, Infinity);
 	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 	const tokens = context.getLineTokens(lineNumber);
 	const lineContent = context.getLineContent(lineNumber);
-	const isBasicASCII = strings.isBasicASCII(lineContent);
+	const injectedText = context.getLineInjectedText(lineNumber);
+	const lineContentWithInjectedText = LineInjectedText.applyInjectedText(lineContent, injectedText);
+	const isBasicASCII = strings.isBasicASCII(lineContentWithInjectedText);
 	const lineHasVariableFonts = inlineDecorations.affectsFonts;
 	let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	if (lineHasVariableFonts || options.get(EditorOption.experimentalWhitespaceRendering) === 'off') {
@@ -192,7 +201,7 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const renderLineInput = new RenderLineInput(
 		useMonospaceOptimizations,
 		fontInfo.canUseHalfwidthRightwardsArrow,
-		lineContent,
+		lineContentWithInjectedText,
 		false,
 		isBasicASCII,
 		false,

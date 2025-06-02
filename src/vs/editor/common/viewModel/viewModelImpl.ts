@@ -826,12 +826,16 @@ export class ViewModel extends Disposable implements IViewModel {
 				return tokenization.getLineTokens(lineNumber);
 			},
 			getInlineDecorations: (lineNumber: number) => {
-				return this.getViewLineRenderingData(lineNumber).inlineDecorations;
+				const inlineDecorations = this.getViewLineRenderingData(lineNumber).inlineDecorations;
+				console.log('inlineDecorations of contentChange for lineNumber', lineNumber);
+				console.log(inlineDecorations);
+				return inlineDecorations;
 			},
 			getLineInjectedText: (lineNumber: number) => {
 				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
 				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+				const injectedText = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+				return injectedText;
 			}
 		};
 	}
