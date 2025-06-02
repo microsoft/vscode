@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MiddleScrollController } from '../../browser/middleScroll.js';
+import { MiddleScrollController } from '../../browser/middleScroll.contribution.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 

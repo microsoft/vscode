@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, getActiveWindow } from '../../../../base/browser/dom.js';
+import { getWindow, getActiveWindow, addDisposableListener } from '../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
@@ -44,17 +44,12 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		super();
 		this._editor = editor;
 
-		this.editorMouseDown = this.editorMouseDown.bind(this);
-		this.windowMouseDown = this.windowMouseDown.bind(this);
-		this.windowMouseUp = this.windowMouseUp.bind(this);
 		this.windowMouseMove = this.windowMouseMove.bind(this);
 
-		this.getWindow().addEventListener('mouseup', this.windowMouseUp, { capture: true, passive: true });
-		this.getWindow().addEventListener('mousedown', this.windowMouseDown, { passive: true });
-		this._register(this._editor.onMouseDown(this.editorMouseDown));
+		this._register(this._editor.onMouseDown(this.editorMouseDown.bind(this)));
+		this._register(addDisposableListener(this.getWindow(), 'mouseup', this.windowMouseUp.bind(this), { capture: true, passive: true }));
+		this._register(addDisposableListener(this.getWindow(), 'mousedown', this.windowMouseDown.bind(this), { passive: true }));
 
-		this._register(toDisposable(() => this.getWindow().removeEventListener('mouseup', this.windowMouseUp, { capture: true })));
-		this._register(toDisposable(() => this.getWindow().removeEventListener('mousedown', this.windowMouseDown)));
 		this._register(toDisposable(() => this.stopScroll()));
 	}
 
