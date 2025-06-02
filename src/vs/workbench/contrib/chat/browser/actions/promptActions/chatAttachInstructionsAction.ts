@@ -40,9 +40,9 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
 /**
- * Action ID for the `Manage Instruction` action.
+ * Action ID for the `Configure Instruction` action.
  */
-const MANAGE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.manage.instructions';
+const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
 
 
 /**
@@ -156,8 +156,8 @@ class AttachInstructionsAction extends Action2 {
 class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
-			id: MANAGE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('manage-instructions.capitalized.ellipses', "Manage Instructions Files..."),
+			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
+			title: localize2('configure-instructions', "Configure Instructions"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -183,7 +183,7 @@ class ManageInstructionsFilesAction extends Action2 {
 
 		const placeholder = localize(
 			'commands.prompt.manage-dialog.placeholder',
-			'Select the instructions file to edit'
+			'Select the instructions file to open'
 		);
 
 		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.instructions, optionEdit: false });

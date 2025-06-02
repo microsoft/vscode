@@ -27,6 +27,7 @@ export async function askForPromptSourceFolder(
 	accessor: ServicesAccessor,
 	type: PromptsType,
 	existingFolder?: URI | undefined,
+	isMove: boolean = false,
 ): Promise<IPromptPath | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const promptsService = accessor.get(IPromptsService);
@@ -50,7 +51,7 @@ export async function askForPromptSourceFolder(
 	}
 
 	const pickOptions: IPickOptions<IFolderQuickPickItem> = {
-		placeHolder: existingFolder ? getPlaceholderStringforMove(type) : getPlaceholderStringforNew(type),
+		placeHolder: existingFolder ? getPlaceholderStringforMove(type, isMove) : getPlaceholderStringforNew(type),
 		canPickMany: false,
 		matchOnDescription: true,
 	};
@@ -128,14 +129,26 @@ function getPlaceholderStringforNew(type: PromptsType): string {
 	}
 }
 
-function getPlaceholderStringforMove(type: PromptsType): string {
+function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string {
+	if (isMove) {
+		switch (type) {
+			case PromptsType.instructions:
+				return localize('instructions.move.location.placeholder', "Select a location to move the instructions file to...");
+			case PromptsType.prompt:
+				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to...");
+			case PromptsType.mode:
+				return localize('mode.move.location.placeholder', "Select a location to move the mode file to...");
+			default:
+				throw new Error('Unknown prompt type');
+		}
+	}
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('workbench.command.instructions.move.location.placeholder', "Select a location to move the instructions file to...");
+			return localize('instructions.copy.location.placeholder', "Select a location to copy the instructions file to...");
 		case PromptsType.prompt:
-			return localize('workbench.command.prompt.move.location.placeholder', "Select a location to move the prompt file to...");
+			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to...");
 		case PromptsType.mode:
-			return localize('workbench.command.mode.move.location.placeholder', "Select a location to move the mode file to...");
+			return localize('mode.copy.location.placeholder', "Select a location to copy the mode file to...");
 		default:
 			throw new Error('Unknown prompt type');
 	}

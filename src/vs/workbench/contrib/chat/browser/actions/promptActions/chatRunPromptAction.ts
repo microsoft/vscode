@@ -57,9 +57,9 @@ const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
 const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
 
 /**
- * Action ID for the `Manage Prompt Files...` action.
+ * Action ID for the `Configure Prompt Files...` action.
  */
-const MANAGE_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.manage.prompts';
+const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -241,8 +241,8 @@ class RunSelectedPromptAction extends Action2 {
 class ManagePromptFilesAction extends Action2 {
 	constructor() {
 		super({
-			id: MANAGE_SELECTED_PROMPT_ACTION_ID,
-			title: localize2('manage-prompts.capitalized.ellipses', "Manage Prompt Files..."),
+			id: CONFIGURE_PROMPTS_ACTION_ID,
+			title: localize2('configure-prompts', "Configure Prompt Files"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
