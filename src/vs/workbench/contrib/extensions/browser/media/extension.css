@@ -92,7 +92,7 @@
 
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator {
 	font-size: 80%;
-	margin-left: 2px;
+	margin-left: 4px;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {

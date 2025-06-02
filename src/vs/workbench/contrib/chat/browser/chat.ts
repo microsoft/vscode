@@ -205,6 +205,7 @@ export interface IChatWidget {
 	focusLastMessage(): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
+	getUserSelectedTools(): Record<string, boolean> | undefined;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];

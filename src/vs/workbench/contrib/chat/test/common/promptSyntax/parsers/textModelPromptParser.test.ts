@@ -22,7 +22,7 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -334,6 +334,62 @@ suite('TextModelPromptParser', () => {
 						'Must have empty metadata.',
 					);
 				});
+
+				test(`• has correct 'instructions' metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.instructions.md'),
+						[
+					/* 01 */"---",
+					/* 02 */"description: 'My prompt.'\t\t",
+					/* 03 */"	something: true", /* unknown metadata record */
+					/* 04 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
+					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
+					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
+					/* 07 */"	mode: 'agent'",
+					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
+					/* 08 */"---",
+					/* 09 */"The cactus on my desk has a thriving Instagram account.",
+					/* 10 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						INSTRUCTIONS_LANGUAGE_ID,
+					);
+
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 11,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Prompt header must be defined.',
+					);
+
+					assert(
+						metadata?.promptType === PromptsType.instructions,
+						`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.instructions,
+							description: 'My prompt.',
+							applyTo: 'frontend/**/*spec.ts',
+						},
+						'Must have correct metadata.',
+					);
+				});
 			});
 
 			suite(' • prompts', () => {
@@ -379,12 +435,11 @@ suite('TextModelPromptParser', () => {
 						'Must have empty metadata.',
 					);
 				});
-			});
 
-			test(`• has correct 'prompt' metadata`, async () => {
-				const test = createTest(
-					URI.file('/absolute/folder/and/a/filename.txt'),
-					[
+				test(`• has correct 'prompt' metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.txt'),
+						[
 					/* 01 */"---",
 					/* 02 */"description: 'My prompt.'\t\t",
 					/* 03 */"	something: true", /* unknown metadata record */
@@ -399,56 +454,100 @@ suite('TextModelPromptParser', () => {
 					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
 					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
-					],
-					PROMPT_LANGUAGE_ID,
-				);
+						],
+						PROMPT_LANGUAGE_ID,
+					);
 
-				await test.validateReferences([
-					new ExpectedReference({
-						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
-						text: '[text](./foo-bar-baz/another-file.ts)',
-						path: './foo-bar-baz/another-file.ts',
-						startLine: 11,
-						startColumn: 43,
-						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
-					}),
-				]);
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 11,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
 
-				const { header, metadata } = test.parser;
-				assertDefined(
-					header,
-					'Prompt header must be defined.',
-				);
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Prompt header must be defined.',
+					);
 
-				assert(
-					metadata?.promptType === PromptsType.prompt,
-					`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
+					assert(
+						metadata?.promptType === PromptsType.prompt,
+						`Must be a 'prompt' metadata, got '${JSON.stringify(metadata)}'.`,
+					);
 
-				assert.deepStrictEqual(
-					metadata,
-					{
-						promptType: PromptsType.prompt,
-						mode: 'agent',
-						description: 'My prompt.',
-						tools: ['tool_name1', 'tool_name2'],
-					},
-					'Must have correct metadata.',
-				);
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.prompt,
+							mode: 'agent',
+							description: 'My prompt.',
+							tools: ['tool_name1', 'tool_name2'],
+						},
+						'Must have correct metadata.',
+					);
+				});
 			});
 
-			test(`• has correct 'instructions' metadata`, async () => {
-				const test = createTest(
-					URI.file('/absolute/folder/and/a/filename.instructions.md'),
-					[
+			suite(' • modes', () => {
+				test(`• empty header`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.txt'),
+						[
 					/* 01 */"---",
-					/* 02 */"description: 'My prompt.'\t\t",
+					/* 02 */"",
+					/* 03 */"---",
+					/* 04 */"The cactus on my desk has a thriving Instagram account.",
+					/* 05 */"Midnight snacks are the secret to eternal [text](./foo-bar-baz/another-file.ts) happiness.",
+					/* 06 */"In an alternate universe, pigeons deliver sushi by drone.",
+					/* 07 */"Lunar rainbows only appear when you sing in falsetto.",
+					/* 08 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
+						],
+						MODE_LANGUAGE_ID,
+					);
+
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 5,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
+
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Prompt header must be defined.',
+					);
+
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.mode,
+						},
+						'Must have empty metadata.',
+					);
+				});
+
+				test(`• has correct metadata`, async () => {
+					const test = createTest(
+						URI.file('/absolute/folder/and/a/filename.txt'),
+						[
+					/* 01 */"---",
+					/* 02 */"description: 'My mode.'\t\t",
 					/* 03 */"	something: true", /* unknown metadata record */
 					/* 04 */"	tools: [ 'tool_name1', \"tool_name2\", 'tool_name1', true, false, '', 'tool_name2' ]\t\t",
 					/* 05 */"	tools: [ 'tool_name3', \"tool_name4\" ]", /* duplicate `tools` record is ignored */
 					/* 06 */"	tools: 'tool_name5'", /* duplicate `tools` record with invalid value is ignored */
-					/* 07 */"	mode: 'agent'",
 					/* 07 */"	applyTo: 'frontend/**/*spec.ts'",
 					/* 08 */"---",
 					/* 09 */"The cactus on my desk has a thriving Instagram account.",
@@ -456,42 +555,39 @@ suite('TextModelPromptParser', () => {
 					/* 11 */"In an alternate universe, pigeons deliver sushi by drone.",
 					/* 12 */"Lunar rainbows only appear when you sing in falsetto.",
 					/* 13 */"Carrots have secret telepathic abilities, but only on Tuesdays.",
-					],
-					INSTRUCTIONS_LANGUAGE_ID,
-				);
+						],
+						MODE_LANGUAGE_ID,
+					);
 
-				await test.validateReferences([
-					new ExpectedReference({
-						uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
-						text: '[text](./foo-bar-baz/another-file.ts)',
-						path: './foo-bar-baz/another-file.ts',
-						startLine: 11,
-						startColumn: 43,
-						pathStartColumn: 50,
-						childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
-					}),
-				]);
+					await test.validateReferences([
+						new ExpectedReference({
+							uri: URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'),
+							text: '[text](./foo-bar-baz/another-file.ts)',
+							path: './foo-bar-baz/another-file.ts',
+							startLine: 10,
+							startColumn: 43,
+							pathStartColumn: 50,
+							childrenOrError: new OpenFailed(URI.file('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+						}),
+					]);
 
-				const { header, metadata } = test.parser;
-				assertDefined(
-					header,
-					'Prompt header must be defined.',
-				);
+					const { header, metadata } = test.parser;
+					assertDefined(
+						header,
+						'Mode header must be defined.',
+					);
 
-				assert(
-					metadata?.promptType === PromptsType.instructions,
-					`Must be a 'instructions' metadata, got '${JSON.stringify(metadata)}'.`,
-				);
-
-				assert.deepStrictEqual(
-					metadata,
-					{
-						promptType: PromptsType.instructions,
-						description: 'My prompt.',
-						applyTo: 'frontend/**/*spec.ts',
-					},
-					'Must have correct metadata.',
-				);
+					assert.deepStrictEqual(
+						metadata,
+						{
+							promptType: PromptsType.mode,
+							mode: 'agent',
+							description: 'My mode.',
+							tools: ['tool_name1', 'tool_name2'],
+						},
+						'Must have correct metadata.',
+					);
+				});
 			});
 		});
 

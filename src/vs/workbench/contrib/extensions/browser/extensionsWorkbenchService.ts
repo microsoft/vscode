@@ -27,7 +27,7 @@ import {
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -71,6 +71,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -251,7 +253,7 @@ export class Extension implements IExtension {
 	}
 
 	get iconUrlFallback(): string | undefined {
-		return this.gallery?.assets.icon?.fallbackUri ?? DefaultIconPath;
+		return this.gallery?.assets.icon?.fallbackUri;
 	}
 
 	private get localIconUrl(): string | undefined {
@@ -283,7 +285,7 @@ export class Extension implements IExtension {
 				}
 			}
 		}
-		return DefaultIconPath;
+		return undefined;
 	}
 
 	get repository(): string | undefined {
@@ -665,7 +667,7 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, extensionInfo?: IExtensionInfo[]): Promise<void> {
+	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
@@ -679,12 +681,12 @@ class Extensions extends Disposable {
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
 		// This indicates that it was likely removed from the gallery
-		if (extensionInfo) {
+		if (flagExtensionsMissingFromGallery) {
 			for (const extension of this.local) {
 				if (!extension.identifier.uuid) {
 					continue;
 				}
-				if (!extensionInfo.some(f => areSameExtensions(f, extension.identifier))) {
+				if (!flagExtensionsMissingFromGallery.some(f => areSameExtensions(f, extension.identifier))) {
 					continue;
 				}
 				const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
@@ -987,6 +989,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -1358,7 +1361,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
-		this.syncInstalledExtensionsWithGallery(galleryExtensions, extensionInfos);
+		this.syncInstalledExtensionsWithGallery(galleryExtensions);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -1922,8 +1925,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installGalleryExtensions(toUpdate);
 	}
 
-	async downloadVSIX(extensionId: string, preRelease: boolean): Promise<void> {
-		let [galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true }, CancellationToken.None);
+	async downloadVSIX(extensionId: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void> {
+		let version: string | undefined;
+		if (versionKind === 'any') {
+			version = await this.pickVersionToDownload(extensionId);
+			if (!version) {
+				return;
+			}
+		}
+
+		const extensionInfo = version ? { id: extensionId, version } : { id: extensionId, preRelease: versionKind === 'prerelease' };
+		const queryOptions: IExtensionQueryOptions = version ? {} : { compatible: true };
+
+		let [galleryExtension] = await this.galleryService.getExtensions([extensionInfo], queryOptions, CancellationToken.None);
 		if (!galleryExtension) {
 			throw new Error(nls.localize('extension not found', "Extension '{0}' not found.", extensionId));
 		}
@@ -1938,7 +1952,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				});
 			}
 		}
-		if (options.length) {
+		if (options.length > 1) {
 			const message = nls.localize('platform placeholder', "Please select the platform for which you want to download the VSIX");
 			const option = await this.quickInputService.pick(options.sort((a, b) => a.label.localeCompare(b.label)), { placeHolder: message });
 			if (!option) {
@@ -1948,7 +1962,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (targetPlatform !== galleryExtension.properties.targetPlatform) {
-			[galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true, targetPlatform }, CancellationToken.None);
+			[galleryExtension] = await this.galleryService.getExtensions([extensionInfo], { ...queryOptions, targetPlatform }, CancellationToken.None);
 		}
 
 		const result = await this.fileDialogService.showOpenDialog({
@@ -1971,7 +1985,30 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], extensionInfo?: IExtensionInfo[]): Promise<void> {
+	private async pickVersionToDownload(extensionId: string): Promise<string | undefined> {
+		const allVersions = await this.galleryService.getAllVersions({ id: extensionId });
+		if (!allVersions.length) {
+			await this.dialogService.info(nls.localize('no versions', "This extension has no other versions."));
+			return;
+		}
+
+		const picks = allVersions.map((v, i) => {
+			return {
+				id: v.version,
+				label: v.version,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${nls.localize('pre-release', "pre-release")})` : ''}`,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
+			};
+		});
+		const pick = await this.quickInputService.pick(picks,
+			{
+				placeHolder: nls.localize('selectVersion', "Select Version to Download"),
+				matchOnDetail: true
+			});
+		return pick?.id;
+	}
+
+	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -1985,7 +2022,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extensions.length) {
 			return;
 		}
-		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), extensionInfo)));
+		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), flagExtensionsMissingFromGallery)));
 		if (this.outdated.length) {
 			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
@@ -2589,6 +2626,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const extension = e.local ? e : this.local.find(local => areSameExtensions(local.identifier, e.identifier));
 		if (!extension?.local) {
 			throw new Error('Missing local');
+		}
+
+		if (extension.local.isApplicationScoped && this.userDataProfilesService.profiles.length > 1) {
+			const { confirmed } = await this.dialogService.confirm({
+				title: nls.localize('uninstallApplicationScoped', "Uninstall Extension"),
+				type: Severity.Info,
+				message: nls.localize('uninstallApplicationScopedMessage', "Would you like to Uninstall {0} from all profiles?", extension.displayName),
+				primaryButton: nls.localize('uninstallAllProfiles', "Uninstall (All Profiles)")
+			});
+			if (!confirmed) {
+				throw new CancellationError();
+			}
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];

@@ -612,23 +612,17 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	 * Valid metadata records defined in the prompt header.
 	 */
 	public get metadata(): TMetadata | null {
+		const { promptType } = this.promptContentsProvider;
+		if (promptType === 'non-prompt') {
+			return null;
+		}
+
 		if (this.header === undefined) {
-			const { promptType } = this.promptContentsProvider;
-
-			if (promptType === 'non-prompt') {
-				return null;
-			}
-
-			return {
-				promptType,
-			};
+			return { promptType };
 		}
 
 		if (this.header instanceof InstructionsHeader) {
-			return {
-				promptType: PromptsType.instructions,
-				...this.header.metadata,
-			};
+			return { promptType, ...this.header.metadata };
 		}
 
 		const { tools, mode, description } = this.header.metadata;
@@ -653,10 +647,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			result.mode = resultingMode;
 		}
 
-		return {
-			promptType: PromptsType.prompt,
-			...result,
-		};
+		return { promptType, ...result };
 	}
 
 	/**
