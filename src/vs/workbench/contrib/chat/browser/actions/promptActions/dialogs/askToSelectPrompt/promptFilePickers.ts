@@ -155,7 +155,7 @@ const DELETE_BUTTON: IQuickInputButton = Object.freeze({
  */
 const RENAME_BUTTON: IQuickInputButton = Object.freeze({
 	tooltip: localize('rename', "Rename"),
-	iconClass: ThemeIcon.asClassName(Codicon.pencil),
+	iconClass: ThemeIcon.asClassName(Codicon.replace),
 });
 
 /**
@@ -264,6 +264,9 @@ export class PromptFilePickers {
 		}
 		if (options.optionCopy !== false) {
 			buttons.push(COPY_BUTTON);
+		}
+		if (options.optionRename !== false) {
+			buttons.push(RENAME_BUTTON);
 		}
 		if (options.optionDelete !== false) {
 			buttons.push(DELETE_BUTTON);
