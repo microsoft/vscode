@@ -36,7 +36,7 @@ export class ExtHostNotebookEditor {
 					return that.notebookData.apiNotebook;
 				},
 				get selection() {
-					return that._selections[0] ?? new vscode.NotebookRange(0, 0);
+					return that._selections[0];
 				},
 				set selection(selection: vscode.NotebookRange) {
 					this.selections = [selection];
@@ -48,8 +48,8 @@ export class ExtHostNotebookEditor {
 					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
 						throw illegalArgument('selections');
 					}
-					that._selections = value;
-					that._trySetSelections(value);
+					that._selections = value.length === 0 ? [new vscode.NotebookRange(0, 0)] : value;
+					that._trySetSelections(that._selections);
 				},
 				get visibleRanges() {
 					return that._visibleRanges;
@@ -93,7 +93,7 @@ export class ExtHostNotebookEditor {
 	}
 
 	_acceptSelections(selections: vscode.NotebookRange[]): void {
-		this._selections = selections;
+		this._selections = selections.length === 0 ? [new vscode.NotebookRange(0, 0)] : selections;
 	}
 
 	private _trySetSelections(value: vscode.NotebookRange[]): void {
