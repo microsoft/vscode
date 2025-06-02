@@ -197,7 +197,7 @@ export class McpResourcePickHelper {
 
 		const getCompletionItemsScheduler = store.add(new RunOnceScheduler(getCompletionItems, 300));
 
-		return new Promise(resolve => {
+		return new Promise<string | undefined>(resolve => {
 			store.add(input.onDidHide(() => resolve(undefined)));
 			store.add(input.onDidAccept(() => {
 				const item = input.selectedItems[0];
@@ -223,7 +223,7 @@ export class McpResourcePickHelper {
 			}));
 
 			getCompletionItems();
-		});
+		}).finally(() => store.dispose());
 	}
 
 	public getPicks(onChange: (value: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>) => void, token?: CancellationToken) {
