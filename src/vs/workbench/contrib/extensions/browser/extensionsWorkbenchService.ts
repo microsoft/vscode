@@ -27,7 +27,7 @@ import {
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -241,7 +241,7 @@ export class Extension implements IExtension {
 	}
 
 	get iconUrlFallback(): string | undefined {
-		return this.gallery?.assets.icon?.fallbackUri ?? DefaultIconPath;
+		return this.gallery?.assets.icon?.fallbackUri;
 	}
 
 	private get localIconUrl(): string | undefined {
@@ -273,7 +273,7 @@ export class Extension implements IExtension {
 				}
 			}
 		}
-		return DefaultIconPath;
+		return undefined;
 	}
 
 	get repository(): string | undefined {
