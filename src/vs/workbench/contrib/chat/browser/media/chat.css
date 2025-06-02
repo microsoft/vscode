@@ -1966,6 +1966,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			top: 2px;
 		}
 	}
+
+	.interactive-item-container.interactive-request:focus {
+		outline: none !important;
+	}
+
+	.interactive-item-container.interactive-request .value .rendered-markdown:focus {
+		outline: 1px solid var(--vscode-focusBorder);
+	}
 }
 
 .chat-buttons-container {
@@ -1988,4 +1996,3 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	padding: 4px 8px;
 }
-
