@@ -961,6 +961,8 @@ export class ChatService extends Disposable implements IChatService {
 				// 'range' is range within the prompt text
 				if (v.kind === 'tool') {
 					return 'toolInPrompt';
+				} else if (v.kind === 'toolset') {
+					return 'toolsetInPrompt';
 				} else {
 					return 'fileInPrompt';
 				}
@@ -974,6 +976,8 @@ export class ChatService extends Disposable implements IChatService {
 				return 'directory';
 			} else if (v.kind === 'tool') {
 				return 'tool';
+			} else if (v.kind === 'toolset') {
+				return 'toolset';
 			} else {
 				if (URI.isUri(v.value)) {
 					return 'file';
