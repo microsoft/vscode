@@ -335,6 +335,11 @@ export interface IMcpPrompt {
 	resolve(args: Record<string, string | undefined>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
 
+export const mcpPromptReplaceSpecialChars = (s: string) => s.replace(/[^a-z0-9_.-]/gi, '_');
+
+export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
+	`/mcp.` + mcpPromptReplaceSpecialChars(definition.label);
+
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpTool {
