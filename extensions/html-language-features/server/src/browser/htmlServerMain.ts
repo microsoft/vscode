@@ -3,28 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
-import { RuntimeEnvironment, startServer } from '../htmlServer';
+import { createConnection, createServer } from '@volar/language-server/browser';
+import { startServer } from '../htmlServer';
+import { getFileSystemProvider } from '../requests';
 
-const messageReader = new BrowserMessageReader(self);
-const messageWriter = new BrowserMessageWriter(self);
+const connection = createConnection();
+const server = createServer(connection);
+const installedFs = new Set<string>();
 
-const connection = createConnection(messageReader, messageWriter);
-
-console.log = connection.console.log.bind(connection.console);
-console.error = connection.console.error.bind(connection.console);
-
-const runtime: RuntimeEnvironment = {
-	timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, 0, ...args);
-			return { dispose: () => clearTimeout(handle) };
-		},
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, ms, ...args);
-			return { dispose: () => clearTimeout(handle) };
+server.onInitialize(() => {
+	for (const folder of server.workspaceFolders.all) {
+		if (!installedFs.has(folder.scheme)) {
+			installedFs.add(folder.scheme);
+			server.fileSystem.install(folder.scheme, getFileSystemProvider(connection));
 		}
 	}
-};
+});
 
-startServer(connection, runtime);
+startServer(server, connection);

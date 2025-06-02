@@ -3,66 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TextDocument } from '@volar/language-server';
 import * as assert from 'assert';
-import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
-
+import { URI } from 'vscode-uri';
+import { getTestService } from './shared';
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
-	const workspace = {
-		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
-	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const javascriptMode = languageModes.getMode('javascript');
+	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
+	const workspaceEdit = await languageService.getRenameEdits(URI.parse(document.uri), position, newName);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
-
-		if (!workspaceEdit || !workspaceEdit.changes) {
-			assert.fail('No workspace edits');
-		}
-
-		const edits = workspaceEdit.changes[document.uri.toString()];
-		if (!edits) {
-			assert.fail(`No edits for file at ${document.uri.toString()}`);
-		}
-
-		const newDocContent = TextDocument.applyEdits(document, edits);
-		assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
-	} else {
-		assert.fail('should have javascriptMode but no');
+	if (!workspaceEdit || !workspaceEdit.changes) {
+		assert.fail('No workspace edits');
 	}
+
+	const edits = workspaceEdit.changes[document.uri.toString()];
+	if (!edits) {
+		assert.fail(`No edits for file at ${document.uri.toString()}`);
+	}
+
+	const newDocContent = TextDocument.applyEdits(document, edits);
+	assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
 }
 
 async function testNoRename(value: string, newName: string): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
-	const workspace = {
-		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
-	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const javascriptMode = languageModes.getMode('javascript');
+	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
+	const workspaceEdit = await languageService.getRenameEdits(URI.parse(document.uri), position, newName);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
-
-		assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
-	} else {
-		assert.fail('should have javascriptMode but no');
-	}
+	assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
 }
 
 suite('HTML Javascript Rename', () => {
+
 	test('Rename Variable', async () => {
 		const input = [
 			'<html>',

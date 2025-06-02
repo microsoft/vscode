@@ -258,12 +258,12 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
-    "vscode-languageclient": "^10.0.0-next.14",
-    "vscode-uri": "^3.1.0"
+    "@volar/vscode": "~2.4.14",
+    "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "22.x",
+    "@volar/language-service": "~2.4.14"
   },
   "repository": {
     "type": "git",
