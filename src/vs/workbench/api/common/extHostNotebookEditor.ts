@@ -93,7 +93,7 @@ export class ExtHostNotebookEditor {
 	}
 
 	_acceptSelections(selections: vscode.NotebookRange[]): void {
-		this._selections = selections;
+		this._selections = selections.length > 0 ? selections : [new vscode.NotebookRange(0, 0)];
 	}
 
 	private _trySetSelections(value: vscode.NotebookRange[]): void {
