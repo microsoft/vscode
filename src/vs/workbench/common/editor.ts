@@ -676,6 +676,14 @@ export function isResourceMergeEditorInput(editor: unknown): editor is IResource
 	return URI.isUri(candidate?.base?.resource) && URI.isUri(candidate?.input1?.resource) && URI.isUri(candidate?.input2?.resource) && URI.isUri(candidate?.result?.resource);
 }
 
+function isTypedMergeEditorInput(editor: unknown): editor is EditorInput & { base: URI; input1: any; input2: any; result: URI } {
+	return isEditorInput(editor) && 
+		   URI.isUri((editor as any).base) && 
+		   URI.isUri((editor as any).result) &&
+		   (editor as any).input1 && 
+		   (editor as any).input2;
+}
+
 export const enum Verbosity {
 	SHORT,
 	MEDIUM,
@@ -1357,6 +1365,15 @@ class EditorResourceAccessorImpl {
 			return EditorResourceAccessor.getOriginalUri(editor.result, options);
 		}
 
+		// Handle typed merge editor inputs
+		if (isTypedMergeEditorInput(editor)) {
+			const resultUri = editor.result;
+			if (!resultUri || !options || !options.filterByScheme) {
+				return resultUri;
+			}
+			return this.filterUri(resultUri, options.filterByScheme);
+		}
+
 		// Optionally support side-by-side editors
 		if (options?.supportSideBySide) {
 			const { primary, secondary } = this.getSideEditors(editor);
@@ -1424,6 +1441,15 @@ class EditorResourceAccessorImpl {
 		// Merge editors are handled with `merged` result editor
 		if (isResourceMergeEditorInput(editor)) {
 			return EditorResourceAccessor.getCanonicalUri(editor.result, options);
+		}
+
+		// Handle typed merge editor inputs
+		if (isTypedMergeEditorInput(editor)) {
+			const resultUri = editor.result;
+			if (!resultUri || !options || !options.filterByScheme) {
+				return resultUri;
+			}
+			return this.filterUri(resultUri, options.filterByScheme);
 		}
 
 		// Optionally support side-by-side editors
