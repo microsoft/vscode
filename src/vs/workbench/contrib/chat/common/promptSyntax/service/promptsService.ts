@@ -16,7 +16,7 @@ import { basename } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -52,6 +52,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public logTime: TLogFunction;
 
+	/**
+	 * Lazily created event that is fired when the custom chat modes change.
+	 */
+	private onDidChangeCustomChatModesEvent: Event<void> | undefined;
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -61,7 +66,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		super();
 
-		this.fileLocator = this.instantiationService.createInstance(PromptFilesLocator);
+		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
+
 		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
@@ -94,6 +100,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 			})
 		);
 	}
+
+	/**
+	 * Emitter for the custom chat modes change event.
+	 */
+	public get onDidChangeCustomChatModes(): Event<void> {
+		if (!this.onDidChangeCustomChatModesEvent) {
+			this.onDidChangeCustomChatModesEvent = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
+		}
+		return this.onDidChangeCustomChatModesEvent;
+	}
+
 
 	/**
 	 * @throws {Error} if:
@@ -183,10 +200,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			};
 		});
 	}
-
-	private readonly _onDidChangeCustomChatModesEmitter: Emitter<void> = new Emitter<void>();
-	// todo: firing events not yet implemented
-	public readonly onDidChangeCustomChatModes: Event<void> = this._onDidChangeCustomChatModesEmitter.event;
 
 	@logTime()
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
