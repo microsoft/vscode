@@ -45,6 +45,10 @@
 	margin: 4px 0px;
 }
 
+.settings-editor > .settings-header > .search-container.with-ai-toggle > .settings-count-widget {
+	right: 65px;
+}
+
 .settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
 	visibility: hidden;
 }
@@ -59,8 +63,14 @@
 	width: 43px;
 }
 
+.settings-editor > .settings-header > .search-container.with-ai-toggle > .settings-clear-widget {
+	width: 62px;
+}
+
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
 	padding: 2px;
+	margin-left: 0px;
+	box-sizing: content-box;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -255,8 +265,13 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon,
+.settings-editor > .settings-header .search-container .settings-clear-widget .action-label {
 	opacity: 1;
+}
+
+.settings-editor > .settings-header .search-container .settings-clear-widget .monaco-custom-toggle.disabled {
+	pointer-events: initial;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {

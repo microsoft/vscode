@@ -20,7 +20,7 @@ import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/com
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingKeyMatchTypes, SettingMatchType } from '../../../services/preferences/common/preferences.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
+import { IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -33,6 +33,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
+	private _aiSearchProvider: IAiSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -52,6 +53,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		});
 	}
 
+	getLocalSearchProvider(filter: string): LocalSearchProvider {
+		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	}
+
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return workbenchSettings.enableNaturalLanguageSearch;
@@ -67,8 +72,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return this._remoteSearchProvider;
 	}
 
-	getLocalSearchProvider(filter: string): LocalSearchProvider {
-		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	getAiSearchProvider(filter: string): IAiSearchProvider {
+		this._aiSearchProvider ??= this.instantiationService.createInstance(AiSearchProvider);
+		this._aiSearchProvider.setFilter(filter);
+		return this._aiSearchProvider;
 	}
 }
 
@@ -121,7 +128,9 @@ export class LocalSearchProvider implements ISearchProvider {
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
 		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
-		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch);
+		const filteredMatches = filterMatches
+			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)
+			.map(m => ({ ...m, providerName: 'local' }));
 		return Promise.resolve({
 			filterMatches: filteredMatches,
 			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
@@ -416,8 +425,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getEmbeddingsItems(token),
-			exactMatch: false,
-			providerName: 'embeddings'
+			exactMatch: false
 		};
 	}
 
@@ -429,6 +437,7 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 			return [];
 		}
 
+		const providerName = this._excludeSelectionStep ? 'embeddingsOnly' : 'embeddingsFull';
 		for (const settingKey of settings) {
 			if (filterMatches.length === EmbeddingsSearchProvider.EMBEDDINGS_SETTINGS_SEARCH_MAX_PICKS) {
 				break;
@@ -438,7 +447,8 @@ class EmbeddingsSearchProvider implements IRemoteSearchProvider {
 				matches: [settingsRecord[settingKey].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: 0 // the results are sorted upstream.
+				score: 0, // the results are sorted upstream.
+				providerName
 			});
 		}
 
@@ -508,8 +518,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 
 		return {
 			filterMatches: await this.getTfIdfItems(token),
-			exactMatch: false,
-			providerName: 'tfIdf'
+			exactMatch: false
 		};
 	}
 
@@ -536,7 +545,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 				matches: [this._settingsRecord[pick].range],
 				matchType: SettingMatchType.RemoteMatch,
 				keyMatchScore: 0,
-				score: info.score
+				score: info.score,
+				providerName: 'tfIdf'
 			});
 		}
 
@@ -582,6 +592,72 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			}
 		}
 		return null;
+	}
+}
+
+class AiSearchProvider implements IAiSearchProvider {
+	private readonly _embeddingsSearchProvider: EmbeddingsSearchProvider;
+	private readonly _recordProvider: SettingsRecordProvider;
+	private _filter: string = '';
+
+	constructor(
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
+	) {
+		this._embeddingsSearchProvider = new EmbeddingsSearchProvider(this.aiSettingsSearchService, false);
+		this._recordProvider = new SettingsRecordProvider();
+	}
+
+	setFilter(filter: string): void {
+		this._filter = filter;
+		this._embeddingsSearchProvider.setFilter(filter);
+	}
+
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
+		}
+
+		this._recordProvider.updateModel(preferencesModel);
+		const results = await this._embeddingsSearchProvider.searchModel(preferencesModel, token);
+		return results;
+	}
+
+	async getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null> {
+		if (!this._filter || !this.aiSettingsSearchService.isEnabled()) {
+			return null;
+		}
+
+		const items = await this.getLLMRankedItems(token);
+		return {
+			filterMatches: items,
+			exactMatch: false
+		};
+	}
+
+	private async getLLMRankedItems(token: CancellationToken): Promise<ISettingMatch[]> {
+		const settingsRecord = this._recordProvider.getSettingsRecord();
+		const filterMatches: ISettingMatch[] = [];
+		const settings = await this.aiSettingsSearchService.getLLMRankedResults(this._filter, token);
+		if (!settings) {
+			return [];
+		}
+
+		for (const settingKey of settings) {
+			if (!settingsRecord[settingKey]) {
+				// Non-existent setting.
+				continue;
+			}
+			filterMatches.push({
+				setting: settingsRecord[settingKey],
+				matches: [settingsRecord[settingKey].range],
+				matchType: SettingMatchType.RemoteMatch,
+				keyMatchScore: 0,
+				score: 0, // the results are sorted upstream.
+				providerName: 'llmRanked'
+			});
+		}
+
+		return filterMatches;
 	}
 }
 

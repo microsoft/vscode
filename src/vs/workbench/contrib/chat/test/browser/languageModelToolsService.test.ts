@@ -102,6 +102,44 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(tools[1].id, 'testTool3');
 	});
 
+	test('getToolByName', () => {
+		contextKeyService.createKey('testKey', true);
+		const toolData1: IToolData = {
+			id: 'testTool1',
+			toolReferenceName: 'testTool1',
+			modelDescription: 'Test Tool 1',
+			when: ContextKeyEqualsExpr.create('testKey', false),
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData2: IToolData = {
+			id: 'testTool2',
+			toolReferenceName: 'testTool2',
+			modelDescription: 'Test Tool 2',
+			when: ContextKeyEqualsExpr.create('testKey', true),
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData3: IToolData = {
+			id: 'testTool3',
+			toolReferenceName: 'testTool3',
+			modelDescription: 'Test Tool 3',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData1));
+		store.add(service.registerToolData(toolData2));
+		store.add(service.registerToolData(toolData3));
+
+		assert.strictEqual(service.getToolByName('testTool1'), undefined);
+		assert.strictEqual(service.getToolByName('testTool1', true)?.id, 'testTool1');
+		assert.strictEqual(service.getToolByName('testTool2')?.id, 'testTool2');
+		assert.strictEqual(service.getToolByName('testTool3')?.id, 'testTool3');
+	});
+
 	test('invokeTool', async () => {
 		const toolData: IToolData = {
 			id: 'testTool',

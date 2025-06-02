@@ -8,6 +8,7 @@ import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/i
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -52,7 +53,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				this.renderLabel(this.element!);
 				return result;
 			},
-			category: includeCategory ? { label: 'Standard', order: 0 } : undefined
+			category: includeCategory ? { label: localize('built-in', "Built-In"), order: 0 } : undefined
 		});
 
 		const makeActionFromCustomMode = (mode: IChatMode): IActionWidgetDropdownAction => ({
@@ -68,7 +69,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				this.renderLabel(this.element!);
 				return result;
 			},
-			category: { label: 'Custom', order: 1 }
+			category: { label: localize('custom', "Custom"), order: 1 }
 		});
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {

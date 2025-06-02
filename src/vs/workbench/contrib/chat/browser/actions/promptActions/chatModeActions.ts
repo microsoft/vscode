@@ -6,7 +6,6 @@
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
@@ -16,7 +15,6 @@ import { Action2, MenuId, registerAction2 } from '../../../../../../platform/act
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Action ID for the `Manage Custom Chat Mode` action.
@@ -27,7 +25,7 @@ class ManageModeAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_CUSTOM_MODE_ACTION_ID,
-			title: localize2('manage-mode.capitalized', "Manage Custom Chat Modes..."),
+			title: localize2('manage-mode.capitalized', "Manage Chat Modes..."),
 			shortTitle: localize('manage-mode', "Manage Modes..."),
 			icon: Codicon.bookmark,
 			f1: true,
@@ -45,29 +43,22 @@ class ManageModeAction extends Action2 {
 	public override async run(
 		accessor: ServicesAccessor,
 	): Promise<void> {
-		const promptsService = accessor.get(IPromptsService);
 		const openerService = accessor.get(IOpenerService);
 		const instaService = accessor.get(IInstantiationService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
-		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles(PromptsType.mode, CancellationToken.None);
 		const placeholder = localize(
 			'commands.mode.select-dialog.placeholder',
 			'Select the custom chat mode to edit'
 		);
 
-		const result = await pickers.selectPromptFile({ promptFiles, placeholder, type: PromptsType.mode, optionEdit: false });
-
-		if (result === undefined) {
-			return;
+		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.mode, optionEdit: false });
+		if (result !== undefined) {
+			await openerService.open(result.promptFile);
 		}
-		openerService.open(result.promptFile);
 	}
 }
-
-
 
 /**
  * Helper to register all the `Run Current Prompt` actions.

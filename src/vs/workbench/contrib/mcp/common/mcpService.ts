@@ -11,16 +11,18 @@ import { markdownCommandLink, MarkdownString } from '../../../../base/common/htm
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpResourceURI, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -287,6 +289,17 @@ class McpToolImplementation implements IToolImpl {
 				}
 			}
 
+			// Rewrite image rsources to images so they are inlined nicely
+			const addAsInlineData = (mimeType: string, value64: string, uri?: URI) => {
+				details.output.push({ type: 'data', mimeType, value64, uri });
+				if (isForModel) {
+					result.content.push({
+						kind: 'data',
+						value: { mimeType, data: decodeBase64(value64) }
+					});
+				}
+			};
+
 			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
 				details.output.push({ type: 'text', value: item.text });
@@ -297,15 +310,20 @@ class McpToolImplementation implements IToolImpl {
 					});
 				}
 			} else if (item.type === 'image' || item.type === 'audio') {
-				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
-				if (isForModel) {
-					result.content.push({
-						kind: 'data',
-						value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
-					});
+				addAsInlineData(item.mimeType, item.data);
+			} else if (item.type === 'resource') {
+				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
+				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
+					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+				} else {
+					details.output.push({ type: 'resource', uri });
+					if (isForModel) {
+						result.content.push({
+							kind: 'text',
+							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
+						});
+					}
 				}
-			} else {
-				// unsupported for now.
 			}
 		}
 
