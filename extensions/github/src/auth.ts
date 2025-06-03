@@ -57,7 +57,7 @@ export function getOctokit(): Promise<Octokit> {
 	return _octokit;
 }
 
-let _octokitGraphql: Promise<graphql> | undefined;
+let _octokitGraphql: graphql | undefined;
 
 export async function getOctokitGraphql(): Promise<graphql> {
 	if (!_octokitGraphql) {
@@ -71,7 +71,7 @@ export async function getOctokitGraphql(): Promise<graphql> {
 			const token = session.accessToken;
 			const { graphql } = await import('@octokit/graphql');
 
-			return graphql.defaults({
+			_octokitGraphql = graphql.defaults({
 				headers: {
 					authorization: `token ${token}`
 				},
@@ -79,6 +79,8 @@ export async function getOctokitGraphql(): Promise<graphql> {
 					agent: getAgent()
 				}
 			});
+
+			return _octokitGraphql;
 		} catch (err) {
 			_octokitGraphql = undefined;
 			throw new AuthenticationError(err.message);
