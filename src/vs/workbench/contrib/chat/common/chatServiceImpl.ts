@@ -159,7 +159,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
