@@ -708,6 +708,7 @@ function encodeCapabilities(cap: MCP.ServerCapabilities): McpCapability {
 export class McpTool implements IMcpTool {
 
 	readonly id: string;
+	readonly referenceName: string;
 
 	public get definition(): MCP.Tool { return this._definition; }
 
@@ -716,6 +717,7 @@ export class McpTool implements IMcpTool {
 		idPrefix: string,
 		private readonly _definition: IValidatedMcpTool,
 	) {
+		this.referenceName = _definition.name.replaceAll('.', '_');
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 	}
 

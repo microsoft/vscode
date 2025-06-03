@@ -1152,6 +1152,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
+				dom.show(templateData.requestHover);
+			}));
+			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
+				dom.hide(templateData.requestHover);
+			}));
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {

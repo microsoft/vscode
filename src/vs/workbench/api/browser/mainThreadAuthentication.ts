@@ -40,7 +40,7 @@ export interface AuthenticationGetSessionOptions {
 	forceNewSession?: boolean | AuthenticationInteractiveOptions;
 	silent?: boolean;
 	account?: AuthenticationSessionAccount;
-	issuer?: UriComponents;
+	authorizationServer?: UriComponents;
 }
 
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -52,7 +52,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		public readonly id: string,
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
-		public readonly issuers: ReadonlyArray<URI>,
+		public readonly authorizationServers: ReadonlyArray<URI>,
 		private readonly notificationService: INotificationService,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
@@ -115,13 +115,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (serverMetadata, resource) => {
-				const clientId = this.dynamicAuthProviderStorageService.getClientId(serverMetadata.issuer);
+			create: async (authorizationServer, serverMetadata, resource) => {
+				const authProviderId = authorizationServer.toString(true);
+				const clientId = this.dynamicAuthProviderStorageService.getClientId(authProviderId);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
-					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(serverMetadata.issuer, clientId);
+					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
 				}
 				return await this._proxy.$registerDynamicAuthProvider(
+					authorizationServer,
 					serverMetadata,
 					resource,
 					clientId,
@@ -131,7 +133,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedIssuers: UriComponents[] = []): Promise<void> {
+	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServer: UriComponents[] = []): Promise<void> {
 		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
 			// If telemetry shows that this is not happening much, we can instead throw an error here.
 			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
@@ -144,8 +146,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
-		const supportedIssuerUris = supportedIssuers.map(i => URI.revive(i));
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedIssuerUris, this.notificationService, emitter);
+		const supportedAuthorizationServerUris = supportedAuthorizationServer.map(i => URI.revive(i));
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, this.notificationService, emitter);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -212,9 +214,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return deferredPromise.p;
 	}
 
-	async $registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void> {
-		await this.$registerAuthenticationProvider(id, label, false, [issuer]);
-		this.dynamicAuthProviderStorageService.storeClientId(id, clientId, label, URI.revive(issuer).toString());
+	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string): Promise<void> {
+		await this.$registerAuthenticationProvider(id, label, false, [authorizationServer]);
+		this.dynamicAuthProviderStorageService.storeClientId(id, URI.revive(authorizationServer).toString(true), clientId, label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
@@ -288,8 +290,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const issuer = URI.revive(options.issuer);
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, { account: options.account, issuer }, true);
+		const authorizationServer = URI.revive(options.authorizationServer);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, { account: options.account, authorizationServer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
@@ -360,7 +362,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 						{
 							activateImmediate: true,
 							account: accountToCreate,
-							issuer
+							authorizationServer
 						});
 				} while (
 					accountToCreate

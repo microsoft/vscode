@@ -21,6 +21,7 @@ import { DeferredPromise, raceCancellationError } from '../../../base/common/asy
 import { IExtHostProgress } from '../common/extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { URI } from '../../../base/common/uri.js';
 
 interface IOAuthResult {
 	code: string;
@@ -200,6 +201,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
 		proxy: MainThreadAuthenticationShape,
+		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
@@ -213,6 +215,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			extHostProgress,
 			loggerService,
 			proxy,
+			authorizationServer,
 			serverMetadata,
 			resourceMetadata,
 			clientId,
