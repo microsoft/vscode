@@ -14,6 +14,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 import { assertIsDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IRange } from '../../../editor/common/core/range.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
 import { Cache } from './cache.js';
@@ -24,6 +25,7 @@ import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import * as typeConverters from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { INotebookExclusiveDocumentFilter, INotebookContributionData } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookRange2 } from '../../contrib/notebook/common/notebookRange.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument.js';
@@ -294,13 +296,33 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
+	private readonly _notebookMapper = new Map<number, vscode.NotebookMapper>();
+
 	async $dataToNotebook(handle: number, bytes: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
 		const data = await serializer.serializer.deserializeNotebook(bytes.buffer, token);
-		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data));
+		let mapperHandle: number | undefined = undefined;
+		if (data.mapper) {
+			mapperHandle = this._handlePool++;
+			this._notebookMapper.set(mapperHandle, data.mapper);
+		}
+		return new SerializableObjectWithBuffers(typeConverters.NotebookData.from(data, mapperHandle));
+	}
+
+	async $toNotebookRange(mapperHandle: number, range: IRange): Promise<INotebookRange2 | undefined> {
+		const mapper = this._notebookMapper.get(mapperHandle);
+		if (!mapper) {
+			throw new Error('NO mapper found');
+		}
+		const notebookRange = mapper.toNotebookRange(typeConverters.Range.to(range));
+		return notebookRange ? typeConverters.NotebookRange2.from(notebookRange) : undefined;
+	}
+
+	async $disposeNotebookMapper(handle: number): Promise<void> {
+		this._notebookMapper.delete(handle);
 	}
 
 	async $notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer> {
