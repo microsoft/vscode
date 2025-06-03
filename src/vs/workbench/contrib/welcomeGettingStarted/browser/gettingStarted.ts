@@ -1509,19 +1509,15 @@ export class GettingStartedPage extends EditorPane {
 		// Update next button text for final slide
 		if (this.nextButton) {
 			const isLastSlide = newIndex === steps.length - 1;
-			if (isLastSlide) {
-				// Clear the existing content and add new text using DOM functions
-				clearNode(this.nextButton);
-				this.nextButton.appendChild(document.createTextNode(localize('startCoding', "Start coding")));
-				this.nextButton.appendChild($('span.codicon.codicon-arrow-right'));
-				this.nextButton.setAttribute('aria-label', localize('startCodingStep', "Start coding"));
-			} else {
-				// Reset to default "Next" text using DOM functions
-				clearNode(this.nextButton);
-				this.nextButton.appendChild(document.createTextNode(localize('next', "Next")));
-				this.nextButton.appendChild($('span.codicon.codicon-arrow-right'));
-				this.nextButton.setAttribute('aria-label', localize('nextStep', "Next"));
+			const textNode = this.nextButton.firstChild as Text;
+			if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+				textNode.textContent = isLastSlide
+					? localize('last', "Start coding")
+					: localize('next', "Next");
 			}
+			this.nextButton.setAttribute('aria-label', isLastSlide
+				? localize('lastStep', "Start coding")
+				: localize('nextStep', "Next"));
 		}
 	}
 
