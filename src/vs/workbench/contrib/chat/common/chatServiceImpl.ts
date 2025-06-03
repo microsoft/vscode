@@ -20,6 +20,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -160,6 +161,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -494,7 +496,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		// No setup participant to fall back on- wait for extension activation
-		await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+		const defaultAgentExtension = await this.extensionService.getExtension(this.productService.defaultChatAgent!.chatExtensionId);
+		await this.extensionService.activateById(defaultAgentExtension!.identifier, {
+			activationEvent: `onChatParticipant:${defaultAgentData.id}`,
+			extensionId: defaultAgentExtension!.identifier,
+			startup: true
+		});
 
 		const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 		if (!defaultAgent) {
