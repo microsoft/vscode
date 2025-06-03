@@ -173,7 +173,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Setup windows/linux system context menu so it only is allowed over the app icon
-		if ((isWindows || (isLinux && typeof electron.screen.screenToDipPoint === 'function') /* TODO@bpasero remove check */) && useCustomTitleStyle) {
+		if ((isWindows || isLinux) && useCustomTitleStyle) {
 			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))(e => {
 				const [x, y] = win.getPosition();
 				const cursorPos = electron.screen.screenToDipPoint(e.point);
