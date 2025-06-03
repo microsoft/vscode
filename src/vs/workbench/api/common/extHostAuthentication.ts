@@ -22,7 +22,7 @@ import { stringHash } from '../../../base/common/hash.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { equals as arraysEqual, equals } from '../../../base/common/arrays.js';
+import { equals as arraysEqual } from '../../../base/common/arrays.js';
 import { IExtHostProgress } from './extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
@@ -305,7 +305,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		// TODO@TylerLeonhardt: Do this for all scope handling in the auth APIs
 		const sortedScopes = [...scopes].sort();
 		const scopeStr = scopes.join(' ');
-		let sessions = this._tokenStore.sessions.filter(session => equals([...session.scopes].sort(), sortedScopes));
+		let sessions = this._tokenStore.sessions.filter(session => arraysEqual([...session.scopes].sort(), sortedScopes));
 		this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 		if (sessions.length) {
 			const newTokens: IAuthorizationToken[] = [];
@@ -327,6 +327,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 						}
 						try {
 							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token);
+							// TODO@TylerLeonhardt: When the core scope handling doesn't care about order, this check should be
+							// updated to not care about order
 							if (newToken.scope !== scopeStr) {
 								this._logger.warn(`Token scopes '${newToken.scope}' do not match requested scopes '${scopeStr}'. Overwriting token with what was requested...`);
 								newToken.scope = scopeStr;
@@ -344,7 +346,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				this._tokenStore.update({ added: newTokens, removed: removedTokens });
 				// Since we updated the tokens, we need to re-filter the sessions
 				// to get the latest state
-				sessions = this._tokenStore.sessions.filter(session => equals([...session.scopes].sort(), sortedScopes));
+				sessions = this._tokenStore.sessions.filter(session => arraysEqual([...session.scopes].sort(), sortedScopes));
 			}
 			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 			return sessions;
