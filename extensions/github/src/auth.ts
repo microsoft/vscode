@@ -61,24 +61,28 @@ let _octokitGraphql: Promise<graphql> | undefined;
 
 export async function getOctokitGraphql(): Promise<graphql> {
 	if (!_octokitGraphql) {
-		_octokitGraphql = getSession()
-			.then(async session => {
-				const token = session.accessToken;
-				const agent = getAgent();
+		try {
+			const session = await authentication.getSession('github', scopes, { silent: true });
 
-				const { graphql } = await import('@octokit/graphql');
-				return graphql.defaults({
-					headers: {
-						authorization: `token ${token}`,
-						'user-agent': 'GitHub VSCode'
-					},
-					request: { agent }
-				});
-			})
-			.then(null, async err => {
-				_octokitGraphql = undefined;
-				throw new AuthenticationError(err.message);
+			if (!session) {
+				throw new AuthenticationError('No GitHub authentication session available.');
+			}
+
+			const token = session.accessToken;
+			const { graphql } = await import('@octokit/graphql');
+
+			return graphql.defaults({
+				headers: {
+					authorization: `token ${token}`
+				},
+				request: {
+					agent: getAgent()
+				}
 			});
+		} catch (err) {
+			_octokitGraphql = undefined;
+			throw new AuthenticationError(err.message);
+		}
 	}
 
 	return _octokitGraphql;
