@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -66,6 +67,8 @@ export class McpResourcePickHelper {
 		return enabled;
 	});
 
+	public explicitServers?: IMcpServer[];
+
 	constructor(
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IFileService private readonly _fileService: IFileService,
@@ -122,12 +125,10 @@ export class McpResourcePickHelper {
 		quickInput.totalSteps = todo.length;
 		quickInput.ignoreFocusOut = true;
 
-		const initialCompletions = todo.map(variable => rt.complete(variable.name, '', {}, cts.token));
-
 		try {
 			for (let i = 0; i < todo.length; i++) {
 				const variable = todo[i];
-				const resolved = await this._promptForTemplateValue(quickInput, variable, initialCompletions[i], vars, rt);
+				const resolved = await this._promptForTemplateValue(quickInput, variable, vars, rt);
 				if (resolved === undefined) {
 					return undefined;
 				}
@@ -140,9 +141,9 @@ export class McpResourcePickHelper {
 		}
 	}
 
-	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, initialCompletions: Promise<string[]>, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
+	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
 		const store = new DisposableStore();
-		const completions = new Map<string, Promise<string[]>>([['', initialCompletions]]);
+		const completions = new Map<string, Promise<string[]>>([]);
 
 		const variablesWithPlaceholders = { ...variablesSoFar };
 		for (const variable of rt.template.components.flatMap(c => typeof c === 'object' ? c.variables : [])) {
@@ -196,7 +197,7 @@ export class McpResourcePickHelper {
 
 		const getCompletionItemsScheduler = store.add(new RunOnceScheduler(getCompletionItems, 300));
 
-		return new Promise(resolve => {
+		return new Promise<string | undefined>(resolve => {
 			store.add(input.onDidHide(() => resolve(undefined)));
 			store.add(input.onDidAccept(() => {
 				const item = input.selectedItems[0];
@@ -222,7 +223,7 @@ export class McpResourcePickHelper {
 			}));
 
 			getCompletionItems();
-		});
+		}).finally(() => store.dispose());
 	}
 
 	public getPicks(onChange: (value: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>) => void, token?: CancellationToken) {
@@ -251,7 +252,7 @@ export class McpResourcePickHelper {
 		};
 
 		// Enumerate servers and start servers that need to be started to get capabilities
-		return Promise.all(this._mcpService.servers.get().map(async server => {
+		return Promise.all((this.explicitServers || this._mcpService.servers.get()).map(async server => {
 			let cap = server.capabilities.get();
 			const arr: (IMcpResourceTemplate | IMcpResource)[] = [];
 			servers.set(server, arr); // always add it to retain order
@@ -282,18 +283,16 @@ export class McpResourcePickHelper {
 	}
 }
 
-export class McpResourceQuickAccess implements IQuickAccessProvider {
-	public static readonly PREFIX = 'mcpr ';
 
-	defaultFilterValue = DefaultQuickAccessFilterValue.LAST;
-
+export abstract class AbstractMcpResourceAccessPick {
 	constructor(
+		private readonly _scopeTo: IMcpServer | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatWidgetService protected readonly _chatWidgetService: IChatWidgetService,
 	) { }
 
-	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+	protected applyToPick(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions) {
 		picker.canAcceptInBackground = true;
 		picker.busy = true;
 
@@ -303,6 +302,9 @@ export class McpResourceQuickAccess implements IQuickAccessProvider {
 		const attachButton = localize('mcp.quickaccess.attach', "Attach to chat");
 
 		const helper = this._instantiationService.createInstance(McpResourcePickHelper);
+		if (this._scopeTo) {
+			helper.explicitServers = [this._scopeTo];
+		}
 		helper.getPicks(servers => {
 			const items: (ResourceQuickPickItem | IQuickPickSeparator)[] = [];
 			for (const [server, resources] of servers) {
@@ -350,5 +352,45 @@ export class McpResourceQuickAccess implements IQuickAccessProvider {
 		}));
 
 		return store;
+	}
+}
+
+export class McpResourceQuickPick extends AbstractMcpResourceAccessPick {
+	constructor(
+		scopeTo: IMcpServer | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorService editorService: IEditorService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+	) {
+		super(scopeTo, instantiationService, editorService, chatWidgetService);
+	}
+
+	public async pick(token = CancellationToken.None) {
+		const store = new DisposableStore();
+		const qp = store.add(this._quickInputService.createQuickPick({ useSeparators: true }));
+		qp.placeholder = localize('mcp.quickaccess.placeholder', "Search for resources");
+		store.add(this.applyToPick(qp, token));
+		store.add(qp.onDidHide(() => store.dispose()));
+		qp.show();
+		await Event.toPromise(qp.onDidHide);
+	}
+}
+
+export class McpResourceQuickAccess extends AbstractMcpResourceAccessPick implements IQuickAccessProvider {
+	public static readonly PREFIX = 'mcpr ';
+
+	defaultFilterValue = DefaultQuickAccessFilterValue.LAST;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorService editorService: IEditorService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+	) {
+		super(undefined, instantiationService, editorService, chatWidgetService);
+	}
+
+	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+		return this.applyToPick(picker, token, runOptions);
 	}
 }

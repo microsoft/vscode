@@ -8,7 +8,7 @@ import { autorun, derived, IObservable, observableFromEvent, ObservableMap, obse
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatMode } from '../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolSet, ToolDataSource } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 
 
 /**
@@ -93,31 +93,8 @@ export class ChatSelectedTools extends Disposable {
 
 		this._store.add(autorun(r => {
 
-			const sourceByTool = new Map<IToolData, ToolDataSource>();
-
-			for (const tool of this._allTools.read(r)) {
-				if (!tool.canBeReferencedInPrompt) {
-					continue;
-				}
-				sourceByTool.set(tool, tool.source);
-			}
-
+			const tools = this._allTools.read(r).filter(t => t.canBeReferencedInPrompt);
 			const toolSets = _toolsService.toolSets.read(r);
-
-			for (const toolSet of toolSets) {
-
-				if (!toolSet.isHomogenous.read(r)) {
-					// only homogenous tool sets can swallow tools
-					continue;
-				}
-
-				for (const toolInSet of toolSet.getTools(r)) {
-					const source = sourceByTool.get(toolInSet);
-					if (source && ToolDataSource.equals(source, toolInSet.source)) {
-						sourceByTool.delete(toolInSet);
-					}
-				}
-			}
 
 			const oldItems = new Set(this.entriesMap.keys());
 
@@ -127,7 +104,7 @@ export class ChatSelectedTools extends Disposable {
 
 			transaction(tx => {
 
-				for (const tool of sourceByTool.keys()) {
+				for (const tool of tools) {
 					const enabled = !disabledData || !disabledData.toolIds.has(tool.id);
 					this.entriesMap.set(tool, enabled, tx);
 					oldItems.delete(tool);

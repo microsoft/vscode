@@ -29,6 +29,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -106,6 +107,7 @@ suite('PromptsService', () => {
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
+		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
 
 		const fileService = disposables.add(instaService.createInstance(FileService));

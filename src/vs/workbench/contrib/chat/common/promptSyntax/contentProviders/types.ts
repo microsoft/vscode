@@ -32,6 +32,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	readonly promptType: PromptsType | 'non-prompt';
 
 	/**
+	 * Prompt contents stream.
+	 */
+	readonly contents: Promise<VSBufferReadableStream>;
+
+	/**
 	 * Prompt contents source name.
 	 */
 	readonly sourceName: string;

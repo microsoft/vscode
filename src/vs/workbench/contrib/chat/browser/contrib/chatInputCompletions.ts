@@ -213,7 +213,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, /\/[\w.]*/g);
 				if (!range) {
 					return null;
 				}
@@ -1124,21 +1124,24 @@ class ToolCompletions extends Disposable {
 
 				for (const item of iter) {
 
-					if (usedNames.has(item.toolReferenceName ?? '')) {
-						continue;
-					}
-
 					let detail: string | undefined;
 
+					let name: string;
 					if (item instanceof ToolSet) {
 						detail = item.description;
+						name = item.referenceName;
 
 					} else {
 						const source = item.source;
 						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
+						name = item.toolReferenceName ?? item.displayName;
 					}
 
-					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;
+					if (usedNames.has(name)) {
+						continue;
+					}
+
+					const withLeader = `${chatVariableLeader}${name}`;
 					suggestions.push({
 						label: withLeader,
 						range,

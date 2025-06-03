@@ -1322,17 +1322,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 
-			this.input.validateCurrentMode();
-
-			let userSelectedTools: Record<string, boolean> | undefined;
-			if (this.input.currentMode2.customTools) {
-				userSelectedTools = this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
-			} else if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = {};
-				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
-					userSelectedTools[tool.id] = enablement;
-				}
-			}
+			this.input.validateAgentMode();
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				mode: this.inputPart.currentMode,
@@ -1342,7 +1332,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext: requestInputs.attachedContext,
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools,
+				userSelectedTools: this.getUserSelectedTools(),
+				modeInstructions: this.input.currentMode2.body
 			});
 
 			if (result) {
@@ -1365,6 +1356,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 		return undefined;
+	}
+
+	getUserSelectedTools(): Record<string, boolean> | undefined {
+		if (this.input.currentMode2.customTools) {
+			return this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
+		} else if (this.input.currentMode === ChatMode.Agent) {
+			const userSelectedTools: Record<string, boolean> = {};
+			for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
+				userSelectedTools[tool.id] = enablement;
+			}
+			return userSelectedTools;
+		}
+
+		return undefined;
+	}
+
+	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		return {
+			modeInstructions: this.input.currentMode2.body,
+			userSelectedTools: this.getUserSelectedTools(),
+			mode: this.input.currentMode,
+		};
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {

@@ -26,7 +26,7 @@ export interface IAuthorizationProtectedResourceMetadata {
 	resource_name?: string;
 
 	/**
-	 * OPTIONAL. JSON array containing a list of OAuth authorization server issuer identifiers.
+	 * OPTIONAL. JSON array containing a list of OAuth authorization server identifiers.
 	 */
 	authorization_servers?: string[];
 
@@ -624,12 +624,12 @@ export function isAuthorizationDeviceTokenErrorResponse(obj: unknown): obj is IA
 
 //#endregion
 
-export function getDefaultMetadataForUrl(issuer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
+export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
 	return {
-		issuer: issuer.toString(),
-		authorization_endpoint: new URL('/authorize', issuer).toString(),
-		token_endpoint: new URL('/token', issuer).toString(),
-		registration_endpoint: new URL('/register', issuer).toString(),
+		issuer: authorizationServer.toString(),
+		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
+		token_endpoint: new URL('/token', authorizationServer).toString(),
+		registration_endpoint: new URL('/register', authorizationServer).toString(),
 		// Default values for Dynamic OpenID Providers
 		// https://openid.net/specs/openid-connect-discovery-1_0.html
 		response_types_supported: ['code', 'id_token', 'id_token token'],

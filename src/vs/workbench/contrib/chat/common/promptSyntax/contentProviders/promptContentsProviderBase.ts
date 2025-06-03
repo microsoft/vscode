@@ -10,11 +10,11 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
 
 /**
  * Options of the {@link PromptContentsProviderBase} class.
@@ -56,6 +56,13 @@ export abstract class PromptContentsProviderBase<
 	public abstract override toString(): string;
 	public abstract get languageId(): string;
 	public abstract get sourceName(): string;
+
+	/**
+	 * Prompt contents stream.
+	 */
+	public get contents(): Promise<VSBufferReadableStream> {
+		return this.getContentsStream('full');
+	}
 
 	/**
 	 * Prompt type used to determine how to interpret file contents.

@@ -110,6 +110,7 @@ import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
+import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -554,7 +555,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should continue."),
 							default: defaultValue,
 						},
 					}
@@ -708,6 +709,7 @@ registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, Wo
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();

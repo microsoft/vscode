@@ -1792,6 +1792,14 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 			this.searchResultModel.showAiResults = false;
+
+			if (localResults && localResults.filterMatches.length > 0) {
+				// The remote results might take a while and
+				// are always appended to the end anyway, so
+				// show some results now.
+				this.onDidFinishSearch(expandResults, undefined);
+			}
+
 			if (!localResults || !localResults.exactMatch) {
 				await this.doRemoteSearch(query, searchInProgress.token);
 			}
@@ -1799,13 +1807,11 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 
-			// Update UI only after all the search results are in
-			// ref https://github.com/microsoft/vscode/issues/224946
 			this.onDidFinishSearch(expandResults, progressRunner);
 		});
 	}
 
-	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner) {
+	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner | undefined) {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
@@ -1815,7 +1821,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
-		progressRunner.done();
+		progressRunner?.done();
 	}
 
 	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {
