@@ -18,7 +18,8 @@ import { ServicesAccessor } from '../../../../../../../../editor/browser/editorE
 export async function askForPromptFileName(
 	accessor: ServicesAccessor,
 	type: PromptsType,
-	selectedFolder: URI
+	selectedFolder: URI,
+	existingFileName?: string
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
@@ -61,8 +62,8 @@ export async function askForPromptFileName(
 
 		return undefined;
 	};
-
-	const result = await quickInputService.input({ placeHolder: getPlaceholderString(type), validateInput });
+	const placeHolder = existingFileName ? getPlaceholderStringForRename(type) : getPlaceholderStringForNew(type);
+	const result = await quickInputService.input({ placeHolder, validateInput, value: existingFileName });
 	if (!result) {
 		return undefined;
 	}
@@ -70,7 +71,7 @@ export async function askForPromptFileName(
 	return sanitizeInput(result);
 }
 
-function getPlaceholderString(type: PromptsType): string {
+function getPlaceholderStringForNew(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:
 			return localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file");
@@ -83,3 +84,15 @@ function getPlaceholderString(type: PromptsType): string {
 	}
 }
 
+function getPlaceholderStringForRename(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return localize('askForRenamedInstructionsFileName.placeholder', "Enter a new name of the instructions file");
+		case PromptsType.prompt:
+			return localize('askForRenamedPromptFileName.placeholder', "Enter a new name of the prompt file");
+		case PromptsType.mode:
+			return localize('askForRenamedModeFileName.placeholder', "Enter a new name of the custom chat mode file");
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}

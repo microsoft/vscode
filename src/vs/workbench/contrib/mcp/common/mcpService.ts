@@ -11,16 +11,18 @@ import { markdownCommandLink, MarkdownString } from '../../../../base/common/htm
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { getAttachableImageExtension } from '../../chat/common/chatModel.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpResourceURI, McpServerCacheState, McpServerDefinition, McpToolName } from './mcpTypes.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -89,7 +91,7 @@ export class McpService extends Disposable implements IMcpService {
 		await Promise.all(todo);
 	}
 
-	private _syncTools(server: McpServer, store: DisposableStore) {
+	private _syncTools(server: McpServer, toolSet: ToolSet, source: ToolDataSource, store: DisposableStore) {
 		const tools = new Map</* tool ID */string, ISyncedToolData>();
 
 		store.add(autorun(reader => {
@@ -101,6 +103,7 @@ export class McpService extends Disposable implements IMcpService {
 			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
 				store.add(this._toolsService.registerToolData(toolData));
 				store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+				store.add(toolSet.addTool(toolData));
 			};
 
 			for (const tool of server.tools.read(reader)) {
@@ -108,7 +111,7 @@ export class McpService extends Disposable implements IMcpService {
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
-					source: { type: 'mcp', label: server.definition.label, collectionId: server.collection.id, definitionId: server.definition.id },
+					source,
 					icon: Codicon.tools,
 					displayName: tool.definition.annotations?.title || tool.definition.name,
 					toolReferenceName: tool.id,
@@ -203,8 +206,18 @@ export class McpService extends Disposable implements IMcpService {
 				def.toolPrefix,
 			);
 
+			const source: ToolDataSource = { type: 'mcp', label: object.definition.label, collectionId: object.collection.id, definitionId: object.definition.id };
+			const toolSet = this._toolsService.createToolSet(
+				source,
+				def.serverDefinition.id, def.serverDefinition.label,
+				{
+					icon: Codicon.mcp,
+					description: localize('mcp.toolset', "{0}: All Tools", def.serverDefinition.label)
+				}
+			);
+			store.add(toolSet);
 			store.add(object);
-			this._syncTools(object, store);
+			this._syncTools(object, toolSet, source, store);
 
 			nextServers.push({ object, dispose: () => store.dispose(), toolPrefix: def.toolPrefix });
 		}
@@ -280,20 +293,48 @@ class McpToolImplementation implements IToolImpl {
 		};
 
 		for (const item of callResult.content) {
+			const audience = item.annotations?.audience || ['assistant'];
+			if (audience.includes('user')) {
+				if (item.type === 'text') {
+					progress.report({ message: item.text });
+				}
+			}
+
+			// Rewrite image rsources to images so they are inlined nicely
+			const addAsInlineData = (mimeType: string, value64: string, uri?: URI) => {
+				details.output.push({ type: 'data', mimeType, value64, uri });
+				if (isForModel) {
+					result.content.push({
+						kind: 'data',
+						value: { mimeType, data: decodeBase64(value64) }
+					});
+				}
+			};
+
+			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
 				details.output.push({ type: 'text', value: item.text });
-				result.content.push({
-					kind: 'text',
-					value: item.text
-				});
+				if (isForModel) {
+					result.content.push({
+						kind: 'text',
+						value: item.text
+					});
+				}
 			} else if (item.type === 'image' || item.type === 'audio') {
-				details.output.push({ type: 'data', mimeType: item.mimeType, value64: item.data });
-				result.content.push({
-					kind: 'data',
-					value: { mimeType: item.mimeType, data: decodeBase64(item.data) }
-				});
-			} else {
-				// unsupported for now.
+				addAsInlineData(item.mimeType, item.data);
+			} else if (item.type === 'resource') {
+				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
+				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
+					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+				} else {
+					details.output.push({ type: 'resource', uri });
+					if (isForModel) {
+						result.content.push({
+							kind: 'text',
+							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${uri}`,
+						});
+					}
+				}
 			}
 		}
 

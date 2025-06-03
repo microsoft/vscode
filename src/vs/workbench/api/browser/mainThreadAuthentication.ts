@@ -26,6 +26,7 @@ import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -94,6 +95,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@ILogService private readonly logService: ILogService,
 		@IURLService private readonly urlService: IURLService,
 		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -186,6 +188,28 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			throw new Error('Timed out waiting for URI handler');
 		}
 		return await deferredPromise.p;
+	}
+
+	$showContinueNotification(message: string): Promise<boolean> {
+		const yes = nls.localize('yes', "Yes");
+		const no = nls.localize('no', "No");
+		const deferredPromise = new DeferredPromise<boolean>();
+		let result = false;
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			message,
+			[{
+				label: yes,
+				run: () => result = true
+			}, {
+				label: no,
+				run: () => result = false
+			}]);
+		const disposable = handle.onDidClose(() => {
+			deferredPromise.complete(result);
+			disposable.dispose();
+		});
+		return deferredPromise.p;
 	}
 
 	async $registerDynamicAuthenticationProvider(id: string, label: string, issuer: UriComponents, clientId: string): Promise<void> {
@@ -459,4 +483,30 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	//#endregion
+
+	async $showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean> {
+		const { result } = await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('deviceCodeTitle', "Device Code Authentication"),
+			detail: nls.localize('deviceCodeDetail', "Your code: {0}\n\nTo complete authentication, navigate to {1} and enter the code above.", userCode, verificationUri),
+			buttons: [
+				{
+					label: nls.localize('copyAndContinue', "Copy & Continue"),
+					run: () => true
+				}
+			],
+			cancelButton: true
+		});
+
+		if (result) {
+			// Open verification URI
+			try {
+				await this.clipboardService.writeText(userCode);
+				return await this.openerService.open(URI.parse(verificationUri));
+			} catch (error) {
+				this.notificationService.error(nls.localize('failedToOpenUri', "Failed to open {0}", verificationUri));
+			}
+		}
+		return false;
+	}
 }

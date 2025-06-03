@@ -45,8 +45,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment: number | undefined;
-	readonly total: number | undefined;
+	readonly increment?: number;
+	readonly total?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -125,7 +125,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string; uri?: URI } | { type: 'resource'; uri: URI })[];
 	readonly isError?: boolean;
 }
 
@@ -200,10 +200,9 @@ export class ToolSet {
 
 	constructor(
 		readonly id: string,
-		readonly displayName: string,
+		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly toolReferenceName: string,
 		readonly description?: string,
 	) {
 
@@ -250,7 +249,7 @@ export interface ILanguageModelToolsService {
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string): IToolData | undefined;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
@@ -259,7 +258,7 @@ export interface ILanguageModelToolsService {
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

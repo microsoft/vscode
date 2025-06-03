@@ -64,6 +64,11 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		return this._onDidDelete.event;
 	}
 
+	private readonly _onDidOpen: event.Emitter<void> = this._register(new event.Emitter<void>());
+	get onDidOpen(): event.Event<void> {
+		return this._onDidOpen.event;
+	}
+
 	constructor(
 		private readonly attachment: IChatRequestVariableEntry,
 		private readonly options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
@@ -151,6 +156,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			editorOptions: { ...openTextEditorOptions, preserveFocus: true },
 		};
 		await this.openerService.open(resource, options);
+		this._onDidOpen.fire();
 		this.element.focus();
 	}
 }
@@ -320,13 +326,12 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	hoverElement.setAttribute('aria-label', ariaLabel);
 
-	if (!supportsVision && currentLanguageModel) {
+	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
 		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else {
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
-
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
@@ -486,7 +491,9 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		let name = attachment.name;
 		const icon = attachment.icon ?? Codicon.tools;
 
-		if (toolOrToolSet) {
+		if (toolOrToolSet instanceof ToolSet) {
+			name = toolOrToolSet.referenceName;
+		} else if (toolOrToolSet) {
 			name = toolOrToolSet.toolReferenceName ?? name;
 		}
 
@@ -498,7 +505,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		let hoverContent: string | undefined;
 
 		if (toolOrToolSet instanceof ToolSet) {
-			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.displayName, toolOrToolSet.source.label);
+			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.referenceName, toolOrToolSet.source.label);
 		} else if (toolOrToolSet) {
 			hoverContent = localize('tool', "{0} - {1}", toolOrToolSet.userDescription ?? toolOrToolSet.modelDescription, toolOrToolSet.source.label);
 		}

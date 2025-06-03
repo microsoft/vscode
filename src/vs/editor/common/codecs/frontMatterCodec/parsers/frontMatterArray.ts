@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
+import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
-import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 
 /**
  * List of tokens that can go in-between array items
@@ -162,7 +162,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 
 		assertDefined(
 			endToken,
-			`No tokens found.`,
+			'No tokens found.',
 		);
 
 		assert(

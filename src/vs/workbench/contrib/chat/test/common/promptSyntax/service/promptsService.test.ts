@@ -26,9 +26,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -106,6 +107,7 @@ suite('PromptsService', () => {
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
+		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
@@ -659,17 +661,16 @@ suite('PromptsService', () => {
 				[{
 					uri: rootFileUri,
 					metadata: {
+						promptType: PromptsType.prompt,
 						description: 'Root prompt description.',
 						tools: ['my-tool1'],
 						mode: 'agent',
-						applyTo: undefined,
 					},
 					children: [
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
 							metadata: {
-								description: undefined,
-								applyTo: undefined,
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1'],
 								mode: 'agent',
 							},
@@ -677,9 +678,8 @@ suite('PromptsService', () => {
 								{
 									uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md'),
 									metadata: {
+										promptType: PromptsType.instructions,
 										description: 'Another file description.',
-										tools: ['my-tool3', 'my-tool2'],
-										mode: 'agent',
 										applyTo: '**/*.tsx',
 									},
 									children: undefined,
@@ -689,9 +689,9 @@ suite('PromptsService', () => {
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md'),
 							metadata: {
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1', 'my-tool2'],
 								description: 'File 4 splendid description.',
-								applyTo: undefined,
 								mode: 'agent',
 							},
 							children: undefined,

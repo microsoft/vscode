@@ -6,7 +6,7 @@
 import { BaseToken } from '../../baseToken.js';
 import { PartialFrontMatterArray } from './frontMatterArray.js';
 import { PartialFrontMatterString } from './frontMatterString.js';
-import { FrontMatterBoolean } from '../tokens/frontMatterBoolean.js';
+import { asBoolean, FrontMatterBoolean } from '../tokens/frontMatterBoolean.js';
 import { FrontMatterValueToken } from '../tokens/frontMatterToken.js';
 import { PartialFrontMatterSequence } from './frontMatterSequence.js';
 import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
@@ -154,10 +154,8 @@ export class PartialFrontMatterValue extends ParserBase<TSimpleDecoderToken, Par
 			}
 		}
 
-		if (token instanceof Word) {
-			return ['true', 'false'].includes(
-				token.text.toLowerCase(),
-			);
+		if ((token instanceof Word) && (asBoolean(token) !== null)) {
+			return true;
 		}
 
 		return false;

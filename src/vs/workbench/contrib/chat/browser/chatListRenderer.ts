@@ -102,6 +102,7 @@ interface IChatListItemTemplate {
 	readonly templateDisposables: IDisposable;
 	readonly elementDisposables: DisposableStore;
 	readonly agentHover: ChatAgentHover;
+	readonly requestHover?: HTMLElement;
 }
 
 interface IItemHeightChangeParams {
@@ -286,7 +287,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let headerParent = rowContainer;
 		let valueParent = rowContainer;
 		let detailContainerParent: HTMLElement | undefined;
-		let toolbarParent: HTMLElement | undefined;
 
 		if (this.rendererOptions.renderStyle === 'minimal') {
 			rowContainer.classList.add('interactive-item-compact');
@@ -302,18 +302,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			headerParent = lhsContainer;
 			detailContainerParent = rhsContainer;
 			valueParent = rhsContainer;
-			toolbarParent = dom.append(rowContainer, $('.header'));
 		}
 
 		const header = dom.append(headerParent, $('.header'));
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
+		const requestHover = dom.append(rowContainer, $('.request-hover'));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.rendererOptions.noHeader) {
 			header.classList.add('hidden');
 		} else {
-			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarParent ?? header, MenuId.ChatMessageTitle, {
+			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, requestHover, MenuId.ChatMessageTitle, {
 				menuOptions: {
 					shouldForwardArgs: true
 				},
@@ -322,6 +322,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
+		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
+			if (isRequestVM(template.currentElement)) {
+				dom.show(requestHover);
+			}
+		}));
+
+		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
+			if (isRequestVM(template.currentElement)) {
+				dom.hide(requestHover);
+			}
+		}));
+		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
@@ -331,8 +343,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const value = dom.append(valueParent, $('.value'));
 		const elementDisposables = new DisposableStore();
-
-
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		const footerToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, footerToolbarContainer, MenuId.ChatMessageFooter, {
@@ -441,7 +451,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
-		templateData.header?.classList.toggle('hidden', !shouldShowHeader);
+		templateData.header?.classList.toggle('header-disabled', !shouldShowHeader);
 
 		// Do a progressive render if
 		// - This the last response in the list
@@ -1131,7 +1141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth, isRequestVM(element));
+			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
 		}));
 

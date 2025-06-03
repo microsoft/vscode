@@ -20,6 +20,8 @@ import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetad
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -38,6 +40,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
@@ -105,6 +108,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			scope: StorageScope.WORKSPACE,
 			canResolveLaunch: typeof provider.resolveMcpServerDefinition === 'function',
 			extensionId: extension.identifier.value,
+			configTarget: this._extHostInitData.remote.isRemote ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER,
 		};
 
 		const update = async () => {
@@ -124,7 +128,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id,
 					label: item.label,
 					cacheNonce: item.version,
-					launch: Convert.McpServerDefinition.from(item)
+					launch: Convert.McpServerDefinition.from(item),
 				});
 			}
 
@@ -266,7 +270,12 @@ class McpHTTPHandle extends Disposable {
 			this._mode = { value: HttpMode.Http, sessionId: nextSessionId };
 		}
 
-		if (this._mode.value === HttpMode.Unknown && res.status >= 400 && res.status < 500) {
+		if (this._mode.value === HttpMode.Unknown &&
+			// We care about 4xx errors...
+			res.status >= 400 && res.status < 500
+			// ...except for 401 and 403, which are auth errors
+			&& res.status !== 401 && res.status !== 403
+		) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
 			this._sseFallbackWithMessage(message);
 			return;

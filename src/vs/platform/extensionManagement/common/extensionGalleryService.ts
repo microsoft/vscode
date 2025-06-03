@@ -1652,7 +1652,15 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return '';
 	}
 
+	async getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]> {
+		return this.getVersions(extensionIdentifier);
+	}
+
 	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
+		return this.getVersions(extensionIdentifier, { version: includePreRelease ? VersionKind.Latest : VersionKind.Release, targetPlatform });
+	}
+
+	private async getVersions(extensionIdentifier: IExtensionIdentifier, onlyCompatible?: { version: VersionKind; targetPlatform: TargetPlatform }): Promise<IGalleryExtensionVersion[]> {
 		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
@@ -1674,11 +1682,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		const allTargetPlatforms = getAllTargetPlatforms(galleryExtensions[0]);
-		if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, targetPlatform)) {
+		if (onlyCompatible && isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, onlyCompatible.targetPlatform)) {
 			return [];
 		}
 
-		const compatibleVersions: IRawGalleryExtensionVersion[] = [];
+		const versions: IRawGalleryExtensionVersion[] = [];
 		const productVersion = { version: this.productService.version, date: this.productService.date };
 		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
@@ -1694,22 +1702,22 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 							enabledApiProposals: getEnabledApiProposals(version)
 						},
 						{
-							compatible: true,
+							compatible: !!onlyCompatible,
 							productVersion,
-							targetPlatform,
-							version: includePreRelease ? VersionKind.Latest : VersionKind.Release
+							targetPlatform: onlyCompatible?.targetPlatform ?? CURRENT_TARGET_PLATFORM,
+							version: onlyCompatible?.version ?? version.version
 						},
 						galleryExtensions[0].publisher.displayName,
 						allTargetPlatforms))
 				) {
-					compatibleVersions.push(version);
+					versions.push(version);
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}));
 
 		const result: IGalleryExtensionVersion[] = [];
 		const seen = new Set<string>();
-		for (const version of sortExtensionVersions(compatibleVersions, targetPlatform)) {
+		for (const version of sortExtensionVersions(versions, onlyCompatible?.targetPlatform ?? CURRENT_TARGET_PLATFORM)) {
 			if (!seen.has(version.version)) {
 				seen.add(version.version);
 				result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });

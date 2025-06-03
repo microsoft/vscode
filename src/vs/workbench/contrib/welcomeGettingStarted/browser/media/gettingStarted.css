@@ -629,6 +629,7 @@
 	max-height: 100%;
 }
 
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
 	grid-area: footer;
 	align-self: flex-end;
@@ -977,10 +978,22 @@
 	text-decoration: var(--text-link-decoration);
 }
 
+/* Make arrow icons consistent with the next and back buttons in color */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right {
+	color: var(--vscode-textLink-foreground);
+	font-size: 18px;
+}
+
+/* Make arrow icons change color on hover, consistent with button-link hover */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left:hover,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
 	line-height: 24px;
 }
-
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
 	color: var(--vscode-textLink-activeForeground);
