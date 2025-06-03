@@ -1774,6 +1774,13 @@ export class DeferredPromise<T> {
 		});
 	}
 
+	public settleWith(promise: Promise<T>): Promise<void> {
+		return promise.then(
+			value => this.complete(value),
+			error => this.error(error)
+		);
+	}
+
 	public cancel() {
 		return this.error(new CancellationError());
 	}
