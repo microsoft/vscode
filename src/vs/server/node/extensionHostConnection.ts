@@ -238,7 +238,10 @@ export class ExtensionHostConnection extends Disposable {
 		try {
 			let execArgv: string[] = process.execArgv ? process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)) : [];
 			if (startParams.port && !(<any>process).pkg) {
-				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
+				execArgv = [
+					`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`,
+					'--experimental-network-inspection'
+				];
 			}
 
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
