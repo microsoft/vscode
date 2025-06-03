@@ -226,8 +226,7 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		const pick = await quickInputService.pick(items, {
-			title: server.definition.label,
-			placeHolder: localize('mcp.selectAction', 'Select Server Action')
+			placeHolder: localize('mcp.selectAction', 'Select action for \'{0}\'', server.definition.label),
 		});
 
 		if (!pick) {
