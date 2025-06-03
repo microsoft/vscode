@@ -197,8 +197,8 @@ suite('OAuth', () => {
 
 	suite('Utility Functions', () => {
 		test('getDefaultMetadataForUrl should return correct default endpoints', () => {
-			const issuer = new URL('https://auth.example.com');
-			const metadata = getDefaultMetadataForUrl(issuer);
+			const authorizationServer = new URL('https://auth.example.com');
+			const metadata = getDefaultMetadataForUrl(authorizationServer);
 
 			assert.strictEqual(metadata.issuer, 'https://auth.example.com/');
 			assert.strictEqual(metadata.authorization_endpoint, 'https://auth.example.com/authorize');
