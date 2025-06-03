@@ -14,9 +14,17 @@ import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
 import product from '../../../../platform/product/common/product.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 interface IGettingStartedContentProvider {
 	(): string;
+}
+
+/**
+ * Gets the platform-specific keyboard shortcut for opening Command Palette
+ */
+function getCommandPaletteShortcut(): string {
+	return isMacintosh ? '⇧⌘P' : 'Ctrl+Shift+P';
 }
 
 export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", product.defaultChatAgent?.providerName, product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
@@ -314,7 +322,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
+					description: localize('gettingStarted.commandPalette.description.dynamic', "Run commands without reaching for your mouse to accomplish any task in VS Code. Press {0} to open the Command Palette and type ? to discover all available commands.\n{1}", getCommandPaletteShortcut(), Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				// Hidden in favor of copilot entry (to be revisited when copilot entry moves, if at all)
@@ -421,7 +429,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'commandPaletteTaskWeb',
 					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
+					description: localize('gettingStarted.commandPalette.description.dynamic', "Run commands without reaching for your mouse to accomplish any task in VS Code. Press {0} to open the Command Palette and type ? to discover all available commands.\n{1}", getCommandPaletteShortcut(), Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				// Hidden in favor of copilot entry
@@ -485,7 +493,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'commandPaletteTaskAccessibility',
 					title: localize('gettingStarted.commandPaletteAccessibility.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPaletteAccessibility.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
+					description: localize('gettingStarted.commandPalette.description.dynamic', "Run commands without reaching for your mouse to accomplish any task in VS Code. Press {0} to open the Command Palette and type ? to discover all available commands.\n{1}", getCommandPaletteShortcut(), Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
 					media: { type: 'markdown', path: 'empty' },
 				},
 				{
@@ -713,7 +721,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'newCommandPaletteTask',
 					title: localize('newgettingStarted.commandPalette.title', "All commands within reach"),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
+					description: localize('gettingStarted.commandPalette.description.dynamic', "Run commands without reaching for your mouse to accomplish any task in VS Code. Press {0} to open the Command Palette and type ? to discover all available commands.\n{1}", getCommandPaletteShortcut(), Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommandsHelp')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
