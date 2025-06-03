@@ -22,7 +22,7 @@ import { stringHash } from '../../../base/common/hash.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { equals as arraysEqual } from '../../../base/common/arrays.js';
+import { equals as arraysEqual, equals } from '../../../base/common/arrays.js';
 import { IExtHostProgress } from './extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
@@ -300,8 +300,12 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		if (!scopes) {
 			return this._tokenStore.sessions;
 		}
+		// The oauth spec says tthat order doesn't matter so we sort the scopes for easy comparison
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
+		// TODO@TylerLeonhardt: Do this for all scope handling in the auth APIs
+		const sortedScopes = [...scopes].sort();
 		const scopeStr = scopes.join(' ');
-		let sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopeStr);
+		let sessions = this._tokenStore.sessions.filter(session => equals([...session.scopes].sort(), sortedScopes));
 		this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 		if (sessions.length) {
 			const newTokens: IAuthorizationToken[] = [];
@@ -340,7 +344,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				this._tokenStore.update({ added: newTokens, removed: removedTokens });
 				// Since we updated the tokens, we need to re-filter the sessions
 				// to get the latest state
-				sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopeStr);
+				sessions = this._tokenStore.sessions.filter(session => equals([...session.scopes].sort(), sortedScopes));
 			}
 			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 			return sessions;
