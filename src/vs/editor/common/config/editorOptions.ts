@@ -5780,7 +5780,7 @@ export const EditorOptions = {
 		}
 	)),
 	autoIndentOnPaste: register(new EditorBooleanOption(
-		EditorOption.autoIndentOnPaste, 'autoIndentOnPaste', true,
+		EditorOption.autoIndentOnPaste, 'autoIndentOnPaste', false,
 		{ description: nls.localize('autoIndentOnPaste', "Controls whether the editor should automatically auto-indent the pasted content.") }
 	)),
 	automaticLayout: register(new EditorBooleanOption(
