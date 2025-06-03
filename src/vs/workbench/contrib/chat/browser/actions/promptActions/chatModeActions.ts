@@ -15,6 +15,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../../platform/act
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ChatViewId } from '../../chat.js';
 
 /**
  * Action ID for the `Configure Custom Chat Mode` action.
@@ -35,6 +36,11 @@ class ManageModeAction extends Action2 {
 				{
 					id: MenuId.ChatModePicker,
 					when: ChatContextKeys.Modes.hasCustomChatModes
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					order: 12,
+					group: '2_manage'
 				}
 			]
 		});
