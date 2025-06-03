@@ -329,6 +329,10 @@
 	outline-offset: -1px;
 }
 
+.quick-input-list > .monaco-list:focus .monaco-list-row.focused .quick-input-list-entry.quick-input-list-separator-border {
+	border-color: transparent;
+}
+
 /* focused items in quick pick */
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator {
