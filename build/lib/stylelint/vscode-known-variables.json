@@ -368,6 +368,8 @@
 		"--vscode-gauge-foreground",
 		"--vscode-gauge-warningBackground",
 		"--vscode-gauge-warningForeground",
+		"--vscode-gitDecoration-addedResourceForeground",
+		"--vscode-gitDecoration-deletedResourceForeground",
 		"--vscode-icon-foreground",
 		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",
