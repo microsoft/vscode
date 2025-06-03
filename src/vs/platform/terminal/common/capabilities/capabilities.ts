@@ -253,8 +253,8 @@ export interface INaiveCwdDetectionCapability {
 
 export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
-	readonly commands: readonly IXtermMarker[];
-	readonly onCommandFinished: Event<IXtermMarker>;
+	readonly commands: readonly IMarker[];
+	readonly onCommandFinished: Event<IMarker>;
 }
 
 interface IBaseTerminalCommand {
@@ -277,9 +277,9 @@ interface IBaseTerminalCommand {
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
 	readonly promptStartMarker?: IMarker;
-	readonly marker?: IXtermMarker;
-	endMarker?: IXtermMarker;
-	readonly executedMarker?: IXtermMarker;
+	readonly marker?: IMarker;
+	endMarker?: IMarker;
+	readonly executedMarker?: IMarker;
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
@@ -302,15 +302,15 @@ export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 /**
  * A clone of the IMarker from xterm which cannot be imported from common
  */
-export interface IXtermMarker {
-	readonly id: number;
-	readonly isDisposed: boolean;
-	readonly line: number;
-	dispose(): void;
-	onDispose: {
-		(listener: () => any): { dispose(): void };
-	};
-}
+// export interface IMarker {
+// 	readonly id: number;
+// 	readonly isDisposed: boolean;
+// 	readonly line: number;
+// 	dispose(): void;
+// 	onDispose: {
+// 		(listener: () => any): { dispose(): void };
+// 	};
+// }
 
 export interface IMarkProperties {
 	hoverMessage?: string;
