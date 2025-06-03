@@ -221,8 +221,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.deleteExtension(extension, 'remove');
 	}
 
-	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
-		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
+	protected moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		return this.extensionsScanner.moveExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
 
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
@@ -742,7 +742,7 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+	async moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const source = await this.getScannedExtension(extension, fromProfileLocation);
 		const target = await this.getScannedExtension(extension, toProfileLocation);
 		metadata = { ...source?.metadata, ...metadata };
@@ -757,6 +757,9 @@ export class ExtensionsScanner extends Disposable {
 			}
 		} else {
 			await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, metadata]], toProfileLocation);
+			if (source) {
+				await this.extensionsProfileScannerService.removeExtensionsFromProfile([source.identifier], fromProfileLocation);
+			}
 		}
 
 		return this.scanLocalExtension(extension.location, extension.type, toProfileLocation);

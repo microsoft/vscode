@@ -215,7 +215,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		if (extension.isApplicationScoped) {
 			let local = await this.updateMetadata(extension, { isApplicationScoped: false }, this.userDataProfilesService.defaultProfile.extensionsResource);
 			if (!this.uriIdentityService.extUri.isEqual(fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)) {
-				local = await this.copyExtension(extension, this.userDataProfilesService.defaultProfile.extensionsResource, fromProfileLocation);
+				local = await this.moveExtension(extension, this.userDataProfilesService.defaultProfile.extensionsResource, fromProfileLocation);
 			}
 
 			for (const profile of this.userDataProfilesService.profiles) {
@@ -233,7 +233,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		else {
 			const local = this.uriIdentityService.extUri.isEqual(fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)
 				? await this.updateMetadata(extension, { isApplicationScoped: true }, this.userDataProfilesService.defaultProfile.extensionsResource)
-				: await this.copyExtension(extension, fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource, { isApplicationScoped: true });
+				: await this.moveExtension(extension, fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource, { isApplicationScoped: true });
 
 			this._onDidInstallExtensions.fire([{ identifier: local.identifier, operation: InstallOperation.Install, local, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource, applicationScoped: true }]);
 			return local;
@@ -767,8 +767,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
 			}
 
-			if (uninstallOptions.remove) {
-				extensionsToRemove.push(extension);
+			if (uninstallOptions.remove || extension.isApplicationScoped) {
+				if (uninstallOptions.remove) {
+					extensionsToRemove.push(extension);
+				}
 				for (const profile of this.userDataProfilesService.profiles) {
 					if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, uninstallOptions.profileLocation)) {
 						continue;
@@ -938,7 +940,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
-	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
+	protected abstract moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
 	protected abstract removeExtension(extension: ILocalExtension): Promise<void>;
 }
 

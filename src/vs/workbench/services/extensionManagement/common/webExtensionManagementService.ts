@@ -123,7 +123,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		// do nothing
 	}
 
-	protected async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+	protected async moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const target = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, toProfileLocation);
 		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
 		metadata = { ...source?.metadata, ...metadata };
@@ -133,6 +133,9 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			scanned = await this.webExtensionsScannerService.updateMetadata(extension, { ...target.metadata, ...metadata }, toProfileLocation);
 		} else {
 			scanned = await this.webExtensionsScannerService.addExtension(extension.location, metadata, toProfileLocation);
+			if (source) {
+				await this.webExtensionsScannerService.removeExtension(source, fromProfileLocation);
+			}
 		}
 		return toLocalExtension(scanned);
 	}
