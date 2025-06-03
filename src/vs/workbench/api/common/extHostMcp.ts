@@ -189,8 +189,9 @@ class McpHTTPHandle extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: {
-		server: IAuthorizationServerMetadata;
-		resource?: IAuthorizationProtectedResourceMetadata;
+		authorizationServer: URI;
+		serverMetadata: IAuthorizationServerMetadata;
+		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 	};
 
 	constructor(
@@ -354,17 +355,9 @@ class McpHTTPHandle extends Disposable {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
 			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
-				server: {
-					...serverMetadataWithDefaults,
-					// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
-					// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
-					// literally... it contains `{tenant}`... instead of `organizations`. This may change our
-					// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
-					// as the isser.
-					issuer: serverMetadataUrl,
-					scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
-				},
-				resource
+				authorizationServer: URI.parse(serverMetadataUrl),
+				serverMetadata: serverMetadataWithDefaults,
+				resourceMetadata: resource
 			};
 			return;
 		} catch (e) {
@@ -375,8 +368,9 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			server: defaultMetadata,
-			resource
+			authorizationServer: URI.parse(serverMetadataUrl),
+			serverMetadata: defaultMetadata,
+			resourceMetadata: resource
 		};
 	}
 
@@ -414,8 +408,8 @@ class McpHTTPHandle extends Disposable {
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
 		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-		const issuer = new URL(authorizationServer);
-		const extraPath = issuer.pathname === '/' ? '' : issuer.pathname;
+		const authorizationServerUrl = new URL(authorizationServer);
+		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 		let authServerMetadataResponse = await fetch(pathToFetch, {
 			method: 'GET',
@@ -648,7 +642,7 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.server, this._authMetadata.resource);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}

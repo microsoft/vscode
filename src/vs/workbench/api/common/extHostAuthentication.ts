@@ -12,7 +12,7 @@ import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/ex
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
@@ -114,7 +114,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		this._authenticationProviders.set(id, { label, provider, options: options ?? { supportsMultipleAccounts: false } });
 		const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
-		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedIssuers);
+		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedAuthorizationServers);
 
 		return new Disposable(() => {
 			listener.dispose();
@@ -126,7 +126,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async $createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			options.issuer = URI.revive(options.issuer);
+			options.authorizationServer = URI.revive(options.authorizationServer);
 			return await providerData.provider.createSession(scopes, options);
 		}
 
@@ -145,7 +145,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async $getSessions(providerId: string, scopes: ReadonlyArray<string> | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			options.issuer = URI.revive(options.issuer);
+			options.authorizationServer = URI.revive(options.authorizationServer);
 			return await providerData.provider.getSessions(scopes, options);
 		}
 
@@ -170,6 +170,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	async $registerDynamicAuthProvider(
+		authorizationServerComponents: UriComponents,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string | undefined,
@@ -193,6 +194,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._extHostProgress,
 			this._extHostLoggerService,
 			this._proxy,
+			URI.revive(authorizationServerComponents),
 			serverMetadata,
 			resourceMetadata,
 			clientId,
@@ -209,7 +211,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				options: { supportsMultipleAccounts: false }
 			}
 		);
-		await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.issuer, provider.clientId);
+		await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId);
 		return provider.id;
 	}
 
@@ -236,7 +238,6 @@ class TaskSingler<T> {
 export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	readonly id: string;
 	readonly label: string;
-	readonly issuer: URI;
 
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
@@ -258,19 +259,20 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
 		@ILoggerService loggerService: ILoggerService,
 		protected readonly _proxy: MainThreadAuthenticationShape,
+		readonly authorizationServer: URI,
 		protected readonly _serverMetadata: IAuthorizationServerMetadata,
 		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		readonly clientId: string,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
 	) {
-		this.issuer = URI.parse(_serverMetadata.issuer);
+		const stringifiedServer = authorizationServer.toString(true);
 		this.id = _resourceMetadata?.resource
-			? _serverMetadata.issuer + ' ' + _resourceMetadata?.resource
-			: _serverMetadata.issuer;
-		this.label = _resourceMetadata?.resource_name ?? this.issuer.authority;
+			? stringifiedServer + ' ' + _resourceMetadata?.resource
+			: stringifiedServer;
+		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
 
-		this._logger = loggerService.createLogger(_serverMetadata.issuer, { name: this.label });
+		this._logger = loggerService.createLogger(stringifiedServer, { name: this.label });
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
 		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
@@ -280,7 +282,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._tokenStore = this._disposable.add(new TokenStore(
 			{
 				onDidChange: scopedEvent,
-				set: (tokens) => _proxy.$setSessionsForDynamicAuthProvider(this._serverMetadata.issuer, this.clientId, tokens),
+				set: (tokens) => _proxy.$setSessionsForDynamicAuthProvider(stringifiedServer, this.clientId, tokens),
 			},
 			initialTokens,
 			this._logger
@@ -412,8 +414,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		// Generate a random state value to prevent CSRF
 		const nonce = this.generateRandomString(32);
-		const issuer = URI.parse(this._serverMetadata.issuer);
-		const callbackUri = URI.parse(`${this._initData.environment.appUriScheme}://dynamicauthprovider/${issuer.authority}/authorize?nonce=${nonce}`);
+		const callbackUri = URI.parse(`${this._initData.environment.appUriScheme}://dynamicauthprovider/${this.authorizationServer.authority}/authorize?nonce=${nonce}`);
 		let state: URI;
 		try {
 			state = await this._extHostUrls.createAppUri(callbackUri);
