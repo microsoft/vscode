@@ -774,7 +774,7 @@ const configuration: IConfigurationNode = {
 				'sound': 'off',
 				'announcement': 'auto'
 			},
-			tags: ['sound', 'tool', 'confirmation', 'audio', 'chat', 'agent', 'notification', 'alert', 'prompt', 'interaction', 'copilot', 'assistant']
+			tags: ['accessibility']
 		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',
