@@ -1233,7 +1233,7 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingClassification = {
 			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
 			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
-			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the remote search provider, if applicable.' };
+			providerName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the search provider, if applicable.' };
 			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
 			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the combined search results, if applicable.' };
 			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
@@ -1251,13 +1251,13 @@ export class SettingsEditor2 extends EditorPane {
 			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
 
 			if (this.searchResultModel) {
+				providerName = props.searchResults.filterMatches.find(m => m.setting.key === props.key)?.providerName;
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Local] && displayIndex >= 0) {
 					const settingInLocalResults = rawResults[SearchResultIdx.Local].filterMatches.some(m => m.setting.key === props.key);
 					groupId = settingInLocalResults ? 'local' : 'remote';
 				}
 				if (rawResults[SearchResultIdx.Remote]) {
-					providerName = rawResults[SearchResultIdx.Remote].providerName;
 					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
@@ -1733,7 +1733,14 @@ export class SettingsEditor2 extends EditorPane {
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
-					fullResult.filterMatches.push({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 });
+					fullResult.filterMatches.push({
+						setting,
+						matches: [],
+						matchType: SettingMatchType.None,
+						keyMatchScore: 0,
+						score: 0,
+						providerName: 'filterModel'
+					});
 				}
 			}
 		}
@@ -1785,6 +1792,14 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 			this.searchResultModel.showAiResults = false;
+
+			if (localResults && localResults.filterMatches.length > 0) {
+				// The remote results might take a while and
+				// are always appended to the end anyway, so
+				// show some results now.
+				this.onDidFinishSearch(expandResults, undefined);
+			}
+
 			if (!localResults || !localResults.exactMatch) {
 				await this.doRemoteSearch(query, searchInProgress.token);
 			}
@@ -1792,13 +1807,11 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 
-			// Update UI only after all the search results are in
-			// ref https://github.com/microsoft/vscode/issues/224946
 			this.onDidFinishSearch(expandResults, progressRunner);
 		});
 	}
 
-	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner) {
+	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner | undefined) {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
@@ -1808,7 +1821,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		this.refreshTOCTree();
 		this.renderTree(undefined, true);
-		progressRunner.done();
+		progressRunner?.done();
 	}
 
 	private doLocalSearch(query: string, token: CancellationToken): Promise<ISearchResult | null> {

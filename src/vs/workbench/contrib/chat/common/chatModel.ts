@@ -74,7 +74,7 @@ export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 
 export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'toolset';
-	readonly value: undefined;
+	readonly value: IChatRequestToolEntry[];
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -275,6 +275,19 @@ export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVar
 
 export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
 	return obj.kind === 'scmHistoryItem';
+}
+
+
+export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
+
+export function getAttachableImageExtension(mimeType: string): string | undefined {
+	return Object.entries(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).find(([_, value]) => value === mimeType)?.[0];
 }
 
 export interface IChatRequestVariableData {
@@ -1932,4 +1945,40 @@ export enum ChatRequestEditedFileEventKind {
 export interface IChatAgentEditedFileEvent {
 	readonly uri: URI;
 	readonly eventKind: ChatRequestEditedFileEventKind;
+}
+
+/** URI for a resource embedded in a chat request/response */
+export namespace ChatResponseResource {
+	export const scheme = 'vscode-chat-response-resource';
+
+	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+		return URI.from({
+			scheme: ChatResponseResource.scheme,
+			authority: sessionId,
+			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+		});
+	}
+
+	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+		if (uri.scheme !== ChatResponseResource.scheme) {
+			return undefined;
+		}
+
+		const parts = uri.path.split('/');
+		if (parts.length < 5) {
+			return undefined;
+		}
+
+		const [, kind, requestId, toolCallId, index] = parts;
+		if (kind !== 'tool') {
+			return undefined;
+		}
+
+		return {
+			sessionId: uri.authority,
+			requestId: requestId,
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
 }

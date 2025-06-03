@@ -6,6 +6,7 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { diffSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -187,17 +188,19 @@ export async function showToolsPicker(
 		}
 
 		if (toolSetOrTool instanceof ToolSet) {
-			bucket.children.push({
-				parent: bucket,
-				type: 'item',
-				picked,
-				toolset: toolSetOrTool,
-				label: toolSetOrTool.toolReferenceName,
-				description: toolSetOrTool.description,
-				indented: true,
-				buttons
+			if (toolSetOrTool.source.type !== 'mcp') { // don't show the MCP toolset
+				bucket.children.push({
+					parent: bucket,
+					type: 'item',
+					picked,
+					toolset: toolSetOrTool,
+					label: toolSetOrTool.referenceName,
+					description: toolSetOrTool.description,
+					indented: true,
+					buttons
+				});
+			}
 
-			});
 		} else if (toolSetOrTool.canBeReferencedInPrompt) {
 			bucket.children.push({
 				parent: bucket,
@@ -373,6 +376,23 @@ export async function showToolsPicker(
 	await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 
 	store.dispose();
+
+	const mcpToolSets = new Set<ToolSet>();
+
+	for (const item of toolsService.toolSets.get()) {
+		if (item.source.type === 'mcp') {
+			mcpToolSets.add(item);
+
+			if (Iterable.every(item.getTools(), tool => result.get(tool))) {
+				// ALL tools from the MCP tool set are here, replace them with just the toolset
+				// but only when computing the final result
+				for (const tool of item.getTools()) {
+					result.delete(tool);
+				}
+				result.set(item, true);
+			}
+		}
+	}
 
 	return didAccept ? result : undefined;
 }

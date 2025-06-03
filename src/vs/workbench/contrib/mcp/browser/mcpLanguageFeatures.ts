@@ -178,7 +178,8 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 
 			const range = Range.fromPositions(model.getPositionAt(node.children[0].offset));
 			const canDebug = !!server.readDefinitions().get().server?.devMode?.debug;
-			switch (read(server.connectionState).state) {
+			const state = read(server.connectionState).state;
+			switch (state) {
 				case McpConnectionState.Kind.Error:
 					lenses.lenses.push({
 						range,
@@ -256,15 +257,8 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							},
 						});
 					}
-					lenses.lenses.push({
-						range,
-						command: {
-							id: '',
-							title: localize('server.toolCount', '{0} tools', read(server.tools).length),
-						},
-					});
 					break;
-				case McpConnectionState.Kind.Stopped: {
+				case McpConnectionState.Kind.Stopped:
 					lenses.lenses.push({
 						range,
 						command: {
@@ -283,17 +277,42 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							},
 						});
 					}
-					const toolCount = read(server.tools).length;
-					if (toolCount) {
-						lenses.lenses.push({
-							range,
-							command: {
-								id: '',
-								title: localize('server.toolCountCached', '{0} cached tools', toolCount),
-							}
-						});
-					}
+			}
+
+
+			if (state !== McpConnectionState.Kind.Error) {
+				const toolCount = read(server.tools).length;
+				if (toolCount) {
+					lenses.lenses.push({
+						range,
+						command: {
+							id: '',
+							title: localize('server.toolCount', '{0} tools', toolCount),
+						}
+					});
 				}
+
+
+				const promptCount = read(server.prompts).length;
+				if (promptCount) {
+					lenses.lenses.push({
+						range,
+						command: {
+							id: McpCommandIds.StartPromptForServer,
+							title: localize('server.promptcount', '{0} prompts', promptCount),
+							arguments: [server],
+						}
+					});
+				}
+
+				lenses.lenses.push({
+					range,
+					command: {
+						id: McpCommandIds.ServerOptions,
+						title: localize('mcp.server.more', 'More...'),
+						arguments: [server.definition.id],
+					}
+				});
 			}
 		}
 

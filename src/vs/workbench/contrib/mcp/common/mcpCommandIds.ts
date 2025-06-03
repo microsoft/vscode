@@ -21,6 +21,7 @@ export const enum McpCommandIds {
 	ServerOptions = 'workbench.mcp.serverOptions',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowOutput = 'workbench.mcp.showOutput',
+	StartPromptForServer = 'workbench.mcp.startPromptForServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
 }

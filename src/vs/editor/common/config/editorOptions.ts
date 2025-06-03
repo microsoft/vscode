@@ -1657,6 +1657,10 @@ export interface IEditorFindOptions {
 	*/
 	cursorMoveOnType?: boolean;
 	/**
+	 * Controls whether the find widget should search as you type.
+	 */
+	findOnType?: boolean;
+	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
 	seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
@@ -1699,6 +1703,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 	constructor() {
 		const defaults: EditorFindOptions = {
 			cursorMoveOnType: true,
+			findOnType: true,
 			seedSearchStringFromSelection: 'always',
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
@@ -1772,7 +1777,12 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
 					],
 					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
-				}
+				},
+				'editor.find.findOnType': {
+					type: 'boolean',
+					default: defaults.findOnType,
+					description: nls.localize('find.findOnType', "Controls whether the Find Widget should search as you type.")
+				},
 			}
 		);
 	}
@@ -1784,6 +1794,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 		const input = _input as IEditorFindOptions;
 		return {
 			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
+			findOnType: boolean(input.findOnType, this.defaultValue.findOnType),
 			seedSearchStringFromSelection: typeof _input.seedSearchStringFromSelection === 'boolean'
 				? (_input.seedSearchStringFromSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'selection'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selection']),

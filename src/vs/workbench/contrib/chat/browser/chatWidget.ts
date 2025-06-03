@@ -34,6 +34,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { PromptsType } from '../../../../platform/prompts/common/prompts.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -52,7 +53,7 @@ import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
-import { IPromptMetadata } from '../common/promptSyntax/parsers/types.js';
+import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IMetadata, IPromptsService } from '../common/promptSyntax/service/types.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
@@ -1213,7 +1214,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let metadata: IMetadata | undefined;
 
-		// frst check if the input has a prompt slash command
+		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (agentSlashPromptPart) {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
@@ -1244,7 +1245,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			requestInput.input = `Follow instructions from ${basename(metadata.uri)}`;
 		}
 
-		await this._applyPromptMetadata(metadata.metadata);
+		const meta = metadata.metadata;
+		if (meta?.promptType === PromptsType.prompt) {
+			await this._applyPromptMetadata(meta);
+		}
 
 		return metadata;
 	}
@@ -1318,17 +1322,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 
-			this.input.validateCurrentMode();
-
-			let userSelectedTools: Record<string, boolean> | undefined;
-			if (this.input.currentMode2.customTools) {
-				userSelectedTools = this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
-			} else if (this.input.currentMode === ChatMode.Agent) {
-				userSelectedTools = {};
-				for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
-					userSelectedTools[tool.id] = enablement;
-				}
-			}
+			this.input.validateAgentMode();
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				mode: this.inputPart.currentMode,
@@ -1338,7 +1332,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext: requestInputs.attachedContext,
 				noCommandDetection: options?.noCommandDetection,
-				userSelectedTools,
+				userSelectedTools: this.getUserSelectedTools(),
+				modeInstructions: this.input.currentMode2.body
 			});
 
 			if (result) {
@@ -1361,6 +1356,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 		return undefined;
+	}
+
+	getUserSelectedTools(): Record<string, boolean> | undefined {
+		if (this.input.currentMode2.customTools) {
+			return this.toolsService.toEnablementMap(this.input.currentMode2.customTools);
+		} else if (this.input.currentMode === ChatMode.Agent) {
+			const userSelectedTools: Record<string, boolean> = {};
+			for (const [tool, enablement] of this.inputPart.selectedToolsModel.asEnablementMap()) {
+				userSelectedTools[tool.id] = enablement;
+			}
+			return userSelectedTools;
+		}
+
+		return undefined;
+	}
+
+	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		return {
+			modeInstructions: this.input.currentMode2.body,
+			userSelectedTools: this.getUserSelectedTools(),
+			mode: this.input.currentMode,
+		};
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -1424,6 +1441,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		welcomeOffset = Math.max(welcomeOffset - this.inputPart.attachmentsHeight, 0);
 		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+
 		this.renderer.layout(width);
 
 		const lastItem = this.viewModel?.getItems().at(-1);
@@ -1552,7 +1570,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: IPromptMetadata): Promise<void> {
+	private async _applyPromptMetadata(metadata: TPromptMetadata): Promise<void> {
 
 		const { mode, tools } = metadata;
 

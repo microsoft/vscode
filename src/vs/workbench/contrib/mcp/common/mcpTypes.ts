@@ -335,11 +335,18 @@ export interface IMcpPrompt {
 	resolve(args: Record<string, string | undefined>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
 
+export const mcpPromptReplaceSpecialChars = (s: string) => s.replace(/[^a-z0-9_.-]/gi, '_');
+
+export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
+	`/mcp.` + mcpPromptReplaceSpecialChars(definition.label);
+
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpTool {
 
 	readonly id: string;
+	/** Name for #referencing in chat */
+	readonly referenceName: string;
 
 	readonly definition: MCP.Tool;
 
@@ -664,6 +671,11 @@ export interface IMcpSamplingService {
 	_serviceBrand: undefined;
 
 	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
+
+	/** Whether MCP sampling logs are available for this server */
+	hasLogs(server: IMcpServer): boolean;
+	/** Gets a text report of the MCP server's sampling usage */
+	getLogText(server: IMcpServer): string;
 
 	getConfig(server: IMcpServer): IMcpServerSamplingConfiguration;
 	updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown): Promise<IMcpServerSamplingConfiguration>;

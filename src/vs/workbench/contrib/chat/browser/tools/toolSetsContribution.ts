@@ -109,7 +109,6 @@ abstract class RawToolSetsShape {
 			map.set(name, {
 				name,
 				tools: value.tools,
-				referenceName: value.referenceName,
 				description: value.description,
 				icon: value.icon,
 			});
@@ -155,7 +154,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				name: string;
 				sourceLabel: string;
 				sourceOrdinal: number;
-				description: string;
+				description?: string;
 			};
 
 			const data: ToolDesc[] = [];
@@ -171,10 +170,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 			for (const toolSet of toolSets) {
 				data.push({
-					name: toolSet.toolReferenceName,
+					name: toolSet.referenceName,
 					sourceLabel: ToolDataSource.classify(toolSet.source).label,
 					sourceOrdinal: ToolDataSource.classify(toolSet.source).ordinal,
-					description: toolSet.description ?? toolSet.displayName
+					description: toolSet.description
 				});
 			}
 
@@ -340,7 +339,7 @@ export class ConfigureToolSets extends Action2 {
 			}
 
 			picks.push({
-				label: toolSet.displayName,
+				label: toolSet.referenceName,
 				toolset: toolSet,
 				tooltip: toolSet.description,
 				iconClass: ThemeIcon.asClassName(toolSet.icon)

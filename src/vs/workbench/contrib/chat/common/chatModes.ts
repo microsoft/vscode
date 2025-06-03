@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,14 +18,19 @@ export const IChatModeService = createDecorator<IChatModeService>('chatModeServi
 export interface IChatModeService {
 	readonly _serviceBrand: undefined;
 
+	onDidChangeChatModes: Event<void>;
 	getModes(): { builtin: readonly IChatMode[]; custom?: readonly IChatMode[] };
+	getModesAsync(): Promise<{ builtin: readonly IChatMode[]; custom?: readonly IChatMode[] }>;
 }
 
-export class ChatModeService implements IChatModeService {
+export class ChatModeService extends Disposable implements IChatModeService {
 	declare readonly _serviceBrand: undefined;
 
-	private latestCustomPromptModes: readonly ICustomChatMode[] | undefined;
+	private latestCustomPromptModes: readonly CustomChatMode[] | undefined;
 	private readonly hasCustomModes: IContextKey<boolean>;
+
+	private readonly _onDidChangeChatModes = new Emitter<void>();
+	public readonly onDidChangeChatModes = this._onDidChangeChatModes.event;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -31,23 +38,40 @@ export class ChatModeService implements IChatModeService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.refreshCustomPromptModes();
+		super();
+
+		void this.refreshCustomPromptModes(true);
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
+		this._register(this.promptsService.onDidChangeCustomChatModes(() => {
+			void this.refreshCustomPromptModes(true);
+		}));
 	}
 
-	private refreshCustomPromptModes(): void {
-		this.promptsService.getCustomChatModes().then(modes => {
-			this.latestCustomPromptModes = modes;
+	private async refreshCustomPromptModes(fireChangeEvent?: boolean): Promise<void> {
+		try {
+			const modes = await this.promptsService.getCustomChatModes();
+			this.latestCustomPromptModes = modes.map(customMode => new CustomChatMode(customMode));
 			this.hasCustomModes.set(modes.length > 0);
-		}).catch(error => {
+			if (fireChangeEvent) {
+				this._onDidChangeChatModes.fire();
+			}
+		} catch (error) {
 			this.logService.error(error, 'Failed to load custom chat modes');
 			this.latestCustomPromptModes = [];
 			this.hasCustomModes.set(false);
-		});
+		}
 	}
 
 	getModes(): { builtin: readonly IChatMode[]; custom?: readonly IChatMode[] } {
-		this.refreshCustomPromptModes();
+		return { builtin: this.getBuiltinModes(), custom: this.latestCustomPromptModes };
+	}
+
+	async getModesAsync(): Promise<{ builtin: readonly IChatMode[]; custom?: readonly IChatMode[] }> {
+		await this.refreshCustomPromptModes();
+		return { builtin: this.getBuiltinModes(), custom: this.latestCustomPromptModes };
+	}
+
+	private getBuiltinModes(): IChatMode[] {
 		const builtinModes: IChatMode[] = [
 			ChatMode2.Ask,
 		];
@@ -56,18 +80,20 @@ export class ChatModeService implements IChatModeService {
 			builtinModes.push(ChatMode2.Agent);
 		}
 		builtinModes.push(ChatMode2.Edit);
-
-		const customModes = this.latestCustomPromptModes?.map(customMode => new CustomChatMode(customMode));
-		return { builtin: builtinModes, custom: customModes };
+		return builtinModes;
 	}
 }
 
+/**
+ * TODO This data object is not quite the right pattern, needs to live-update on file changes
+ */
 export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
 	readonly kind: ChatMode;
 	readonly customTools?: readonly string[];
+	readonly body?: string;
 }
 
 export function isIChatMode(mode: unknown): mode is IChatMode {
@@ -97,6 +123,10 @@ export class CustomChatMode implements IChatMode {
 		return this.customChatMode.tools;
 	}
 
+	get body(): string {
+		return this.customChatMode.body;
+	}
+
 	public readonly kind = ChatMode.Agent;
 
 	constructor(
@@ -112,7 +142,8 @@ export class CustomChatMode implements IChatMode {
 			name: this.name,
 			description: this.description,
 			kind: this.kind,
-			customTools: this.customTools
+			customTools: this.customTools,
+			body: this.body
 		};
 	}
 }
@@ -165,4 +196,10 @@ export function validateChatMode2(mode: unknown): IChatMode | undefined {
 			}
 			return undefined;
 	}
+}
+
+export function isBuiltinChatMode(mode: IChatMode): boolean {
+	return mode.id === ChatMode2.Ask.id ||
+		mode.id === ChatMode2.Edit.id ||
+		mode.id === ChatMode2.Agent.id;
 }

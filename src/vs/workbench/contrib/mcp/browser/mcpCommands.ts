@@ -5,6 +5,7 @@
 
 import { h } from '../../../../base/browser/dom.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
@@ -13,6 +14,8 @@ import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -31,17 +34,18 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../common/context
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ChatMode } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, mcpPromptPrefix, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
-import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
+import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
 
 // acroynms do not get localized
@@ -155,6 +159,7 @@ export class McpServerOptionsCommand extends Action2 {
 		const mcpRegistry = accessor.get(IMcpRegistry);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+		const samplingService = accessor.get(IMcpSamplingService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
@@ -164,11 +169,13 @@ export class McpServerOptionsCommand extends Action2 {
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
 		}
 
-		const items: ActionItem[] = [];
+		const items: (ActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
+
+		items.push({ type: 'separator', label: localize('mcp.actions.status', 'Status') });
 
 		// Only show start when server is stopped or in error state
 		if (McpConnectionState.canBeStarted(serverState.state)) {
@@ -187,15 +194,6 @@ export class McpServerOptionsCommand extends Action2 {
 			});
 		}
 
-		items.push({
-			label: localize('mcp.showOutput', 'Show Output'),
-			action: 'showOutput'
-		}, {
-			label: localize('mcp.configAccess', 'Configure Model Access'),
-			description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
-			action: 'configSampling'
-		});
-
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
 		if (configTarget) {
 			items.push({
@@ -204,9 +202,32 @@ export class McpServerOptionsCommand extends Action2 {
 			});
 		}
 
+		items.push({
+			label: localize('mcp.showOutput', 'Show Output'),
+			action: 'showOutput'
+		});
+
+		items.push({ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') });
+
+		if (samplingService.hasLogs(server)) {
+			items.push({
+				label: localize('mcp.samplingLog', 'Show Sampling Requests'),
+				description: localize('mcp.samplingLog.description', 'Show the sampling requests for this server'),
+				action: 'samplingLog',
+			});
+		}
+
+		const capabilities = server.capabilities.get();
+		if (capabilities === undefined || (capabilities & McpCapability.Resources)) {
+			items.push({ type: 'separator', label: localize('mcp.actions.resources', 'Resources') });
+			items.push({
+				label: localize('mcp.resources', 'Browse Resources'),
+				action: 'resources',
+			});
+		}
+
 		const pick = await quickInputService.pick(items, {
-			title: server.definition.label,
-			placeHolder: localize('mcp.selectAction', 'Select Server Action')
+			placeHolder: localize('mcp.selectAction', 'Select action for \'{0}\'', server.definition.label),
 		});
 
 		if (!pick) {
@@ -236,6 +257,15 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'configSampling':
 				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
+			case 'resources':
+				return commandService.executeCommand(McpCommandIds.BrowseResources, server);
+			case 'samplingLog':
+				editorService.openEditor({
+					resource: undefined,
+					contents: samplingService.getLogText(server),
+					label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
+				});
+				break;
 			default:
 				assertNever(pick.action);
 		}
@@ -624,11 +654,14 @@ export class McpBrowseResourcesCommand extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+	run(accessor: ServicesAccessor, server?: IMcpServer): void {
+		if (server) {
+			accessor.get(IInstantiationService).createInstance(McpResourceQuickPick, server).pick();
+		} else {
+			accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+		}
 	}
 }
-
 
 export class McpConfigureSamplingModels extends Action2 {
 	constructor() {
@@ -664,4 +697,52 @@ export class McpConfigureSamplingModels extends Action2 {
 
 		return picked?.length || 0;
 	}
+}
+
+export class McpStartPromptingServerCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.StartPromptForServer,
+			title: localize2('mcp.startPromptingServer', "Start Prompting Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
+		const widget = await openPanelChatAndGetWidget(accessor.get(IViewsService), accessor.get(IChatWidgetService));
+		if (!widget) {
+			return;
+		}
+
+		const editor = widget.inputEditor;
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const range = (editor.getSelection() || model.getFullModelRange()).collapseToEnd();
+		const text = mcpPromptPrefix(server.definition) + '.';
+
+		model.applyEdits([{ range, text }]);
+		editor.setSelection(Range.fromPositions(range.getEndPosition().delta(0, text.length)));
+		widget.focusInput();
+		SuggestController.get(editor)?.triggerSuggest();
+	}
+}
+
+export async function openPanelChatAndGetWidget(viewsService: IViewsService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
+	await viewsService.openView(ChatViewId, true);
+	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Panel);
+	if (widgets.length) {
+		return widgets[0];
+	}
+
+	const eventPromise = Event.toPromise(Event.filter(chatService.onDidAddWidget, e => e.location === ChatAgentLocation.Panel));
+
+	return await raceTimeout(
+		eventPromise,
+		10_000, // should be enough time for chat to initialize...
+		() => eventPromise.cancel(),
+	);
 }

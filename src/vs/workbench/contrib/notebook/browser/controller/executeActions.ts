@@ -169,7 +169,7 @@ function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookE
 			revealWithBottomPadding(cellOutputScrollBottom - viewportHeight);
 		} else {
 			// No outputs, just big cell -- put editor bottom @ 2/3 of viewport height
-			revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+			revealWithNoPadding(cellEditorScrollBottom - viewportHeight66);
 		}
 	}
 }

@@ -389,6 +389,35 @@
 .interactive-item-container .value > .chat-tool-invocation-part {
 	.rendered-markdown p {
 		margin: 0 0 6px 0;
+		opacity: 0.85;
+	}
+
+	.disclaimer {
+		margin-top: 6px;
+		margin-bottom: -6px;
+
+		.rendered-markdown p:last-child {
+			margin-bottom: 0;
+		}
+	}
+
+	.message .see-more {
+		display: none;
+		color: var(--vscode-textLink-foreground);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.message.can-see-more {
+		.message-wrapper {
+			mask-image: linear-gradient(#000 0%, transparent 100%);
+			pointer-events: none;
+			max-height: 2.5em;
+		}
+
+		.see-more {
+			display: block;
+		}
 	}
 
 	.progress-container .rendered-markdown [data-code] {
@@ -1121,11 +1150,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-attachment .monaco-icon-label-container {
 	margin-top: -0.1em;
 }
-/*
- * This overly-specific CSS selector is needed to beat priority of some
- * styles applied on the `.chat-attached-context-attachment` element.
- */
-.chat-attached-context .chat-prompt-attachment.error.implicit,
 .chat-attached-context .chat-prompt-attachment.warning.implicit {
 	border: 1px solid currentColor;
 }
@@ -1875,13 +1899,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session:not(.chat-widget > .interactive-session) {
 
 	.interactive-item-container {
-		padding-top: 5px 16px;
+		padding: 5px 16px;
 	}
 
 	.interactive-item-container.interactive-request {
 		align-items: flex-end;
 		padding-bottom: 0px;
-		padding-top: 5px;
+	}
+
+	.interactive-item-container.interactive-request.confirmation-message {
+		align-items: flex-start;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
@@ -1904,7 +1931,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-item-container.interactive-request .value > .rendered-markdown p {
-		margin-left: auto;
 		width: fit-content;
 	}
 
@@ -1924,32 +1950,53 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-request .header.header-disabled {
 		display: none !important;
 	}
-
 	.request-hover {
 		position: absolute;
 		overflow: hidden;
-		display: none;
-		z-index: 100;
-		background-color: var(--vscode-toolbar-hoverBackground);
-		top: 0px;
-		right: 10px;
-		border-radius: 6px;
+		z-index: 10000;
+		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
+		border: 1px solid var(--vscode-chat-requestBorder);
+		top: -8px;
+		right: 20px;
+		border-radius: 3px;
 	}
 
 	.request-hover .actions-container {
-		width: 18px;
-		height: 17px;
+		width: 24px;
+		height: 24px;
 	}
 
 	.request-hover .actions-container .action-label.codicon-x {
-		width: 14px;
-		height: 14px;
+		width: 24px;
+		height: 24px;
 		padding-top: 4px;
-		padding-left: 1px;
+		padding-left: 4px;
 	}
 
 	.request-hover.has-no-actions {
 		display: none !important;
+	}
+
+	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+		overflow: visible !important;
+	}
+
+	div[data-index="0"] .monaco-tl-contents {
+		.interactive-item-container.interactive-request {
+			padding-top: 15px;
+		}
+
+		.request-hover {
+			top: 2px;
+		}
+	}
+
+	.interactive-item-container.interactive-request:focus {
+		outline: none !important;
+	}
+
+	.interactive-item-container.interactive-request .value .rendered-markdown:focus {
+		outline: 1px solid var(--vscode-focusBorder);
 	}
 }
 
@@ -1973,4 +2020,3 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	padding: 4px 8px;
 }
-

@@ -46,7 +46,7 @@ import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI 
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { getAttachableImageExtension, IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
@@ -55,7 +55,6 @@ import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { getAttachableImageExtension } from '../chatAttachmentResolve.js';
 import { ChatInputPart } from '../chatInputPart.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
@@ -214,7 +213,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, /\/[\w.]*/g);
 				if (!range) {
 					return null;
 				}
@@ -663,14 +662,19 @@ class StartParameterizedPromptAction extends Action2 {
 				}
 			};
 
+			const hasMultipleRoles = messages.some(m => m.role !== messages[0].role);
 			let input = '';
 			for (const message of messages) {
-				if (message.role === 'assistant') {
-					continue; // would we ever support these?
-				}
 				switch (message.content.type) {
 					case 'text':
-						input += (input ? '\n' : '') + message.content.text;
+						if (input) {
+							input += '\n\n';
+						}
+						if (hasMultipleRoles) {
+							input += `--${message.role.toUpperCase()}\n`;
+						}
+
+						input += message.content.text;
 						break;
 					case 'resource':
 						if ('text' in message.content.resource) {
@@ -1120,21 +1124,24 @@ class ToolCompletions extends Disposable {
 
 				for (const item of iter) {
 
-					if (usedNames.has(item.toolReferenceName ?? '')) {
-						continue;
-					}
-
 					let detail: string | undefined;
 
+					let name: string;
 					if (item instanceof ToolSet) {
 						detail = item.description;
+						name = item.referenceName;
 
 					} else {
 						const source = item.source;
 						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
+						name = item.toolReferenceName ?? item.displayName;
 					}
 
-					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;
+					if (usedNames.has(name)) {
+						continue;
+					}
+
+					const withLeader = `${chatVariableLeader}${name}`;
 					suggestions.push({
 						label: withLeader,
 						range,

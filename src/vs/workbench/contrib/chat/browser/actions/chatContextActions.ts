@@ -27,11 +27,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
@@ -118,7 +118,32 @@ class AttachFileToChatAction extends AttachResourceAction {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext), SearchContext.SearchResultHeaderFocused.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
+			}, {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
 			}]
 		});
 	}
@@ -147,6 +172,19 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}
 		});
 	}
 
@@ -174,6 +212,20 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
+			}
 		});
 	}
 

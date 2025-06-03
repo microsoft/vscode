@@ -160,13 +160,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	getTools(): Iterable<Readonly<IToolData>> {
+	getTools(includeDisabled?: boolean): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
 		return Iterable.filter(
 			toolDatas,
 			toolData => {
-				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesWhenClause = includeDisabled || !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				return satisfiesWhenClause && satisfiesExternalToolCheck;
 			});
@@ -185,10 +185,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	getToolByName(name: string): IToolData | undefined {
-		for (const toolData of this.getTools()) {
-			if (toolData.toolReferenceName === name) {
-				return toolData;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
+		for (const tool of this.getTools(!!includeDisabled)) {
+			if (tool.toolReferenceName === name) {
+				return tool;
 			}
 		}
 		return undefined;
@@ -340,7 +340,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -402,11 +402,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { type: 'text', value: part.value };
+				return { isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { type: 'text', value: stringifyPromptTsxPart(part) };
+				return { isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}
@@ -467,8 +467,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.toolReferenceName)) {
-				result[toolSet.toolReferenceName] = true;
+			if (toolOrToolset.has(toolSet.referenceName)) {
+				result[toolSet.referenceName] = true;
 			}
 			for (const tool of toolSet.getTools()) {
 				if (toolOrToolset.has(tool.id)) {
@@ -486,14 +486,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
-			if (toolSet.toolReferenceName === name) {
+			if (toolSet.referenceName === name) {
 				return toolSet;
 			}
 		}
 		return undefined;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -505,7 +505,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description);
 
 		this._toolSets.add(result);
 		return result;
