@@ -161,6 +161,7 @@ export class McpResourcePickHelper {
 
 		input.placeholder = placeholder;
 		input.value = '';
+		input.items = [];
 		input.show();
 
 		const currentID = generateUuid();
@@ -205,6 +206,9 @@ export class McpResourcePickHelper {
 				const item = input.selectedItems[0];
 				if (item.id === currentID) {
 					resolve(input.value);
+				} else if (variable.explodable && item.label.endsWith('/') && item.label !== input.value) {
+					// if navigating in a path structure, picking a `/` should let the user pick in a subdirectory
+					input.value = item.label;
 				} else {
 					resolve(item.label);
 				}
