@@ -16,7 +16,6 @@ import {
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
 	isAuthorizationTokenResponse,
-	isDynamicClientRegistrationResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	IAuthorizationJWTClaims,
@@ -66,7 +65,7 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(null), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(undefined), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
+			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'just-id' }), true);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse('not an object'), false);
 		});
@@ -101,22 +100,6 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationTokenResponse({ access_token: 'missing-type' }), false);
 			assert.strictEqual(isAuthorizationTokenResponse({ token_type: 'missing-token' }), false);
 			assert.strictEqual(isAuthorizationTokenResponse('not an object'), false);
-		});
-
-		test('isDynamicClientRegistrationResponse should correctly identify client registration response', () => {
-			// Valid response
-			assert.strictEqual(isDynamicClientRegistrationResponse({
-				client_id: 'client-123',
-				client_name: 'Test Client'
-			}), true);
-
-			// Invalid cases
-			assert.strictEqual(isDynamicClientRegistrationResponse(null), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse(undefined), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse('not an object'), false);
 		});
 
 		test('isAuthorizationDeviceResponse should correctly identify device authorization response', () => {
