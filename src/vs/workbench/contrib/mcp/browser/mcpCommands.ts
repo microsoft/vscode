@@ -207,7 +207,15 @@ export class McpServerOptionsCommand extends Action2 {
 			action: 'showOutput'
 		});
 
-		items.push({ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') });
+		items.push(
+			{ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') },
+			{
+				label: localize('mcp.configAccess', 'Configure Model Access'),
+				description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+				action: 'configSampling'
+			},
+		);
+
 
 		if (samplingService.hasLogs(server)) {
 			items.push({
@@ -680,7 +688,15 @@ export class McpConfigureSamplingModels extends Action2 {
 		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
 		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
 			const model = lmService.lookupLanguageModel(id)!;
-			return model.isUserSelectable ? ({ label: model.name, description: model.description, id, picked: existingIds.has(id) }) : undefined;
+			if (!model.isUserSelectable) {
+				return undefined;
+			}
+			return {
+				label: model.name,
+				description: model.description,
+				id,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+			};
 		}).filter(isDefined);
 
 		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
