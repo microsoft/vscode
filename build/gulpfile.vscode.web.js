@@ -57,6 +57,9 @@ const vscodeWebResourceIncludes = [
 
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+
+	// Chat
+	'out-build/vs/workbench/contrib/chat/browser/media/*.svg'
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
