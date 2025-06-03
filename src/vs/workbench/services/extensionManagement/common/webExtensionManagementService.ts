@@ -119,8 +119,15 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
-	protected async removeExtension(extension: ILocalExtension): Promise<void> {
+	protected async deleteExtension(extension: ILocalExtension): Promise<void> {
 		// do nothing
+	}
+
+	protected async removeExtension(extension: ILocalExtension, fromProfileLocation: URI): Promise<void> {
+		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
+		if (source) {
+			await this.webExtensionsScannerService.removeExtension(source, fromProfileLocation);
+		}
 	}
 
 	protected async moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {

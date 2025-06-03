@@ -218,6 +218,12 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				local = await this.moveExtension(extension, this.userDataProfilesService.defaultProfile.extensionsResource, fromProfileLocation);
 			}
 
+			await Promise.allSettled(this.userDataProfilesService.profiles.map(async profile => {
+				if (!this.uriIdentityService.extUri.isEqual(fromProfileLocation, profile.extensionsResource)) {
+					await this.removeExtension(extension, profile.extensionsResource);
+				}
+			}));
+
 			for (const profile of this.userDataProfilesService.profiles) {
 				const existing = (await this.getInstalled(ExtensionType.User, profile.extensionsResource))
 					.find(e => areSameExtensions(e.identifier, extension.identifier));
@@ -234,6 +240,12 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			const local = this.uriIdentityService.extUri.isEqual(fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource)
 				? await this.updateMetadata(extension, { isApplicationScoped: true }, this.userDataProfilesService.defaultProfile.extensionsResource)
 				: await this.moveExtension(extension, fromProfileLocation, this.userDataProfilesService.defaultProfile.extensionsResource, { isApplicationScoped: true });
+
+			await Promise.allSettled(this.userDataProfilesService.profiles.map(async profile => {
+				if (!profile.isDefault) {
+					await this.removeExtension(extension, profile.extensionsResource);
+				}
+			}));
 
 			this._onDidInstallExtensions.fire([{ identifier: local.identifier, operation: InstallOperation.Install, local, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource, applicationScoped: true }]);
 			return local;
@@ -843,7 +855,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			}
 
 			if (extensionsToRemove.length) {
-				await this.joinAllSettled(extensionsToRemove.map(extension => this.removeExtension(extension)));
+				await this.joinAllSettled(extensionsToRemove.map(extension => this.deleteExtension(extension)));
 			}
 		} catch (e) {
 			const error = toExtensionManagementError(e);
@@ -941,7 +953,8 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 	protected abstract moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
-	protected abstract removeExtension(extension: ILocalExtension): Promise<void>;
+	protected abstract removeExtension(extension: ILocalExtension, fromProfileLocation: URI): Promise<void>;
+	protected abstract deleteExtension(extension: ILocalExtension): Promise<void>;
 }
 
 export function toExtensionManagementError(error: Error, code?: ExtensionManagementErrorCode): ExtensionManagementError {

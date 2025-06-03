@@ -217,12 +217,16 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
-	protected removeExtension(extension: ILocalExtension): Promise<void> {
+	protected deleteExtension(extension: ILocalExtension): Promise<void> {
 		return this.extensionsScanner.deleteExtension(extension, 'remove');
 	}
 
 	protected moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		return this.extensionsScanner.moveExtension(extension, fromProfileLocation, toProfileLocation, metadata);
+	}
+
+	protected removeExtension(extension: ILocalExtension, fromProfileLocation: URI): Promise<void> {
+		return this.extensionsScanner.removeExtension(extension.identifier, fromProfileLocation);
 	}
 
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
@@ -763,6 +767,10 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		return this.scanLocalExtension(extension.location, extension.type, toProfileLocation);
+	}
+
+	async removeExtension(identifier: IExtensionIdentifier, fromProfileLocation: URI): Promise<void> {
+		await this.extensionsProfileScannerService.removeExtensionsFromProfile([identifier], fromProfileLocation);
 	}
 
 	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, productVersion: IProductVersion): Promise<void> {
