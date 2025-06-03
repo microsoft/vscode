@@ -735,7 +735,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
 				},
-				{
+
+				// Removed settings slide from new welcome experience due to poor responses in user testing
+				/*{
 					id: 'newSettingsAndSync',
 					title: localize('newgettingStarted.settings.title', "Customize every aspect of VS Code"),
 					description: localize('newgettingStarted.settingsAndSync.description.interpolated', "[Back up and sync](command:workbench.userDataSync.actions.turnOn) settings across all your devices.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
@@ -744,7 +746,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
 					},
-				},
+				},*/
+
 			]
 		}
 	}
