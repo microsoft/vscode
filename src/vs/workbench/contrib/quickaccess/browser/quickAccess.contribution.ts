@@ -8,7 +8,7 @@ import { IQuickAccessRegistry, Extensions } from '../../../../platform/quickinpu
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { HelpQuickAccessProvider } from '../../../../platform/quickinput/browser/helpQuickAccess.js';
 import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from './viewQuickAccess.js';
-import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction } from './commandsQuickAccess.js';
+import { CommandsQuickAccessProvider, ShowAllCommandsAction, ShowAllCommandsHelpAction, ClearCommandHistoryAction } from './commandsQuickAccess.js';
 import { MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeyMod } from '../../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -114,6 +114,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 
 registerAction2(ClearCommandHistoryAction);
 registerAction2(ShowAllCommandsAction);
+registerAction2(ShowAllCommandsHelpAction);
 registerAction2(OpenViewPickerAction);
 registerAction2(QuickAccessViewPickerAction);
 

@@ -40,6 +40,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { createKeybindingCommandQuery } from '../../../services/preferences/browser/keybindingsEditorModel.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { HelpQuickAccessProvider } from '../../../../platform/quickinput/browser/helpQuickAccess.js';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -278,6 +279,23 @@ export class ShowAllCommandsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IQuickInputService).quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+	}
+}
+
+export class ShowAllCommandsHelpAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showCommandsHelp';
+
+	constructor() {
+		super({
+			id: ShowAllCommandsHelpAction.ID,
+			title: localize2('showCommandsHelp', 'Show All Commands Help'),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(HelpQuickAccessProvider.PREFIX);
 	}
 }
 
