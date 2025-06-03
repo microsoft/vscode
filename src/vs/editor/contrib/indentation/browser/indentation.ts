@@ -414,7 +414,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (containsOnlyWhitespace) {
 			return;
 		}
-		if (isStartOrEndInString(model, range)) {
+		if (!this.editor.getOption(EditorOption.autoIndentOnPasteWithinString) && isStartOrEndInString(model, range)) {
 			return;
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
