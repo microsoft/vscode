@@ -213,7 +213,8 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/[\w.]*/g);
+				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
+				const range = computeCompletionRanges(model, position, /\/[a-z0-9_.-]*/g);
 				if (!range) {
 					return null;
 				}
