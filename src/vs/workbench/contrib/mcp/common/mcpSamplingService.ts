@@ -169,7 +169,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 				await this.updateConfig(server, c => c[key] = true);
 				return true;
 			},
-			[localize('mcp.sampling.allow.notNow', 'Now Now')]: async () => {
+			[localize('mcp.sampling.allow.notNow', 'Not Now')]: async () => {
 				this._sessionSets[key].set(server.definition.id, false);
 				return false;
 			},
