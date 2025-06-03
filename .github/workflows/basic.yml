@@ -1,15 +1,8 @@
 name: Basic checks
 
-on: workflow_dispatch
+on:
+  workflow_dispatch
 permissions: {}
-
-# on:
-#   push:
-#     branches:
-#       - main
-#   pull_request:
-#     branches:
-#       - main
 
 jobs:
   main:
@@ -24,39 +17,40 @@ jobs:
         with:
           persist-credentials: false
 
-      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-      - name: Setup Build Environment
-        run: |
-          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-          sudo chmod +x /etc/init.d/xvfb
-          sudo update-rc.d xvfb defaults
-          sudo service xvfb start
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
-      - name: Cache node modules
+      - name: Compute cache key (hash package-lock.json)
+        id: cacheKey
+        run: |
+          echo "value=${{ runner.os }}-node-mod-$(sha256sum package-lock.json | cut -d ' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Cache node_modules
         id: cacheNodeModules
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get npm cache directory path
+          key: ${{ steps.cacheKey.outputs.value }}
+          # allow restore if lockfile changes slightly
+          restore-keys: |
+            ${{ runner.os }}-node-mod-
+
+      - name: Get npm cache path
         id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - name: Cache npm directory
+
+      - name: Cache npm cache
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
           path: ${{ steps.npmCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-npmCacheDir-
-      - name: Execute npm
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-cache-
+
+      - name: Install dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -68,11 +62,11 @@ jobs:
 
       - name: Run Unit Tests
         id: electron-unit-tests
-        run: DISPLAY=:10 ./scripts/test.sh
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" ./scripts/test.sh
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
-        run: DISPLAY=:10 ./scripts/test-integration.sh
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" ./scripts/test-integration.sh
 
   hygiene:
     if: github.ref != 'refs/heads/main'
@@ -90,27 +84,35 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
-      - name: Cache node modules
+      - name: Compute cache key (hash package-lock.json)
+        id: cacheKey
+        run: |
+          echo "value=${{ runner.os }}-node-mod-$(sha256sum package-lock.json | cut -d ' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Cache node_modules
         id: cacheNodeModules
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get npm cache directory path
+          key: ${{ steps.cacheKey.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-node-mod-
+
+      - name: Get npm cache path
         id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - name: Cache npm directory
+
+      - name: Cache npm cache
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
           path: ${{ steps.npmCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-npmCacheDir-
-      - name: Execute npm
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-cache-
+
+      - name: Install dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -133,10 +135,10 @@ jobs:
       - name: Check clean git state
         run: ./.github/workflows/check-clean-git-state.sh
 
-      - name: Run eslint
+      - name: Run ESLint
         run: npm run eslint
 
-      - name: Run vscode-dts Compile Checks
+      - name: Run VSCode DTS Compile Checks
         run: npm run vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
@@ -158,27 +160,35 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
-      - name: Cache node modules
+      - name: Compute cache key (hash package-lock.json)
+        id: cacheKey
+        run: |
+          echo "value=${{ runner.os }}-node-mod-$(sha256sum package-lock.json | cut -d ' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Cache node_modules
         id: cacheNodeModules
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get npm cache directory path
+          key: ${{ steps.cacheKey.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-node-mod-
+
+      - name: Get npm cache path
         id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - name: Cache npm directory
+
+      - name: Cache npm cache
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
           path: ${{ steps.npmCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-npmCacheDir-
-      - name: Execute npm
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-cache-
+
+      - name: Install dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
