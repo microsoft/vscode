@@ -221,6 +221,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.deleteExtension(extension, 'remove');
 	}
 
+	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
+	}
+
 	protected moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		return this.extensionsScanner.moveExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
@@ -744,6 +748,26 @@ export class ExtensionsScanner extends Disposable {
 			await this.deleteExtensionFromLocation(extension.identifier.id, extension.location, type);
 			await this.unsetExtensionsForRemoval(ExtensionKey.create(extension));
 		}
+	}
+
+	async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		const source = await this.getScannedExtension(extension, fromProfileLocation);
+		const target = await this.getScannedExtension(extension, toProfileLocation);
+		metadata = { ...source?.metadata, ...metadata };
+
+		if (target) {
+			if (this.uriIdentityService.extUri.isEqual(target.location, extension.location)) {
+				await this.extensionsProfileScannerService.updateMetadata([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+			} else {
+				const targetExtension = await this.scanLocalExtension(target.location, extension.type, toProfileLocation);
+				await this.extensionsProfileScannerService.removeExtensionsFromProfile([targetExtension.identifier], toProfileLocation);
+				await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+			}
+		} else {
+			await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, metadata]], toProfileLocation);
+		}
+
+		return this.scanLocalExtension(extension.location, extension.type, toProfileLocation);
 	}
 
 	async moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
