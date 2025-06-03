@@ -218,18 +218,11 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				local = await this.moveExtension(extension, this.userDataProfilesService.defaultProfile.extensionsResource, fromProfileLocation);
 			}
 
-			await Promise.allSettled(this.userDataProfilesService.profiles.map(async profile => {
-				if (!this.uriIdentityService.extUri.isEqual(fromProfileLocation, profile.extensionsResource)) {
-					await this.removeExtension(extension, profile.extensionsResource);
-				}
-			}));
-
 			for (const profile of this.userDataProfilesService.profiles) {
-				const existing = (await this.getInstalled(ExtensionType.User, profile.extensionsResource))
-					.find(e => areSameExtensions(e.identifier, extension.identifier));
-				if (existing) {
-					this._onDidUpdateExtensionMetadata.fire({ local: existing, profileLocation: profile.extensionsResource });
+				if (this.uriIdentityService.extUri.isEqual(fromProfileLocation, profile.extensionsResource)) {
+					this._onDidUpdateExtensionMetadata.fire({ local, profileLocation: profile.extensionsResource });
 				} else {
+					await this.removeExtension(extension, profile.extensionsResource);
 					this._onDidUninstallExtension.fire({ identifier: extension.identifier, profileLocation: profile.extensionsResource });
 				}
 			}
