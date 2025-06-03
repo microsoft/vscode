@@ -121,7 +121,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	prefix: McpResourceQuickAccess.PREFIX,
 	placeholder: localize('mcp.quickaccess.placeholder', "Filter to an MCP resource"),
 	helpEntries: [{
-		description: localize('mcp.quickaccess.add', "Add Server"),
+		description: localize('mcp.quickaccess.add', "MCP Server Resources"),
 		commandId: McpCommandIds.AddConfiguration
 	}]
 });
