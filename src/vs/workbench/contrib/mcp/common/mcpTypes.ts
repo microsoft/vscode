@@ -345,6 +345,8 @@ export interface IMcpPromptMessage extends MCP.PromptMessage { }
 export interface IMcpTool {
 
 	readonly id: string;
+	/** Name for #referencing in chat */
+	readonly referenceName: string;
 
 	readonly definition: MCP.Tool;
 
