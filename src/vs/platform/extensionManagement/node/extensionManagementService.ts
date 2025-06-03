@@ -756,13 +756,13 @@ export class ExtensionsScanner extends Disposable {
 				await this.extensionsProfileScannerService.updateMetadata([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
 			} else {
 				const targetExtension = await this.scanLocalExtension(target.location, extension.type, toProfileLocation);
-				await this.extensionsProfileScannerService.removeExtensionsFromProfile([targetExtension.identifier], toProfileLocation);
+				await this.removeExtension(targetExtension.identifier, toProfileLocation);
 				await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
 			}
 		} else {
 			await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, metadata]], toProfileLocation);
 			if (source) {
-				await this.extensionsProfileScannerService.removeExtensionsFromProfile([source.identifier], fromProfileLocation);
+				await this.removeExtension(source.identifier, fromProfileLocation);
 			}
 		}
 
