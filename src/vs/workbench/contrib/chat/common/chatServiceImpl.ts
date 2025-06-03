@@ -497,7 +497,7 @@ export class ChatService extends Disposable implements IChatService {
 		await this.extensionService.activateById(defaultAgentData.extensionId, {
 			activationEvent: `onChatParticipant:${defaultAgentData.id}`,
 			extensionId: defaultAgentData.extensionId,
-			startup: true
+			startup: false
 		});
 
 		const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
