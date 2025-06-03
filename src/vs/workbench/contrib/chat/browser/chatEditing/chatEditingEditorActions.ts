@@ -179,12 +179,12 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: _keep
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace,
-				win: {
+					? KeyMod.Alt | KeyCode.Enter
+					: KeyMod.Alt | KeyCode.Backspace,
+				mac: {
 					primary: _keep
-						? KeyMod.Alt | KeyCode.Enter
-						: KeyMod.Alt | KeyCode.Backspace
+						? KeyMod.CtrlCmd | KeyCode.Enter
+						: KeyMod.CtrlCmd | KeyCode.Backspace
 				},
 			},
 			menu: {
@@ -245,12 +245,12 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
-						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
-					win: {
+						? KeyMod.Alt | KeyMod.Shift | KeyCode.Enter
+						: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
+					mac: {
 						primary: _accept
-							? KeyMod.Alt | KeyMod.Shift | KeyCode.Enter
-							: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
+							? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+							: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
 					}
 				},
 				menu: {
