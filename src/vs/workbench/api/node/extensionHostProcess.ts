@@ -8,7 +8,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import { ProcessTimeRunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { isCancellationError, isSigPipeError, onUnexpectedError } from '../../../base/common/errors.js';
+import { PendingMigrationError, isCancellationError, isSigPipeError, onUnexpectedError, onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import * as performance from '../../../base/common/performance.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
@@ -119,6 +119,16 @@ function patchProcess(allowExit: boolean) {
 	};
 
 }
+
+// latest NodeJS defines navigator as a global object. This will likely surprise many extensions and potentially break them
+// because `navigator` has historically often been used to check if running in a browser (vs running inside NodeJS)
+Object.defineProperty(globalThis, 'navigator', {
+	get: () => {
+		onUnexpectedExternalError(new PendingMigrationError('navigator is now a global in nodejs and cannot be used to detect if running in a browser anymore'));
+		return undefined;
+	}
+});
+
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
