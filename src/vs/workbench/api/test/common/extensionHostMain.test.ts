@@ -21,6 +21,7 @@ import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ErrorHandler } from '../../common/extensionHostMain.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { ProxyIdentifier, Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
+import { IExtHostApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 
 
 suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slowdown and eventual stack overflow #184926 ', function () {
@@ -64,7 +65,11 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			override getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
 				return <any>mainThreadExtensionsService;
 			}
-		}]
+		}],
+		[IExtHostApiDeprecationService, new class extends mock<IExtHostApiDeprecationService>() {
+			declare readonly _serviceBrand: undefined;
+			override report(apiId: string, extension: IExtensionDescription, migrationSuggestion: string): void { }
+		}],
 	);
 
 	const originalPrepareStackTrace = Error.prepareStackTrace;
