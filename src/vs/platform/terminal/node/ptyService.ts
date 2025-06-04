@@ -422,6 +422,10 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 	@traceRpc
+	async sendSignal(id: number, signal: string): Promise<void> {
+		return this._throwIfNoPty(id).sendSignal(signal);
+	}
+	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).writeBinary(data);
 	}

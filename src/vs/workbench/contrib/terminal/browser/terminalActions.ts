@@ -137,6 +137,17 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 	}
 };
 
+export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args: unknown) => {
+	const instance = accessor.get(ITerminalService).activeInstance;
+	if (instance) {
+		const signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
+		if (!signal) {
+			return;
+		}
+		instance.sendSignal(signal);
+	}
+};
+
 export class TerminalLaunchHelpAction extends Action {
 
 	constructor(
@@ -975,6 +986,29 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: (c, accessor, args) => terminalSendSequenceCommand(accessor, args)
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.SendSignal,
+		title: terminalStrings.sendSignal,
+		f1: false,
+		metadata: {
+			description: terminalStrings.sendSignal.value,
+			args: [{
+				name: 'args',
+				schema: {
+					type: 'object',
+					required: ['signal'],
+					properties: {
+						signal: {
+							description: localize('sendSignal', "The signal to send to the terminal process (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL')"),
+							type: 'string'
+						}
+					},
+				}
+			}]
+		},
+		run: (c, accessor, args) => terminalSendSignalCommand(accessor, args)
 	});
 
 	registerTerminalAction({

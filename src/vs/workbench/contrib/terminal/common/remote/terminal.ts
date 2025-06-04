@@ -69,6 +69,7 @@ export const enum RemoteTerminalChannelRequest {
 	AcceptPtyHostResolvedVariables = '$acceptPtyHostResolvedVariables',
 	Start = '$start',
 	Input = '$input',
+	SendSignal = '$sendSignal',
 	AcknowledgeDataEvent = '$acknowledgeDataEvent',
 	Shutdown = '$shutdown',
 	Resize = '$resize',
