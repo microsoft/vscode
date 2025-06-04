@@ -377,8 +377,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('node-pty.IPty#kill');
-				// For windows, we already attempt to gracefully kill the process
-				if (!isWindows && this.shellLaunchConfig.killGracefully) {
+				if (this.shellLaunchConfig.killGracefully) {
 					this._killGracefully(this._ptyProcess);
 				} else {
 					this._ptyProcess.kill();
