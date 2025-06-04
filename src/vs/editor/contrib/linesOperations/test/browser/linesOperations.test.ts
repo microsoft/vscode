@@ -12,7 +12,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
-import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from '../../browser/linesOperations.js';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction, ReverseLinesAction } from '../../browser/linesOperations.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 
@@ -557,6 +557,91 @@ suite('Editor Contrib - Line Operations', () => {
 					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 					assert.strictEqual(model.getLineContent(1), 'hello my dear');
 					assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
+				});
+		});
+	});
+
+	suite('ReverseLinesAction', () => {
+		test('reverses lines', function () {
+			withTestCodeEditor(
+				[
+					'alice',
+					'bob',
+					'charlie',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['charlie', 'bob', 'alice']);
+				});
+		});
+
+		test('excludes empty last line', function () {
+			withTestCodeEditor(
+				[
+					'alice',
+					'bob',
+					'charlie',
+					'',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['charlie', 'bob', 'alice', '']);
+				});
+		});
+
+		test('updates cursor', function () {
+			withTestCodeEditor(
+				[
+					'alice',
+					'bob',
+					'charlie',
+				], {}, (editor) => {
+					const reverseLinesAction = new ReverseLinesAction();
+					// cursor at third column of third line 'charlie'
+					editor.setPosition(new Position(3, 3));
+
+					executeAction(reverseLinesAction, editor);
+					// cursor at third column of *first* line 'charlie'
+					assert.deepStrictEqual(editor.getPosition(), new Position(1, 3));
+				});
+		});
+
+		test('preserves cursor on empty last line', function () {
+			withTestCodeEditor(
+				[
+					'alice',
+					'bob',
+					'charlie',
+					'',
+				], {}, (editor) => {
+					const reverseLinesAction = new ReverseLinesAction();
+					editor.setPosition(new Position(4, 1));
+
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(editor.getPosition(), new Position(4, 1));
+				});
+		});
+
+		test('preserves selected text when selections do not span lines', function () {
+			withTestCodeEditor(
+				[
+					'alice',
+					'bob',
+					'charlie',
+					'',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+					editor.setSelections([new Selection(1, 1, 1, 3), new Selection(2, 1, 2, 4), new Selection(3, 1, 3, 5)]);
+					const expectedSelectedText: string[] = ['al', 'bob', 'char'];
+					assert.deepStrictEqual(editor.getSelections().map(s => model.getValueInRange(s)), expectedSelectedText);
+
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(editor.getSelections().map(s => model.getValueInRange(s)), expectedSelectedText);
 				});
 		});
 	});
