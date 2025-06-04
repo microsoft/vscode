@@ -5,7 +5,7 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
@@ -47,12 +47,13 @@ export interface IDialogOptions {
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonOptions?: Array<undefined | { sublabel?: string; extraClasses?: string[] }>;
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
@@ -107,11 +108,22 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		if (options.alignment === DialogContentsAlignment.Vertical) {
 			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
 		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
@@ -265,7 +277,7 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
@@ -292,8 +304,8 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
 				}
 
-				if (buttonOptions?.extraClasses) {
-					button.element.classList.add(...buttonOptions.extraClasses);
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
 				}
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);

@@ -40,7 +40,7 @@ export class ChatRequestParser {
 			.map(t => [t.toolReferenceName!, t]));
 
 		const toolSetsByName = new Map<string, ToolSet>(this.variableService.getSelectedToolSets(sessionId)
-			.map(t => [t.displayName, t]));
+			.map(t => [t.referenceName, t]));
 
 		let lineNumber = 1;
 		let column = 1;
@@ -165,7 +165,8 @@ export class ChatRequestParser {
 
 		const toolset = toolSetsByName.get(name);
 		if (toolset) {
-			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.displayName, toolset.icon);
+			const value = Array.from(toolset.getTools()).map(t => new ChatRequestToolPart(varRange, varEditorRange, t.toolReferenceName ?? t.displayName, t.id, t.displayName, t.icon).toVariableEntry());
+			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon, value);
 		}
 
 		return;

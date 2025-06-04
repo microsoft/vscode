@@ -7,10 +7,10 @@ import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertNever } from '../../../../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 import { ProviderInstanceManagerBase, TProviderClass } from './providerInstanceManagerBase.js';
 import { TDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../../../parsers/promptHeader/diagnostics.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../../platform/markers/common/markers.js';
-import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -73,7 +73,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	 * Returns a string representation of this object.
 	 */
 	public override toString(): string {
-		return `prompt-link-diagnostics:${this.model.uri.path}`;
+		return `prompt-header-diagnostics:${this.model.uri.path}`;
 	}
 }
 

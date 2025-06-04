@@ -55,6 +55,8 @@
 		"--vscode-chat-editedFileForeground",
 		"--vscode-chat-requestBackground",
 		"--vscode-chat-requestBorder",
+		"--vscode-chat-requestBubbleBackground",
+		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
 		"--vscode-checkbox-background",
@@ -571,6 +573,7 @@
 		"--vscode-pickerGroup-border",
 		"--vscode-pickerGroup-foreground",
 		"--vscode-ports-iconRunningProcessForeground",
+		"--vscode-preferences-sashBorder",
 		"--vscode-problemsErrorIcon-foreground",
 		"--vscode-problemsInfoIcon-foreground",
 		"--vscode-problemsWarningIcon-foreground",
@@ -578,8 +581,6 @@
 		"--vscode-profileBadge-foreground",
 		"--vscode-profiles-sashBorder",
 		"--vscode-progressBar-background",
-		"--vscode-prompt-frontMatter-background",
-		"--vscode-prompt-frontMatter-inactiveBackground",
 		"--vscode-quickInput-background",
 		"--vscode-quickInput-foreground",
 		"--vscode-quickInput-list-focusBackground",
@@ -955,6 +956,7 @@
 		"--text-link-decoration",
 		"--vscode-action-item-auto-timeout",
 		"--monaco-editor-warning-decoration",
-		"--animation-opacity"
+		"--animation-opacity",
+		"--chat-setup-dialog-glow-angle"
 	]
 }

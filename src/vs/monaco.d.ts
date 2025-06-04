@@ -4077,6 +4077,10 @@ declare namespace monaco.editor {
 		*/
 		cursorMoveOnType?: boolean;
 		/**
+		 * Controls whether the find widget should search as you type.
+		 */
+		findOnType?: boolean;
+		/**
 		 * Controls if we seed search string in the Find Widget with editor selection.
 		 */
 		seedSearchStringFromSelection?: 'never' | 'always' | 'selection';

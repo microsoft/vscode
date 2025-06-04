@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget } from '../../chat.js';
+import { ChatViewId, IChatWidget } from '../../chat.js';
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OS } from '../../../../../../base/common/platform.js';
@@ -14,7 +14,6 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
 import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
 import { ICommandAction } from '../../../../../../platform/action/common/action.js';
@@ -30,6 +29,8 @@ import { ICodeEditorService } from '../../../../../../editor/browser/services/co
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -54,6 +55,11 @@ const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
  * Action ID for the `Run Prompt...` action.
  */
 const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
+
+/**
+ * Action ID for the `Configure Prompt Files...` action.
+ */
+const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -201,21 +207,18 @@ class RunSelectedPromptAction extends Action2 {
 		accessor: ServicesAccessor,
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
-		const promptsService = accessor.get(IPromptsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
-		// find all prompt files in the user workspace
-		const promptFiles = await promptsService.listPromptFiles('prompt');
 		const placeholder = localize(
 			'commands.prompt.select-dialog.placeholder',
 			'Select the prompt file to run (hold {0}-key to use in new chat)',
 			UILabelProvider.modifierLabels[OS].ctrlKey
 		);
 
-		const result = await pickers.selectPromptFile({ promptFiles, placeholder });
+		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.prompt });
 
 		if (result === undefined) {
 			return;
@@ -232,6 +235,45 @@ class RunSelectedPromptAction extends Action2 {
 			runPromptOptions,
 		);
 		widget.focusInput();
+	}
+}
+
+class ManagePromptFilesAction extends Action2 {
+	constructor() {
+		super({
+			id: CONFIGURE_PROMPTS_ACTION_ID,
+			title: localize2('configure-prompts', "Configure Prompt Files"),
+			icon: Codicon.bookmark,
+			f1: true,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 10,
+				group: '2_manage'
+			},
+
+		});
+	}
+
+	public override async run(
+		accessor: ServicesAccessor,
+	): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const pickers = instaService.createInstance(PromptFilePickers);
+
+		const placeholder = localize(
+			'commands.prompt.manage-dialog.placeholder',
+			'Select the prompt file to open'
+		);
+
+		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.prompt, optionEdit: false });
+		if (result !== undefined) {
+			await openerService.open(result.promptFile);
+		}
 	}
 }
 
@@ -303,4 +345,5 @@ export const registerRunPromptActions = () => {
 	registerAction2(RunCurrentPromptInNewChatAction);
 	registerAction2(RunCurrentPromptAction);
 	registerAction2(RunSelectedPromptAction);
+	registerAction2(ManagePromptFilesAction);
 };

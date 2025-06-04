@@ -64,6 +64,8 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 
 suite('InlineChatSession', function () {
 
@@ -96,6 +98,7 @@ suite('InlineChatSession', function () {
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
+			[ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],

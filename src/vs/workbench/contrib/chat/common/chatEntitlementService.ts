@@ -40,12 +40,12 @@ export enum ChatEntitlement {
 	Unknown = 1,
 	/** Signed in but not yet resolved */
 	Unresolved,
-	/** Signed in and entitled to Limited */
+	/** Signed in and entitled to Free */
 	Available,
-	/** Signed in but not entitled to Limited */
+	/** Signed in but not entitled to Free */
 	Unavailable,
-	/** Signed-up to Limited */
-	Limited,
+	/** Signed-up to Free */
+	Free,
 	/** Signed-up to Pro */
 	Pro,
 	/** Signed-up to Pro Plus */
@@ -78,6 +78,11 @@ export interface IChatSentiment {
 	 * Chat but but disable its functionality.
 	 */
 	disabled?: boolean;
+
+	/**
+	 * User signals intent to use Chat later.
+	 */
+	later?: boolean;
 }
 
 export interface IChatEntitlementService {
@@ -147,6 +152,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -160,7 +166,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatContextKeys.Entitlement.business.key,
 					ChatContextKeys.Entitlement.enterprise.key,
 					ChatContextKeys.Entitlement.proPlus.key,
-					ChatContextKeys.Entitlement.limited.key,
+					ChatContextKeys.Entitlement.free.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key
 				])), this._store
@@ -172,14 +178,20 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Setup.hidden.key,
 					ChatContextKeys.Setup.disabled.key,
-					ChatContextKeys.Setup.installed.key
+					ChatContextKeys.Setup.installed.key,
+					ChatContextKeys.Setup.later.key
 				])), this._store
 			), () => { }, this._store
 		);
 
 		if (
 			!productService.defaultChatAgent ||				// needs product config
-			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
+			(
+				// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
+				isWeb &&
+				!environmentService.remoteAuthority &&
+				!configurationService.getValue('chat.experimental.serverlessWebEnabled')
+			)
 		) {
 			ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
@@ -207,8 +219,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			return ChatEntitlement.Enterprise;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.proPlus.key) === true) {
 			return ChatEntitlement.ProPlus;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.limited.key) === true) {
-			return ChatEntitlement.Limited;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.free.key) === true) {
+			return ChatEntitlement.Free;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.canSignUp.key) === true) {
 			return ChatEntitlement.Available;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.signedOut.key) === true) {
@@ -300,7 +312,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return {
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true,
-			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true
+			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true,
+			later: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.later.key) === true
 		};
 	}
 
@@ -520,7 +533,7 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 
 		try {
-			return await this.authenticationService.getSessions(providerId, undefined, preferredAccount);
+			return await this.authenticationService.getSessions(providerId, undefined, { account: preferredAccount });
 		} catch (error) {
 			// ignore - errors can throw if a provider is not registered
 		}
@@ -596,7 +609,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		let entitlement: ChatEntitlement;
 		if (entitlementsResponse.access_type_sku === 'free_limited_copilot') {
-			entitlement = ChatEntitlement.Limited;
+			entitlement = ChatEntitlement.Free;
 		} else if (entitlementsResponse.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
 		} else if (entitlementsResponse.copilot_plan === 'individual') {
@@ -734,7 +747,7 @@ export class ChatEntitlementRequests extends Disposable {
 		return this.resolveEntitlement(session, token);
 	}
 
-	async signUpLimited(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
+	async signUpFree(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
 		const body = {
 			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
@@ -743,7 +756,7 @@ export class ChatEntitlementRequests extends Disposable {
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
 			const retry = await this.onUnknownSignUpError(localize('signUpNoResponseError', "No response received."), '[chat entitlement] sign-up: no response');
-			return retry ? this.signUpLimited(session) : { errorCode: 1 };
+			return retry ? this.signUpFree(session) : { errorCode: 1 };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
@@ -762,7 +775,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 			}
 			const retry = await this.onUnknownSignUpError(localize('signUpUnexpectedStatusError', "Unexpected status code {0}.", response.res.statusCode), `[chat entitlement] sign-up: unexpected status code ${response.res.statusCode}`);
-			return retry ? this.signUpLimited(session) : { errorCode: response.res.statusCode };
+			return retry ? this.signUpFree(session) : { errorCode: response.res.statusCode };
 		}
 
 		let responseText: string | null = null;
@@ -774,7 +787,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		if (!responseText) {
 			const retry = await this.onUnknownSignUpError(localize('signUpNoResponseContentsError', "Response has no contents."), '[chat entitlement] sign-up: response has no content');
-			return retry ? this.signUpLimited(session) : { errorCode: 2 };
+			return retry ? this.signUpFree(session) : { errorCode: 2 };
 		}
 
 		let parsedResult: { subscribed: boolean } | undefined = undefined;
@@ -783,12 +796,12 @@ export class ChatEntitlementRequests extends Disposable {
 			this.logService.trace(`[chat entitlement] sign-up: response is ${responseText}`);
 		} catch (err) {
 			const retry = await this.onUnknownSignUpError(localize('signUpInvalidResponseError', "Invalid response contents."), `[chat entitlement] sign-up: error parsing response (${err})`);
-			return retry ? this.signUpLimited(session) : { errorCode: 3 };
+			return retry ? this.signUpFree(session) : { errorCode: 3 };
 		}
 
 		// We have made it this far, so the user either did sign-up or was signed-up already.
 		// That is, because the endpoint throws in all other case according to Patrick.
-		this.update({ entitlement: ChatEntitlement.Limited });
+		this.update({ entitlement: ChatEntitlement.Free });
 
 		return Boolean(parsedResult?.subscribed);
 	}
@@ -875,7 +888,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
 
-	private readonly limitedContextKey: IContextKey<boolean>;
+	private readonly freeContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
 	private readonly proPlusContextKey: IContextKey<boolean>;
 	private readonly businessContextKey: IContextKey<boolean>;
@@ -907,7 +920,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.canSignUpContextKey = ChatContextKeys.Entitlement.canSignUp.bindTo(contextKeyService);
 		this.signedOutContextKey = ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
-		this.limitedContextKey = ChatContextKeys.Entitlement.limited.bindTo(contextKeyService);
+		this.freeContextKey = ChatContextKeys.Entitlement.free.bindTo(contextKeyService);
 		this.proContextKey = ChatContextKeys.Entitlement.pro.bindTo(contextKeyService);
 		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
@@ -963,10 +976,10 @@ export class ChatEntitlementContext extends Disposable {
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
 
-			if (this._state.entitlement === ChatEntitlement.Limited || isProUser(this._state.entitlement)) {
+			if (this._state.entitlement === ChatEntitlement.Free || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
 			} else if (this._state.entitlement === ChatEntitlement.Available) {
-				this._state.registered = false; // only reset when signed-in user can sign-up for limited
+				this._state.registered = false; // only reset when signed-in user can sign-up for free
 			}
 		}
 
@@ -986,7 +999,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
 		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
-		this.limitedContextKey.set(this._state.entitlement === ChatEntitlement.Limited);
+		this.freeContextKey.set(this._state.entitlement === ChatEntitlement.Free);
 		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
 		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
 		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);

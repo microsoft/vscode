@@ -117,7 +117,6 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			return undefined;
 		}
 
-
 		try {
 			const logs = { cached: 0, email: 0, github: 0, incomplete: 0 };
 

@@ -44,7 +44,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return undefined;
 	}
 
-	getToolByName(name: string): IToolData | undefined {
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined {
 		return undefined;
 	}
 
@@ -65,6 +65,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	}
 
 	createToolSet(): ToolSet & IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean> {
 		throw new Error('Method not implemented.');
 	}
 }

@@ -19,7 +19,7 @@ interface IGettingStartedContentProvider {
 	(): string;
 }
 
-export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "GitHub Copilot Free, Pro and Pro+ may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", product.defaultChatAgent?.providerName, product.defaultChatAgent?.publicCodeMatchesUrl, product.defaultChatAgent?.manageSettingsUrl);
 
 class GettingStartedContentProviderRegistry {
 
@@ -252,7 +252,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut', true),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanLimited)', false),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
 				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', true),
 				{
 					id: 'pickColorTheme',

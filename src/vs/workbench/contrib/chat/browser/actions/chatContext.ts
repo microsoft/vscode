@@ -24,7 +24,7 @@ import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInpu
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatModel.js';
-import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
@@ -75,27 +75,28 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		for (const entry of widget.input.selectedToolsModel.entries.get()) {
 
-			const label = entry.toolReferenceName ?? entry.displayName;
-			const item: Pick = {
-				toolInfo: ToolDataSource.classify(entry.source),
-				label,
-				description: label !== entry.displayName ? entry.displayName : undefined,
-				asAttachment: (): IChatRequestToolEntry | IChatRequestToolSetEntry => {
-					return {
-						kind: entry instanceof ToolSet ? 'toolset' : 'tool',
-						id: entry.id,
-						name: entry.displayName,
-						fullName: entry.displayName,
-						value: undefined,
-					};
-				}
-			};
-
-			items.push(item);
+			if (entry instanceof ToolSet) {
+				items.push({
+					toolInfo: ToolDataSource.classify(entry.source),
+					label: entry.referenceName,
+					description: entry.description,
+					asAttachment: (): IChatRequestToolSetEntry => this._asToolSetAttachment(entry)
+				});
+			} else {
+				items.push({
+					toolInfo: ToolDataSource.classify(entry.source),
+					label: entry.toolReferenceName ?? entry.displayName,
+					description: entry.userDescription ?? entry.modelDescription,
+					asAttachment: (): IChatRequestToolEntry => this._asToolAttachment(entry)
+				});
+			}
 		}
 
 		items.sort((a, b) => {
 			let res = a.toolInfo.ordinal - b.toolInfo.ordinal;
+			if (res === 0) {
+				res = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			}
 			if (res === 0) {
 				res = a.label.localeCompare(b.label);
 			}
@@ -104,7 +105,6 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		let lastGroupLabel: string | undefined;
 		const picks: (IQuickPickSeparator | Pick)[] = [];
-
 
 		for (const item of items) {
 			if (lastGroupLabel !== item.toolInfo.label) {
@@ -117,6 +117,26 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		return {
 			placeholder: localize('chatContext.tools.placeholder', 'Select a tool'),
 			picks: Promise.resolve(picks)
+		};
+	}
+
+	private _asToolAttachment(entry: IToolData): IChatRequestToolEntry {
+		return {
+			kind: 'tool',
+			id: entry.id,
+			icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
+			name: entry.displayName,
+			value: undefined,
+		};
+	}
+
+	private _asToolSetAttachment(entry: ToolSet): IChatRequestToolSetEntry {
+		return {
+			kind: 'toolset',
+			id: entry.id,
+			icon: entry.icon,
+			name: entry.referenceName,
+			value: Array.from(entry.getTools()).map(t => this._asToolAttachment(t)),
 		};
 	}
 }

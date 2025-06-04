@@ -942,15 +942,6 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function getFocusedWindow(): CodeWindow | undefined {
-	const document = getActiveDocument();
-	// This check is needed to ensure the window has focus
-	if (document.defaultView?.window.document.hasFocus()) {
-		return (document.defaultView?.window) as CodeWindow;
-	}
-	return;
-}
-
 interface IMutationObserver {
 	users: number;
 	readonly observer: MutationObserver;

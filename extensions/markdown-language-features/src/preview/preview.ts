@@ -430,10 +430,14 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	get cspSource() {
 		return [
 			this._webviewPanel.webview.cspSource,
-			...this._contributionProvider.contributions.previewResourceRoots.map(root => {
-				const dirRoot = root.path.endsWith('/') ? root : root.with({ path: root.path + '/' });
-				return dirRoot.toString();
-			}),
+
+			// On web, we also need to allow loading of resources from contributed extensions
+			...this._contributionProvider.contributions.previewResourceRoots
+				.filter(root => root.scheme === 'http' || root.scheme === 'https')
+				.map(root => {
+					const dirRoot = root.path.endsWith('/') ? root : root.with({ path: root.path + '/' });
+					return dirRoot.toString();
+				}),
 		].join(' ');
 	}
 

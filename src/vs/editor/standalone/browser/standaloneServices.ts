@@ -96,9 +96,9 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
-import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
 import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1162,7 +1162,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
-registerSingleton(ITreeSitterParserService, StandaloneTreeSitterParserService, InstantiationType.Eager);
+registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
