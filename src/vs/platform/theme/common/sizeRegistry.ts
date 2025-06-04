@@ -5,10 +5,6 @@
 
 export * from './sizeUtils.js';
 
-// export * from './sizes/baseSizes.js';
-// export * from './sizes/buttonSizes.js';
-
-// export * from './sizes/testSizes.js';
 export * from './sizes/spacingSizes.js';
 export * from './sizes/controlsSizes.js';
 export * from './sizes/strokeSizes.js';

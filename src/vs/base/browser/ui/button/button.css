@@ -18,7 +18,7 @@
 }
 
 .monaco-text-button:focus {
-	outline-offset: 2px !important;
+	outline-offset: var(--vscode-button-focus-outline-offset) !important;
 }
 
 .monaco-text-button:hover {
@@ -119,7 +119,7 @@
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
 	font-size: 11px;
-	padding: var(--vscode-button-padding-vertical) 20px;
+	padding: var(--vscode-button-padding-vertical) var(--vscode-base-spacing-xxl);
 }
 
 .monaco-description-button .monaco-button-label,
