@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow, getActiveWindow, addDisposableListener } from '../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -27,6 +27,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	private speed: number = 2;
 	private animationFrameId: number | null = null;
 	private dot: HTMLDivElement | null = null;
+	private mouseMoveListener: IDisposable | null = null;
 
 	static get(editor: ICodeEditor): MiddleScrollController | null {
 		return editor.getContribution<MiddleScrollController>(MiddleScrollController.ID);
@@ -44,10 +45,10 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		super();
 		this._editor = editor;
 
+		this.windowMouseMove = this.windowMouseMove.bind(this);
+
 		this._register(this._editor.onMouseDown(this.editorMouseDown.bind(this)));
-		this._register(addDisposableListener(this.getWindow(), 'mouseup', this.windowMouseUp.bind(this), { capture: true, passive: true }));
-		this._register(addDisposableListener(this.getWindow(), 'mousedown', this.windowMouseDown.bind(this), { passive: true }));
-		this._register(addDisposableListener(this.getWindow(), 'mousemove', this.windowMouseMove.bind(this), { capture: true, passive: true }));
+		this._register(this._editor.onMouseUp(this.editorMouseUp.bind(this)));
 
 		this._register(toDisposable(() => this.stopScroll()));
 	}
@@ -56,8 +57,8 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		return this._editor.getDomNode() ? getWindow(this._editor.getDomNode()) : getActiveWindow();
 	}
 
-	getWorkbench() {
-		return this.getWindow().document.querySelector('.monaco-workbench') ?? this.getWindow().document.body;
+	getTarget() {
+		return this._editor.getDomNode();
 	}
 
 	scrollPane() {
@@ -89,7 +90,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		if (direction !== '') {
 			this.moving = true;
 		}
-		this.getWorkbench()?.setAttribute('data-scroll-direction', direction);
+		this.getTarget()?.setAttribute('data-scroll-direction', direction);
 
 		const targetTop = top + moveTop;
 		this._editor.setScrollTop(targetTop);
@@ -111,16 +112,19 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 
 		this.scrolling = true;
 		this.moving = false;
-		this.getWorkbench()?.classList.add('scroll-editor-on-middle-click-editor');
+		this.getTarget()?.classList.add('scroll-editor-on-middle-click-editor');
+		const offset = this.getTarget()?.getBoundingClientRect() ?? { left: 0, top: 0 };
 		if (this.dot) {
-			this.dot.style.left = x + 'px';
-			this.dot.style.top = y + 'px';
+			this.dot.style.left = (x - offset.left) + 'px';
+			this.dot.style.top = (y - offset.top) + 'px';
 			this.dot.classList.remove('hidden');
 		}
 		this.x = x;
 		this.y = y;
 		this.currentX = x;
 		this.currentY = y;
+		this.mouseMoveListener = addDisposableListener(this.getWindow(), 'mousemove', this.windowMouseMove, { passive: true });
+		this._register(this.mouseMoveListener);
 		this.scrollPane();
 	}
 
@@ -134,9 +138,11 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 		if (this.dot) {
 			this.dot.classList.add('hidden');
 		}
-		const workbench = this.getWindow().document.querySelector('.monaco-workbench');
+		const workbench = this.getTarget();
 		workbench?.removeAttribute('data-scroll-direction');
 		workbench?.classList.remove('scroll-editor-on-middle-click-editor');
+		this.mouseMoveListener?.dispose();
+		this.mouseMoveListener = null;
 	}
 
 	setCurrent(x: number, y: number) {
@@ -149,16 +155,12 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 			e.event.stopPropagation();
 			e.event.preventDefault();
 			this.startScroll(e.event.posx, e.event.posy);
-		}
-	}
-
-	windowMouseDown() {
-		if (this.scrolling) {
+		} else if (this.scrolling) {
 			this.stopScroll();
 		}
 	}
 
-	windowMouseUp() {
+	editorMouseUp() {
 		if (this.moving) {
 			this.stopScroll();
 		}
@@ -179,7 +181,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 	createDot() {
 		this.dot = document.createElement('div');
 		this.dot.classList.add('scroll-editor-on-middle-click-dot', 'hidden');
-		const workbench = this.getWorkbench();
+		const workbench = this.getTarget();
 		if (workbench) {
 			workbench.append(this.dot);
 			this._register(toDisposable(() => {
