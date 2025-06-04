@@ -37,14 +37,15 @@ export class CommandService extends Disposable implements ICommandService {
 
 	private _activateStar(): Promise<void> {
 		if (!this._starActivation) {
-			// wait for * activation, limited to at most 30s. This is wrapped with
-			// notCancellablePromise so it doesn't get cancelled early because it is
-			// shared between consumers.
+			// wait for * activation, limited to at most 30s.
 			this._starActivation = raceCancellablePromises([
 				this._extensionService.activateByEvent(`*`),
 				timeout(30000)
 			]);
 		}
+
+		// This is wrapped with notCancellablePromise so it doesn't get cancelled
+		// early because it is shared between consumers.
 		return notCancellablePromise(this._starActivation);
 	}
 
