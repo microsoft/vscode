@@ -91,7 +91,7 @@ abstract class RawToolSetsShape {
 		return basename(uri).endsWith(RawToolSetsShape.suffix);
 	}
 
-	static from(data: unknown) {
+	static from(data: unknown, logService: ILogService) {
 		if (!isObject(data)) {
 			throw new Error(`Invalid tool set data`);
 		}
@@ -101,10 +101,10 @@ abstract class RawToolSetsShape {
 		for (const [name, value] of Object.entries(data as RawToolSetsShape)) {
 
 			if (isFalsyOrWhitespace(name)) {
-				throw new Error(`Tool set name cannot be empty`);
+				logService.error(`Tool set name cannot be empty`);
 			}
 			if (isFalsyOrEmpty(value.tools)) {
-				throw new Error(`Tool set '${name}' cannot have an empty tools array`);
+				logService.error(`Tool set '${name}' cannot have an empty tools array`);
 			}
 
 			map.set(name, {
@@ -252,10 +252,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				try {
 					const content = await this._fileService.readFile(entry.resource, undefined, cts.token);
 					const rawObj = parse(content.value.toString());
-					data = RawToolSetsShape.from(rawObj);
+					data = RawToolSetsShape.from(rawObj, this._logService);
 
 				} catch (err) {
-					this._logService.trace(`Error reading tool set file ${entry.resource.toString()}:`, err);
+					this._logService.error(`Error reading tool set file ${entry.resource.toString()}:`, err);
 					continue;
 				}
 
