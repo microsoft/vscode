@@ -42,7 +42,7 @@ import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 enum HostShutdownReason {
 
@@ -81,8 +81,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
 
@@ -501,18 +500,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 		if (!opened) {
 			await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
-				detail: workspace ?
-					this.getRecentLabel(workspace) :
-					localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your browser settings."),
+				message: workspace ?
+					localize('unableToOpenExternalWorkspace', "The browser blocked opening a new tab or window for '{0}'. Press 'Retry' to try again.", this.getRecentLabel(workspace)) :
+					localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+				custom: {
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+				},
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 						run: () => this.workspaceProvider.open(workspace, options)
-					},
-					{
-						label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
 					}
 				],
 				cancelButton: true
