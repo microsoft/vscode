@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -34,6 +34,8 @@ import { parse } from '../../../../../base/common/jsonc.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatViewId } from '../chat.js';
 
 
 const toolEnumValues: string[] = [];
@@ -57,8 +59,9 @@ const toolSetsSchema: IJSONSchema = {
 		additionalProperties: false,
 		properties: {
 			tools: {
-				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set."),
+				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set. Cannot be empty and must reference tools the way they are referenced in prompts."),
 				type: 'array',
+				minItems: 1,
 				items: {
 					type: 'string',
 					enum: toolEnumValues,
@@ -90,7 +93,7 @@ abstract class RawToolSetsShape {
 		return basename(uri).endsWith(RawToolSetsShape.suffix);
 	}
 
-	static from(data: unknown) {
+	static from(data: unknown, logService: ILogService) {
 		if (!isObject(data)) {
 			throw new Error(`Invalid tool set data`);
 		}
@@ -100,10 +103,10 @@ abstract class RawToolSetsShape {
 		for (const [name, value] of Object.entries(data as RawToolSetsShape)) {
 
 			if (isFalsyOrWhitespace(name)) {
-				throw new Error(`Tool set name cannot be empty`);
+				logService.error(`Tool set name cannot be empty`);
 			}
 			if (isFalsyOrEmpty(value.tools)) {
-				throw new Error(`Tool set '${name}' cannot have an empty tools array`);
+				logService.error(`Tool set '${name}' cannot have an empty tools array`);
 			}
 
 			map.set(name, {
@@ -251,10 +254,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				try {
 					const content = await this._fileService.readFile(entry.resource, undefined, cts.token);
 					const rawObj = parse(content.value.toString());
-					data = RawToolSetsShape.from(rawObj);
+					data = RawToolSetsShape.from(rawObj, this._logService);
 
 				} catch (err) {
-					this._logService.trace(`Error reading tool set file ${entry.resource.toString()}:`, err);
+					this._logService.error(`Error reading tool set file ${entry.resource.toString()}:`, err);
 					continue;
 				}
 
@@ -316,9 +319,15 @@ export class ConfigureToolSets extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureToolSets.ID,
-			title: localize2('chat.configureToolSets', 'Configure Tool Sets...'),
+			title: localize2('chat.configureToolSets', 'Configure Tool Sets'),
 			category: CHAT_CATEGORY,
 			f1: true,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 11,
+				group: '2_manage'
+			},
 		});
 	}
 
@@ -333,6 +342,12 @@ export class ConfigureToolSets extends Action2 {
 
 		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
 
+		picks.push({
+			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			alwaysShow: true,
+			iconClass: ThemeIcon.asClassName(Codicon.plus)
+		});
+
 		for (const toolSet of toolsService.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
 				continue;
@@ -346,15 +361,6 @@ export class ConfigureToolSets extends Action2 {
 			});
 		}
 
-		if (picks.length !== 0) {
-			picks.push({ type: 'separator' });
-		}
-
-		picks.push({
-			label: localize('chat.configureToolSets.add', 'Add Tool Sets File...'),
-			alwaysShow: true,
-			iconClass: ThemeIcon.asClassName(Codicon.tools)
-		});
 
 
 		const pick = await quickInputService.pick(picks, {
