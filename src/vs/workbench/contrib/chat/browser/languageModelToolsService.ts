@@ -340,7 +340,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -380,9 +380,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (autoApproved) {
 			return;
 		}
-		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (!setting) {
+			return;
+		}
+		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow));
+		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
+		if (soundEnabled || announcementEnabled) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true, modality: !soundEnabled ? 'announcement' : undefined });
 		}
 	}
 
@@ -402,11 +407,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { type: 'text', value: part.value };
+				return { isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { type: 'text', value: stringifyPromptTsxPart(part) };
+				return { isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}

@@ -29,6 +29,27 @@
 
 .chat-setup-dialog {
 
+	/* Continue Buttons */
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button::before {
+		content: '';
+		background-size: 16px;
+		background-repeat: no-repeat;
+		background-position: left center;
+		padding-right: 6px;
+		width: 16px;
+		height: 22px;
+		line-height: inherit !important;
+		display: inline-block;
+	}
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.default::before {
+		background-image: url('./github.svg');
+	}
+
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate::before {
+		background-image: url('./google.svg');
+	}
+
 	/* Link Buttons */
 
 	.dialog-buttons-row > .dialog-buttons > .monaco-button.link-button {

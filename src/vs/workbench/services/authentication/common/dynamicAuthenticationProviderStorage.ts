@@ -12,7 +12,11 @@ export const IDynamicAuthenticationProviderStorageService = createDecorator<IDyn
 export interface DynamicAuthenticationProviderInfo {
 	readonly providerId: string;
 	readonly label: string;
-	readonly issuer: string;
+	/**
+	 * @deprecated in favor of authorizationServer
+	 */
+	readonly issuer?: string;
+	readonly authorizationServer: string;
 	readonly clientId: string;
 }
 
@@ -35,19 +39,19 @@ export interface IDynamicAuthenticationProviderStorageService {
 
 	/**
 	 * Get the client ID for a dynamic authentication provider.
-	 * @param providerId The provider ID or issuer URL.
+	 * @param providerId The provider ID or authorization server URL.
 	 * @returns The client ID if it exists, undefined otherwise.
 	 */
 	getClientId(providerId: string): string | undefined;
 
 	/**
 	 * Store the client ID for a dynamic authentication provider.
-	 * @param providerId The provider ID or issuer URL.
+	 * @param providerId The provider ID or authorization server URL.
 	 * @param clientId The client ID to store.
 	 * @param label Optional label for the provider.
-	 * @param issuer Optional issuer URL for the provider.
+	 * @param authorizationServer Optional authorization server URL for the provider.
 	 */
-	storeClientId(providerId: string, clientId: string, label?: string, issuer?: string): void;
+	storeClientId(providerId: string, authorizationServer: string, clientId: string, label?: string): void;
 
 	/**
 	 * Get all dynamic authentication providers that have been interacted with.

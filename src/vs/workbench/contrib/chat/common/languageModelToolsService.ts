@@ -125,7 +125,17 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string; uri?: URI } | { type: 'resource'; uri: URI })[];
+	readonly output: ({
+		value: string;
+		/** If true, value is text. If false or not given, value is base64 */
+		isText?: boolean;
+		/** Mimetype of the value, optional */
+		mimeType?: string;
+		/** URI of the resource on the MCP server. */
+		uri?: URI;
+		/** If true, this part came in as a resource reference rather than direct data. */
+		asResource?: boolean;
+	})[];
 	readonly isError?: boolean;
 }
 
@@ -169,6 +179,7 @@ export interface IToolResultDataPart {
 export interface IToolConfirmationMessages {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }
 

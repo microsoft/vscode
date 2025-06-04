@@ -87,7 +87,7 @@ export async function showToolsPicker(
 	};
 
 	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
-	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.tools), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
+	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.gear), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
 	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
 	const addPick: CallbackPick = {
 		type: 'item', label: localize('addAny', "Add More Tools..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: async () => {
@@ -235,7 +235,7 @@ export async function showToolsPicker(
 		});
 
 		picks.push(bucket);
-		picks.push(...bucket.children);
+		picks.push(...bucket.children.sort((a, b) => a.label.localeCompare(b.label)));
 	}
 
 	const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));

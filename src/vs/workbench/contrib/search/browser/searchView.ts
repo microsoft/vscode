@@ -2095,7 +2095,7 @@ export class SearchView extends ViewPane {
 		if (!aiSearchPromise) {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery();
 			aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(result => {
-				if (isAIKeyword(result)) {
+				if (result && isAIKeyword(result)) {
 					this.updateKeywordSuggestionUI(result);
 					return;
 				}

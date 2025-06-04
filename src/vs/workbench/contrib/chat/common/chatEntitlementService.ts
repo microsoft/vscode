@@ -78,6 +78,11 @@ export interface IChatSentiment {
 	 * Chat but but disable its functionality.
 	 */
 	disabled?: boolean;
+
+	/**
+	 * User signals intent to use Chat later.
+	 */
+	later?: boolean;
 }
 
 export interface IChatEntitlementService {
@@ -173,7 +178,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatContextKeys.Setup.hidden.key,
 					ChatContextKeys.Setup.disabled.key,
-					ChatContextKeys.Setup.installed.key
+					ChatContextKeys.Setup.installed.key,
+					ChatContextKeys.Setup.later.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -306,7 +312,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return {
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true,
-			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true
+			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.disabled.key) === true,
+			later: this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.later.key) === true
 		};
 	}
 

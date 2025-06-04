@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -176,16 +176,11 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				: Codicon.discard,
 			f1: true,
 			keybinding: {
-				when: EditorContextKeys.focus,
-				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
 				primary: _keep
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace,
-				win: {
-					primary: _keep
-						? KeyMod.Alt | KeyCode.Enter
-						: KeyMod.Alt | KeyCode.Backspace
-				},
+					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
+					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
 			},
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
@@ -245,13 +240,8 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
-						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
-					win: {
-						primary: _accept
-							? KeyMod.Alt | KeyMod.Shift | KeyCode.Enter
-							: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
-					}
+						? KeyMod.CtrlCmd | KeyCode.KeyY
+						: KeyMod.CtrlCmd | KeyCode.KeyN
 				},
 				menu: {
 					id: MenuId.ChatEditingEditorHunk,

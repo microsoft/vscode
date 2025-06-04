@@ -50,6 +50,7 @@ import { Color } from '../../../../base/common/color.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { quickDiffDecorationCount } from './quickDiffDecorator.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
@@ -63,7 +64,8 @@ export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSele
 	constructor(
 		action: IAction,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const styles = { ...defaultSelectBoxStyles };
 		const theme = themeService.getColorTheme();
@@ -71,7 +73,7 @@ export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSele
 		const peekTitleColor = theme.getColor(peekViewTitleBackground);
 		const opaqueTitleColor = peekTitleColor?.makeOpaque(editorBackgroundColor!) ?? editorBackgroundColor!;
 		styles.selectBackground = opaqueTitleColor.lighten(.6).toString();
-		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
+		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base'), useCustomDrawn: !hasNativeContextMenu(configurationService) });
 	}
 
 	public setSelection(quickDiffs: QuickDiff[], providerId: string) {

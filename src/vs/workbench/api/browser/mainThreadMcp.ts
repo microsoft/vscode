@@ -9,7 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
@@ -138,24 +138,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 
-		const issuer = URI.parse(metadata.issuer);
-		// Some better default?
-		const scopesSupported = metadata.scopes_supported || [];
-		let providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
+		const authorizationServer = URI.revive(authServerComponents);
+		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata, resource);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { issuer }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { authorizationServer: authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -193,7 +192,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						issuer
+						authorizationServer
 					});
 			} while (
 				accountToCreate
