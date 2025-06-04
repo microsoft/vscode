@@ -161,25 +161,26 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	if (!currentCwd) {
 		return;
 	}
-	try {
-		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
-		// they are what triggers changes in the directory.
-		let lastSlashIndex: number;
-		if (isWindows) {
-			// TODO: This support is very basic, ideally the slashes supported would depend upon the
-			//       shell type. For example git bash under Windows does not allow using \ as a path
-			//       separator.
-			lastSlashIndex = prefix.lastIndexOf('\\');
-			if (lastSlashIndex === -1) {
-				lastSlashIndex = prefix.lastIndexOf('/');
-			}
-		} else {
+	// Get the nearest folder path from the prefix. This ignores everything after the `/` as
+	// they are what triggers changes in the directory.
+	let lastSlashIndex: number;
+	if (isWindows) {
+		// TODO: This support is very basic, ideally the slashes supported would depend upon the
+		//       shell type. For example git bash under Windows does not allow using \ as a path
+		//       separator.
+		lastSlashIndex = prefix.lastIndexOf('\\');
+		if (lastSlashIndex === -1) {
 			lastSlashIndex = prefix.lastIndexOf('/');
 		}
-		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
+	} else {
+		lastSlashIndex = prefix.lastIndexOf('/');
+	}
+	const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
+
+	try {
 
 		// Resolve the absolute path of the prefix
-		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
+		const resolvedPath = path.resolve(currentCwd.fsPath, relativeFolder);
 
 		const stat = await fs.stat(resolvedPath);
 
@@ -189,6 +190,19 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		}
 	} catch {
 		// Ignore errors
+		try {
+			// If the first attempt failed, try with the opposite separator (for WSL environments)
+			const oppositeSeparator = isWindows ? '/' : '\\';
+			const normalizedCwdPath = currentCwd.fsPath.replace(/[\/\\]/g, oppositeSeparator);
+			const normalizedRelativeFolder = relativeFolder.replace(/[\/\\]/g, oppositeSeparator);
+			const resolvedPath = path.resolve(normalizedCwdPath, normalizedRelativeFolder);
+			const stat = await fs.stat(resolvedPath);
+			if (stat.isDirectory()) {
+				return currentCwd.with({ path: resolvedPath });
+			}
+		} catch {
+			// If both attempts fail, return undefined (handled by the outer catch)
+		}
 	}
 
 	// No valid path found
