@@ -124,8 +124,7 @@ async function ensureNotebookEditorVisible(editorGroupsService: IEditorGroupsSer
 	if (editor) {
 		const group = editorGroupsService.getGroup(editor.groupId);
 		if (group) {
-			// Open the editor to make it visible and active
-			await group.openEditor(editor.editor);
+			await group.openEditor(editor.editor, { revealIfOpened: true });
 		}
 	}
 }
