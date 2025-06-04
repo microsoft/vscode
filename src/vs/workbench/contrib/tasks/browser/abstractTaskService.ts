@@ -684,7 +684,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							? `\`${message}\``
 							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
 						actions.push({
-							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
+							label: nls.localize('troubleshootWithChat', "Fix with Copilot"),
 							run: async () => {
 								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
 									mode: ChatMode.Agent,
