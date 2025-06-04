@@ -475,6 +475,12 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable' ? 'modern' : 'default',
 			tags: ['onExp', 'experimental']
 		},
+		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
+			type: 'boolean',
+			description: nls.localize('chat.continueLaterIndicator', "Enable continue later indicator in the status bar."),
+			default: false,
+			tags: ['onExp', 'experimental'],
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

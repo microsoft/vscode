@@ -171,7 +171,17 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
 
-		if (!isNewUser(this.chatEntitlementService)) {
+		if (isNewUser(this.chatEntitlementService)) {
+
+			// Later
+			if (this.chatEntitlementService.sentiment.later && this.configurationService.getValue('chat.setup.continueLaterIndicator') === true) {
+				const continueSetup = localize('copilotLaterStatus', "Continue Setup");
+
+				text = `$(copilot) ${continueSetup}`;
+				ariaLabel = continueSetup;
+				kind = 'prominent';
+			}
+		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
 
@@ -209,7 +219,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			// Completions Disabled
 			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = `$(copilot-unavailable)`;
-				ariaLabel = localize('completionsDisabledStatus', "Code completions Disabled");
+				ariaLabel = localize('completionsDisabledStatus', "Code completions disabled");
 			}
 		}
 
