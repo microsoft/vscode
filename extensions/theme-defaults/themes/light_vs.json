@@ -10,6 +10,8 @@
 		"editorIndentGuide.activeBackground1": "#939393",
 		"editor.selectionHighlightBackground": "#ADD6FF80",
 		"editorSuggestWidget.background": "#F3F3F3",
+		"editorGutter.addedBackground": "#107C10",
+		"editorGutter.deletedBackground": "#BC2F32",
 		"activityBarBadge.background": "#007ACC",
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
