@@ -35,7 +35,8 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 				input = JSON.stringify(v.toolSpecificData.rawInput);
 			}
 		}
-		const title = typeof v.confirmationMessages?.title === 'string' ? v.confirmationMessages?.title : v.confirmationMessages?.title ? v.confirmationMessages?.title.value : '';
+		const titleObj = v.confirmationMessages?.title;
+		const title = typeof titleObj === 'string' ? titleObj : titleObj?.value || '';
 		return (title + (input ? ': ' + input : '')).trim();
 	}).filter(v => !!v);
 
