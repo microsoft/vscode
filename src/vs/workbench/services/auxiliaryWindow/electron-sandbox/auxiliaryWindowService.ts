@@ -24,6 +24,7 @@ import { getZoomLevel, isFullscreen, setFullscreen } from '../../../../base/brow
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -143,9 +144,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService);
+		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService, openerService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {

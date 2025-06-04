@@ -42,6 +42,7 @@ import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 enum HostShutdownReason {
 
@@ -81,6 +82,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -497,14 +499,24 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const { confirmed } = await this.dialogService.confirm({
+			await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+				message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+				detail: workspace ?
+					this.getRecentLabel(workspace) :
+					localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your browser settings."),
+				buttons: [
+					{
+						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
+						run: () => this.workspaceProvider.open(workspace, options)
+					},
+					{
+						label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
+					}
+				],
+				cancelButton: true
 			});
-			if (confirmed) {
-				await this.workspaceProvider.open(workspace, options);
-			}
 		}
 	}
 

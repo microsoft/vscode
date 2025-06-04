@@ -339,11 +339,11 @@ export class BrowserWindow extends BaseWindow {
 						if (!opened) {
 							await this.dialogService.prompt({
 								type: Severity.Warning,
-								message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
 								detail: href,
 								buttons: [
 									{
-										label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
 									},
 									{
