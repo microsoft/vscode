@@ -640,14 +640,6 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		[TerminalSettingId.KillGracefully]: {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize(
-				'terminal.integrated.killGracefully',
-				'Controls how terminal processes are terminated on macOS and Linux. When enabled, attempts a graceful shutdown of the process tree. This will send \`SIGTERM\`. When disabled (default), processes are terminated with: \`SIGHUP\`.'
-			),
-		},
 		...terminalContribConfiguration,
 	}
 };
