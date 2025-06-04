@@ -16,7 +16,7 @@ import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { Color } from '../../../../base/common/color.js';
 import {
 	darken, editorBackground, editorForeground, listInactiveSelectionBackground, opaque,
-	registerColor, transparent,
+	editorErrorForeground, registerColor, transparent,
 	lighten
 } from '../../../../platform/theme/common/colorRegistry.js';
 
@@ -31,16 +31,15 @@ registerColor('editorGutter.modifiedSecondaryBackground',
 	nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
 
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: '#54B054', light: '#107C10', hcDark: '#54B054', hcLight: '#107C10'
+	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#48985D'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 registerColor('editorGutter.addedSecondaryBackground',
 	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.7), hcDark: '#487E02', hcLight: '#48985D' },
 	nls.localize('editorGutterAddedSecondaryBackground', "Editor gutter secondary background color for lines that are added."));
 
-const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D'
-}, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground',
+	editorErrorForeground, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
 
 registerColor('editorGutter.deletedSecondaryBackground',
 	{ dark: darken(editorGutterDeletedBackground, 0.4), light: lighten(editorGutterDeletedBackground, 0.3), hcDark: '#F48771', hcLight: '#B5200D' },
