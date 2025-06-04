@@ -377,7 +377,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('node-pty.IPty#kill');
-				if (this.shellLaunchConfig.killGracefully) {
+				// For windows, we already attempt to gracefully kill the process
+				if (!isWindows && this.shellLaunchConfig.killGracefully) {
 					this._killGracefully(this._ptyProcess);
 				} else {
 					this._ptyProcess.kill();
@@ -391,19 +392,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private async _killGracefully(ptyProcess: IPty): Promise<void> {
-		if (!isWindows) {
-			ptyProcess.kill('SIGTERM');
-		} else if (isWindows && process.platform === 'win32') {
-			const windir = process.env['WINDIR'] || 'C:\\Windows';
-			const TASK_KILL = path.join(windir, 'System32', 'taskkill.exe');
-			try {
-				await exec(`${TASK_KILL} /T /PID ${ptyProcess.pid}`);
-			} catch (err) {
-				ptyProcess.kill();
-			}
-		} else {
-			ptyProcess.kill();
-		}
+		ptyProcess.kill('SIGTERM');
 	}
 
 	private async _throttleKillSpawn(): Promise<void> {

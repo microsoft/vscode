@@ -645,7 +645,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false,
 			markdownDescription: localize(
 				'terminal.integrated.killGracefully',
-				'Controls how terminal processes are terminated. When enabled, attempts a graceful shutdown of the process tree. On POSIX, this will send \`SIGTERM\`. On Windows, it uses \`taskkill.exe\` without the \`/F\` (force) flag. Note that this may allow misbehaving processes to remain running. When disabled (default), processes are terminated with: \`SIGHUP\`.'
+				'Controls how terminal processes are terminated on macOS and Linux. When enabled, attempts a graceful shutdown of the process tree. This will send \`SIGTERM\`. When disabled (default), processes are terminated with: \`SIGHUP\`.'
 			),
 		},
 		...terminalContribConfiguration,
