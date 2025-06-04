@@ -100,11 +100,15 @@ const postProcessBranches =
 					name = name.slice(0, space);
 				}
 
+				// Boost main and master branches to the top
+				const isMainOrMaster = name === "main" || name === "master";
+				const priority = isMainOrMaster ? 76 : 75;
+
 				return {
 					name,
 					description,
 					icon: "fig://icon?type=git",
-					priority: 75,
+					priority,
 				};
 			})
 			.filter((suggestion) => {
