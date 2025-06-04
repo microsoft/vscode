@@ -228,9 +228,9 @@ export interface IAuthorizationDynamicClientRegistrationResponse {
 	client_secret_expires_at?: number;
 
 	/**
-	 * REQUIRED. Client name as provided during registration.
+	 * OPTIONAL. Client name as provided during registration.
 	 */
-	client_name: string;
+	client_name?: string;
 
 	/**
 	 * OPTIONAL. Client URI as provided during registration.
@@ -579,7 +579,7 @@ export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): 
 		return false;
 	}
 	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
+	return response.client_id !== undefined;
 }
 
 export function isAuthorizationAuthorizeResponse(obj: unknown): obj is IAuthorizationAuthorizeResponse {
@@ -596,14 +596,6 @@ export function isAuthorizationTokenResponse(obj: unknown): obj is IAuthorizatio
 	}
 	const response = obj as IAuthorizationTokenResponse;
 	return response.access_token !== undefined && response.token_type !== undefined;
-}
-
-export function isDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
-	if (typeof obj !== 'object' || obj === null) {
-		return false;
-	}
-	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
 }
 
 export function isAuthorizationDeviceResponse(obj: unknown): obj is IAuthorizationDeviceResponse {

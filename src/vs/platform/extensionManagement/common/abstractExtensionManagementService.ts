@@ -767,8 +767,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
 			}
 
-			if (uninstallOptions.remove) {
-				extensionsToRemove.push(extension);
+			if (uninstallOptions.remove || extension.isApplicationScoped) {
+				if (uninstallOptions.remove) {
+					extensionsToRemove.push(extension);
+				}
 				for (const profile of this.userDataProfilesService.profiles) {
 					if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, uninstallOptions.profileLocation)) {
 						continue;
@@ -841,7 +843,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			}
 
 			if (extensionsToRemove.length) {
-				await this.joinAllSettled(extensionsToRemove.map(extension => this.removeExtension(extension)));
+				await this.joinAllSettled(extensionsToRemove.map(extension => this.deleteExtension(extension)));
 			}
 		} catch (e) {
 			const error = toExtensionManagementError(e);
@@ -939,7 +941,9 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
-	protected abstract removeExtension(extension: ILocalExtension): Promise<void>;
+	protected abstract moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
+	protected abstract removeExtension(extension: ILocalExtension, fromProfileLocation: URI): Promise<void>;
+	protected abstract deleteExtension(extension: ILocalExtension): Promise<void>;
 }
 
 export function toExtensionManagementError(error: Error, code?: ExtensionManagementErrorCode): ExtensionManagementError {

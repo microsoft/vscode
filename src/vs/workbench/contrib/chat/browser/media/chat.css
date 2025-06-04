@@ -1956,21 +1956,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		z-index: 10000;
 		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 		border: 1px solid var(--vscode-chat-requestBorder);
-		top: -8px;
+		top: -13px;
 		right: 20px;
 		border-radius: 3px;
 	}
 
 	.request-hover .actions-container {
-		width: 24px;
-		height: 24px;
+		width: 26px;
+		height: 26px;
 	}
 
 	.request-hover .actions-container .action-label.codicon-x {
-		width: 24px;
-		height: 24px;
+		width: 26px;
+		height: 26px;
 		padding-top: 4px;
-		padding-left: 4px;
+		padding-left: 5px;
 	}
 
 	.request-hover.has-no-actions {
@@ -1983,20 +1983,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	div[data-index="0"] .monaco-tl-contents {
 		.interactive-item-container.interactive-request {
-			padding-top: 15px;
+			padding-top: 19px;
 		}
 
 		.request-hover {
-			top: 2px;
+			top: 0px;
 		}
 	}
 
-	.interactive-item-container.interactive-request:focus {
-		outline: none !important;
-	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown:focus {
-		outline: 1px solid var(--vscode-focusBorder);
+	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
+		outline: none !important;
+
+		.interactive-item-container .value .rendered-markdown {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		.request-hover {
+			display: flex !important;
+		}
+
 	}
 }
 

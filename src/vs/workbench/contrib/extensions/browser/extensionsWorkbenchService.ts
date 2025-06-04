@@ -2647,27 +2647,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		const dependents: IExtension[] = [];
+		const dependents: ILocalExtension[] = [];
+		let extensionsFromAllProfiles: [ILocalExtension, URI][] | undefined;
 		for (const { extension } of extensionsToUninstall) {
-			for (const local of this.local) {
-				if (!local.local) {
-					continue;
+			const installedExtensions: [ILocalExtension, URI | undefined][] = [];
+			if (extension.isApplicationScoped && this.userDataProfilesService.profiles.length > 1) {
+				if (!extensionsFromAllProfiles) {
+					extensionsFromAllProfiles = [];
+					await Promise.allSettled(this.userDataProfilesService.profiles.map(async profile => {
+						const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource);
+						for (const local of installed) {
+							extensionsFromAllProfiles?.push([local, profile.extensionsResource]);
+						}
+					}));
 				}
+				installedExtensions.push(...extensionsFromAllProfiles);
+			} else {
+				for (const { local } of this.local) {
+					if (local) {
+						installedExtensions.push([local, undefined]);
+					}
+				}
+			}
+			for (const [local, profileLocation] of installedExtensions) {
 				if (areSameExtensions(local.identifier, extension.identifier)) {
 					continue;
 				}
-				if (local.dependencies.length === 0) {
+				if (!local.manifest.extensionDependencies || local.manifest.extensionDependencies.length === 0) {
 					continue;
 				}
 				if (extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier))) {
 					continue;
 				}
-				if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
+				if (dependents.some(d => d.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier)))) {
 					continue;
 				}
-				if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
+				if (local.manifest.extensionDependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
 					dependents.push(local);
-					extensionsToUninstall.push({ extension: local.local });
+					extensionsToUninstall.push({ extension: local, options: { profileLocation } });
 				}
 			}
 		}
@@ -2719,16 +2736,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return [];
 	}
 
-	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
+	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: ILocalExtension[]): string {
 		if (dependents.length === 1) {
-			return nls.localize('singleDependentUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' extension depends on this. Do you want to uninstall all these extensions?", extension.displayName, dependents[0].displayName);
+			return nls.localize('singleDependentUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' extension depends on this. Do you want to uninstall all these extensions?", extension.displayName, dependents[0].manifest.displayName);
 		}
 		if (dependents.length === 2) {
 			return nls.localize('twoDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' and '{2}' extensions depend on this. Do you want to uninstall all these extensions?",
-				extension.displayName, dependents[0].displayName, dependents[1].displayName);
+				extension.displayName, dependents[0].manifest.displayName, dependents[1].manifest.displayName);
 		}
 		return nls.localize('multipleDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to uninstall all these extensions?",
-			extension.displayName, dependents[0].displayName, dependents[1].displayName);
+			extension.displayName, dependents[0].manifest.displayName, dependents[1].manifest.displayName);
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {

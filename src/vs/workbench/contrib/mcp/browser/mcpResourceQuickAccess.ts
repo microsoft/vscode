@@ -16,6 +16,7 @@ import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { DefaultQuickAccessFilterValue, IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -23,7 +24,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
-import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './mcpCommands.js';
 
@@ -76,6 +77,7 @@ export class McpResourcePickHelper {
 		@IFileService private readonly _fileService: IFileService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	public async toAttachment(resource: IMcpResource | IMcpResourceTemplate): Promise<IChatRequestVariableEntry | undefined> {
@@ -88,7 +90,8 @@ export class McpResourcePickHelper {
 
 	public async toURI(resource: IMcpResource | IMcpResourceTemplate): Promise<URI | undefined> {
 		if (isMcpResourceTemplate(resource)) {
-			return this._resourceTemplateToURI(resource);
+			const maybeUri = await this._resourceTemplateToURI(resource);
+			return maybeUri && await this._verifyUriIfNeeded(maybeUri);
 		} else {
 			return resource.uri;
 		}
@@ -109,12 +112,27 @@ export class McpResourcePickHelper {
 	}
 
 	private async _resourceTemplateToAttachment(rt: IMcpResourceTemplate) {
-		const uri = await this._resourceTemplateToURI(rt);
+		const maybeUri = await this._resourceTemplateToURI(rt);
+		const uri = maybeUri && await this._verifyUriIfNeeded(maybeUri);
 		return uri && this._resourceToAttachment({
 			uri,
 			name: rt.name,
 			mimeType: rt.mimeType,
 		});
+	}
+
+	private async _verifyUriIfNeeded({ uri, needsVerification }: { uri: URI; needsVerification: boolean }): Promise<URI | undefined> {
+		if (!needsVerification) {
+			return uri;
+		}
+
+		const exists = await this._fileService.exists(uri);
+		if (exists) {
+			return uri;
+		}
+
+		this._notificationService.warn(localize('mcp.resource.template.notFound', "The resource {0} was not found.", McpResourceURI.toServer(uri).resourceURI.toString()));
+		return undefined;
 	}
 
 	private async _resourceTemplateToURI(rt: IMcpResourceTemplate) {
@@ -126,6 +144,7 @@ export class McpResourcePickHelper {
 		const vars: Record<string, string | string[]> = {};
 		quickInput.totalSteps = todo.length;
 		quickInput.ignoreFocusOut = true;
+		let needsVerification = false;
 
 		try {
 			for (let i = 0; i < todo.length; i++) {
@@ -134,16 +153,18 @@ export class McpResourcePickHelper {
 				if (resolved === undefined) {
 					return undefined;
 				}
-				vars[todo[i].name] = variable.repeatable ? resolved.split('/') : resolved;
+				// mark the URI as needing verification if any part was not a completion pick
+				needsVerification ||= !resolved.completed;
+				vars[todo[i].name] = variable.repeatable ? resolved.value.split('/') : resolved.value;
 			}
-			return rt.resolveURI(vars);
+			return { uri: rt.resolveURI(vars), needsVerification };
 		} finally {
 			cts.dispose(true);
 			quickInput.dispose();
 		}
 	}
 
-	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<string | undefined> {
+	private _promptForTemplateValue(input: IQuickPick<IQuickPickItem>, variable: IUriTemplateVariable, variablesSoFar: Record<string, string | string[]>, rt: IMcpResourceTemplate): Promise<{ value: string; completed: boolean } | undefined> {
 		const store = new DisposableStore();
 		const completions = new Map<string, Promise<string[]>>([]);
 
@@ -161,6 +182,7 @@ export class McpResourcePickHelper {
 
 		input.placeholder = placeholder;
 		input.value = '';
+		input.items = [];
 		input.show();
 
 		const currentID = generateUuid();
@@ -199,14 +221,17 @@ export class McpResourcePickHelper {
 
 		const getCompletionItemsScheduler = store.add(new RunOnceScheduler(getCompletionItems, 300));
 
-		return new Promise<string | undefined>(resolve => {
+		return new Promise<{ value: string; completed: boolean } | undefined>(resolve => {
 			store.add(input.onDidHide(() => resolve(undefined)));
 			store.add(input.onDidAccept(() => {
 				const item = input.selectedItems[0];
 				if (item.id === currentID) {
-					resolve(input.value);
+					resolve({ value: input.value, completed: false });
+				} else if (variable.explodable && item.label.endsWith('/') && item.label !== input.value) {
+					// if navigating in a path structure, picking a `/` should let the user pick in a subdirectory
+					input.value = item.label;
 				} else {
-					resolve(item.label);
+					resolve({ value: item.label, completed: true });
 				}
 			}));
 			store.add(input.onDidChangeValue(value => {

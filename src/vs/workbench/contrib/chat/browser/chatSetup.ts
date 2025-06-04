@@ -71,6 +71,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatMode2 } from '../common/chatModes.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -206,6 +207,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -296,7 +298,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			try {
 				const ready = await Promise.race([
-					timeout(20000).then(() => 'timedout'),
+					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
 					this.whenDefaultAgentFailed(chatService).then(() => 'error'),
 					Promise.allSettled([whenLanguageModelReady, whenAgentReady, whenToolsModelReady])
 				]);
