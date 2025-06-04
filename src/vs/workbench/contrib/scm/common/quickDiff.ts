@@ -31,7 +31,7 @@ registerColor('editorGutter.modifiedSecondaryBackground',
 	nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
 
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#48985D'
+	dark: '#54B054', light: '#107C10', hcDark: '#54B054', hcLight: '#107C10'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 registerColor('editorGutter.addedSecondaryBackground',
