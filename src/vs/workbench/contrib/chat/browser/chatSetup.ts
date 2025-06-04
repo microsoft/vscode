@@ -796,6 +796,8 @@ class ChatSetup {
 								styleButton: button => {
 									if (variant !== 'account-create') {
 										button.element.classList.add('link-button');
+									} else {
+										button.element.classList.add('continue-button', 'default');
 									}
 								}
 							}]
