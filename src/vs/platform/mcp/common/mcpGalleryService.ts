@@ -17,6 +17,11 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
 import { IGalleryMcpServer, IMcpGalleryService, IMcpServerManifest, IQueryOptions, mcpGalleryServiceUrlConfig, PackageType } from './mcpManagement.js';
 
+interface IRawGalleryServersResult {
+	readonly servers: readonly IRawGalleryMcpServer[];
+}
+
+
 interface IRawGalleryMcpServer {
 	readonly id: string;
 	readonly name: string;
@@ -61,15 +66,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IGalleryMcpServer[]> {
-		let result = await this.fetchGallery(token);
+		let { servers } = await this.fetchGallery(token);
 
 		if (options?.text) {
 			const searchText = options.text.toLowerCase();
-			result = result.filter(item => item.name.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText));
+			servers = servers.filter(item => item.name.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText));
 		}
 
 		const galleryServers: IGalleryMcpServer[] = [];
-		for (const item of result) {
+		for (const item of servers) {
 			galleryServers.push(this.toGalleryMcpServer(item));
 		}
 
@@ -164,10 +169,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	private async fetchGallery(token: CancellationToken): Promise<IRawGalleryMcpServer[]> {
+	private async fetchGallery(token: CancellationToken): Promise<IRawGalleryServersResult> {
 		const mcpGalleryUrl = this.getMcpGalleryUrl();
 		if (!mcpGalleryUrl) {
-			return Promise.resolve([]);
+			return Promise.resolve({ servers: [] });
 		}
 
 		const uri = URI.parse(mcpGalleryUrl);
@@ -186,8 +191,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url: mcpGalleryUrl,
 		}, token);
 
-		const result = await asJson<IRawGalleryMcpServer[]>(context);
-		return result || [];
+		const result = await asJson<IRawGalleryServersResult>(context);
+		return result || { servers: [] };
 	}
 
 	private getManifestUrl(item: IRawGalleryMcpServer): string {

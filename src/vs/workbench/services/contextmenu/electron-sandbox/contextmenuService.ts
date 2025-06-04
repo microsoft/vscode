@@ -15,7 +15,7 @@ import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browse
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
-import { hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { hasNativeContextMenu, MenuSettings } from '../../../../platform/window/common/window.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from '../../../../platform/contextview/browser/contextMenuService.js';
@@ -26,13 +26,14 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export class ContextMenuService implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private impl: HTMLContextMenuService | NativeContextMenuService;
+	private listener?: IDisposable;
 
 	get onDidShowContextMenu(): Event<void> { return this.impl.onDidShowContextMenu; }
 	get onDidHideContextMenu(): Event<void> { return this.impl.onDidHideContextMenu; }
@@ -46,19 +47,38 @@ export class ContextMenuService implements IContextMenuService {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-
-		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
-			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
+		function createContextMenuService(native: boolean) {
+			return native ?
+				new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService)
+				: new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
-		// Native context menu: otherwise
-		else {
-			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService);
+		// set initial context menu service
+		let isNativeContextMenu = hasNativeContextMenu(configurationService);
+		this.impl = createContextMenuService(isNativeContextMenu);
+
+		// MacOS does not need a restart when the menu style changes
+		// It should update the context menu style on menu style configuration change
+		if (isMacintosh) {
+			this.listener = configurationService.onDidChangeConfiguration(e => {
+				if (!e.affectsConfiguration(MenuSettings.MenuStyle)) {
+					return;
+				}
+
+				const newIsNativeContextMenu = hasNativeContextMenu(configurationService);
+				if (newIsNativeContextMenu === isNativeContextMenu) {
+					return;
+				}
+
+				this.impl.dispose();
+				this.impl = createContextMenuService(newIsNativeContextMenu);
+				isNativeContextMenu = newIsNativeContextMenu;
+			});
 		}
 	}
 
 	dispose(): void {
+		this.listener?.dispose();
 		this.impl.dispose();
 	}
 

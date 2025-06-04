@@ -249,7 +249,7 @@ export class StartServerAction extends McpServerAction {
 		if (!server) {
 			return;
 		}
-		await server.start(true);
+		await server.start({ isFromInteraction: true });
 		server.showOutput();
 	}
 
@@ -345,7 +345,7 @@ export class RestartServerAction extends McpServerAction {
 			return;
 		}
 		await server.stop();
-		await server.start(true);
+		await server.start({ isFromInteraction: true });
 		server.showOutput();
 	}
 

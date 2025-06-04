@@ -5,7 +5,7 @@
 
 import './dialog.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import { ButtonBar, ButtonBarAlignment, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
@@ -47,14 +47,16 @@ export interface IDialogOptions {
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	readonly extraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
-	readonly buttonOptions?: Array<undefined | { sublabel?: string; renderAsLink?: boolean }>;
+	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
+	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -106,11 +108,22 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private readonly options: IDialogOptions) {
 		super();
 
+		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
+			if (e.target === this.modalElement) {
+				this.element.focus(); // guide users back into the dialog if clicked elsewhere
+			}
+		}));
+
+		// Dialog Box
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		if (options.alignment === DialogContentsAlignment.Vertical) {
 			this.element.classList.add('align-vertical');
+		}
+		if (options.extraClasses) {
+			this.element.classList.add(...options.extraClasses);
 		}
 		this.element.setAttribute('role', 'dialog');
 		this.element.tabIndex = -1;
@@ -147,13 +160,15 @@ export class Dialog extends Disposable {
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		const messageElement = this.messageContainer.appendChild($('.dialog-message'));
-		const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
-		messageTextElement.innerText = this.message;
+		if (this.options.detail || this.options.renderBody) {
+			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
+			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
+			messageTextElement.innerText = this.message;
+		}
 
 		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
-		if (this.options.detail) {
-			this.messageDetailElement.innerText = this.options.detail;
+		if (this.options.detail || !this.options.renderBody) {
+			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 		} else {
 			this.messageDetailElement.style.display = 'none';
 		}
@@ -262,16 +277,13 @@ export class Dialog extends Disposable {
 				});
 			};
 
-			// Handle button clicks
+			// Buttons
 			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
 
 				let button: IButton;
 				const buttonOptions = this.options.buttonOptions?.[buttonMap[index]?.index];
-				if (buttonOptions?.renderAsLink) {
-					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
-					button.element.classList.add('link-button');
-				} else if (primary && this.options?.primaryButtonDropdown) {
+				if (primary && this.options?.primaryButtonDropdown) {
 					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
 					button = this._register(buttonBar.addButtonWithDropdown({
 						...this.options.primaryButtonDropdown,
@@ -290,6 +302,10 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
 				} else {
 					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
+				}
+
+				if (buttonOptions?.styleButton) {
+					buttonOptions.styleButton(button);
 				}
 
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
@@ -496,8 +512,7 @@ export class Dialog extends Disposable {
 				}
 			}
 
-
-			if (!this.options.disableCloseAction) {
+			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
 				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {

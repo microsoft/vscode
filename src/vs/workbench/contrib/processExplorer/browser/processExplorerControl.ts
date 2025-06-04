@@ -175,15 +175,11 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, vo
 		return createRow(container, 'header');
 	}
 
-	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData): void {
 		templateData.name.textContent = localize('processName', "Process Name");
 		templateData.cpu.textContent = localize('processCpu', "CPU (%)");
 		templateData.pid.textContent = localize('processPid', "PID");
 		templateData.memory.textContent = localize('processMemory', "Memory (MB)");
-	}
-
-	renderTwistie(element: IProcessInformation, twistieElement: HTMLElement): boolean {
-		return false;
 	}
 
 	disposeTemplate(templateData: unknown): void {
@@ -199,7 +195,7 @@ class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void,
 		return createRow(container);
 	}
 
-	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData): void {
 		templateData.name.textContent = node.element.name;
 	}
 
@@ -216,7 +212,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 		return createRow(container);
 	}
 
-	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData): void {
 		templateData.name.textContent = node.element.errorMessage;
 	}
 
@@ -268,7 +264,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 		};
 	}
 
-	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
+	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData): void {
 		const { element } = node;
 
 		const pid = element.pid.toFixed(0);

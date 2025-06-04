@@ -446,4 +446,8 @@ declare module 'vscode' {
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
 	}
+
+	export interface ChatRequest {
+		modeInstructions?: string;
+	}
 }

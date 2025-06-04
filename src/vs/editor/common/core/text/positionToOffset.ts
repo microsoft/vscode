@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findLastIdxMonotonous } from '../../../../base/common/arraysFind.js';
-import { ITextModel } from '../../model.js';
 import { StringEdit, StringReplacement } from '../edits/stringEdit.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 import { Position } from '../position.js';
@@ -116,23 +115,5 @@ export class PositionOffsetTransformer extends PositionOffsetTransformerBase {
 
 	getLineLength(lineNumber: number): number {
 		return this.lineEndOffsetByLineIdx[lineNumber - 1] - this.lineStartOffsetByLineIdx[lineNumber - 1];
-	}
-}
-
-export function getPositionOffsetTransformerFromTextModel(textModel: ITextModel): PositionOffsetTransformerBase {
-	return new PositionOffsetTransformerWithTextModel(textModel);
-}
-
-class PositionOffsetTransformerWithTextModel extends PositionOffsetTransformerBase {
-	constructor(private readonly _textModel: ITextModel) {
-		super();
-	}
-
-	override getOffset(position: Position): number {
-		return this._textModel.getOffsetAt(position);
-	}
-
-	override getPosition(offset: number): Position {
-		return this._textModel.getPositionAt(offset);
 	}
 }

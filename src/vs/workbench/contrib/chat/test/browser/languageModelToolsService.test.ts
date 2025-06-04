@@ -13,7 +13,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocation, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Barrier } from '../../../../../base/common/async.js';
@@ -40,7 +40,7 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		const disposable = service.registerToolData(toolData);
@@ -54,7 +54,7 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -74,7 +74,7 @@ suite('LanguageModelToolsService', () => {
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		const toolData2: IToolData = {
@@ -82,14 +82,14 @@ suite('LanguageModelToolsService', () => {
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData1));
@@ -102,12 +102,50 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(tools[1].id, 'testTool3');
 	});
 
+	test('getToolByName', () => {
+		contextKeyService.createKey('testKey', true);
+		const toolData1: IToolData = {
+			id: 'testTool1',
+			toolReferenceName: 'testTool1',
+			modelDescription: 'Test Tool 1',
+			when: ContextKeyEqualsExpr.create('testKey', false),
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData2: IToolData = {
+			id: 'testTool2',
+			toolReferenceName: 'testTool2',
+			modelDescription: 'Test Tool 2',
+			when: ContextKeyEqualsExpr.create('testKey', true),
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolData3: IToolData = {
+			id: 'testTool3',
+			toolReferenceName: 'testTool3',
+			modelDescription: 'Test Tool 3',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData1));
+		store.add(service.registerToolData(toolData2));
+		store.add(service.registerToolData(toolData3));
+
+		assert.strictEqual(service.getToolByName('testTool1'), undefined);
+		assert.strictEqual(service.getToolByName('testTool1', true)?.id, 'testTool1');
+		assert.strictEqual(service.getToolByName('testTool2')?.id, 'testTool2');
+		assert.strictEqual(service.getToolByName('testTool3')?.id, 'testTool3');
+	});
+
 	test('invokeTool', async () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -142,7 +180,7 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
 			displayName: 'Test Tool',
-			source: { type: 'internal' },
+			source: ToolDataSource.Internal,
 		};
 
 		store.add(service.registerToolData(toolData));

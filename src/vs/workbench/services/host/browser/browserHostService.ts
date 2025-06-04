@@ -389,7 +389,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(async () => {
 
 						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						const filesToWaitFor: URI[] = [];
+						if (options.mergeMode) {
+							filesToWaitFor.push(fileOpenables[3].fileUri /* [3] is the resulting merge file */);
+						} else {
+							filesToWaitFor.push(...fileOpenables.map(fileOpenable => fileOpenable.fileUri));
+						}
+						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, filesToWaitFor));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);

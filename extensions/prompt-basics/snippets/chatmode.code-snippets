@@ -1,0 +1,13 @@
+{
+	"fileTemplate": {
+		"prefix": "Custom Chat Mode",
+		"body": [
+			"---",
+			"description: '${1:Description of the custom chat mode.}'",
+			"tools: [ '${2:tool1}', '${3:tool2}' ]",
+			"---",
+		],
+		"description": "Custom chat modes can define a specific behavior for the chat",
+		"isFileTemplate": true,
+	}
+}

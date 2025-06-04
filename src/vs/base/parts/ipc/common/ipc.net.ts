@@ -497,7 +497,7 @@ class ProtocolWriter {
 		}
 	}
 
-	private _writeNowTimeout: any = null;
+	private _writeNowTimeout: Timeout | null = null;
 	private _scheduleWriting(): void {
 		if (this._writeNowTimeout) {
 			return;
@@ -815,14 +815,14 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
 	private _outgoingAckId: number;
-	private _outgoingAckTimeout: any | null;
+	private _outgoingAckTimeout: Timeout | null;
 
 	private _incomingMsgId: number;
 	private _incomingAckId: number;
 	private _incomingMsgLastTime: number;
-	private _incomingAckTimeout: any | null;
+	private _incomingAckTimeout: Timeout | null;
 
-	private _keepAliveInterval: any | null;
+	private _keepAliveInterval: Timeout | null;
 
 	private _lastReplayRequestTime: number;
 	private _lastSocketTimeoutTime: number;

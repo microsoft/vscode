@@ -2921,9 +2921,20 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], toolSelection: vscode.ChatRequestToolSelection | undefined, tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
-		const toolReferences = request.variables.variables.filter(v => v.kind === 'tool');
-		const variableReferences = request.variables.variables.filter(v => v.kind !== 'tool');
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+
+		const toolReferences: typeof request.variables.variables = [];
+		const variableReferences: typeof request.variables.variables = [];
+		for (const v of request.variables.variables) {
+			if (v.kind === 'tool') {
+				toolReferences.push(v);
+			} else if (v.kind === 'toolset') {
+				toolReferences.push(...v.value);
+			} else {
+				variableReferences.push(v);
+			}
+		}
+
 		const requestWithAllProps: vscode.ChatRequest = {
 			id: request.requestId,
 			prompt: request.message,
@@ -2940,10 +2951,10 @@ export namespace ChatAgentRequest {
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
-			toolSelection,
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
+			modeInstructions: request.modeInstructions,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3407,7 +3418,7 @@ export namespace McpServerDefinition {
 				}
 				: {
 					type: McpServerTransportType.Stdio,
-					cwd: item.cwd,
+					cwd: item.cwd?.fsPath,
 					args: item.args,
 					command: item.command,
 					env: item.env,

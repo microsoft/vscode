@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/extension.css';
-import { append, $, addDisposableListener } from '../../../../base/browser/dom.js';
+import { append, $ } from '../../../../base/browser/dom.js';
 import { IDisposable, dispose, combinedDisposable } from '../../../../base/common/lifecycle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -14,7 +14,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget } from './extensionsWidgets.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -31,7 +31,6 @@ const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 export interface ITemplateData {
 	root: HTMLElement;
 	element: HTMLElement;
-	icon: HTMLImageElement;
 	name: HTMLElement;
 	description: HTMLElement;
 	installCount: HTMLElement;
@@ -73,7 +72,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const preReleaseWidget = this.instantiationService.createInstance(PreReleaseBookmarkWidget, append(root, $('.extension-bookmark-container')));
 		const element = append(root, $('.extension-list-item'));
 		const iconContainer = append(element, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { alt: '' }));
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, iconContainer);
 		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, false);
 		const extensionPackBadgeWidget = this.instantiationService.createInstance(ExtensionPackBadgeWidget, iconContainer);
 		const details = append(element, $('.details'));
@@ -85,7 +84,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const extensionKindIndicator = append(header, $('span'));
 		const activationStatus = append(header, $('span.activation-status'));
-		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, append(footer, $('.publisher-container')), true);
@@ -132,11 +130,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction);
 
 		const widgets = [
+			iconWidget,
 			recommendationWidget,
 			preReleaseWidget,
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
-			headerRemoteBadgeWidget,
 			publisherWidget,
 			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
@@ -151,7 +149,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
-			root, element, icon, name, installCount, ratings, description, disposables: [disposable], actionbar,
+			root, element, name, installCount, ratings, description, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -165,7 +163,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.root.removeAttribute('aria-label');
 		data.root.removeAttribute('data-extension-id');
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		data.icon.src = '';
 		data.name.textContent = '';
 		data.description.textContent = '';
 		data.installCount.style.display = 'none';
@@ -192,16 +189,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
-
-		data.extensionDisposables.push(addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
-		data.icon.src = extension.iconUrl;
-
-		if (!data.icon.complete) {
-			data.icon.style.visibility = 'hidden';
-			data.icon.onload = () => data.icon.style.visibility = 'inherit';
-		} else {
-			data.icon.style.visibility = 'inherit';
-		}
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
