@@ -645,8 +645,9 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false,
 			markdownDescription: localize(
 				'terminal.integrated.killGracefully',
-				'Controls how terminal processes are terminated on macOS and Linux. When enabled, attempts a graceful shutdown of the process tree. This will send \`SIGTERM\`. When disabled (default), processes are terminated with: \`SIGHUP\`.'
+				'Controls how terminal processes are terminated on macOS and Linux. When enabled, attempts a graceful shutdown of the process tree. This will send \`SIGTERM\`. When disabled (default), processes are terminated with: \`SIGHUP\` (Experimental).'
 			),
+			tags: ['experimental']
 		},
 		...terminalContribConfiguration,
 	}
