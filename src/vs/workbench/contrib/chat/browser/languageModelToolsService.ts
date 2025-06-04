@@ -380,7 +380,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (autoApproved) {
 			return;
 		}
-		const setting: { sound: 'auto' | 'on' | 'off'; announcement: 'auto' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (!setting) {
+			return;
+		}
 		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow));
 		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
 		if (soundEnabled || announcementEnabled) {
