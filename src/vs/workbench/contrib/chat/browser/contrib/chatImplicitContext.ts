@@ -61,7 +61,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					activeEditorDisposables.add(Event.debounce(
 						Event.any(
 							codeEditor.onDidChangeModel,
-							codeEditor.onDidChangeCursorSelection,
 							codeEditor.onDidScrollChange,
 							codeEditor.onDidChangeModelLanguage),
 						() => undefined,
@@ -78,7 +77,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 							activeCellDisposables.add(Event.debounce(
 								Event.any(
 									codeEditor.onDidChangeModel,
-									codeEditor.onDidChangeCursorSelection,
 									codeEditor.onDidScrollChange),
 								() => undefined,
 								500)(() => this.updateImplicitContext()));
@@ -301,8 +299,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
 			this.addPrompt(value);
 		}
-
-		this._onDidChangeValue.fire();
+		if (URI.isUri(value) && !isSelection) {
+			this._onDidChangeValue.fire();
+		}
 	}
 
 	public async toBaseEntries(): Promise<readonly IChatRequestFileEntry[]> {
