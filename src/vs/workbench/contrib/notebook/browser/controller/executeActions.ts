@@ -116,7 +116,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 async function ensureNotebookEditorVisible(editorGroupsService: IEditorGroupsService, context: INotebookActionContext, editorService: IEditorService): Promise<void> {
 	// Find the editor input for this notebook
 	const notebookUri = context.notebookEditor.textModel.uri.toString();
-	
+
 	const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
 		editor => editor.editor instanceof NotebookEditorInput && editor.editor.resource.toString() === notebookUri
 	);
