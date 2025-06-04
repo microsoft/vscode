@@ -263,7 +263,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			},
 			'window.menuStyle': {
 				'type': 'string',
-				'enum': ['native', 'custom', 'inherit'],
+				'enum': ['custom', 'native', 'inherit'],
 				'markdownEnumDescriptions': isMacintosh ?
 					[
 						localize(`window.menuStyle.custom.mac`, "Use the custom context menu."),

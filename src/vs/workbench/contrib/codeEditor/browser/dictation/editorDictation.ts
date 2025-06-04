@@ -152,7 +152,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const position = this.editor.getPosition();
+		const lineHeight = position ? this.editor.getLineHeightForPosition(position) : this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
 		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
