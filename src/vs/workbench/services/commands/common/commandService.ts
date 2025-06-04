@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, raceCancellablePromises, timeout } from '../../../../base/common/async.js';
+import { raceCancellablePromises, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,7 +17,7 @@ export class CommandService extends Disposable implements ICommandService {
 	declare readonly _serviceBrand: undefined;
 
 	private _extensionHostIsReady: boolean = false;
-	private _starActivation: CancelablePromise<void> | null;
+	private _starActivation: Promise<void> | null;
 
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
@@ -35,13 +35,15 @@ export class CommandService extends Disposable implements ICommandService {
 		this._starActivation = null;
 	}
 
-	private _activateStar(): CancelablePromise<void> {
+	private _activateStar(): Promise<void> {
 		if (!this._starActivation) {
-			// wait for * activation, limited to at most 30s
-			this._starActivation = raceCancellablePromises([
+			// wait for * activation, limited to at most 30s. This is wrapped with
+			// Promise.resolve() so it doesn't get cancelled early because it is
+			// shared between consumers.
+			this._starActivation = Promise.resolve(raceCancellablePromises([
 				this._extensionService.activateByEvent(`*`),
 				timeout(30000)
-			]);
+			]));
 		}
 		return this._starActivation;
 	}
