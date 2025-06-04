@@ -254,8 +254,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	constructor(
 		@IExtHostWindow protected readonly _extHostWindow: IExtHostWindow,
-		@IExtHostUrlsService private readonly _extHostUrls: IExtHostUrlsService,
-		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@IExtHostUrlsService protected readonly _extHostUrls: IExtHostUrlsService,
+		@IExtHostInitDataService protected readonly _initData: IExtHostInitDataService,
 		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
 		@ILoggerService loggerService: ILoggerService,
 		protected readonly _proxy: MainThreadAuthenticationShape,
