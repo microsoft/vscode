@@ -368,11 +368,6 @@
 	padding: 0 5px;
 }
 
-/* Hide the twistie containers so that there isn't blank indent */
-.quick-input-list .monaco-tl-twistie {
-	display: none !important;
-}
-
 /* Quick input snap lines visible while DnD */
 .quick-input-widget-snapline {
 	position: absolute;

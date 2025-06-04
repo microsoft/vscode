@@ -1516,7 +1516,6 @@ export class QuickInputTree extends Disposable {
 			if (element instanceof QuickPickSeparatorElement) {
 				treeElements.push({
 					element,
-					collapsible: false,
 					collapsed: false,
 					children: element.children.map(e => ({
 						element: e,
