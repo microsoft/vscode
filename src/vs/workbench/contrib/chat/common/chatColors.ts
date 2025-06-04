@@ -63,7 +63,7 @@ export const chatLinesAddedForeground = registerColor(
 	{ dark: '#54B054', light: '#107C10', hcDark: '#54B054', hcLight: '#107C10' },
 	localize('chat.linesAddedForeground', 'Foreground color of lines added in chat code block pill.'), true);
 
-export const chatLinesDeletedForeground = registerColor(
-	'chat.linesDeletedForeground',
+export const chatLinesRemovedForeground = registerColor(
+	'chat.linesRemovedForeground',
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
-	localize('chat.linesDeletedForeground', 'Foreground color of lines deleted in chat code block pill.'), true);
+	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);

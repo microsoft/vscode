@@ -58,11 +58,11 @@ span.label-detail {
 span.label-added {
 	font-weight: bold;
 	padding-left: 4px;
-	color: var(--vscode-editorGutter-addedBackground);
+	color: var(--vscode-chat-linesAddedForeground);
 }
 
 span.label-removed {
 	font-weight: bold;
 	padding-left: 4px;
-	color: var(--vscode-editorGutter-deletedBackground);
+	color: var(--vscode-chat-linesRemovedForeground);
 }
