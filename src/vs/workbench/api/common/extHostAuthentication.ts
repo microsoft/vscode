@@ -254,8 +254,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	constructor(
 		@IExtHostWindow protected readonly _extHostWindow: IExtHostWindow,
-		@IExtHostUrlsService private readonly _extHostUrls: IExtHostUrlsService,
-		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@IExtHostUrlsService protected readonly _extHostUrls: IExtHostUrlsService,
+		@IExtHostInitDataService protected readonly _initData: IExtHostInitDataService,
 		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
 		@ILoggerService loggerService: ILoggerService,
 		protected readonly _proxy: MainThreadAuthenticationShape,
@@ -300,8 +300,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		if (!scopes) {
 			return this._tokenStore.sessions;
 		}
-		let sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopes.join(' '));
-		this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopes.join(' ')}`);
+		// The oauth spec says tthat order doesn't matter so we sort the scopes for easy comparison
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
+		// TODO@TylerLeonhardt: Do this for all scope handling in the auth APIs
+		const sortedScopes = [...scopes].sort();
+		const scopeStr = scopes.join(' ');
+		let sessions = this._tokenStore.sessions.filter(session => arraysEqual([...session.scopes].sort(), sortedScopes));
+		this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 		if (sessions.length) {
 			const newTokens: IAuthorizationToken[] = [];
 			const removedTokens: IAuthorizationToken[] = [];
@@ -322,6 +327,12 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 						}
 						try {
 							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token);
+							// TODO@TylerLeonhardt: When the core scope handling doesn't care about order, this check should be
+							// updated to not care about order
+							if (newToken.scope !== scopeStr) {
+								this._logger.warn(`Token scopes '${newToken.scope}' do not match requested scopes '${scopeStr}'. Overwriting token with what was requested...`);
+								newToken.scope = scopeStr;
+							}
 							this._logger.info(`Successfully created a new token for scopes ${session.scopes.join(' ')}.`);
 							newTokens.push(newToken);
 						} catch (err) {
@@ -335,9 +346,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				this._tokenStore.update({ added: newTokens, removed: removedTokens });
 				// Since we updated the tokens, we need to re-filter the sessions
 				// to get the latest state
-				sessions = this._tokenStore.sessions.filter(session => session.scopes.join(' ') === scopes.join(' '));
+				sessions = this._tokenStore.sessions.filter(session => arraysEqual([...session.scopes].sort(), sortedScopes));
 			}
-			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopes.join(' ')}`);
+			this._logger.info(`Found ${sessions.length} sessions for scopes: ${scopeStr}`);
 			return sessions;
 		}
 		return [];
@@ -379,11 +390,15 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		if (!token) {
 			throw new Error('Failed to create authentication token');
 		}
+		if (token.scope !== scopes.join(' ')) {
+			this._logger.warn(`Token scopes '${token.scope}' do not match requested scopes '${scopes.join(' ')}'. Overwriting token with what was requested...`);
+			token.scope = scopes.join(' ');
+		}
 
 		// Store session for later retrieval
 		this._tokenStore.update({ added: [{ ...token, created_at: Date.now() }], removed: [] });
 		const session = this._tokenStore.sessions.find(t => t.accessToken === token.access_token)!;
-		this._logger.info(`Created session for scopes: ${scopes.join(' ')}`);
+		this._logger.info(`Created session for scopes: ${token.scope}`);
 		return session;
 	}
 
