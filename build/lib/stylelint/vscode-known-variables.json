@@ -958,5 +958,28 @@
 		"--monaco-editor-warning-decoration",
 		"--animation-opacity",
 		"--chat-setup-dialog-glow-angle"
+	],
+	"sizes": [
+		"--vscode-base-spacing-none",
+		"--vscode-base-spacing-xxs",
+		"--vscode-base-spacing-xs",
+		"--vscode-base-spacing-s-nudge",
+		"--vscode-base-spacing-s",
+		"--vscode-base-spacing-m-nudge",
+		"--vscode-base-spacing-m",
+		"--vscode-base-spacing-l",
+		"--vscode-base-spacing-xl",
+		"--vscode-base-spacing-xxl",
+		"--vscode-base-spacing-xxxl",
+		"--vscode-button-test-example-value",
+		"--vscode-chat-message-corner-radius",
+		"--vscode-chat-message-padding",
+		"--vscode-button-line-height",
+		"--vscode-button-padding-horizontal",
+		"--vscode-button-padding-vertical",
+		"--vscode-button-corner-radius",
+		"--vscode-button-focus-outline-offset",
+		"--vscode-chat-padding",
+		"--vscode-base-line-width-s"
 	]
 }
