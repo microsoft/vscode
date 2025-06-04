@@ -1959,18 +1959,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		top: -13px;
 		right: 20px;
 		border-radius: 3px;
+		width: 28px;
+		height: 26px;
 	}
 
 	.request-hover .actions-container {
-		width: 26px;
-		height: 26px;
+		width: 22px;
+		height: 22px;
 	}
 
 	.request-hover .actions-container .action-label.codicon-x {
-		width: 26px;
-		height: 26px;
-		padding-top: 4px;
-		padding-left: 5px;
+		margin-top: 4px;
+		padding: 3px 3px;
 	}
 
 	.request-hover.has-no-actions {
@@ -2000,7 +2000,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.request-hover {
-			display: flex !important;
+			display: block !important;
 		}
 
 	}
