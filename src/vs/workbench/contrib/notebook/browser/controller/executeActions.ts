@@ -71,13 +71,18 @@ function renderAllMarkdownCells(context: INotebookActionContext): void {
 	}
 }
 
-async function runCell(editorGroupsService: IEditorGroupsService, context: INotebookActionContext): Promise<void> {
+async function runCell(editorGroupsService: IEditorGroupsService, context: INotebookActionContext, editorService?: IEditorService): Promise<void> {
 	const group = editorGroupsService.activeGroup;
 
 	if (group) {
 		if (group.activeEditor) {
 			group.pinEditor(group.activeEditor);
 		}
+	}
+
+	// If auto-reveal is enabled, ensure the notebook editor is visible before revealing cells
+	if (context.autoReveal && (context.cell || context.selectedCells?.length) && editorService) {
+		await ensureNotebookEditorVisible(editorGroupsService, context, editorService);
 	}
 
 	if (context.ui && context.cell) {
@@ -105,6 +110,23 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 
 	if (!foundEditor) {
 		return;
+	}
+}
+
+async function ensureNotebookEditorVisible(editorGroupsService: IEditorGroupsService, context: INotebookActionContext, editorService: IEditorService): Promise<void> {
+	// Find the editor input for this notebook
+	const notebookUri = context.notebookEditor.textModel.uri.toString();
+	
+	const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
+		editor => editor.editor instanceof NotebookEditorInput && editor.editor.resource.toString() === notebookUri
+	);
+
+	if (editor) {
+		const group = editorGroupsService.getGroup(editor.groupId);
+		if (group) {
+			// Open the editor to make it visible and active
+			await group.openEditor(editor.editor);
+		}
 	}
 }
 
@@ -284,6 +306,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
@@ -304,7 +327,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			return;
 		}
 
-		await runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, context, editorService);
 	}
 });
 
@@ -422,6 +445,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
@@ -433,7 +457,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			}
 		}
 
-		await runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, context, editorService);
 	}
 });
 
@@ -526,6 +550,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
@@ -568,7 +593,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 				}
 			}
 
-			return runCell(editorGroupsService, context);
+			return runCell(editorGroupsService, context, editorService);
 		}
 	}
 });
@@ -589,6 +614,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const languageService = accessor.get(ILanguageService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
@@ -601,7 +627,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		if (context.cell.cellKind === CellKind.Markup) {
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
 		} else {
-			runCell(editorGroupsService, context);
+			runCell(editorGroupsService, context, editorService);
 		}
 	}
 });
