@@ -23,12 +23,14 @@ export const enum WorkingCopyCapabilities {
 	 */
 	Untitled = 1 << 1,
 
+
+
 	/**
 	 * The working copy will not indicate that
 	 * it is dirty and unsaved content will be
 	 * discarded without prompting if closed.
 	 */
-	Scratchpad = 1 << 2
+	Scratchpad = 1 << 3
 }
 
 /**
