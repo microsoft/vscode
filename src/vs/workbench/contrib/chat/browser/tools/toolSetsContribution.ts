@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -34,6 +34,8 @@ import { parse } from '../../../../../base/common/jsonc.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatViewId } from '../chat.js';
 
 
 const toolEnumValues: string[] = [];
@@ -317,9 +319,15 @@ export class ConfigureToolSets extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureToolSets.ID,
-			title: localize2('chat.configureToolSets', 'Configure Tool Sets...'),
+			title: localize2('chat.configureToolSets', 'Configure Tool Sets'),
 			category: CHAT_CATEGORY,
 			f1: true,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 11,
+				group: '2_manage'
+			},
 		});
 	}
 
@@ -334,6 +342,12 @@ export class ConfigureToolSets extends Action2 {
 
 		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
 
+		picks.push({
+			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			alwaysShow: true,
+			iconClass: ThemeIcon.asClassName(Codicon.plus)
+		});
+
 		for (const toolSet of toolsService.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
 				continue;
@@ -347,15 +361,6 @@ export class ConfigureToolSets extends Action2 {
 			});
 		}
 
-		if (picks.length !== 0) {
-			picks.push({ type: 'separator' });
-		}
-
-		picks.push({
-			label: localize('chat.configureToolSets.add', 'Add Tool Sets File...'),
-			alwaysShow: true,
-			iconClass: ThemeIcon.asClassName(Codicon.tools)
-		});
 
 
 		const pick = await quickInputService.pick(picks, {
