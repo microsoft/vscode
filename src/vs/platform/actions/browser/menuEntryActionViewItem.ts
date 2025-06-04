@@ -21,6 +21,7 @@ import { assertType } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { ICommandAction, isICommandActionToggleInfo } from '../../action/common/action.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -31,6 +32,7 @@ import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
+import { hasNativeContextMenu } from '../../window/common/window.js';
 import { IMenuService, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import './menuEntryActionViewItem.css';
 
@@ -574,12 +576,13 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(null, action, action.actions.map(a => ({
 			text: a.id === Separator.ID ? '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500' : a.label,
 			isDisabled: !a.enabled,
-		})), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true });
+		})), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
 	}
 
