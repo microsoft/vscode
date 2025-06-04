@@ -57,8 +57,9 @@ const toolSetsSchema: IJSONSchema = {
 		additionalProperties: false,
 		properties: {
 			tools: {
-				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set."),
+				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set. Cannot be empty and must reference tools the way they are referenced in prompts."),
 				type: 'array',
+				minItems: 1,
 				items: {
 					type: 'string',
 					enum: toolEnumValues,
