@@ -180,10 +180,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				if (cx > 35 /* Cursor is beyond app icon in title bar */) {
-					e.event.preventDefault();
+				// TODO@bpasero TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// where showing the custom menu seems broken on Windows
+				if (isLinux) {
+					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
+						e.event.preventDefault();
 
-					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+					}
 				}
 			}));
 		}
