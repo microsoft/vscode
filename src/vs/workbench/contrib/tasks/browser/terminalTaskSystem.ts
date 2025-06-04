@@ -108,7 +108,7 @@ class VariableResolver {
 	}
 }
 
-class VerifiedTask {
+export class VerifiedTask {
 	readonly task: Task;
 	readonly resolver: ITaskResolver;
 	readonly trigger: string;
@@ -188,7 +188,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
-	private _lastTask: VerifiedTask | undefined;
+	public _lastTask: VerifiedTask | undefined; // need to update this when tasks.json scheme changes.
 	// Should always be set in run
 	private _currentTask!: VerifiedTask;
 	private _isRerun: boolean = false;

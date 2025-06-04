@@ -49,11 +49,11 @@ import { ITerminalProfileResolverService } from '../../terminal/common/terminal.
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from '../common/taskSystem.js';
+import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
 import * as TaskConfig from '../common/taskConfiguration.js';
-import { TerminalTaskSystem } from './terminalTaskSystem.js';
+import { TerminalTaskSystem, VerifiedTask } from './terminalTaskSystem.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 
@@ -322,8 +322,48 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			this._setTaskLRUCacheLimit();
-			await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			const mapStringToFolderTasks: Map<string, IWorkspaceFolderTaskResult> = await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 			this._onDidChangeTaskConfig.fire();
+
+			// Loop through all workspaceFolderTask result
+			for (const [folderUri, folderResult] of mapStringToFolderTasks) {
+				console.log(`Processing tasks for folder: ${folderUri}`);
+				if (folderResult.set && folderResult.set.tasks) {
+					if (folderResult.set.tasks.length === 0) {
+						console.log('  No tasks in this set.');
+					} else {
+						for (const task of folderResult.set.tasks) {
+							const uniqueId = task.getKey() ?? task._id;
+							const realUniqueId = task._id;
+
+							console.log(`  Task Label: '${task._label}', Unique ID: ${uniqueId}`);
+							const last_task = this._taskSystem!._lastTask?.task._id;
+							console.log(`  Last Task ID: ${last_task}`);
+
+							if (last_task && last_task === realUniqueId) {
+								console.log('  This task is the last executed task.');
+								// TODO: Replace last_task with updated task.
+								if (folderUri !== 'setting') {
+									// this._taskSystem!._lastTask = task;
+									const verified_last_task = new VerifiedTask(task, this._taskSystem!._lastTask?.resolver!, Triggers.command);
+									this._taskSystem!._lastTask = verified_last_task;
+									console.log('i was here');
+								}
+							}
+
+
+
+
+						}
+					}
+				} else {
+					console.log('  No task set found for this folder.');
+				}
+			}
+
+
+
+
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
@@ -2027,7 +2067,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				await this.run(task);
+				await this.run(task, undefined, TaskRunSource.User); // check if this is really needed.
+				// await this.run(task);
 			} catch {
 				// eat the error, we don't care about it here
 			}

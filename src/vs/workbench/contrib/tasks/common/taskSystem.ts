@@ -11,6 +11,7 @@ import { Platform } from '../../../../base/common/platform.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+// import { VerifiedTask } from '../browser/terminalTaskSystem.js';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -101,6 +102,8 @@ export interface ITaskSystemInfoResolver {
 }
 
 export interface ITaskSystem {
+	// _lastTask: VerifiedTask | undefined;
+	_lastTask: any;
 	onDidStateChange: Event<ITaskEvent>;
 	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
