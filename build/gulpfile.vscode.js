@@ -101,6 +101,9 @@ const vscodeResourceIncludes = [
 
 	// Tree Sitter injection queries
 	'out-build/vs/editor/common/languages/injections/*.scm',
+
+	// Chat
+	'out-build/vs/workbench/contrib/chat/browser/media/*.svg'
 ];
 
 const vscodeResources = [
