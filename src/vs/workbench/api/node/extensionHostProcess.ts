@@ -127,7 +127,7 @@ function patchProcess(allowExit: boolean) {
 if (!args.supportGlobalNavigator) {
 	Object.defineProperty(globalThis, 'navigator', {
 		get: () => {
-			onUnexpectedExternalError(new PendingMigrationError('navigator is now a global in nodejs and cannot be used to detect if running in a browser anymore'));
+			onUnexpectedExternalError(new PendingMigrationError('navigator is now a global in nodejs, please see https://aka.ms/vscode-extensions/navigator for additional info on this error.'));
 			return undefined;
 		}
 	});
