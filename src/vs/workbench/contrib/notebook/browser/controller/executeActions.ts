@@ -82,7 +82,7 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 
 	// If auto-reveal is enabled, ensure the notebook editor is visible before revealing cells
 	if (context.autoReveal && (context.cell || context.selectedCells?.length) && editorService) {
-		await ensureNotebookEditorVisible(editorGroupsService, context, editorService);
+		editorService.openEditor({ resource: context.notebookEditor.textModel.uri, options: { revealIfOpened: true } });
 	}
 
 	if (context.ui && context.cell) {
@@ -110,22 +110,6 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 
 	if (!foundEditor) {
 		return;
-	}
-}
-
-async function ensureNotebookEditorVisible(editorGroupsService: IEditorGroupsService, context: INotebookActionContext, editorService: IEditorService): Promise<void> {
-	// Find the editor input for this notebook
-	const notebookUri = context.notebookEditor.textModel.uri.toString();
-
-	const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
-		editor => editor.editor instanceof NotebookEditorInput && editor.editor.resource.toString() === notebookUri
-	);
-
-	if (editor) {
-		const group = editorGroupsService.getGroup(editor.groupId);
-		if (group) {
-			await group.openEditor(editor.editor, { revealIfOpened: true });
-		}
 	}
 }
 
