@@ -494,7 +494,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		// No setup participant to fall back on- wait for extension activation
-		await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+		// Using `activateById` as workaround for https://github.com/microsoft/vscode/issues/250590
+		await this.extensionService.activateById(defaultAgentData.extensionId, {
+			activationEvent: `onChatParticipant:${defaultAgentData.id}`,
+			extensionId: defaultAgentData.extensionId,
+			startup: false
+		});
 
 		const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
 		if (!defaultAgent) {
