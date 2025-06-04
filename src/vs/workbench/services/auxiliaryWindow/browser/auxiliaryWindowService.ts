@@ -15,13 +15,11 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { mark } from '../../../../base/common/performance.js';
 import { isFirefox, isWeb } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
-import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
 import { BaseWindow } from '../../../browser/window.js';
@@ -253,8 +251,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -369,13 +366,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 						run: () => this.openWindow(options)
-					},
-					{
-						label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-						run: () => {
-							this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
-							return undefined;
-						}
 					}
 				],
 				cancelButton: true
