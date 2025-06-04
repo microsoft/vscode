@@ -1991,12 +1991,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	.interactive-item-container.interactive-request:focus {
-		outline: none !important;
-	}
 
-	.interactive-item-container.interactive-request .value .rendered-markdown:focus {
-		outline: 1px solid var(--vscode-focusBorder);
+	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
+		outline: none !important;
+
+		.interactive-item-container .value .rendered-markdown {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		.request-hover {
+			display: flex !important;
+		}
+
 	}
 }
 
