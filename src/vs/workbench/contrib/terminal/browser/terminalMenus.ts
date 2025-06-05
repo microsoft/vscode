@@ -18,6 +18,7 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { TerminalHistoryCommandId } from '../../../terminalContrib/history/common/terminal.history.js';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -502,6 +503,34 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 6,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalHistoryCommandId.GoToRecentDirectory,
+						title: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."),
+						icon: Codicon.folder
+					},
+					group: 'navigation',
+					order: 7,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalHistoryCommandId.RunRecentCommand,
+						title: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."),
+						icon: Codicon.history
+					},
+					group: 'navigation',
+					order: 8,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
