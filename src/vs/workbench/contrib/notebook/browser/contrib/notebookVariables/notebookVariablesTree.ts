@@ -86,8 +86,14 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 
 export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<INotebookVariableElement> {
 
+	private widgetAriaLabel: string = localize('debugConsole', "Notebook Variables");
+
 	getWidgetAriaLabel(): string {
-		return localize('debugConsole', "Notebook Variables");
+		return this.widgetAriaLabel;
+	}
+
+	updateWidgetAriaLabel(label: string): void {
+		this.widgetAriaLabel = label;
 	}
 
 	getAriaLabel(element: INotebookVariableElement): string {
