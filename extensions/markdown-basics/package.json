@@ -75,6 +75,7 @@
           "meta.embedded.block.perl6": "perl6",
           "meta.embedded.block.powershell": "powershell",
           "meta.embedded.block.python": "python",
+          "meta.embedded.block.restructuredtext": "restructuredtext",
           "meta.embedded.block.rust": "rust",
           "meta.embedded.block.scala": "scala",
           "meta.embedded.block.shellscript": "shellscript",

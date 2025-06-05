@@ -1388,6 +1388,39 @@
 				}
 			]
 		},
+		"fenced_code_block_restructuredtext": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(restructuredtext|rst)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.restructuredtext",
+					"patterns": [
+						{
+							"include": "source.rst"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block_rust": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(rust|rs|\\{\\.rust.+?\\})((\\s+|:|,|\\{|\\?)[^`]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
@@ -2037,6 +2070,9 @@
 				},
 				{
 					"include": "#fenced_code_block_regexp_python"
+				},
+				{
+					"include": "#fenced_code_block_restructuredtext"
 				},
 				{
 					"include": "#fenced_code_block_rust"
