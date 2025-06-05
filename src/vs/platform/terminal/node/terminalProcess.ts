@@ -377,33 +377,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('node-pty.IPty#kill');
-				if (this.shellLaunchConfig.killGracefully) {
-					this._killGracefully(this._ptyProcess);
-				} else {
-					this._ptyProcess.kill();
-				}
+				this._ptyProcess.kill();
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
 		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
-	}
-
-	private async _killGracefully(ptyProcess: IPty): Promise<void> {
-		if (!isWindows) {
-			ptyProcess.kill('SIGTERM');
-		} else if (isWindows && process.platform === 'win32') {
-			const windir = process.env['WINDIR'] || 'C:\\Windows';
-			const TASK_KILL = path.join(windir, 'System32', 'taskkill.exe');
-			try {
-				await exec(`${TASK_KILL} /T /PID ${ptyProcess.pid}`);
-			} catch (err) {
-				ptyProcess.kill();
-			}
-		} else {
-			ptyProcess.kill();
-		}
 	}
 
 	private async _throttleKillSpawn(): Promise<void> {
@@ -472,11 +452,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				setTimeout(() => {
 					if (this._closeTimeout && !this._store.isDisposed) {
 						this._closeTimeout = undefined;
-						if (this._ptyProcess && this.shellLaunchConfig.killGracefully) {
-							this._killGracefully(this._ptyProcess);
-						} else {
-							this._kill();
-						}
+						this._kill();
 					}
 				}, ShutdownConstants.MaximumShutdownTime);
 			}

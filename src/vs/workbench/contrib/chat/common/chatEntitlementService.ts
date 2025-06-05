@@ -185,7 +185,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		);
 
 		if (
-			!productService.defaultChatAgent ||				// needs product config
+			!productService.defaultChatAgent ||	// needs product config
 			(
 				// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
 				isWeb &&
@@ -895,14 +895,13 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly enterpriseContextKey: IContextKey<boolean>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
+	private readonly laterContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
-	get state(): IChatEntitlementContextState {
-		return this.suspendedState ?? this._state;
-	}
+	get state(): IChatEntitlementContextState { return this.suspendedState ?? this._state; }
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -926,6 +925,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
+		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 
@@ -956,8 +956,9 @@ export class ChatEntitlementContext extends Disposable {
 
 	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
+	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
@@ -973,6 +974,10 @@ export class ChatEntitlementContext extends Disposable {
 			this._state.hidden = context.hidden;
 		}
 
+		if (typeof context.later === 'boolean') {
+			this._state.later = context.later;
+		}
+
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
 
@@ -983,7 +988,10 @@ export class ChatEntitlementContext extends Disposable {
 			}
 		}
 
-		this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, this._state, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, {
+			...this._state,
+			later: undefined // do not persist this across restarts for now
+		}, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		return this.updateContext();
 	}
@@ -1005,6 +1013,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
 		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
 		this.hiddenContext.set(!!this._state.hidden);
+		this.laterContext.set(!!this._state.later);
 		this.installedContext.set(!!this._state.installed);
 		this.disabledContext.set(!!this._state.disabled);
 

@@ -121,7 +121,6 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
-	KillGracefully = 'terminal.integrated.killGracefully',
 
 	// Debug settings that are hidden from user
 
@@ -650,10 +649,6 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
-	/**
-	 * Whether the process should be killed gracefully
-	 */
-	killGracefully?: boolean;
 }
 
 export interface ITerminalTabAction {

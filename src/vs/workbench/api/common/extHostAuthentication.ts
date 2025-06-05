@@ -160,12 +160,17 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Promise.resolve();
 	}
 
+	// Today, this only handles unregistering extensions that have disposables...
+	// so basiscally just the dynmaic ones. This was done to fix a bug where
+	// there was a racecondition between this event and re-registering a provider
+	// with the same id. (https://github.com/microsoft/vscode-copilot/issues/18045)
+	// This works for now, but should be cleaned up so theres one flow for register/unregister
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(id);
 		if (providerData?.disposable) {
 			providerData.disposable.dispose();
+			this._authenticationProviders.delete(id);
 		}
-		this._authenticationProviders.delete(id);
 		return Promise.resolve();
 	}
 
