@@ -121,7 +121,12 @@ export async function getCwdForSplit(
 }
 
 export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, args: unknown) => {
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+	const historyService = accessor.get(IHistoryService);
+	const quickInputService = accessor.get(IQuickInputService);
 	const terminalService = accessor.get(ITerminalService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+
 	const instance = terminalService.activeInstance || await terminalService.getActiveOrCreateInstance();
 	if (!instance) {
 		return;
@@ -131,7 +136,6 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 	// If no text provided, prompt user for input
 	if (!text) {
-		const quickInputService = accessor.get(IQuickInputService);
 		text = await quickInputService.input({
 			value: '',
 			placeHolder: 'Enter sequence to send (supports \\n, \\r, \\x escape sequences)',
@@ -156,9 +160,6 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 		processedText = processedText.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + processedText.slice(match.index + 4);
 	}
 
-	const configurationResolverService = accessor.get(IConfigurationResolverService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const historyService = accessor.get(IHistoryService);
 	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
 	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, processedText);
