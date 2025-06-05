@@ -532,7 +532,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
-						
+
 						// Track the dependency relationship
 						const taskMapKey = task.getMapKey();
 						const dependencyMapKey = dependencyTask.getMapKey();
@@ -616,7 +616,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _taskHasErrors(task: Task): boolean {
 		const taskMapKey = task.getMapKey();
-		
+
 		// Check if this task itself had errors
 		if (this._taskErrors[taskMapKey]) {
 			return true;
