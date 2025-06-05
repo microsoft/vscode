@@ -128,7 +128,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 	}
 
 	let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
-	
+
 	// If no text provided, prompt user for input
 	if (!text) {
 		const quickInputService = accessor.get(IQuickInputService);
@@ -146,7 +146,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 	let processedText = text
 		.replace(/\\n/g, '\n')
 		.replace(/\\r/g, '\r');
-	
+
 	// Process hex escape sequences (\xNN)
 	while (true) {
 		const match = processedText.match(/\\x([0-9a-fA-F]{2})/);
