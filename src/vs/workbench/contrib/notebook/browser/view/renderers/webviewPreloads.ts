@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from 'vs/base/common/event';
-import type { IDisposable } from 'vs/base/common/lifecycle';
-import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
-import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type { Event } from '../../../../../../base/common/event.js';
+import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type * as webviewMessages from './webviewMessages.js';
+import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -70,6 +71,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -89,7 +91,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals */
+	/* eslint-disable no-restricted-globals, no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -186,6 +188,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
+	const isEditableElement = (element: Element) => {
+		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
+			|| ('editContext' in element && !!element.editContext);
+	};
+
 	// check if an input element is focused within the output element
 	const checkOutputInputFocus = (e: FocusEvent) => {
 		lastFocusedOutput = getOutputContainer(e);
@@ -195,7 +202,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -302,7 +309,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -328,7 +335,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -356,7 +363,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// The input element will handle this.
 			return;
 		}
@@ -460,7 +467,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					id,
 					height,
 					init: update.init,
-					isOutput: update.isOutput,
+					isOutput: update.isOutput
 				});
 			} else {
 				this.pending.set(id, {
@@ -483,12 +490,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	function elementHasContent(height: number) {
+		// we need to account for a potential 1px top and bottom border on a child within the output container
+		return height > 2.1;
+	}
+
 	const resizeObserver = new class {
 
 		private readonly _observer: ResizeObserver;
 
 		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
-		private _outputResizeTimer: any;
+		private _outputResizeTimer: Timeout | undefined;
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -518,23 +530,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 						continue;
 					}
 
-					const newHeight = entry.contentRect.height;
+					const hasContent = elementHasContent(entry.contentRect.height);
 					const shouldUpdatePadding =
-						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
-						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
+						(hasContent && observedElementInfo.lastKnownPadding === 0) ||
+						(!hasContent && observedElementInfo.lastKnownPadding !== 0);
 
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
-							if (newHeight !== 0) {
+							if (hasContent) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+							this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 						});
 					} else {
-						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 					}
 				}
 			});
@@ -572,7 +584,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	let previousDelta: number | undefined;
-	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
+	let scrollTimeout: Timeout | undefined;
 	let scrolledElement: Element | undefined;
 	let lastTimeScrolled: number | undefined;
 	function flagRecentlyScrolled(node: Element, deltaY?: number) {
@@ -690,7 +702,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = focusableElement.tagName === 'INPUT' || focusableElement.tagName === 'TEXTAREA';
+				const inputFocused = isEditableElement(focusableElement);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -1058,7 +1070,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([valueBytes], { type: this.mime });
+					return new Blob([valueBytes as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				get _allOutputItems() {
@@ -1424,9 +1436,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }) => {
 		let find = true;
-		const matches: IFindMatch[] = [];
+		let matches: IFindMatch[] = [];
 
 		const range = document.createRange();
 		range.selectNodeContents(window.document.getElementById('findStart')!);
@@ -1552,6 +1564,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
+
+		matches = matches.filter(match => options.findIds.length ? options.findIds.includes(match.cellId) : true);
 		_highlighter.addHighlights(matches, options.ownerID);
 		window.document.getSelection()?.removeAllRanges();
 
@@ -1575,7 +1589,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1767,6 +1781,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
 			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
+				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
@@ -1911,6 +1935,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};
@@ -2495,7 +2520,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([this.data()], { type: this.mime });
+					return new Blob([this.data() as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				_allOutputItems: [{
@@ -2719,20 +2744,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (!!data.executionId && !!data.rendererId) {
 				let outputSize: number | undefined = undefined;
-				let mimeType: string | undefined = undefined;
 				if (data.content.type === 1 /* extension */) {
 					outputSize = data.content.output.valueBytes.length;
-					mimeType = data.content.output.mime;
 				}
 
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
-					cellId: data.cellId,
-					executionId: data.executionId,
-					duration: Date.now() - startTime,
-					rendererId: data.rendererId,
-					outputSize,
-					mimeType
-				});
+				// Only send performance messages for non-empty outputs up to a certain size
+				if (outputSize !== undefined && outputSize > 0 && outputSize < 100 * 1024) {
+					postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+						cellId: data.cellId,
+						executionId: data.executionId,
+						duration: Date.now() - startTime,
+						rendererId: data.rendererId,
+						outputSize
+					});
+				}
 			}
 		}
 
@@ -2751,10 +2776,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
-
-			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
-				isOutput: true,
-			});
 		}
 
 		public hide() {
@@ -2874,6 +2895,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private hasResizeObserver = false;
 
 		private renderTaskAbort?: AbortController;
+		private isImageOutput = false;
 
 		constructor(
 			private readonly outputId: string,
@@ -2894,6 +2916,37 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.addEventListener('mouseleave', () => {
 				postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', { id: outputId });
 			});
+
+			// Add drag handler
+			this.element.addEventListener('dragstart', (e: DragEvent) => {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const outputData: NotebookCellOutputTransferData = {
+					outputId: this.outputId,
+				};
+
+				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
+			});
+
+			// Add alt key handlers
+			window.addEventListener('keydown', (e) => {
+				if (e.altKey) {
+					this.element.draggable = true;
+				}
+			});
+
+			window.addEventListener('keyup', (e) => {
+				if (!e.altKey) {
+					this.element.draggable = this.isImageOutput;
+				}
+			});
+
+			// Handle window blur to reset draggable state
+			window.addEventListener('blur', () => {
+				this.element.draggable = this.isImageOutput;
+			});
 		}
 
 		public dispose() {
@@ -2913,6 +2966,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
+
+				const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg'];
+				this.isImageOutput = imageMimeTypes.includes(content.output.mime);
+				this.element.draggable = this.isImageOutput;
+
 				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
@@ -2937,17 +2995,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			const offsetHeight = this.element.offsetHeight;
 			const cps = document.defaultView!.getComputedStyle(this.element);
-			if (offsetHeight !== 0 && cps.padding === '0px') {
-				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
+			const verticalPadding = parseFloat(cps.paddingTop) + parseFloat(cps.paddingBottom);
+			const contentHeight = offsetHeight - verticalPadding;
+			if (elementHasContent(contentHeight) && cps.padding === '0px') {
+				// we set padding to zero if the output has no content (then we can have a zero-height output DOM node)
 				// thus we need to ensure the padding is accounted when updating the init height of the output
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 					isOutput: true,
-					init: true,
+					init: true
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
-			} else {
+			} else if (elementHasContent(contentHeight)) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
+					isOutput: true,
+					init: true
+				});
+				this.element.style.padding = `0 ${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodeLeftPadding}`;
+			} else {
+				// we have a zero-height output DOM node
+				dimensionUpdater.updateHeight(this.outputId, 0, {
 					isOutput: true,
 					init: true,
 				});
@@ -3065,7 +3132,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				window.document.body.removeChild(this.dragOverlay);
+				this.dragOverlay.remove();
 				this.dragOverlay = undefined;
 			}
 

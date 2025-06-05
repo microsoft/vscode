@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { addSetting, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { addSetting, merge, updateIgnoredSettings } from '../../common/settingsMerge.js';
+import type { IConflictSetting } from '../../common/userDataSync.js';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
 

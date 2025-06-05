@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import * as paths from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
+import { CharCode } from './charCode.js';
+import * as extpath from './extpath.js';
+import { Schemas } from './network.js';
+import * as paths from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { compare as strCompare, equalsIgnoreCase } from './strings.js';
+import { URI, uriToFsPath } from './uri.js';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);

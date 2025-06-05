@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls.js';
 
 // The strings localized in this file will get pulled into the manifest of the language packs.
 // So that they are available for VS Code to use without downloading the entire language pack.

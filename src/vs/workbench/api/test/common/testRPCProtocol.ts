@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { isThenable } from '../../../../base/common/async.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { IExtHostRpcService } from '../../common/extHostRpcService.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from '../../../services/extensions/common/rpcProtocol.js';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {

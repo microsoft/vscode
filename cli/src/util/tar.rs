@@ -5,8 +5,8 @@
 use crate::util::errors::{wrap, WrappedError};
 
 use flate2::read::GzDecoder;
-use std::fs;
-use std::io::Seek;
+use std::fs::{self, File};
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
@@ -57,16 +57,13 @@ fn should_skip_first_segment(file: &fs::File) -> Result<(bool, u64), WrappedErro
 }
 
 pub fn decompress_tarball<T>(
-	path: &Path,
+	mut tar_gz: File,
 	parent_path: &Path,
 	mut reporter: T,
 ) -> Result<(), WrappedError>
 where
 	T: ReportCopyProgress,
 {
-	let mut tar_gz = fs::File::open(path)
-		.map_err(|e| wrap(e, format!("error opening file {}", path.display())))?;
-
 	let (skip_first, num_entries) = should_skip_first_segment(&tar_gz)?;
 	let report_progress_every = num_entries / 20;
 	let mut entries_so_far = 0;
@@ -81,7 +78,7 @@ where
 	let mut archive = Archive::new(tar);
 	archive
 		.entries()
-		.map_err(|e| wrap(e, format!("error opening archive {}", path.display())))?
+		.map_err(|e| wrap(e, "error opening archive"))?
 		.filter_map(|e| e.ok())
 		.try_for_each::<_, Result<_, WrappedError>>(|mut entry| {
 			// approximate progress based on where we are in the archive:
@@ -117,4 +114,14 @@ where
 	reporter.report_progress(num_entries, num_entries);
 
 	Ok(())
+}
+
+pub fn has_gzip_header(path: &Path) -> std::io::Result<(File, bool)> {
+	let mut file = fs::File::open(path)?;
+	let mut header = [0; 2];
+	let _ = file.read_exact(&mut header);
+
+	file.rewind()?;
+
+	Ok((file, header[0] == 0x1f && header[1] == 0x8b))
 }

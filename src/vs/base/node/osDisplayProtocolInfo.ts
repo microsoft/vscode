@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constants as FSConstants } from 'fs';
-import { access } from 'fs/promises';
-import { join } from 'vs/base/common/path';
-import { env } from 'vs/base/common/process';
+import { constants as FSConstants, promises as FSPromises } from 'fs';
+import { join } from '../common/path.js';
+import { env } from '../common/process.js';
 
 const XDG_SESSION_TYPE = 'XDG_SESSION_TYPE';
 const WAYLAND_DISPLAY = 'WAYLAND_DISPLAY';
@@ -44,7 +43,7 @@ export async function getDisplayProtocol(errorLogger: (error: any) => void): Pro
 				const waylandServerPipe = join(xdgRuntimeDir, 'wayland-0');
 
 				try {
-					await access(waylandServerPipe, FSConstants.R_OK);
+					await FSPromises.access(waylandServerPipe, FSConstants.R_OK);
 
 					// If the file exists, then the session is wayland.
 					return DisplayProtocolType.Wayland;

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { LRUCache } from 'vs/base/common/map';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider } from 'vs/editor/common/languages';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { binarySearch, coalesceInPlace, equals } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { commonPrefixLength } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentSymbol, DocumentSymbolProvider } from '../../../common/languages.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IModelService } from '../../../common/services/model.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export abstract class TreeElement {
 
@@ -395,6 +395,7 @@ export interface IOutlineModelService {
 	_serviceBrand: undefined;
 	getOrCreate(model: ITextModel, token: CancellationToken): Promise<OutlineModel>;
 	getDebounceValue(textModel: ITextModel): number;
+	getCachedModels(): Iterable<OutlineModel>;
 }
 
 interface CacheEntry {
@@ -413,7 +414,7 @@ export class OutlineModelService implements IOutlineModelService {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _debounceInformation: IFeatureDebounceInformation;
-	private readonly _cache = new LRUCache<string, CacheEntry>(10, 0.7);
+	private readonly _cache = new LRUCache<string, CacheEntry>(15, 0.7);
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -484,6 +485,10 @@ export class OutlineModelService implements IOutlineModelService {
 
 	getDebounceValue(textModel: ITextModel): number {
 		return this._debounceInformation.get(textModel);
+	}
+
+	getCachedModels(): Iterable<OutlineModel> {
+		return Iterable.filter<OutlineModel | undefined, OutlineModel>(Iterable.map(this._cache.values(), entry => entry.model), model => model !== undefined);
 	}
 }
 

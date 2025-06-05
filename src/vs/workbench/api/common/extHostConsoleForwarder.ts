@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStackArgument } from 'vs/base/common/console';
-import { safeStringify } from 'vs/base/common/objects';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IStackArgument } from '../../../base/common/console.js';
+import { safeStringify } from '../../../base/common/objects.js';
+import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 export abstract class AbstractExtHostConsoleForwarder {
 
@@ -107,7 +107,7 @@ function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean):
 	if (includeStack) {
 		const stack = new Error().stack;
 		if (stack) {
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } as IStackArgument);
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } satisfies IStackArgument);
 		}
 	}
 

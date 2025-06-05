@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./parameterHints';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
+import * as dom from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import './parameterHints.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from '../../../common/config/editorOptions.js';
+import * as languages from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ParameterHintsModel } from './parameterHintsModel.js';
+import { Context } from './provideSignatureHelp.js';
+import * as nls from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const $ = dom.$;
 
@@ -60,11 +60,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@ILanguageService languageService: ILanguageService,
+		@ILanguageService languageService: ILanguageService
 	) {
 		super();
 
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
+		this.markdownRenderer = new MarkdownRenderer({ editor }, languageService, openerService);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -123,9 +123,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (!this.domNodes) {
 				return;
 			}
+
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
-			this.domNodes.element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			const element = this.domNodes.element;
+			element.style.fontSize = `${fontInfo.fontSize}px`;
+			element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamily', fontInfo.fontFamily);
+			element.style.setProperty('--vscode-parameterHintsWidget-editorFontFamilyDefault', EDITOR_FONT_DEFAULTS.fontFamily);
 		};
 
 		updateFont();
@@ -200,10 +204,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const code = dom.append(this.domNodes.signature, $('.code'));
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		code.style.fontSize = `${fontInfo.fontSize}px`;
-		code.style.fontFamily = fontInfo.fontFamily;
-
 		const hasParameters = signature.parameters.length > 0;
 		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
 
@@ -366,4 +366,4 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+registerColor('editorHoverWidget.highlightForeground', listHighlightForeground, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));

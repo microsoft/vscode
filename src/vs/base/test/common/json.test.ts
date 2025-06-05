@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from 'vs/base/common/json';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from '../../common/json.js';
+import { getParseErrorMessage } from '../../common/jsonErrorMessages.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function assertKinds(text: string, ...kinds: SyntaxKind[]): void {
 	const scanner = createScanner(text);

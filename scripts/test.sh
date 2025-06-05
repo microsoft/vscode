@@ -6,9 +6,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	# --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
-	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage"
 fi
 
 cd $ROOT
@@ -24,10 +21,10 @@ fi
 VSCODECRASHDIR=$ROOT/.build/crashes
 
 # Node modules
-test -d node_modules || yarn
+test -d node_modules || npm i
 
 # Get electron
-yarn electron
+npm run electron
 
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -39,5 +36,5 @@ else
 	cd $ROOT ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
+		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
 fi

@@ -30,15 +30,18 @@ parts:
       - libcurl3-gnutls
       - libcurl3-nss
       - libcurl4
+      - libegl1
       - libdrm2
       - libgbm1
       - libgl1
+      - libgles2
       - libglib2.0-0
       - libgtk-3-0
       - libibus-1.0-5
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
+      - libwayland-egl1
       - libxcomposite1
       - libxdamage1
       - libxfixes3
@@ -58,6 +61,7 @@ parts:
     override-build: |
       snapcraftctl build
       patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
     after:
       - code

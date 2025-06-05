@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationSource } from 'vs/platform/notification/common/notification';
-import { Event } from 'vs/base/common/event';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../nls.js';
+import Severity from '../../../base/common/severity.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
+import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import { INotificationService, INotificationSource } from '../../../platform/notification/common/notification.js';
+import { Event } from '../../../base/common/event.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {

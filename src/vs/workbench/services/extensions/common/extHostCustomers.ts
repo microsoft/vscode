@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostProxy } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionHostKind } from './extensionHostKind.js';
+import { IExtensionHostProxy } from './extensionHostProxy.js';
+import { IInternalExtensionService } from './extensions.js';
+import { IRPCProtocol, ProxyIdentifier } from './proxyIdentifier.js';
 
 export interface IExtHostContext extends IRPCProtocol {
 	readonly remoteAuthority: string | null;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { quickSelect } from '../../../../base/common/arrays.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -25,11 +25,14 @@ const enum Refilter {
 	Incr = 2
 }
 
-export class SimpleCompletionModel {
+export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 	private _stats?: ISimpleCompletionStats;
-	private _filteredItems?: SimpleCompletionItem[];
+	private _filteredItems?: T[];
 	private _refilterKind: Refilter = Refilter.All;
-	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = FuzzyScoreOptions.default;
+	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
+		...FuzzyScoreOptions.default,
+		firstMatchCanBeWeak: true
+	};
 
 	// TODO: Pass in options
 	private _options: {
@@ -37,14 +40,13 @@ export class SimpleCompletionModel {
 	} = {};
 
 	constructor(
-		private readonly _items: SimpleCompletionItem[],
+		private readonly _items: T[],
 		private _lineContext: LineContext,
-		readonly replacementIndex: number,
-		readonly replacementLength: number,
+		private readonly _rawCompareFn?: (leadingLineContent: string, a: T, b: T) => number,
 	) {
 	}
 
-	get items(): SimpleCompletionItem[] {
+	get items(): T[] {
 		this._ensureCachedState();
 		return this._filteredItems!;
 	}
@@ -68,6 +70,10 @@ export class SimpleCompletionModel {
 		}
 	}
 
+	forceRefilterAll() {
+		this._refilterKind = Refilter.All;
+	}
+
 	private _ensureCachedState(): void {
 		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
@@ -85,7 +91,7 @@ export class SimpleCompletionModel {
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
-		const target: SimpleCompletionItem[] = [];
+		const target: T[] = [];
 
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the
@@ -96,9 +102,9 @@ export class SimpleCompletionModel {
 
 			const item = source[i];
 
-			// if (item.isInvalid) {
-			// 	continue; // SKIP invalid items
-			// }
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
 
 			// collect all support, know if their result is incomplete
 			// this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
@@ -107,7 +113,7 @@ export class SimpleCompletionModel {
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
 			// TODO: Fix
-			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
+			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -115,9 +121,8 @@ export class SimpleCompletionModel {
 			}
 
 			// remember the word against which this item was
-			// scored
+			// scored. If word is undefined, then match against the empty string.
 			item.word = word;
-
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
 				// event try to do. Use a const rank and rely on
@@ -165,22 +170,22 @@ export class SimpleCompletionModel {
 
 				} else {
 					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
-					if (!match) {
+					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
+					if (!match && word !== '') {
 						continue; // NO match
 					}
-					item.score = match;
+					// Use default sorting when word is empty
+					item.score = match || FuzzyScore.Default;
 				}
 			}
-
 			item.idx = i;
 			target.push(item);
 
 			// update stats
-			labelLengths.push(item.completion.label.length);
+			labelLengths.push(item.textLabel.length);
 		}
 
-		this._filteredItems = target.sort((a, b) => b.score[0] - a.score[0]);
+		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {

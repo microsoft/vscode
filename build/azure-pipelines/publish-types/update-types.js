@@ -3,19 +3,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const fs = require("fs");
-const cp = require("child_process");
-const path = require("path");
+const fs_1 = __importDefault(require("fs"));
+const child_process_1 = __importDefault(require("child_process"));
+const path_1 = __importDefault(require("path"));
 let tag = '';
 try {
-    tag = cp
+    tag = child_process_1.default
         .execSync('git describe --tags `git rev-list --tags --max-count=1`')
         .toString()
         .trim();
     const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vscode-dts/vscode.d.ts`;
-    const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
-    cp.execSync(`curl ${dtsUri} --output ${outPath}`);
+    const outPath = path_1.default.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
+    child_process_1.default.execSync(`curl ${dtsUri} --output ${outPath}`);
     updateDTSFile(outPath, tag);
     console.log(`Done updating vscode.d.ts at ${outPath}`);
 }
@@ -25,9 +28,9 @@ catch (err) {
     process.exit(1);
 }
 function updateDTSFile(outPath, tag) {
-    const oldContent = fs.readFileSync(outPath, 'utf-8');
+    const oldContent = fs_1.default.readFileSync(outPath, 'utf-8');
     const newContent = getNewFileContent(oldContent, tag);
-    fs.writeFileSync(outPath, newContent);
+    fs_1.default.writeFileSync(outPath, newContent);
 }
 function repeat(str, times) {
     const result = new Array(times);

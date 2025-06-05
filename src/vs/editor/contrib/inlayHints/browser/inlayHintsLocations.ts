@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/languages';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DefinitionAction, SymbolNavigationAction, SymbolNavigationAnchor } from 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
-import { ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { RenderedInlayHintLabelPart } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
-import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import * as dom from '../../../../base/browser/dom.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { Location } from '../../../common/languages.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { DefinitionAction, SymbolNavigationAction, SymbolNavigationAnchor } from '../../gotoSymbol/browser/goToCommands.js';
+import { ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture.js';
+import { RenderedInlayHintLabelPart } from './inlayHintsController.js';
+import { PeekContext } from '../../peekView/browser/peekView.js';
+import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 
 export async function showGoToContextMenu(accessor: ServicesAccessor, editor: ICodeEditor, anchor: HTMLElement, part: RenderedInlayHintLabelPart) {
 

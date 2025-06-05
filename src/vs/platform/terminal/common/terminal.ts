@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import type * as performance from 'vs/base/common/performance';
-import { ILogService } from 'vs/platform/log/common/log';
+import { Event } from '../../../base/common/event.js';
+import { IProcessEnvironment, OperatingSystem } from '../../../base/common/platform.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, type ITerminalCommand } from './capabilities/capabilities.js';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from './terminalProcess.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
+import { RawContextKey } from '../../contextkey/common/contextkey.js';
+import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
+import { Registry } from '../../registry/common/platform.js';
+import type * as performance from '../../../base/common/performance.js';
+import { ILogService } from '../../log/common/log.js';
+import type { IAction } from '../../../base/common/actions.js';
+import type { IDisposable } from '../../../base/common/lifecycle.js';
 
 export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -93,38 +95,32 @@ export const enum TerminalSettingId {
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
+	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
-	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
-	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
-	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	HideOnStartup = 'terminal.integrated.hideOnStartup',
+	HideOnLastClosed = 'terminal.integrated.hideOnLastClosed',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	RescaleOverlappingGlyphs = 'terminal.integrated.rescaleOverlappingGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
-	AutoReplies = 'terminal.integrated.autoReplies',
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
-	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
+	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
-	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
-	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
-	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
-	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
+	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
+	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
+	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
 	// Debug settings that are hidden from user
 
@@ -137,23 +133,28 @@ export const enum TerminalSettingId {
 }
 
 export const enum PosixShellType {
-	PowerShell = 'pwsh',
 	Bash = 'bash',
 	Fish = 'fish',
 	Sh = 'sh',
 	Csh = 'csh',
 	Ksh = 'ksh',
 	Zsh = 'zsh',
-	Python = 'python'
+
 }
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
-	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash',
-	Python = 'python'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType;
+
+export const enum GeneralShellType {
+	PowerShell = 'pwsh',
+	Python = 'python',
+	Julia = 'julia',
+	NuShell = 'nu',
+	Node = 'node',
+}
+export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -193,6 +194,7 @@ export interface IPtyHostAttachTarget {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IReconnectionProperties {
@@ -249,7 +251,8 @@ export const enum ProcessPropertyType {
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
 	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
-	UsedShellIntegrationInjection = 'usedShellIntegrationInjection'
+	UsedShellIntegrationInjection = 'usedShellIntegrationInjection',
+	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -268,6 +271,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;
 	[ProcessPropertyType.UsedShellIntegrationInjection]: boolean | undefined;
+	[ProcessPropertyType.ShellIntegrationInjectionFailureReason]: ShellIntegrationInjectionFailureReason | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -338,9 +342,6 @@ export interface IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
 
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
-	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
@@ -366,8 +367,22 @@ export interface IPtyService {
 
 	// TODO: Make mandatory and remove impl from pty host service
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void>;
+	uninstallAllAutoReplies(): Promise<void>;
+
+	// #endregion
 }
 export const IPtyService = createDecorator<IPtyService>('ptyService');
+
+export interface IPtyServiceContribution {
+	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void;
+	handleProcessDispose(persistentProcessId: number): void;
+	handleProcessInput(persistentProcessId: number, data: string): void;
+	handleProcessResize(persistentProcessId: number, cols: number, rows: number): void;
+}
 
 export interface IPtyHostController {
 	readonly onPtyHostExit: Event<number>;
@@ -547,6 +562,7 @@ export interface IShellLaunchConfig {
 		hideFromUser?: boolean;
 		isFeatureTerminal?: boolean;
 		shellIntegrationNonce: string;
+		tabActions?: ITerminalTabAction[];
 	};
 
 	/**
@@ -624,6 +640,21 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
+
+	/**
+	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
+	 */
+	tabActions?: ITerminalTabAction[];
+	/**
+	 * Report terminal's shell environment variables to VS Code and extensions
+	 */
+	shellIntegrationEnvironmentReporting?: boolean;
+}
+
+export interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
@@ -658,6 +689,8 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	tabActions?: ITerminalTabAction[];
+	shellIntegrationEnvironmentReporting?: boolean;
 }
 
 /**
@@ -671,6 +704,7 @@ export interface ITerminalProcessOptions {
 		nonce: string;
 	};
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
 }
@@ -917,11 +951,17 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly seenSequences: ReadonlySet<string>;
 	readonly status: ShellIntegrationStatus;
 
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface IDecorationAddon {
+	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable;
 }
 
 export interface ITerminalContributions {
@@ -935,6 +975,51 @@ export const enum ShellIntegrationStatus {
 	FinalTerm,
 	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
 	VSCode
+}
+
+
+export const enum ShellIntegrationInjectionFailureReason {
+	/**
+	 * The setting is disabled.
+	 */
+	InjectionSettingDisabled = 'injectionSettingDisabled',
+	/**
+	 * There is no executable (so there's no way to determine how to inject).
+	 */
+	NoExecutable = 'noExecutable',
+	/**
+	 * It's a feature terminal (tasks, debug), unless it's explicitly being forced.
+	 */
+	FeatureTerminal = 'featureTerminal',
+	/**
+	 * The ignoreShellIntegration flag is passed (eg. relaunching without shell integration).
+	 */
+	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
+	/**
+	 * Shell integration doesn't work with winpty.
+	 */
+	Winpty = 'winpty',
+	/**
+	 * We're conservative whether we inject when we don't recognize the arguments used for the
+	 * shell as we would prefer launching one without shell integration than breaking their profile.
+	 */
+	UnsupportedArgs = 'unsupportedArgs',
+	/**
+	 * The shell doesn't have built-in shell integration. Note that this doesn't mean the shell
+	 * won't have shell integration in the end.
+	 */
+	UnsupportedShell = 'unsupportedShell',
+
+
+	/**
+	 * For zsh, we failed to set the sticky bit on the shell integration script folder.
+	 */
+	FailedToSetStickyBit = 'failedToSetStickyBit',
+
+	/**
+	 * For zsh, we failed to create a temp directory for the shell integration script.
+	 */
+	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
 export enum TerminalExitReason {
@@ -989,7 +1074,7 @@ export interface ITerminalCommandSelector {
 	kind?: 'fix' | 'explain';
 }
 
-export interface ITerminalBackend {
+export interface ITerminalBackend extends ITerminalBackendPtyServiceContributions {
 	readonly remoteAuthority: string | undefined;
 
 	readonly isResponsive: boolean;
@@ -999,6 +1084,7 @@ export interface ITerminalBackend {
 	 * has been actioned.
 	 */
 	readonly whenReady: Promise<void>;
+
 	/**
 	 * Signal to the backend that persistence has been actioned and is ready for use.
 	 */
@@ -1053,6 +1139,11 @@ export interface ITerminalBackend {
 	): Promise<ITerminalChildProcess>;
 
 	restartPtyHost(): void;
+}
+
+export interface ITerminalBackendPtyServiceContributions {
+	installAutoReply(match: string, reply: string): Promise<void>;
+	uninstallAllAutoReplies(): Promise<void>;
 }
 
 export const TerminalExtensions = {

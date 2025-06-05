@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketsUtils } from 'vs/editor/common/languages/supports/richEditBrackets';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { BracketsUtils } from '../../../../common/languages/supports/richEditBrackets.js';
 
 suite('richEditBrackets', () => {
 

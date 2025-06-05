@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { Range } from './core/range.js';
+import { StandardTokenType } from './encodedTokenAttributes.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { SparseMultilineTokens } from './tokens/sparseMultilineTokens.js';
 
 /**
  * Provides tokenization related functionality of the text model.
@@ -84,9 +83,10 @@ export interface ITokenizationTextModelPart {
 	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
 	/**
+	 * Tokens the lines as if they were inserted at [lineNumber, lineNumber).
 	 * @internal
 	*/
-	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+	tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null;
 
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;

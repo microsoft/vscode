@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { IObservable, globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IObjectData, IPooledObject } from './objectPool';
-import { ActionRunnerWithContext } from './utils';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { h } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService, type IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { observableCodeEditor } from '../../observableCodeEditor.js';
+import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
+import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
+import { IObjectData, IPooledObject } from './objectPool.js';
+import { ActionRunnerWithContext } from './utils.js';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -34,74 +35,96 @@ export class TemplateData implements IObjectData {
 }
 
 export class DiffEditorItemTemplate extends Disposable implements IPooledObject<TemplateData> {
-	private readonly _viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
+	private readonly _viewModel;
 
-	private readonly _collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
+	private readonly _collapsed;
 
-	private readonly _editorContentHeight = observableValue<number>(this, 500);
-	public readonly contentHeight = derived(this, reader => {
-		const h = this._collapsed.read(reader) ? 0 : this._editorContentHeight.read(reader);
-		return h + this._outerEditorHeight;
-	});
+	private readonly _editorContentHeight;
+	public readonly contentHeight;
 
-	private readonly _modifiedContentWidth = observableValue<number>(this, 0);
-	private readonly _modifiedWidth = observableValue<number>(this, 0);
-	private readonly _originalContentWidth = observableValue<number>(this, 0);
-	private readonly _originalWidth = observableValue<number>(this, 0);
+	private readonly _modifiedContentWidth;
+	private readonly _modifiedWidth;
+	private readonly _originalContentWidth;
+	private readonly _originalWidth;
 
-	public readonly maxScroll = derived(this, reader => {
-		const scroll1 = this._modifiedContentWidth.read(reader) - this._modifiedWidth.read(reader);
-		const scroll2 = this._originalContentWidth.read(reader) - this._originalWidth.read(reader);
-		if (scroll1 > scroll2) {
-			return { maxScroll: scroll1, width: this._modifiedWidth.read(reader) };
-		} else {
-			return { maxScroll: scroll2, width: this._originalWidth.read(reader) };
-		}
-	});
+	public readonly maxScroll;
 
-	private readonly _elements = h('div.multiDiffEntry', [
-		h('div.header@header', [
-			h('div.header-content', [
-				h('div.collapse-button@collapseButton'),
-				h('div.file-path', [
-					h('div.title.modified.show-file-icons@primaryPath', [] as any),
-					h('div.status.deleted@status', ['R']),
-					h('div.title.original.show-file-icons@secondaryPath', [] as any),
-				]),
-				h('div.actions@actions'),
-			]),
-		]),
+	private readonly _elements;
 
-		h('div.editorParent', [
-			h('div.editorContainer@editor'),
-		])
-	]) as Record<string, HTMLElement>;
+	public readonly editor;
 
-	public readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
-		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
-	}, {}));
+	private readonly isModifedFocused;
+	private readonly isOriginalFocused;
+	public readonly isFocused;
 
-	private readonly isModifedFocused = isFocused(this.editor.getModifiedEditor());
-	private readonly isOriginalFocused = isFocused(this.editor.getOriginalEditor());
-	public readonly isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
+	private readonly _resourceLabel;
 
-	private readonly _resourceLabel = this._workbenchUIElementFactory.createResourceLabel
-		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
-		: undefined;
-
-	private readonly _resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
-		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
-		: undefined;
+	private readonly _resourceLabel2;
 
 	private readonly _outerEditorHeight: number;
+	private readonly _contextKeyService: IScopedContextKeyService;
 
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
 		super();
+		this._viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
+		this._collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
+		this._editorContentHeight = observableValue<number>(this, 500);
+		this.contentHeight = derived(this, reader => {
+			const h = this._collapsed.read(reader) ? 0 : this._editorContentHeight.read(reader);
+			return h + this._outerEditorHeight;
+		});
+		this._modifiedContentWidth = observableValue<number>(this, 0);
+		this._modifiedWidth = observableValue<number>(this, 0);
+		this._originalContentWidth = observableValue<number>(this, 0);
+		this._originalWidth = observableValue<number>(this, 0);
+		this.maxScroll = derived(this, reader => {
+			const scroll1 = this._modifiedContentWidth.read(reader) - this._modifiedWidth.read(reader);
+			const scroll2 = this._originalContentWidth.read(reader) - this._originalWidth.read(reader);
+			if (scroll1 > scroll2) {
+				return { maxScroll: scroll1, width: this._modifiedWidth.read(reader) };
+			} else {
+				return { maxScroll: scroll2, width: this._originalWidth.read(reader) };
+			}
+		});
+		this._elements = h('div.multiDiffEntry', [
+			h('div.header@header', [
+				h('div.header-content', [
+					h('div.collapse-button@collapseButton'),
+					h('div.file-path', [
+						h('div.title.modified.show-file-icons@primaryPath', [] as any),
+						h('div.status.deleted@status', ['R']),
+						h('div.title.original.show-file-icons@secondaryPath', [] as any),
+					]),
+					h('div.actions@actions'),
+				]),
+			]),
+
+			h('div.editorParent', [
+				h('div.editorContainer@editor'),
+			])
+		]) as Record<string, HTMLElement>;
+		this.editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
+			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
+		}, {}));
+		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
+		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
+		this.isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
+		this._resourceLabel = this._workbenchUIElementFactory.createResourceLabel
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
+			: undefined;
+		this._resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
+			: undefined;
+		this._dataStore = this._register(new DisposableStore());
+		this._headerHeight = 40;
+		this._lastScrollTop = -1;
+		this._isSettingScrollTop = false;
 
 		const btn = new Button(this._elements.collapseButton, {});
 
@@ -155,13 +178,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._container.appendChild(this._elements.root);
 		this._outerEditorHeight = this._headerHeight;
 
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
+		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
+		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
+		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
-			actionViewItemProvider: (action, options) => createActionViewItem(_instantiationService, action, options),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 	}
 
@@ -173,11 +198,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	}
 
-	private readonly _dataStore = new DisposableStore();
+	private readonly _dataStore;
 
 	private _data: TemplateData | undefined;
 
-	public setData(data: TemplateData): void {
+	public setData(data: TemplateData | undefined): void {
 		this._data = data;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -198,13 +223,17 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			};
 		}
 
-		const value = data.viewModel.entry.value!; // TODO
-
-		if (value.onOptionsDidChange) {
-			this._dataStore.add(value.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-			}));
+		if (!data) {
+			globalTransaction(tx => {
+				this._viewModel.set(undefined, tx);
+				this.editor.setDiffModel(null, tx);
+				this._dataStore.clear();
+			});
+			return;
 		}
+
+		const value = data.viewModel.documentDiffItem;
+
 		globalTransaction(tx => {
 			this._resourceLabel?.setUri(data.viewModel.modifiedUri ?? data.viewModel.originalUri!, { strikethrough: data.viewModel.modifiedUri === undefined });
 
@@ -231,15 +260,31 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
-			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);
+			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
 			this.editor.updateOptions(updateOptions(value.options ?? {}));
 		});
+		if (value.onOptionsDidChange) {
+			this._dataStore.add(value.onOptionsDidChange(() => {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
+			}));
+		}
+		data.viewModel.isAlive.recomputeInitiallyAndOnChange(this._dataStore, value => {
+			if (!value) {
+				this.setData(undefined);
+			}
+		});
+
+		if (data.viewModel.documentDiffItem.contextKeys) {
+			for (const [key, value] of Object.entries(data.viewModel.documentDiffItem.contextKeys)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 	}
 
-	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 40;
+	private readonly _headerHeight;
 
-	private _lastScrollTop = -1;
-	private _isSettingScrollTop = false;
+	private _lastScrollTop;
+	private _isSettingScrollTop;
 
 	public render(verticalRange: OffsetRange, width: number, editorScroll: number, viewPort: OffsetRange): void {
 		this._elements.root.style.visibility = 'visible';
@@ -275,16 +320,4 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.top = `-100000px`;
 		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
 	}
-}
-
-function isFocused(editor: ICodeEditor): IObservable<boolean> {
-	return observableFromEvent(
-		h => {
-			const store = new DisposableStore();
-			store.add(editor.onDidFocusEditorWidget(() => h(true)));
-			store.add(editor.onDidBlurEditorWidget(() => h(false)));
-			return store;
-		},
-		() => editor.hasTextFocus()
-	);
 }

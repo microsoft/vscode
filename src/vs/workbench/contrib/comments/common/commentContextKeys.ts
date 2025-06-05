@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 
 export namespace CommentContextKeys {
@@ -14,6 +14,14 @@ export namespace CommentContextKeys {
 	 */
 	export const activeCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorHasCommentingRange', false, {
 		description: nls.localize('hasCommentingRange', "Whether the position at the active cursor has a commenting range"),
+		type: 'boolean'
+	});
+
+	/**
+	 * A context key that is set when the active cursor is in the range of an existing comment.
+	 */
+	export const activeCursorHasComment = new RawContextKey<boolean>('activeCursorHasComment', false, {
+		description: nls.localize('hasComment', "Whether the position at the active cursor has a comment"),
 		type: 'boolean'
 	});
 
@@ -58,4 +66,12 @@ export namespace CommentContextKeys {
 	 * The comment widget is focused.
 	 */
 	export const commentFocused = new RawContextKey<boolean>('commentFocused', false, { type: 'boolean', description: nls.localize('commentFocused', "Set when the comment is focused") });
+
+	/**
+	 * A context key that is set when commenting is enabled.
+	 */
+	export const commentingEnabled = new RawContextKey<boolean>('commentingEnabled', true, {
+		description: nls.localize('commentingEnabled', "Whether commenting functionality is enabled"),
+		type: 'boolean'
+	});
 }

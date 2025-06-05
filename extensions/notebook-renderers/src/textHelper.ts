@@ -71,6 +71,11 @@ function generateNestedViewAllElement(outputId: string) {
 
 function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, linkOptions: LinkOptions) {
 	const container = document.createElement('div');
+	container.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'text',
+		outputId: id,
+		'preventDefaultContextMenuItems': true
+	}));
 	const lineCount = buffer.length;
 
 	if (lineCount <= linesLimit) {
@@ -95,6 +100,11 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 function scrollableArrayOfString(id: string, buffer: string[], linkOptions: LinkOptions) {
 	const element = document.createElement('div');
+	element.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'text',
+		outputId: id,
+		'preventDefaultContextMenuItems': true
+	}));
 	if (buffer.length > softScrollableLineLimit) {
 		element.appendChild(generateNestedViewAllElement(id));
 	}

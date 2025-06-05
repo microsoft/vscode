@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowId, onDidUnregisterWindow } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
+import { getWindowId, onDidUnregisterWindow } from './dom.js';
+import { Emitter, Event } from '../common/event.js';
+import { Disposable, markAsSingleton } from '../common/lifecycle.js';
 
 /**
  * See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes

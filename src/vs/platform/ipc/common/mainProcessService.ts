@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IPCServer, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
+import { IChannel, IPCServer, IServerChannel, StaticRouter } from '../../../base/parts/ipc/common/ipc.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IRemoteService } from './services.js';
 
 export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
 

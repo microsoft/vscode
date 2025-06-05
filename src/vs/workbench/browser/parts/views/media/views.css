@@ -124,6 +124,12 @@
 	margin-inline-end: 0px;
 }
 
+.monaco-workbench .pane > .pane-body .welcome-view-content > p .codicon[class*='codicon-'] {
+	font-size: 13px;
+	line-height: 1.4em;
+	vertical-align: bottom;
+}
+
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }

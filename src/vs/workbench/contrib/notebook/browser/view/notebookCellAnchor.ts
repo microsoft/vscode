@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { CellFocusMode, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { Event } from 'vs/base/common/event';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IListView } from 'vs/base/browser/ui/list/listView';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { CellFocusMode, ICellViewModel } from '../notebookBrowser.js';
+import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
+import { CellKind, NotebookCellExecutionState, NotebookSetting } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IListView } from '../../../../../base/browser/ui/list/listView.js';
+import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
 
 
 export class NotebookCellAnchor implements IDisposable {

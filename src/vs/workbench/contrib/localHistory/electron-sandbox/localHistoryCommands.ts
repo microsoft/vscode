@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
-import { findLocalHistoryEntry, ITimelineCommandArgument } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Schemas } from 'vs/base/common/network';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { localize2 } from '../../../../nls.js';
+import { IWorkingCopyHistoryService } from '../../../services/workingCopy/common/workingCopyHistory.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { LOCAL_HISTORY_MENU_CONTEXT_KEY } from '../browser/localHistory.js';
+import { findLocalHistoryEntry, ITimelineCommandArgument } from '../browser/localHistoryCommands.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
 
 //#region Delete
 

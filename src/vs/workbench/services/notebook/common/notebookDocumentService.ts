@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const INotebookDocumentService = createDecorator<INotebookDocumentService>('notebookDocumentService');
 
@@ -51,6 +51,53 @@ export function generate(notebook: URI, handle: number): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookCell, fragment });
 }
 
+export function parseMetadataUri(metadata: URI): URI | undefined {
+	if (metadata.scheme !== Schemas.vscodeNotebookMetadata) {
+		return undefined;
+	}
+
+	const _scheme = decodeBase64(metadata.fragment).toString();
+
+	return metadata.with({ scheme: _scheme, fragment: null });
+}
+
+export function generateMetadataUri(notebook: URI): URI {
+	const fragment = `${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
+}
+
+export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
+	if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+		return;
+	}
+
+	const params = new URLSearchParams(uri.query);
+	const openIn = params.get('openIn');
+	if (!openIn) {
+		return;
+	}
+	const outputId = params.get('outputId') ?? undefined;
+	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
+	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
+	const notebookUri = parsedCell ? parsedCell.notebook : uri.with({
+		scheme: params.get('notebookScheme') || Schemas.file,
+		fragment: null,
+		query: null,
+	});
+	const cellIndex = params.get('cellIndex') ? parseInt(params.get('cellIndex') || '', 10) : undefined;
+
+	return {
+		notebook: notebookUri,
+		openIn: openIn,
+		outputId: outputId,
+		outputIndex: outputIndex,
+		cellHandle: parsedCell?.handle,
+		cellFragment: uri.fragment,
+		cellIndex: cellIndex,
+	};
+}
+
+
 export interface INotebookDocumentService {
 	readonly _serviceBrand: undefined;
 
@@ -69,6 +116,15 @@ export class NotebookDocumentWorkbenchService implements INotebookDocumentServic
 			const cellUri = parse(uri);
 			if (cellUri) {
 				const document = this._documents.get(cellUri.notebook);
+				if (document) {
+					return document;
+				}
+			}
+		}
+		if (uri.scheme === Schemas.vscodeNotebookCellOutput) {
+			const parsedData = extractCellOutputDetails(uri);
+			if (parsedData) {
+				const document = this._documents.get(parsedData.notebook);
 				if (document) {
 					return document;
 				}

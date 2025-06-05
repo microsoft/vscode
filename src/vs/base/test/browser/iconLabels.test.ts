@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { isHTMLElement } from '../../browser/dom.js';
+import { renderLabelWithIcons } from '../../browser/ui/iconLabel/iconLabels.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('renderLabelWithIcons', () => {
 
@@ -47,7 +48,7 @@ suite('renderLabelWithIcons', () => {
 
 	const elementsToString = (elements: Array<HTMLElement | string>): string => {
 		return elements
-			.map(elem => elem instanceof HTMLElement ? elem.outerHTML : elem)
+			.map(elem => isHTMLElement(elem) ? elem.outerHTML : elem)
 			.reduce((a, b) => a + b, '');
 	};
 

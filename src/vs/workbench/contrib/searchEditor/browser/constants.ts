@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
 
@@ -20,3 +20,21 @@ export const OpenEditorCommandId = 'search.action.openEditor';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
 
 export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+export type SearchConfiguration = {
+	query: string;
+	filesToInclude: string;
+	filesToExclude: string;
+	contextLines: number;
+	matchWholeWord: boolean;
+	isCaseSensitive: boolean;
+	isRegexp: boolean;
+	useExcludeSettingsAndIgnoreFiles: boolean;
+	showIncludesExcludes: boolean;
+	onlyOpenEditors: boolean;
+	notebookSearchConfig: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
+};

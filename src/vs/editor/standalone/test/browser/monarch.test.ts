@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Token, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { StandaloneConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Token, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { LanguageService } from '../../../common/services/languageService.js';
+import { StandaloneConfigurationService } from '../../browser/standaloneServices.js';
+import { compile } from '../../common/monarch/monarchCompile.js';
+import { MonarchTokenizer } from '../../common/monarch/monarchLexer.js';
+import { IMonarchLanguage } from '../../common/monarch/monarchTypes.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 
 suite('Monarch', () => {
 
@@ -233,7 +233,7 @@ suite('Monarch', () => {
 			uselessReplaceKey2: '@uselessReplaceKey3',
 			uselessReplaceKey3: '@uselessReplaceKey4',
 			uselessReplaceKey4: '@uselessReplaceKey5',
-			uselessReplaceKey5: '@ham' || '',
+			uselessReplaceKey5: '@ham',
 			tokenizer: {
 				root: [
 					{

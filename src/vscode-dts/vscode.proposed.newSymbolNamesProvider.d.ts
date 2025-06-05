@@ -11,6 +11,11 @@ declare module 'vscode' {
 		AIGenerated = 1
 	}
 
+	export enum NewSymbolNameTriggerKind {
+		Invoke = 0,
+		Automatic = 1,
+	}
+
 	export class NewSymbolName {
 		readonly newSymbolName: string;
 		readonly tags?: readonly NewSymbolNameTag[];
@@ -19,6 +24,12 @@ declare module 'vscode' {
 	}
 
 	export interface NewSymbolNamesProvider {
+
+		/**
+		 * @default false
+		 */
+		readonly supportsAutomaticTriggerKind?: Thenable<boolean>;
+
 		/**
 		 * Provide possible new names for the symbol at the given range.
 		 *
@@ -27,7 +38,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of new symbol names.
 		 */
-		provideNewSymbolNames(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+		provideNewSymbolNames(document: TextDocument, range: Range, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): ProviderResult<NewSymbolName[]>;
 	}
 
 	export namespace languages {

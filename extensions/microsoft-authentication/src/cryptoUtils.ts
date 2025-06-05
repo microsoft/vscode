@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { base64Encode } from './node/buffer';
-import { crypto } from './node/crypto';
 
 export function randomUUID() {
 	return crypto.randomUUID();

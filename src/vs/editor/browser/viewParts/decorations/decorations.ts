@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./decorations';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { HorizontalRange, RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import './decorations.css';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { HorizontalRange, RenderingContext } from '../../view/renderingContext.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewModelDecoration } from '../../../common/viewModel.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

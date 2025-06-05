@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Promises } from 'vs/base/common/async';
+import { IExtensionsWorkbenchService } from '../common/extensions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Promises } from '../../../../base/common/async.js';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 

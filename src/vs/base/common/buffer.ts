@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import * as streams from 'vs/base/common/stream';
+import { Lazy } from './lazy.js';
+import * as streams from './stream.js';
 
 declare const Buffer: any;
 
@@ -174,6 +174,18 @@ export class VSBuffer {
 
 	indexOf(subarray: VSBuffer | Uint8Array, offset = 0) {
 		return binaryIndexOf(this.buffer, subarray instanceof VSBuffer ? subarray.buffer : subarray, offset);
+	}
+
+	equals(other: VSBuffer): boolean {
+		if (this === other) {
+			return true;
+		}
+
+		if (this.byteLength !== other.byteLength) {
+			return false;
+		}
+
+		return this.buffer.every((value, index) => value === other.buffer[index]);
 	}
 }
 
@@ -438,4 +450,39 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 	}
 
 	return output;
+}
+
+const hexChars = '0123456789abcdef';
+export function encodeHex({ buffer }: VSBuffer): string {
+	let result = '';
+	for (let i = 0; i < buffer.length; i++) {
+		const byte = buffer[i];
+		result += hexChars[byte >>> 4];
+		result += hexChars[byte & 0x0f];
+	}
+	return result;
+}
+
+export function decodeHex(hex: string): VSBuffer {
+	if (hex.length % 2 !== 0) {
+		throw new SyntaxError('Hex string must have an even length');
+	}
+	const out = new Uint8Array(hex.length >> 1);
+	for (let i = 0; i < hex.length;) {
+		out[i >> 1] = (decodeHexChar(hex, i++) << 4) | decodeHexChar(hex, i++);
+	}
+	return VSBuffer.wrap(out);
+}
+
+function decodeHexChar(str: string, position: number) {
+	const s = str.charCodeAt(position);
+	if (s >= 48 && s <= 57) { // '0'-'9'
+		return s - 48;
+	} else if (s >= 97 && s <= 102) { // 'a'-'f'
+		return s - 87;
+	} else if (s >= 65 && s <= 70) { // 'A'-'F'
+		return s - 55;
+	} else {
+		throw new SyntaxError(`Invalid hex character at position ${position}`);
+	}
 }

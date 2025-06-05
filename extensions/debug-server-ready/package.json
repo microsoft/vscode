@@ -212,7 +212,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

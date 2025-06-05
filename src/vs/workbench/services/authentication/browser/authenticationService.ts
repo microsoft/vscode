@@ -3,17 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { isString } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IAuthenticationAccessService } from './authenticationAccessService.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService } from '../common/authentication.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { match } from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -42,6 +49,45 @@ export async function getCurrentAuthenticationSessionInfo(
 	return undefined;
 }
 
+const authenticationDefinitionSchema: IJSONSchema = {
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		id: {
+			type: 'string',
+			description: localize('authentication.id', 'The id of the authentication provider.')
+		},
+		label: {
+			type: 'string',
+			description: localize('authentication.label', 'The human readable name of the authentication provider.'),
+		},
+		authorizationServerGlobs: {
+			type: 'array',
+			items: {
+				type: 'string',
+				description: localize('authentication.authorizationServerGlobs', 'A list of globs that match the authorization servers that this provider supports.'),
+			},
+			description: localize('authentication.authorizationServerGlobsDescription', 'A list of globs that match the authorization servers that this provider supports.')
+		}
+	}
+};
+
+const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
+	extensionPoint: 'authentication',
+	jsonSchema: {
+		description: localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
+		type: 'array',
+		items: authenticationDefinitionSchema
+	},
+	activationEventsGenerator: (authenticationProviders, result) => {
+		for (const authenticationProvider of authenticationProviders) {
+			if (authenticationProvider.id) {
+				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+			}
+		}
+	}
+});
+
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 
@@ -60,9 +106,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
 
+	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService
+		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
+		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -79,11 +129,59 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			});
 		}));
+
+		this._registerEnvContributedAuthenticationProviders();
+		this._registerAuthenticationExtentionPointHandler();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
 	get declaredProviders(): AuthenticationProviderInformation[] {
 		return this._declaredProviders;
+	}
+
+	private _registerEnvContributedAuthenticationProviders(): void {
+		if (!this._environmentService.options?.authenticationProviders?.length) {
+			return;
+		}
+		for (const provider of this._environmentService.options.authenticationProviders) {
+			this.registerDeclaredAuthenticationProvider(provider);
+			this.registerAuthenticationProvider(provider.id, provider);
+		}
+	}
+
+	private _registerAuthenticationExtentionPointHandler(): void {
+		this._register(authenticationExtPoint.setHandler((_extensions, { added, removed }) => {
+			this._logService.debug(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
+			added.forEach(point => {
+				for (const provider of point.value) {
+					if (isFalsyOrWhitespace(provider.id)) {
+						point.collector.error(localize('authentication.missingId', 'An authentication contribution must specify an id.'));
+						continue;
+					}
+
+					if (isFalsyOrWhitespace(provider.label)) {
+						point.collector.error(localize('authentication.missingLabel', 'An authentication contribution must specify a label.'));
+						continue;
+					}
+
+					if (!this.declaredProviders.some(p => p.id === provider.id)) {
+						this.registerDeclaredAuthenticationProvider(provider);
+						this._logService.debug(`Declared authentication provider: ${provider.id}`);
+					} else {
+						point.collector.error(localize('authentication.idConflict', "This authentication id '{0}' has already been registered", provider.id));
+					}
+				}
+			});
+
+			const removedExtPoints = removed.flatMap(r => r.value);
+			removedExtPoints.forEach(point => {
+				const provider = this.declaredProviders.find(provider => provider.id === point.id);
+				if (provider) {
+					this.unregisterDeclaredAuthenticationProvider(provider.id);
+					this._logService.debug(`Undeclared authentication provider: ${provider.id}`);
+				}
+			});
+		}));
 	}
 
 	registerDeclaredAuthenticationProvider(provider: AuthenticationProviderInformation): void {
@@ -151,10 +249,32 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		throw new Error(`No authentication provider '${id}' is currently registered.`);
 	}
 
-	async getSessions(id: string, scopes?: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
+		// TODO: Cache this
+		const sessions = await this.getSessions(id);
+		const accounts = new Array<AuthenticationSessionAccount>();
+		const seenAccounts = new Set<string>();
+		for (const session of sessions) {
+			if (!seenAccounts.has(session.account.label)) {
+				seenAccounts.add(session.account.label);
+				accounts.push(session.account);
+			}
+		}
+		return accounts;
+	}
+
+	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
-			return await authProvider.getSessions(scopes);
+			// Check if the authorization server is in the list of supported authorization servers
+			if (options?.authorizationServer) {
+				const authServerStr = options.authorizationServer.toString(true);
+				// TODO: something is off here...
+				if (!authProvider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
+					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
+				}
+			}
+			return await authProvider.getSessions(scopes, { account: options?.account, authorizationServer: options?.authorizationServer });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -164,7 +284,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
 			return await authProvider.createSession(scopes, {
-				sessionToRecreate: options?.sessionToRecreate
+				account: options?.account,
+				authorizationServer: options?.authorizationServer
 			});
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
@@ -180,6 +301,59 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
+	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+		for (const provider of this._authenticationProviders.values()) {
+			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
+				return provider.id;
+			}
+		}
+
+		const authServerStr = authorizationServer.toString(true);
+		const providers = this._declaredProviders
+			// Only consider providers that are not already registered since we already checked them
+			.filter(p => !this._authenticationProviders.has(p.id))
+			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr)));
+		// TODO:@TylerLeonhardt fan out?
+		for (const provider of providers) {
+			const activeProvider = await this.tryActivateProvider(provider.id, true);
+			// Check the resolved authorization servers
+			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
+				return activeProvider.id;
+			}
+		}
+		return undefined;
+	}
+
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
+		const delegate = this._delegates[0];
+		if (!delegate) {
+			this._logService.error('No authentication provider host delegate found');
+			return undefined;
+		}
+		const providerId = await delegate.create(authorizationServer, serverMetadata, resource);
+		const provider = this._authenticationProviders.get(providerId);
+		if (provider) {
+			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
+			return provider;
+		}
+		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
+		return undefined;
+	}
+
+	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable {
+		this._delegates.push(delegate);
+		this._delegates.sort((a, b) => b.priority - a.priority);
+
+		return {
+			dispose: () => {
+				const index = this._delegates.indexOf(delegate);
+				if (index !== -1) {
+					this._delegates.splice(index, 1);
+				}
+			}
+		};
+	}
+
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
 		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
@@ -187,10 +361,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 
+		const store = new DisposableStore();
+
 		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
 		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
 		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
-			this.onDidRegisterAuthenticationProvider(e => {
+			store.add(Event.once(this.onDidRegisterAuthenticationProvider)(e => {
 				if (e.id === providerId) {
 					provider = this._authenticationProviders.get(providerId);
 					if (provider) {
@@ -199,16 +375,18 @@ export class AuthenticationService extends Disposable implements IAuthentication
 						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 					}
 				}
-			});
+			}));
 		});
 
 		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
-			setTimeout(() => {
+			const handle = setTimeout(() => {
 				reject('Timed out waiting for authentication provider to register');
 			}, 5000);
+
+			store.add(toDisposable(() => clearTimeout(handle)));
 		});
 
-		return Promise.race([didRegister, didTimeout]);
+		return Promise.race([didRegister, didTimeout]).finally(() => store.dispose());
 	}
 }
 

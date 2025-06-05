@@ -114,11 +114,12 @@ export class GitHubServer implements IGitHubServer {
 		const supportedClient = isSupportedClient(callbackUri);
 		const supportedTarget = isSupportedTarget(this._type, this._ghesUri);
 
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const flows = getFlows({
 			target: this._type === AuthProviderType.github
 				? GitHubTarget.DotCom
 				: supportedTarget ? GitHubTarget.HostedEnterprise : GitHubTarget.Enterprise,
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: isNodeEnvironment
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 			isSupportedClient: supportedClient
@@ -197,7 +198,7 @@ export class GitHubServer implements IGitHubServer {
 				throw new Error(`${result.status} ${result.statusText}`);
 			}
 		} catch (e) {
-			this._logger.warn('Failed to delete token from server.' + e.message ?? e);
+			this._logger.warn('Failed to delete token from server.' + (e.message ?? e));
 		}
 	}
 
@@ -228,9 +229,9 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			try {
-				const json = await result.json();
+				const json = await result.json() as { id: number; login: string };
 				this._logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
+				return { id: `${json.id}`, accountName: json.login };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;

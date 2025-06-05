@@ -3,34 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isEqual } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize, localize2 } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
-import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
-import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EditorsOrder } from '../../../../common/editor.js';
+import { IDebugService } from '../../../debug/common/debug.js';
+import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
+import { insertCell } from './cellOperations.js';
+import { NotebookChatController } from './chat/notebookChatController.js';
+import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
+import * as icons from '../notebookIcons.js';
+import { CellKind, CellUri, NotebookSetting } from '../../common/notebookCommon.js';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from '../../common/notebookContextKeys.js';
+import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -58,6 +57,10 @@ export const executeThisCellCondition = ContextKeyExpr.and(
 	executeCondition,
 	NOTEBOOK_CELL_EXECUTING.toNegated());
 
+export const executeSectionCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
+);
+
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	for (let i = 0; i < context.notebookEditor.getLength(); i++) {
 		const cell = context.notebookEditor.cellAt(i);
@@ -78,20 +81,18 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	}
 
 	if (context.ui && context.cell) {
-		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 		if (context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+			handleAutoReveal(context.cell, context.notebookEditor);
 		}
+		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 	} else if (context.selectedCells?.length || context.cell) {
 		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
-		await context.notebookEditor.executeNotebookCells(selectedCells);
 		const firstCell = selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
-			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
-			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+			handleAutoReveal(firstCell, context.notebookEditor);
 		}
+		await context.notebookEditor.executeNotebookCells(selectedCells);
 	}
 
 	let foundEditor: ICodeEditor | undefined = undefined;
@@ -105,13 +106,72 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	if (!foundEditor) {
 		return;
 	}
+}
 
-	const controller = InlineChatController.get(foundEditor);
-	if (!controller) {
+const SMART_VIEWPORT_TOP_REVEAL_PADDING = 20; // enough to not cut off top of cell toolbar
+const SMART_VIEWPORT_BOTTOM_REVEAL_PADDING = 60; // enough to show full bottom of output element + tiny buffer below that vertical bar
+function handleAutoReveal(cell: ICellViewModel, notebookEditor: IActiveNotebookEditor): void {
+	// always focus the container, blue bar is a good visual aid in tracking what's happening
+	notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+
+	// Handle markup cells with simple reveal
+	if (cell.cellKind === CellKind.Markup) {
+		const cellIndex = notebookEditor.getCellIndex(cell);
+		notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		return;
 	}
 
-	controller.createSnapshot();
+	// Ensure we're working with a code cell - we need the CodeCellViewModel type for accessing layout properties like outputTotalHeight
+	if (!(cell instanceof CodeCellViewModel)) {
+		return;
+	}
+
+	// Get all dimensions
+	const cellEditorScrollTop = notebookEditor.getAbsoluteTopOfElement(cell);
+	const cellEditorScrollBottom = cellEditorScrollTop + cell.layoutInfo.outputContainerOffset;
+
+	const cellOutputHeight = cell.layoutInfo.outputTotalHeight;
+	const cellOutputScrollBottom = notebookEditor.getAbsoluteBottomOfElement(cell);
+
+	const viewportHeight = notebookEditor.getLayoutInfo().height;
+	const viewportHeight34 = viewportHeight * 0.34;
+	const viewportHeight66 = viewportHeight * 0.66;
+
+	const totalHeight = cell.layoutInfo.totalHeight;
+
+	const isFullyVisible = cellEditorScrollTop >= notebookEditor.scrollTop && cellOutputScrollBottom <= notebookEditor.scrollBottom;
+	const isEditorBottomVisible = ((cellEditorScrollBottom - 25 /* padding for the cell status bar */) >= notebookEditor.scrollTop) &&
+		((cellEditorScrollBottom + 25 /* padding to see a sliver of the beginning of outputs */) <= notebookEditor.scrollBottom);
+
+	// Common scrolling functions
+	const revealWithTopPadding = (position: number) => { notebookEditor.setScrollTop(position - SMART_VIEWPORT_TOP_REVEAL_PADDING); };
+	const revealWithNoPadding = (position: number) => { notebookEditor.setScrollTop(position); };
+	const revealWithBottomPadding = (position: number) => { notebookEditor.setScrollTop(position + SMART_VIEWPORT_BOTTOM_REVEAL_PADDING); };
+
+	// CASE 0: Total is already visible
+	if (isFullyVisible) {
+		return;
+	}
+
+	// CASE 1: Total fits within viewport
+	if (totalHeight <= viewportHeight && !isEditorBottomVisible) {
+		revealWithTopPadding(cellEditorScrollTop);
+		return;
+	}
+
+	// CASE 2: Total doesn't fit in the viewport
+	if (totalHeight > viewportHeight && !isEditorBottomVisible) {
+		if (cellOutputHeight > 0 && cellOutputHeight >= viewportHeight66) {
+			// has large outputs -- Show 34% editor, 66% output
+			revealWithNoPadding(cellEditorScrollBottom - viewportHeight34);
+		} else if (cellOutputHeight > 0) {
+			// has small outputs -- Show output at viewport bottom
+			revealWithBottomPadding(cellOutputScrollBottom - viewportHeight);
+		} else {
+			// No outputs, just big cell -- put editor bottom @ 2/3 of viewport height
+			revealWithNoPadding(cellEditorScrollBottom - viewportHeight66);
+		}
+	}
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -149,7 +209,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -159,7 +218,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						executeNotebookCondition,
 						ContextKeyExpr.or(
 							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
@@ -200,10 +258,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
-				when: ContextKeyExpr.or(
-					NOTEBOOK_CELL_LIST_FOCUSED,
-					ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED)
-				),
+				when: NOTEBOOK_CELL_LIST_FOCUSED,
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter

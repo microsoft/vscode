@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellExecutionState, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotebookCellExecutionState, NotebookExecutionState } from './notebookCommon.js';
+import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from './notebookExecutionService.js';
 
 export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate;
 
@@ -21,12 +21,29 @@ export interface ICellExecutionStateUpdate {
 	isPaused?: boolean;
 }
 
+export interface ICellErrorStackFrame {
+	/**
+	 * The location of this stack frame. This should be provided as a URI if the
+	 * location of the call frame can be accessed by the editor.
+	 */
+	readonly uri?: UriComponents;
+
+	readonly location?: IRange;
+
+	/**
+	 * The name of the stack frame, typically a method or function name.
+	 */
+	readonly label: string;
+}
+
 export interface ICellExecutionError {
+	name: string;
 	message: string;
-	stack: string | undefined;
+	stack: string | ICellErrorStackFrame[] | undefined;
 	uri: UriComponents;
 	location: IRange | undefined;
 }
+
 export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
@@ -77,6 +94,7 @@ export interface INotebookExecutionStateService {
 	getExecution(notebook: URI): INotebookExecution | undefined;
 	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined;
 }
 
 export interface INotebookCellExecution {

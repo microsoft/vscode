@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IOutlineViewState, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
+import { Emitter } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IOutlineViewState, OutlineSortOrder } from './outline.js';
 
 export class OutlineViewState implements IOutlineViewState {
 

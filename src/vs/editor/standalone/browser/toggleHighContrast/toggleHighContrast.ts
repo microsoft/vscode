@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { ToggleHighContrastNLS } from 'vs/editor/common/standaloneStrings';
-import { isDark, isHighContrast } from 'vs/platform/theme/common/theme';
-import { HC_BLACK_THEME_NAME, HC_LIGHT_THEME_NAME, VS_DARK_THEME_NAME, VS_LIGHT_THEME_NAME } from 'vs/editor/standalone/browser/standaloneThemeService';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor, registerEditorAction } from '../../../browser/editorExtensions.js';
+import { IStandaloneThemeService } from '../../common/standaloneTheme.js';
+import { ToggleHighContrastNLS } from '../../../common/standaloneStrings.js';
+import { isDark, isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { HC_BLACK_THEME_NAME, HC_LIGHT_THEME_NAME, VS_DARK_THEME_NAME, VS_LIGHT_THEME_NAME } from '../standaloneThemeService.js';
 
 class ToggleHighContrast extends EditorAction {
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogger, ILoggerOptions, isLogLevel, log, LogLevel } from 'vs/platform/log/common/log';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { Event } from '../../../base/common/event.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { URI } from '../../../base/common/uri.js';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogger, ILoggerOptions, isLogLevel, log, LogLevel } from '../common/log.js';
+import { ILoggerMainService } from './loggerService.js';
 
 export class LoggerChannel implements IServerChannel {
 

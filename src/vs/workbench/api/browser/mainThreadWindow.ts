@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { IUserActivityService } from '../../services/userActivity/common/userActivityService.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -29,10 +30,22 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
+		this.registerNativeHandle();
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	registerNativeHandle(): void {
+		Event.latch(this.hostService.onDidChangeActiveWindow)(
+			async windowId => {
+				const handle = await this.hostService.getNativeWindowHandle(windowId);
+				this.proxy.$onDidChangeActiveNativeWindowHandle(handle ? encodeBase64(handle) : undefined);
+			},
+			this,
+			this.disposables
+		);
 	}
 
 	$getInitialState() {

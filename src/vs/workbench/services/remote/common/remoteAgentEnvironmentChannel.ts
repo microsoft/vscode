@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import * as performance from 'vs/base/common/performance';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { revive } from 'vs/base/common/marshalling';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import * as platform from '../../../../base/common/platform.js';
+import * as performance from '../../../../base/common/performance.js';
+import { URI, UriComponents, UriDto } from '../../../../base/common/uri.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { IExtensionHostExitInfo } from './remoteAgentService.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;

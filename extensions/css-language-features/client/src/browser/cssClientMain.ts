@@ -7,13 +7,7 @@ import { ExtensionContext, Uri, l10n } from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
-
-declare const Worker: {
-	new(stringUrl: string): any;
-};
-declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
-};
+import { registerDropOrPasteResourceSupport } from '../dropOrPaste/dropOrPasteResource';
 
 let client: BaseLanguageClient | undefined;
 
@@ -25,11 +19,12 @@ export async function activate(context: ExtensionContext) {
 		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
 
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+			return new LanguageClient(id, name, worker, clientOptions);
 		};
 
 		client = await startClient(context, newLanguageClient, { TextDecoder });
 
+		context.subscriptions.push(registerDropOrPasteResourceSupport({ language: 'css', scheme: '*' }));
 	} catch (e) {
 		console.log(e);
 	}

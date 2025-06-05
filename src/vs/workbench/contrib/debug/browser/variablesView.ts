@@ -3,51 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { AsyncDataTree, IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction } from 'vs/base/common/actions';
-import { coalesce } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
-import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { AsyncDataTree, IAsyncDataTreeViewState } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IDebugViewWithVariables, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
+import { getContextForVariable } from '../common/debugContext.js';
+import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from '../common/debugModel.js';
+import { DebugVisualizer, IDebugVisualizerService } from '../common/debugVisualizers.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from './debugCommands.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -61,13 +62,17 @@ interface IVariablesContext {
 	variable: DebugProtocol.Variable;
 }
 
-export class VariablesView extends ViewPane {
+export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 
 	private updateTreeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
 	private autoExpandedScopes = new Set<string>();
+
+	public get treeSelection() {
+		return this.tree.getSelection();
+	}
 
 	constructor(
 		options: IViewletViewOptions,
@@ -80,11 +85,10 @@ export class VariablesView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.updateTreeScheduler = new RunOnceScheduler(async () => {
@@ -122,18 +126,18 @@ export class VariablesView extends ViewPane {
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
+		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
+				this.instantiationService.createInstance(VariablesRenderer, expressionRenderer),
+				this.instantiationService.createInstance(VisualizedVariableRenderer, expressionRenderer),
 				new ScopesRenderer(),
 				new ScopeErrorRenderer(),
 			],
 			this.instantiationService.createInstance(VariablesDataSource), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
+			keyboardNavigationLabelProvider: expressionAndScopeLabelProvider,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
@@ -246,22 +250,15 @@ export async function openContextMenuForVariableTreeElement(parentContextKeyServ
 		return;
 	}
 
-	const toDispose = new DisposableStore();
+	const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
+	const context: IVariablesContext = getVariablesContext(variable);
+	const menu = menuService.getMenuActions(menuId, contextKeyService, { arg: context, shouldForwardArgs: false });
 
-	try {
-		const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
-		const menu = toDispose.add(menuService.createMenu(menuId, contextKeyService));
-
-		const context: IVariablesContext = getVariablesContext(variable);
-		const secondary: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
-		contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => secondary
-		});
-	} finally {
-		toDispose.dispose();
-	}
+	const { secondary } = getContextMenuActions(menu, 'inline');
+	contextMenuService.showContextMenu({
+		getAnchor: () => e.anchor,
+		getActions: () => secondary
+	});
 }
 
 const getVariablesContext = (variable: Variable): IVariablesContext => ({
@@ -440,7 +437,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
@@ -455,6 +452,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -466,13 +464,12 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 			text += ':';
 		}
 		data.label.set(text, highlights, viz.name);
-		renderExpressionValue(viz, data.value, {
+		data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, viz, {
 			showChanged: false,
 			maxValueLength: 1024,
-			hover: data.elementDisposable,
 			colorize: true,
-			linkDetector: this.linkDetector
-		}, this.hoverService);
+			session: expression.getSession(),
+		}));
 	}
 
 	protected override getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
@@ -499,11 +496,10 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, _data: IExpressionTemplateData) {
 		const viz = expression as VisualizedExpression;
 		const contextKeyService = viz.original ? getContextForVariableMenuBase(this.contextKeyService, viz.original) : this.contextKeyService;
-		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
-
-		const primary: IAction[] = [];
 		const context = viz.original ? getVariablesContext(viz.original) : undefined;
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
+
+		const { primary } = getContextMenuActions(menu, 'inline');
 
 		if (viz.original) {
 			const action = new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.eye), true, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined));
@@ -522,12 +518,11 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	static readonly ID = 'variable';
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
@@ -540,10 +535,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
+		data.elementDisposable.add(this.expressionRenderer.renderVariable(data, expression as Variable, {
+			highlights,
+			showChanged: true,
+		}));
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -574,11 +573,10 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
 		const variable = expression as Variable;
 		const contextKeyService = getContextForVariableMenuBase(this.contextKeyService, variable);
-		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
-		const primary: IAction[] = [];
 		const context = getVariablesContext(variable);
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
+		const { primary } = getContextMenuActions(menu, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;
@@ -659,12 +657,34 @@ CommandsRegistry.registerCommand({
 		description: COPY_VALUE_LABEL,
 	},
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext, ctx?: (Variable | Expression)[]) => {
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext | undefined, ctx?: (Variable | Expression)[]) => {
+		if (!arg) {
+			const viewService = accessor.get(IViewsService);
+			const view = viewService.getActiveViewWithId(WATCH_VIEW_ID) || viewService.getActiveViewWithId(VARIABLES_VIEW_ID);
+			if (view) {
+
+			}
+		}
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
 		let elements: (Variable | Expression)[];
-		if (arg instanceof Variable || arg instanceof Expression) {
+		if (!arg) {
+			const viewService = accessor.get(IViewsService);
+			const focusedView = viewService.getFocusedView();
+			let view: IDebugViewWithVariables | null | undefined;
+			if (focusedView?.id === WATCH_VIEW_ID) {
+				view = viewService.getActiveViewWithId<IDebugViewWithVariables>(WATCH_VIEW_ID);
+				elementContext = 'watch';
+			} else if (focusedView?.id === VARIABLES_VIEW_ID) {
+				view = viewService.getActiveViewWithId<IDebugViewWithVariables>(VARIABLES_VIEW_ID);
+				elementContext = 'variables';
+			}
+			if (!view) {
+				return;
+			}
+			elements = view.treeSelection.filter(e => e instanceof Expression || e instanceof Variable);
+		} else if (arg instanceof Variable || arg instanceof Expression) {
 			elementContext = 'watch';
 			elements = ctx ? ctx : [];
 		} else {

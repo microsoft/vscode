@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { joinPath } from 'vs/base/common/resources';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Utils } from 'vs/platform/profiling/common/profiling';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IRequestContext } from 'vs/base/parts/request/common/request';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IExtensionHostProfile } from '../../../services/extensions/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { Utils } from '../../../../platform/profiling/common/profiling.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 
 abstract class RepoInfo {
 	abstract get base(): string;

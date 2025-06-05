@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from 'vs/workbench/common/editor';
-import { ReentrancyBarrier } from 'vs/base/common/controlFlow';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorPane, IEditorPaneScrollPosition, isEditorPaneWithScrolling } from '../../../common/editor.js';
+import { ReentrancyBarrier } from '../../../../base/common/controlFlow.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 
 export class SyncScroll extends Disposable implements IWorkbenchContribution {
 
