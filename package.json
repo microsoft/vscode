@@ -78,7 +78,7 @@
     "@vscode/policy-watcher": "^1.3.2",
     "@vscode/proxy-agent": "^0.32.0",
     "@vscode/ripgrep": "^1.15.11",
-    "@vscode/spdlog": "^0.15.0",
+    "@vscode/spdlog": "^0.15.2",
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.1.4",
