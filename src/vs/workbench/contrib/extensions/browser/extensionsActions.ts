@@ -2608,6 +2608,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
+		if (this.extension.missingFromGallery) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "This extension is no longer available on the Extension Marketplace.")) }, true);
+			return;
+		}
+
 		if (this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
@@ -2806,11 +2811,6 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		const isEnabled = this.workbenchExtensionEnablementService.isEnabled(this.extension.local);
 		const isRunning = this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier));
-
-		if (this.extension.missingFromGallery && isEnabled && isRunning) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "This extension is no longer available on the Extension Marketplace.")) }, true);
-			return;
-		}
 
 		if (!this.extension.isWorkspaceScoped && isEnabled && isRunning) {
 			if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
