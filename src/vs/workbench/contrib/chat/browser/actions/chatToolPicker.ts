@@ -25,7 +25,7 @@ import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
-type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
+type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; toolset?: ToolSet; children: (ToolPick | ToolSetPick)[] };
 type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 type CallbackPick = IQuickPickItem & { pickable: false; run: () => void };
@@ -199,6 +199,9 @@ export async function showToolsPicker(
 					indented: true,
 					buttons
 				});
+			} else {
+				// stash the MCP toolset into the bucket item
+				bucket.toolset = toolSetOrTool;
 			}
 
 		} else if (toolSetOrTool.canBeReferencedInPrompt) {
@@ -282,6 +285,9 @@ export async function showToolsPicker(
 				} else if (isToolPick(item)) {
 					result.set(item.tool, item.picked);
 				} else if (isBucketPick(item)) {
+					if (item.toolset) {
+						result.set(item.toolset, item.picked);
+					}
 					for (const child of item.children) {
 						if (isToolSetPick(child)) {
 							result.set(child.toolset, item.picked);

@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -172,14 +172,23 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let kind: StatusbarEntryKind | undefined;
 
 		if (isNewUser(this.chatEntitlementService)) {
+			const entitlement = this.chatEntitlementService.entitlement;
 
-			// Later
-			if (this.chatEntitlementService.sentiment.later && this.configurationService.getValue('chat.setup.continueLaterIndicator') === true) {
-				const continueSetup = localize('copilotLaterStatus', "Continue Setup");
+			// Finish Setup
+			if (
+				(
+					this.chatEntitlementService.sentiment.later ||	// user skipped setup
+					entitlement === ChatEntitlement.Available ||	// user is entitled
+					isProUser(entitlement) ||						// user is already pro
+					entitlement === ChatEntitlement.Free			// user is already free
+				) &&
+				this.configurationService.getValue('chat.setup.continueLaterIndicator') === true
+			) {
+				const finishSetup = localize('copilotLaterStatus', "Finish Setup");
 
-				text = `$(copilot) ${continueSetup}`;
-				ariaLabel = continueSetup;
-				kind = 'prominent';
+				text = `$(copilot) ${finishSetup}`;
+				ariaLabel = finishSetup;
+				kind = this.chatEntitlementService.sentiment.later ? 'prominent' : undefined;
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
