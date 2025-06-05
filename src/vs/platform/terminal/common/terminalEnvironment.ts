@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
-import type { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
+import type { IShellLaunchConfig, TerminalShellType } from './terminal.js';
+import { PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
 
 /**
  * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
@@ -17,96 +18,65 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
 
-	// Shell-specific escaping
+	// Define shell-specific escaping rules
+	interface ShellEscapeConfig {
+		// How to handle paths with both single and double quotes
+		bothQuotes: (path: string) => string;
+		// How to handle paths with only single quotes
+		singleQuotes: (path: string) => string;
+		// How to handle paths with no single quotes (may have double quotes)
+		noSingleQuotes: (path: string) => string;
+	}
+
+	let escapeConfig: ShellEscapeConfig;
 	switch (shellType) {
 		case PosixShellType.Bash:
 		case PosixShellType.Sh:
 		case PosixShellType.Zsh:
 		case WindowsShellType.GitBash:
-			return escapeForPosixShell(newPath);
+			escapeConfig = {
+				bothQuotes: (path) => `$'${path.replace(/'/g, "\\'")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
 		case PosixShellType.Fish:
-			return escapeForFishShell(newPath);
+			escapeConfig = {
+				bothQuotes: (path) => `"${path.replace(/"/g, '\\"')}"`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "\\'")}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
 		case GeneralShellType.PowerShell:
 			// PowerShell should be handled separately in preparePathForShell
 			// but if we get here, use PowerShell escaping
-			return escapeForPowerShell(newPath);
+			escapeConfig = {
+				bothQuotes: (path) => `"${path.replace(/"/g, '`"')}"`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "''")}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
 		default:
 			// Default to POSIX shell escaping for unknown shells
-			return escapeForPosixShell(newPath);
+			escapeConfig = {
+				bothQuotes: (path) => `$'${path.replace(/'/g, "\\'")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
 	}
-}
 
-/**
- * Escape path for POSIX-compatible shells (bash, sh, zsh, git bash)
- */
-function escapeForPosixShell(path: string): string {
-	let newPath = path;
-	
 	// Remove dangerous characters except single and double quotes, which we'll escape properly
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
 	newPath = newPath.replace(bannedChars, '');
-	
-	// If the path contains both single and double quotes, we need to use different escaping
-	if (newPath.includes("'") && newPath.includes('"')) {
-		// For paths with both quote types, escape using $'...' syntax
-		// This allows us to escape single quotes with \'
-		newPath = newPath.replace(/'/g, "\\'");
-		return `$'${newPath}'`;
-	} else if (newPath.includes("'")) {
-		// Only single quotes: use the standard POSIX method
-		newPath = newPath.replace(/'/g, "'\\''");
-		return `'${newPath}'`;
-	} else {
-		// No single quotes (may have double quotes): wrap in single quotes
-		return `'${newPath}'`;
-	}
-}
 
-/**
- * Escape path for Fish shell
- */
-function escapeForFishShell(path: string): string {
-	let newPath = path;
-	
-	// Remove dangerous characters except quotes
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
-	newPath = newPath.replace(bannedChars, '');
-	
-	// If the path contains both single and double quotes, use double quotes and escape inner double quotes
+	// Apply shell-specific escaping based on quote content
 	if (newPath.includes("'") && newPath.includes('"')) {
-		newPath = newPath.replace(/"/g, '\\"');
-		return `"${newPath}"`;
+		return escapeConfig.bothQuotes(newPath);
 	} else if (newPath.includes("'")) {
-		// Only single quotes: escape with backslashes
-		newPath = newPath.replace(/'/g, "\\'");
-		return `'${newPath}'`;
+		return escapeConfig.singleQuotes(newPath);
 	} else {
-		// No single quotes (may have double quotes): wrap in single quotes
-		return `'${newPath}'`;
-	}
-}
-
-/**
- * Escape path for PowerShell
- */
-function escapeForPowerShell(path: string): string {
-	let newPath = path;
-	
-	// Remove dangerous characters except quotes
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
-	newPath = newPath.replace(bannedChars, '');
-	
-	// If the path contains both single and double quotes, use double quotes and escape inner double quotes
-	if (newPath.includes("'") && newPath.includes('"')) {
-		newPath = newPath.replace(/"/g, '`"');
-		return `"${newPath}"`;
-	} else if (newPath.includes("'")) {
-		// Only single quotes: use double single quotes to escape
-		newPath = newPath.replace(/'/g, "''");
-		return `'${newPath}'`;
-	} else {
-		// No single quotes (may have double quotes): wrap in single quotes
-		return `'${newPath}'`;
+		return escapeConfig.noSingleQuotes(newPath);
 	}
 }
 
