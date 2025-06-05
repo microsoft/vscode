@@ -722,7 +722,9 @@ class Extensions extends Disposable {
 				type MissingFromGalleryEvent = {
 					count: number;
 				};
-				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', { count: missingCount });
+				if (missingCount) {
+					this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', { count: missingCount });
+				}
 			}
 		}
 	}
