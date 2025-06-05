@@ -717,14 +717,17 @@ class Extensions extends Disposable {
 				type MissingFromGalleryClassification = {
 					owner: 'joshspicer';
 					comment: 'Report when installed extensions are no longer available in the gallery';
-					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions missing from gallery' };
+					queried: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions queried as potentially missing from gallery' };
+					missing: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions determined missing from gallery' };
 				};
 				type MissingFromGalleryEvent = {
-					count: number;
+					queried: number;
+					missing: number;
 				};
-				if (missingCount) {
-					this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', { count: missingCount });
-				}
+				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', {
+					queried: extensionsToQuery.length,
+					missing: missingCount
+				});
 			}
 		}
 	}
