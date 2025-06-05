@@ -139,13 +139,39 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args: unknown) => {
 	const instance = accessor.get(ITerminalService).activeInstance;
-	if (instance) {
-		const signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
-		if (!signal) {
+	if (!instance) {
+		return;
+	}
+
+	let signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
+	
+	if (!signal) {
+		const quickInputService = accessor.get(IQuickInputService);
+		
+		const signalOptions: IQuickPickItem[] = [
+			{ label: 'SIGINT', description: 'Interrupt process (Ctrl+C)' },
+			{ label: 'SIGTERM', description: 'Terminate process gracefully' },
+			{ label: 'SIGKILL', description: 'Force kill process' },
+			{ label: 'SIGSTOP', description: 'Stop process' },
+			{ label: 'SIGCONT', description: 'Continue process' },
+			{ label: 'SIGHUP', description: 'Hangup' },
+			{ label: 'SIGQUIT', description: 'Quit process' },
+			{ label: 'SIGUSR1', description: 'User-defined signal 1' },
+			{ label: 'SIGUSR2', description: 'User-defined signal 2' }
+		];
+
+		const selected = await quickInputService.pick(signalOptions, {
+			placeHolder: localize('selectSignal', 'Select signal to send to terminal process')
+		});
+		
+		if (!selected) {
 			return;
 		}
-		instance.sendSignal(signal);
+		
+		signal = selected.label;
 	}
+	
+	instance.sendSignal(signal);
 };
 
 export class TerminalLaunchHelpAction extends Action {
