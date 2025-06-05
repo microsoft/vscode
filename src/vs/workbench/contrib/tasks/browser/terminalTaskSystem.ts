@@ -185,6 +185,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _activeTasks: IStringDictionary<IActiveTerminalData>;
 	private _busyTasks: IStringDictionary<Task>;
 	private _taskErrors: IStringDictionary<boolean>; // Tracks which tasks had errors from problem matchers
+	private _taskDependencies: IStringDictionary<string[]>; // Tracks which tasks depend on which other tasks
 	private _terminals: IStringDictionary<ITerminalData>;
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
@@ -245,6 +246,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._activeTasks = Object.create(null);
 		this._busyTasks = Object.create(null);
 		this._taskErrors = Object.create(null);
+		this._taskDependencies = Object.create(null);
 		this._terminals = Object.create(null);
 		this._idleTaskTerminals = new LinkedMap<string, string>();
 		this._sameTaskTerminals = Object.create(null);
@@ -530,6 +532,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
+						
+						// Track the dependency relationship
+						const taskMapKey = task.getMapKey();
+						const dependencyMapKey = dependencyTask.getMapKey();
+						if (!this._taskDependencies[taskMapKey]) {
+							this._taskDependencies[taskMapKey] = [];
+						}
+						if (!this._taskDependencies[taskMapKey].includes(dependencyMapKey)) {
+							this._taskDependencies[taskMapKey].push(dependencyMapKey);
+						}
 						let taskResult;
 						const commonKey = dependencyTask.getCommonTaskId();
 						if (nextLiveDependencies.has(commonKey)) {
@@ -603,19 +615,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _taskHasErrors(task: Task): boolean {
+		const taskMapKey = task.getMapKey();
+		
 		// Check if this task itself had errors
-		if (this._taskErrors[task.getMapKey()]) {
+		if (this._taskErrors[taskMapKey]) {
 			return true;
 		}
 
-		// Check if any dependencies had errors
-		if (task.configurationProperties.dependsOn) {
-			for (const dependency of task.configurationProperties.dependsOn) {
-				// For dependencies, we need to construct the likely map key
-				// This is a simplification - ideally we'd track dependency tasks more precisely
-				const dependencyMapKey = typeof dependency.task === 'string' 
-					? `${dependency.uri}|${dependency.task}` 
-					: `${dependency.uri}|${JSON.stringify(dependency.task)}`;
+		// Check if any tracked dependencies had errors
+		const dependencies = this._taskDependencies[taskMapKey];
+		if (dependencies) {
+			for (const dependencyMapKey of dependencies) {
 				if (this._taskErrors[dependencyMapKey]) {
 					return true;
 				}
@@ -623,6 +633,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		return false;
+	}
+
+	private _cleanupTaskTracking(task: Task): void {
+		const taskMapKey = task.getMapKey();
+		delete this._taskErrors[taskMapKey];
+		delete this._taskDependencies[taskMapKey];
 	}
 
 	private _adoptConfigurationForDependencyTask(dependencyTask: Task, task: Task): void {
@@ -1102,6 +1118,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
+					this._cleanupTaskTracking(task);
 					resolve({ exitCode: exitCode ?? undefined });
 				});
 			});
