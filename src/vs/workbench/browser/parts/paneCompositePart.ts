@@ -50,7 +50,7 @@ export enum CompositeBarPosition {
 
 export interface IPaneCompositePart extends IView {
 
-	readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART;
+	readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.SCROLLABLE_PANEL_PART;
 
 	readonly onDidPaneCompositeOpen: Event<IPaneComposite>;
 	readonly onDidPaneCompositeClose: Event<IPaneComposite>;
@@ -135,7 +135,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected contentDimension: Dimension | undefined;
 
 	constructor(
-		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
+		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.SCROLLABLE_PANEL_PART,
 		partOptions: IPartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
@@ -169,6 +169,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			registryId = Extensions.Auxiliary;
 			globalActionsMenuId = MenuId.AuxiliaryBarTitle;
 		}
+		else if (partId === Parts.SCROLLABLE_PANEL_PART) {
+			location = ViewContainerLocation.ScrollablePanel;
+			registryId = Extensions.Panels;
+			// globalActionsMenuId = MenuId.AuxiliaryBarTitle;
+		}
+
 		super(
 			notificationService,
 			storageService,

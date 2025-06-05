@@ -105,6 +105,8 @@ export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVi
 export const SideBarVisibleContext = new RawContextKey<boolean>('sideBarVisible', false, localize('sideBarVisible', "Whether the sidebar is visible"));
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false, localize('sideBarFocus', "Whether the sidebar has keyboard focus"));
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '', localize('activeViewlet', "The identifier of the active viewlet"));
+export const ScrollableBarViewletContext = new RawContextKey<string>('scrollbarActiveViewlet', '', localize('scrollBarVisible', "Whether the scrollable panel is visible"));
+export const ScrollableBarFocusContext = new RawContextKey<boolean>('scrollableBarFocus', false, localize('sideBarFocus', "Whether the sidebar has keyboard focus"));
 
 //#endregion
 

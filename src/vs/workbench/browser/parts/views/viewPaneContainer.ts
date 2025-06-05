@@ -628,6 +628,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		switch (this.viewDescriptorService.getViewContainerLocation(this.viewContainer)) {
 			case ViewContainerLocation.Sidebar:
 			case ViewContainerLocation.AuxiliaryBar:
+			case ViewContainerLocation.ScrollablePanel:
 				return Orientation.VERTICAL;
 			case ViewContainerLocation.Panel: {
 				return isHorizontal(this.layoutService.getPanelPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;

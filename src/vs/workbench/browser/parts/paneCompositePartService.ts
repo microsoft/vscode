@@ -17,6 +17,7 @@ import { ViewContainerLocation, ViewContainerLocations } from '../../common/view
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { ScrollablePanelPart } from './customPanel/customPanelPart.js';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -35,10 +36,12 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		const panelPart = instantiationService.createInstance(PanelPart);
 		const sideBarPart = instantiationService.createInstance(SidebarPart);
 		const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
+		const scrollablePanelPart = instantiationService.createInstance(ScrollablePanelPart);
 
 		this.paneCompositeParts.set(ViewContainerLocation.Panel, panelPart);
 		this.paneCompositeParts.set(ViewContainerLocation.Sidebar, sideBarPart);
 		this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+		this.paneCompositeParts.set(ViewContainerLocation.ScrollablePanel, scrollablePanelPart);
 
 		const eventDisposables = this._register(new DisposableStore());
 		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
