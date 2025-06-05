@@ -95,7 +95,10 @@ const CORE_TYPES = [
     'value',
     'done',
     'DOMException',
+<<<<<<< HEAD
     'WebSocket',
+=======
+>>>>>>> parent of 12326f9906e (chore: update to Electron 35 (#245423))
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser

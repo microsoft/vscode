@@ -95,7 +95,6 @@ const CORE_TYPES = [
 	'value',
 	'done',
 	'DOMException',
-	'WebSocket',
 ];
 
 // Types that are defined in a common layer but are known to be only
