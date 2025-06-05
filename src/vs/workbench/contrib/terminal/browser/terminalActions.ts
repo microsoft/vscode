@@ -144,10 +144,10 @@ export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args
 	}
 
 	let signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
-	
+
 	if (!signal) {
 		const quickInputService = accessor.get(IQuickInputService);
-		
+
 		const signalOptions: QuickPickItem[] = [
 			{ label: 'SIGINT', description: 'Interrupt process (Ctrl+C)' },
 			{ label: 'SIGTERM', description: 'Terminate process gracefully' },
@@ -165,27 +165,26 @@ export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args
 		const selected = await quickInputService.pick(signalOptions, {
 			placeHolder: localize('selectSignal', 'Select signal to send to terminal process')
 		});
-		
+
 		if (!selected) {
 			return;
 		}
-		
+
 		if (selected.label === localize('manualSignal', 'Manually enter signal')) {
 			const inputSignal = await quickInputService.input({
 				prompt: localize('enterSignal', 'Enter signal name (e.g., SIGTERM, SIGKILL)'),
-				placeHolder: 'SIGTERM'
 			});
-			
+
 			if (!inputSignal) {
 				return;
 			}
-			
+
 			signal = inputSignal;
 		} else {
 			signal = selected.label;
 		}
 	}
-	
+
 	instance.sendSignal(signal);
 };
 
@@ -1032,7 +1031,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.SendSignal,
 		title: terminalStrings.sendSignal,
-		f1: true,
+		f1: !isWindows,
 		metadata: {
 			description: terminalStrings.sendSignal.value,
 			args: [{
