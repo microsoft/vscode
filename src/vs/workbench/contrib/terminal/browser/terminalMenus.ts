@@ -18,7 +18,7 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { TerminalHistoryCommandId } from '../../../terminalContrib/history/common/terminal.history.js';
+import { TerminalContribSettingId } from '../terminalContribExports.js';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -511,7 +511,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalHistoryCommandId.GoToRecentDirectory,
+						id: TerminalContribSettingId.GoToRecentDirectory,
 						title: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."),
 						icon: Codicon.folder
 					},
@@ -525,7 +525,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalHistoryCommandId.RunRecentCommand,
+						id: TerminalContribSettingId.RunRecentCommand,
 						title: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."),
 						icon: Codicon.history
 					},
