@@ -608,4 +608,50 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 	});
+
+	suite('pathSeparator behavior', () => {
+		test('should use correct path separator for Unix systems', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator: '/' // Unix-style path separator
+			};
+			validResources = [URI.parse('file:///test')];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true, isFile: false }
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'folder1', 7, provider, capabilities);
+
+			// Verify Unix-style paths are used
+			assert(result);
+			assert(result.length > 0);
+			assert.strictEqual(result[0].detail, '/test/');
+			const folderCompletion = result.find(c => c.label === './folder1/');
+			assert(folderCompletion);
+			assert.strictEqual(folderCompletion.detail, '/test/folder1/');
+		});
+
+		test('should use correct path separator for Windows systems', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///C:/test'),
+				foldersRequested: true,
+				pathSeparator: '\\' // Windows-style path separator
+			};
+			validResources = [URI.parse('file:///C:/test')];
+			childResources = [
+				{ resource: URI.parse('file:///C:/test/folder1/'), isDirectory: true, isFile: false }
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'folder1', 7, provider, capabilities);
+
+			// Verify Windows-style paths are used
+			assert(result);
+			assert(result.length > 0);
+			assert.strictEqual(result[0].detail, 'C:\\test\\');
+			const folderCompletion = result.find(c => c.label === '.\\folder1\\');
+			assert(folderCompletion);
+			assert.strictEqual(folderCompletion.detail, 'C:\\test\\folder1\\');
+		});
+	});
 });

@@ -278,9 +278,17 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			id,
 			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
 				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
+				let resourceRequestConfig = completions?.resourceRequestConfig;
+				// Fix path separator based on remote OS instead of local OS
+				if (resourceRequestConfig) {
+					resourceRequestConfig = {
+						...resourceRequestConfig,
+						pathSeparator: this._os === OperatingSystem.Windows ? '\\' : '/'
+					};
+				}
 				return {
 					items: completions?.items.map(c => ({ ...c, provider: id })),
-					resourceRequestConfig: completions?.resourceRequestConfig
+					resourceRequestConfig
 				};
 			}
 		}, ...triggerCharacters));

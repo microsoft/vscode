@@ -3205,6 +3205,8 @@ export namespace TerminalResourceRequestConfig {
 	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig): extHostProtocol.TerminalResourceRequestConfigDto {
 		return {
 			...resourceRequestConfig,
+			// NOTE: pathSeparator is set based on local OS here, but will be corrected
+			// in MainThreadTerminalService based on remote OS for remote scenarios
 			pathSeparator: isWindows ? '\\' : '/',
 			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
 		};
