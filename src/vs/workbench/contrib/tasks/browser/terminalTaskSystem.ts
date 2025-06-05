@@ -579,7 +579,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}).finally(() => {
-			delete this._activeTasks[mapKey];
+			// Only remove the task from _activeTasks if it doesn't have a command to execute.
+			// Tasks with commands will be removed when their terminal exits.
+			if (!((ContributedTask.is(task) || CustomTask.is(task)) && task.command)) {
+				delete this._activeTasks[mapKey];
+			}
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
