@@ -36,6 +36,7 @@ import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/c
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatViewId } from '../chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 
 const toolEnumValues: string[] = [];
@@ -322,6 +323,7 @@ export class ConfigureToolSets extends Action2 {
 			title: localize2('chat.configureToolSets', 'Configure Tool Sets'),
 			category: CHAT_CATEGORY,
 			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', ChatViewId),
