@@ -44,7 +44,7 @@ function renderADMLString(prefix, moduleName, nlsString, translations) {
     if (!value) {
         value = nlsString.value;
     }
-    return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
+    return `<string id="${moduleName.replace(/[\.\/]/g, '_')}_${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 function renderProfileString(_prefix, moduleName, nlsString, translations) {
     let value;
@@ -79,8 +79,8 @@ class BasePolicy {
     }
     renderADMX(regKey) {
         return [
-            `<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
-            `	<parentCategory ref="${this.category.name.nlsKey}" />`,
+            `<policy name="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" class="Both" displayName="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name})" explainText="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\/Policies\/Microsoft\/${regKey}" presentation="$(presentation.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name})">`,
+            `	<parentCategory ref="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.category.name.nlsKey}" />`,
             `	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
             `	<elements>`,
             ...this.renderADMXElements(),
@@ -90,12 +90,12 @@ class BasePolicy {
     }
     renderADMLStrings(translations) {
         return [
-            `<string id="${this.name}">${this.name}</string>`,
+            `<string id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.name}</string>`,
             this.renderADMLString(this.description, translations)
         ];
     }
     renderADMLPresentation() {
-        return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
+        return `<presentation id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
     }
     renderProfile() {
         return [`<key>${this.name}</key>`, this.renderProfileValue()];
@@ -119,13 +119,13 @@ class BooleanPolicy extends BasePolicy {
     }
     renderADMXElements() {
         return [
-            `<boolean id="${this.name}" valueName="${this.name}">`,
+            `<boolean id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}">`,
             `	<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>`,
             `</boolean>`
         ];
     }
     renderADMLPresentationContents() {
-        return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
+        return `<checkBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.name}</checkBox>`;
     }
     renderProfileValue() {
         return `<false/>`;
@@ -167,12 +167,12 @@ class NumberPolicy extends BasePolicy {
     }
     renderADMXElements() {
         return [
-            `<decimal id="${this.name}" valueName="${this.name}" />`
+            `<decimal id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" />`
             // `<decimal id="Quarantine_PurgeItemsAfterDelay" valueName="PurgeItemsAfterDelay" minValue="0" maxValue="10000000" />`
         ];
     }
     renderADMLPresentationContents() {
-        return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
+        return `<decimalTextBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
     }
     renderProfileValue() {
         return `<integer>${this.defaultValue}</integer>`;
@@ -202,10 +202,10 @@ class StringPolicy extends BasePolicy {
         super(PolicyType.String, name, category, minimumVersion, description, moduleName);
     }
     renderADMXElements() {
-        return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+        return [`<text id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" required="true" />`];
     }
     renderADMLPresentationContents() {
-        return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+        return `<textBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}"><label>${this.name}:</label></textBox>`;
     }
     renderProfileValue() {
         return `<string></string>`;
@@ -235,10 +235,10 @@ class ObjectPolicy extends BasePolicy {
         super(PolicyType.Object, name, category, minimumVersion, description, moduleName);
     }
     renderADMXElements() {
-        return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
+        return [`<multiText id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" required="true" />`];
     }
     renderADMLPresentationContents() {
-        return `<multiTextBox refId="${this.name}" />`;
+        return `<multiTextBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" />`;
     }
     renderProfileValue() {
         return `<string></string>`;
@@ -288,8 +288,8 @@ class StringEnumPolicy extends BasePolicy {
     }
     renderADMXElements() {
         return [
-            `<enum id="${this.name}" valueName="${this.name}">`,
-            ...this.enum_.map((value, index) => `	<item displayName="$(string.${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
+            `<enum id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}">`,
+            ...this.enum_.map((value, index) => `	<item displayName="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
             `</enum>`
         ];
     }
@@ -300,7 +300,7 @@ class StringEnumPolicy extends BasePolicy {
         ];
     }
     renderADMLPresentationContents() {
-        return `<dropdownList refId="${this.name}" />`;
+        return `<dropdownList refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" />`;
     }
     renderProfileValue() {
         return `<string>${this.enum_[0]}</string>`;
@@ -509,7 +509,7 @@ function renderADMX(regKey, versions, categories, policies) {
 	</supportedOn>
 	<categories>
 		<category displayName="$(string.Application)" name="Application" />
-		${categories.map(c => `<category displayName="$(string.Category_${c.name.nlsKey})" name="${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
+		${categories.map(c => `<category displayName="$(string.${c.moduleName.replace(/[\.\/]/g, '_')}_Category_${c.name.nlsKey})" name="${c.moduleName.replace(/[\.\/]/g, '_')}_${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
 	</categories>
 	<policies>
 		${policies.map(p => p.renderADMX(regKey)).flat().join(`\n		`)}

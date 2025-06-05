@@ -68,7 +68,7 @@ function renderADMLString(prefix: string, moduleName: string, nlsString: NlsStri
 		value = nlsString.value;
 	}
 
-	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
+	return `<string id="${moduleName.replace(/[\.\/]/g, '_')}_${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
 function renderProfileString(_prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
@@ -105,8 +105,8 @@ abstract class BasePolicy implements Policy {
 
 	renderADMX(regKey: string) {
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
-			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
+			`<policy name="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" class="Both" displayName="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name})" explainText="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\/Policies\/Microsoft\/${regKey}" presentation="$(presentation.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name})">`,
+			`	<parentCategory ref="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
 			...this.renderADMXElements(),
@@ -119,13 +119,13 @@ abstract class BasePolicy implements Policy {
 
 	renderADMLStrings(translations?: LanguageTranslations) {
 		return [
-			`<string id="${this.name}">${this.name}</string>`,
+			`<string id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.name}</string>`,
 			this.renderADMLString(this.description, translations)
 		];
 	}
 
 	renderADMLPresentation(): string {
-		return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
+		return `<presentation id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
 	}
 
 	protected abstract renderADMLPresentationContents(): string;
@@ -175,14 +175,14 @@ class BooleanPolicy extends BasePolicy {
 
 	protected renderADMXElements(): string[] {
 		return [
-			`<boolean id="${this.name}" valueName="${this.name}">`,
+			`<boolean id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}">`,
 			`	<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>`,
 			`</boolean>`
 		];
 	}
 
 	renderADMLPresentationContents() {
-		return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
+		return `<checkBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}">${this.name}</checkBox>`;
 	}
 
 	renderProfileValue(): string {
@@ -247,13 +247,13 @@ class NumberPolicy extends BasePolicy {
 
 	protected renderADMXElements(): string[] {
 		return [
-			`<decimal id="${this.name}" valueName="${this.name}" />`
+			`<decimal id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" />`
 			// `<decimal id="Quarantine_PurgeItemsAfterDelay" valueName="PurgeItemsAfterDelay" minValue="0" maxValue="10000000" />`
 		];
 	}
 
 	renderADMLPresentationContents() {
-		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
+		return `<decimalTextBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
 	}
 
 	renderProfileValue() {
@@ -304,11 +304,11 @@ class StringPolicy extends BasePolicy {
 	}
 
 	protected renderADMXElements(): string[] {
-		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+		return [`<text id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" required="true" />`];
 	}
 
 	renderADMLPresentationContents() {
-		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+		return `<textBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}"><label>${this.name}:</label></textBox>`;
 	}
 
 	renderProfileValue(): string {
@@ -359,11 +359,11 @@ class ObjectPolicy extends BasePolicy {
 	}
 
 	protected renderADMXElements(): string[] {
-		return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
+		return [`<multiText id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}" required="true" />`];
 	}
 
 	renderADMLPresentationContents() {
-		return `<multiTextBox refId="${this.name}" />`;
+		return `<multiTextBox refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" />`;
 	}
 
 	renderProfileValue(): string {
@@ -436,8 +436,8 @@ class StringEnumPolicy extends BasePolicy {
 
 	protected renderADMXElements(): string[] {
 		return [
-			`<enum id="${this.name}" valueName="${this.name}">`,
-			...this.enum_.map((value, index) => `	<item displayName="$(string.${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
+			`<enum id="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" valueName="${this.name}">`,
+			...this.enum_.map((value, index) => `	<item displayName="$(string.${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
 			`</enum>`
 		];
 	}
@@ -450,7 +450,7 @@ class StringEnumPolicy extends BasePolicy {
 	}
 
 	renderADMLPresentationContents() {
-		return `<dropdownList refId="${this.name}" />`;
+		return `<dropdownList refId="${this.moduleName.replace(/[\.\/]/g, '_')}_${this.name}" />`;
 	}
 
 	renderProfileValue() {
@@ -711,7 +711,7 @@ function renderADMX(regKey: string, versions: string[], categories: Category[], 
 	</supportedOn>
 	<categories>
 		<category displayName="$(string.Application)" name="Application" />
-		${categories.map(c => `<category displayName="$(string.Category_${c.name.nlsKey})" name="${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
+		${categories.map(c => `<category displayName="$(string.${c.moduleName.replace(/[\.\/]/g, '_')}_Category_${c.name.nlsKey})" name="${c.moduleName.replace(/[\.\/]/g, '_')}_${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
 	</categories>
 	<policies>
 		${policies.map(p => p.renderADMX(regKey)).flat().join(`\n		`)}
