@@ -39,9 +39,7 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	}
 
 	// Boost main and master branches for git commands
-	const terminalSuggestProviderId = 'terminal-suggest';
-	const isGitCommand = /^\s*git\b/.test(leadingLineContent);
-	if (isGitCommand && a.completion.provider === terminalSuggestProviderId && b.completion.provider === terminalSuggestProviderId) {
+	if (/^\s*git\b/.test(leadingLineContent) && a.completion.provider === 'terminal-suggest' && b.completion.provider === 'terminal-suggest') {
 		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
 		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
 		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
