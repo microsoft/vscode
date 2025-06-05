@@ -703,30 +703,30 @@ class Extensions extends Disposable {
 			}
 			if (extensionsToQuery.length) {
 				const queryResult = await this.galleryService.getExtensions(extensionsToQuery.map(e => ({ ...e.identifier, version: e.version })), CancellationToken.None);
-				let missingCount = 0;
+				const missingIds: string[] = [];
 				for (const extension of extensionsToQuery) {
 					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
 					if (gallery) {
 						extension.gallery = gallery;
 					} else {
 						extension.missingFromGallery = true;
-						++missingCount;
+						missingIds.push(extension.identifier.id);
 					}
 					this._onChange.fire({ extension });
 				}
 				type MissingFromGalleryClassification = {
 					owner: 'joshspicer';
 					comment: 'Report when installed extensions are no longer available in the gallery';
-					queried: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions queried as potentially missing from gallery' };
-					missing: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions determined missing from gallery' };
+					queriedIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions queried as potentially missing from gallery' };
+					missingIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions determined missing from gallery' };
 				};
 				type MissingFromGalleryEvent = {
-					queried: number;
-					missing: number;
+					readonly queriedIds: TelemetryTrustedValue<string>;
+					readonly missingIds: TelemetryTrustedValue<string>;
 				};
 				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', {
-					queried: extensionsToQuery.length,
-					missing: missingCount
+					queriedIds: new TelemetryTrustedValue(extensionsToQuery.map(e => e.identifier.id).join(';')),
+					missingIds: new TelemetryTrustedValue(missingIds.join(';'))
 				});
 			}
 		}
