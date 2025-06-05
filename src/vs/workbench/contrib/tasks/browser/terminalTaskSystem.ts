@@ -184,6 +184,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _activeTasks: IStringDictionary<IActiveTerminalData>;
 	private _busyTasks: IStringDictionary<Task>;
+	private _taskErrors: IStringDictionary<boolean>; // Tracks which tasks had errors from problem matchers
 	private _terminals: IStringDictionary<ITerminalData>;
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
@@ -243,6 +244,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		this._activeTasks = Object.create(null);
 		this._busyTasks = Object.create(null);
+		this._taskErrors = Object.create(null);
 		this._terminals = Object.create(null);
 		this._idleTaskTerminals = new LinkedMap<string, string>();
 		this._sameTaskTerminals = Object.create(null);
@@ -600,6 +602,29 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		});
 	}
 
+	private _taskHasErrors(task: Task): boolean {
+		// Check if this task itself had errors
+		if (this._taskErrors[task.getMapKey()]) {
+			return true;
+		}
+
+		// Check if any dependencies had errors
+		if (task.configurationProperties.dependsOn) {
+			for (const dependency of task.configurationProperties.dependsOn) {
+				// For dependencies, we need to construct the likely map key
+				// This is a simplification - ideally we'd track dependency tasks more precisely
+				const dependencyMapKey = typeof dependency.task === 'string' 
+					? `${dependency.uri}|${dependency.task}` 
+					: `${dependency.uri}|${JSON.stringify(dependency.task)}`;
+				if (this._taskErrors[dependencyMapKey]) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	private _adoptConfigurationForDependencyTask(dependencyTask: Task, task: Task): void {
 		if (dependencyTask.configurationProperties.icon) {
 			dependencyTask.configurationProperties.icon.id ||= task.configurationProperties.icon?.id;
@@ -852,6 +877,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+							this._taskErrors[task.getMapKey()] = true;
 							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 							const reveal = task.command.presentation!.reveal;
 							const revealProblems = task.command.presentation!.revealProblems;
@@ -862,7 +888,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 								this._terminalGroupService.showPanel(false);
 							}
 						} else {
-							this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
+							this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 						}
 					}
 				}
@@ -1000,9 +1026,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+						this._taskErrors[task.getMapKey()] = true;
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 					} else {
-						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
+						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 					}
 				}
 			}));
@@ -1069,9 +1096,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal?.instanceId));
 					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+						this._taskErrors[task.getMapKey()] = true;
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 					} else {
-						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
+						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
 					resolve({ exitCode: exitCode ?? undefined });
