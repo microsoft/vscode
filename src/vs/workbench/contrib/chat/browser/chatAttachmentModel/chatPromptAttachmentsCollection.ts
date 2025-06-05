@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
@@ -95,6 +95,15 @@ export function isPromptFileChatVariable(
 ): variable is IPromptVariableEntry {
 	return isChatRequestFileEntry(variable)
 		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
+}
+
+/**
+ * Adds the provided `newReference` to the list of chat variables if it is not already present.
+ */
+export function addPromptFileChatVariable(variables: IChatRequestVariableEntry[], newReference: URI): void {
+	if (!variables.some(variable => isPromptFileChatVariable(variable) && isEqual(IChatRequestVariableEntry.toUri(variable), newReference))) {
+		variables.push(toChatVariable({ uri: newReference, isPromptFile: true }, true));
+	}
 }
 
 /**
