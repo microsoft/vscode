@@ -8,7 +8,7 @@ import { ParseError, parse, getNodeType } from '../../../../base/common/json.js'
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import * as types from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, LineCommentConfig, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
@@ -168,13 +168,10 @@ export class LanguageConfigurationFileHandler extends Disposable {
 				const lineCommentObj = source.lineComment as any;
 				if (typeof lineCommentObj.comment === 'string') {
 					result = result || {};
-					const lineCommentConfig: LineCommentConfig = {
-						comment: lineCommentObj.comment
+					result.lineComment = {
+						comment: lineCommentObj.comment,
+						noIndent: lineCommentObj.noIndent
 					};
-					if (typeof lineCommentObj.noIndent === 'boolean') {
-						lineCommentConfig.noIndent = lineCommentObj.noIndent;
-					}
-					result.lineComment = lineCommentConfig;
 				} else {
 					console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment.comment\` to be a string.`);
 				}

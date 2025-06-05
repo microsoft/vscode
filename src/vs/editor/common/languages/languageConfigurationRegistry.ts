@@ -460,11 +460,8 @@ export class ResolvedLanguageConfiguration {
 			if (typeof commentRule.lineComment === 'string') {
 				comments.lineCommentToken = commentRule.lineComment;
 			} else {
-				// LineCommentConfig object
 				comments.lineCommentToken = commentRule.lineComment.comment;
-				if (commentRule.lineComment.noIndent !== undefined) {
-					comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
-				}
+				comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
 			}
 		}
 		if (commentRule.blockComment) {

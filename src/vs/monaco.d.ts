@@ -6714,7 +6714,7 @@ declare namespace monaco.languages {
 	 */
 	export interface LineCommentConfig {
 		/**
-		 * The line comment token, like `// this is a comment`
+		 * The line comment token, like `//`
 		 */
 		comment: string;
 		/**

@@ -12,7 +12,7 @@ import { ScopedLineTokens } from './supports.js';
  */
 export interface LineCommentConfig {
 	/**
-	 * The line comment token, like `// this is a comment`
+	 * The line comment token, like `//`
 	 */
 	comment: string;
 	/**

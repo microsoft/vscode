@@ -115,11 +115,8 @@ export class LineCommentCommand implements ICommand {
 	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string): IPreflightData {
 		let onlyWhitespaceLines = true;
 
-		let lineCommentNoIndent = false;
 		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
-		if (config && config.lineCommentNoIndent !== undefined) {
-			lineCommentNoIndent = config.lineCommentNoIndent;
-		}
+		const lineCommentNoIndent = config?.lineCommentNoIndent ?? false;
 
 		let shouldRemoveComments: boolean;
 		if (type === Type.Toggle) {
@@ -151,10 +148,11 @@ export class LineCommentCommand implements ICommand {
 			}
 
 			onlyWhitespaceLines = false;
+			const offset = lineCommentNoIndent ? 0 : lineContentStartOffset;
 			lineData.ignore = false;
-			lineData.commentStrOffset = lineCommentNoIndent ? 0 : lineContentStartOffset;
+			lineData.commentStrOffset = offset;
 
-			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineCommentNoIndent ? 0 : lineContentStartOffset)) {
+			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, offset)) {
 				if (type === Type.Toggle) {
 					// Every line so far has been a line comment, but this one is not
 					shouldRemoveComments = false;
