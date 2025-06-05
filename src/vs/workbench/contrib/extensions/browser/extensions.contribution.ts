@@ -288,6 +288,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					minimumVersion: '1.99',
 				},
 			},
+			'extensions.supportNodeGlobalNavigator': {
+				type: 'boolean',
+				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
+				default: false,
+			},
 		}
 	});
 
