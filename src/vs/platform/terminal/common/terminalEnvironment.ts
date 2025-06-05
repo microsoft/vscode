@@ -16,8 +16,16 @@ export function escapeNonWindowsPath(path: string): string {
 	if (newPath.includes('\\')) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+	// Remove dangerous characters except single quotes, which we'll escape properly
+	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"]/g;
 	newPath = newPath.replace(bannedChars, '');
+	
+	// Properly escape single quotes by ending the current single-quoted string,
+	// adding an escaped single quote, then starting a new single-quoted string
+	if (newPath.includes("'")) {
+		newPath = newPath.replace(/'/g, "'\\''");
+	}
+	
 	return `'${newPath}'`;
 }
 
