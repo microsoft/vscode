@@ -15,7 +15,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 import {
-	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent,
+	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, ITaskProblemMatcherEndedEvent,
 	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
 } from '../../contrib/tasks/common/tasks.js';
@@ -498,7 +498,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.ProblemMatcherStarted) {
 				this._proxy.$onDidStartTaskProblemMatchers(TaskProblemMatcherStartedDto.from({ execution: task.getTaskExecution() }));
 			} else if (event.kind === TaskEventKind.ProblemMatcherEnded) {
-				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: false }));
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: (event as ITaskProblemMatcherEndedEvent).hasErrors }));
 			} else if (event.kind === TaskEventKind.ProblemMatcherFoundErrors) {
 				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: true }));
 			}

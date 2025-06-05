@@ -862,7 +862,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 								this._terminalGroupService.showPanel(false);
 							}
 						} else {
-							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+							this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
 						}
 					}
 				}
@@ -1002,7 +1002,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 					} else {
-						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
 					}
 				}
 			}));
@@ -1071,7 +1071,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 					} else {
-						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, false, terminal?.instanceId));
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
 					resolve({ exitCode: exitCode ?? undefined });
