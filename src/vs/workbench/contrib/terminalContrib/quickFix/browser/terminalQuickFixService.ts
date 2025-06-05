@@ -6,7 +6,6 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from './quickFix.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
@@ -31,9 +30,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 
 	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-	) {
+	constructor() {
 		this.extensionQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
 			r(fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
 				if (!c.value) {
@@ -52,7 +49,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
 		this._selectors.set(selector.id, selector);
 		this._onDidRegisterCommandSelector.fire(selector);
-		
+
 		// Check if there's a pending provider for this selector
 		const pendingProvider = this._pendingProviders.get(selector.id);
 		if (pendingProvider) {
