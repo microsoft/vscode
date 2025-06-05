@@ -86,6 +86,9 @@ export class PromptApplyToMetadata extends PromptStringMetadata {
 	): boolean {
 		try {
 			const patterns = splitGlobAware(pattern, ',');
+			if (patterns.length === 0) {
+				return false;
+			}
 			for (const pattern of patterns) {
 
 				const globPattern = parse(pattern);
