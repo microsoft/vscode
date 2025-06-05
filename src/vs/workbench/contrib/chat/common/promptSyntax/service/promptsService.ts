@@ -289,7 +289,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				// add the instructions file if its rule matches the file
 				for (const file of files) {
 					// if the file is not a valid URI, skip it
-					if (match(pattern, file.fsPath)) {
+					if (match(pattern, file.path)) {
 						return true;
 					}
 				}
