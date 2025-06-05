@@ -402,7 +402,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.searchView.keywordSuggestions': {
 			type: 'boolean',
-			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the search view."),
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the Search view."),
 			default: false,
 			tags: ['preview'],
 		},
