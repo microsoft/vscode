@@ -242,26 +242,16 @@ class McpHTTPHandle extends Disposable {
 		}
 		await this._addAuthHeader(headers);
 
-		const doFetch = () => fetch(
+		const res = await this._fetchWithAuthRetry(
 			this._launch.uri.toString(true),
 			{
 				method: 'POST',
 				signal: this._abortCtrl.signal,
 				headers,
 				body: asBytes,
-			}
+			},
+			headers
 		);
-
-		let res = await doFetch();
-		if (res.status === 401) {
-			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
-				await this._addAuthHeader(headers);
-				if (headers['Authorization']) {
-					res = await doFetch();
-				}
-			}
-		}
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
 
@@ -511,11 +501,15 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(true), {
-					method: 'GET',
-					signal: this._abortCtrl.signal,
-					headers,
-				});
+				res = await this._fetchWithAuthRetry(
+					this._launch.uri.toString(true),
+					{
+						method: 'GET',
+						signal: this._abortCtrl.signal,
+						headers,
+					},
+					headers
+				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
 				continue;
@@ -559,11 +553,15 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(true), {
-				method: 'GET',
-				signal: this._abortCtrl.signal,
-				headers,
-			});
+			res = await this._fetchWithAuthRetry(
+				this._launch.uri.toString(true),
+				{
+					method: 'GET',
+					signal: this._abortCtrl.signal,
+					headers,
+				},
+				headers
+			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
 				return;
@@ -665,6 +663,29 @@ class McpHTTPHandle extends Disposable {
 		} catch {
 			return res.statusText;
 		}
+	}
+
+	/**
+	 * Helper method to perform fetch with 401 authentication retry logic.
+	 * If the initial request returns 401 and we don't have auth metadata,
+	 * it will populate the auth metadata and retry once.
+	 */
+	private async _fetchWithAuthRetry(url: string, init: RequestInit, headers: Record<string, string>): Promise<Response> {
+		const doFetch = () => fetch(url, init);
+
+		let res = await doFetch();
+		if (res.status === 401) {
+			if (!this._authMetadata) {
+				await this._populateAuthMetadata(res);
+				await this._addAuthHeader(headers);
+				if (headers['Authorization']) {
+					// Update the headers in the init object
+					init.headers = headers;
+					res = await doFetch();
+				}
+			}
+		}
+		return res;
 	}
 }
 
