@@ -41,13 +41,13 @@
 .monaco-action-bar .action-item .codicon {
 	display: flex;
 	align-items: center;
-	width: 16px;
-	height: 16px;
+	width: var(--vscode-codicon-width);
+	height: var(--vscode-codicon-height);
 }
 
 .monaco-action-bar .action-label {
 	display: flex;
-	font-size: 11px;
+	font-size: var(--vscode-font-body3-size);
 	padding: 3px;
 	border-radius: 5px;
 }
@@ -77,8 +77,8 @@
 
 .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: 1px solid #bbb;
-	padding-top: 1px;
+	border-bottom: var(--vscode-base-line-width-s) solid #bbb;
+	padding-top: var(--vscode-base-spacing-xxxs);
 	margin-left: .8em;
 	margin-right: .8em;
 }
@@ -88,7 +88,7 @@
 	height: 16px;
 	margin: 5px 4px !important;
 	cursor: default;
-	min-width: 1px;
+	min-width: var(--vscode-base-line-width-s);
 	padding: 0;
 	background-color: #bbb;
 }
@@ -120,5 +120,5 @@
 }
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
-	width: 1px;
+	width: var(--vscode-base-line-width-s);
 }

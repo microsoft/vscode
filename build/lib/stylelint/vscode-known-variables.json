@@ -996,6 +996,8 @@
 		"--vscode-font-codicon-size",
 		"--vscode-font-body1-size",
 		"--vscode-font-body2-size",
-		"--vscode-font-body3-size"
+		"--vscode-font-body3-size",
+		"--vscode-codicon-width",
+		"--vscode-codicon-height"
 	]
 }
