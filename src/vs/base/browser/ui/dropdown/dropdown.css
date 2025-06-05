@@ -23,7 +23,7 @@
 .monaco-dropdown-with-primary {
 	display: flex !important;
 	flex-direction: row;
-	border-radius: 5px;
+	border-radius: var(--vscode-dropdown-corner-radius);
 }
 
 .monaco-dropdown-with-primary > .action-container > .action-label {
@@ -31,10 +31,10 @@
 }
 
 .monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
-	font-size: 12px;
+	font-size: var(--vscode-dropdown-font-size);
 	padding-left: 0px;
 	padding-right: 0px;
-	line-height: 16px;
+	line-height: var(--vscode-dropdown-line-height);
 	margin-left: -3px;
 }
 

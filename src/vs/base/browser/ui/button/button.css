@@ -118,7 +118,7 @@
 
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
-	font-size: 11px;
+	font-size: var(--vscode-font-body3-size);
 	padding: var(--vscode-button-padding-vertical) var(--vscode-base-spacing-xxl);
 }
 

@@ -9,10 +9,11 @@ import * as nls from '../../../../nls.js';
 import { registerSize } from '../sizeUtils.js';
 
 export const baseSpacingNone = registerSize('base.spacing.none', { default: '0px' }, nls.localize('baseSpacingNone', "Spacing None"));
+export const baseSpacingXXxs = registerSize('base.spacing.x.xxs', { default: '1px' }, nls.localize('baseSpacingXxxs', "Spacing XXXS"));
 export const baseSpacingXxs = registerSize('base.spacing.xxs', { default: '2px' }, nls.localize('baseSpacingXxs', "Spacing XXS"));
 export const baseSpacingXs = registerSize('base.spacing.xs', { default: '4px' }, nls.localize('baseSpacingXs', "Spacing XS"));
-export const baseSpacingSNudge = registerSize('base.spacing.s.nudge', { default: '6px' }, nls.localize('baseSpacingSNudge', "Spacing SNudge"));
 export const baseSpacingS = registerSize('base.spacing.s', { default: '8px' }, nls.localize('baseSpacingS', "Spacing S"));
+export const baseSpacingSNudge = registerSize('base.spacing.s.nudge', { default: '6px' }, nls.localize('baseSpacingSNudge', "Spacing SNudge"));
 export const baseSpacingMNudge = registerSize('base.spacing.m.nudge', { default: '10px' }, nls.localize('baseSpacingMNudge', "Spacing MNudge"));
 export const baseSpacingM = registerSize('base.spacing.m', { default: '12px' }, nls.localize('baseSpacingM', "Spacing M"));
 export const baseSpacingL = registerSize('base.spacing.l', { default: '16px' }, nls.localize('baseSpacingL', "Spacing L"));

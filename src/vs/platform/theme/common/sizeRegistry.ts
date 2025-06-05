@@ -8,3 +8,4 @@ export * from './sizeUtils.js';
 export * from './sizes/spacingSizes.js';
 export * from './sizes/controlsSizes.js';
 export * from './sizes/strokeSizes.js';
+export * from './sizes/typographySizes.js';

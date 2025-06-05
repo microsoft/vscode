@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-custom-toggle {
-	margin-left: 2px;
+	margin-left: var(--vscode-base-spacing-xxs);
 	float: left;
 	cursor: pointer;
 	overflow: hidden;
-	width: 20px;
-	height: 20px;
-	border-radius: 3px;
-	border: 1px solid transparent;
-	padding: 1px;
+	width: var(--vscode-toggle-width);
+	height: var(--vscode-toggle-height);
+	border-radius: var(--vscode-toggle-corner-radius);
+	border: var(--vscode-base-line-width-s) solid transparent;
+	padding: var(--vscode-base-spacing-xxxs);
 	box-sizing:	border-box;
 	user-select: none;
 	-webkit-user-select: none;
@@ -24,7 +24,7 @@
 
 .hc-black .monaco-custom-toggle:hover,
 .hc-light .monaco-custom-toggle:hover {
-	border: 1px dashed var(--vscode-focusBorder);
+	border: var(--vscode-base-line-width-s) dashed var(--vscode-focusBorder);
 }
 
 .hc-black .monaco-custom-toggle,
@@ -38,22 +38,22 @@
 }
 
 .monaco-custom-toggle.monaco-checkbox {
-	height: 18px;
-	width: 18px;
-	border: 1px solid transparent;
-	border-radius: 3px;
-	margin-right: 9px;
+	height: var(--vscode-checkbox-height);
+	width: var(--vscode-checkbox-width);
+	border: var(--vscode-base-line-width-s) solid transparent;
+	border-radius: var(--vscode-checkbox-corner-radius);
+	margin-right: calc(var(--vscode-checkbox-width) / 2);
 	margin-left: 0px;
 	padding: 0px;
 	opacity: 1;
-	background-size: 16px !important;
+	background-size: calc(var(--vscode-checkbox-height) - var(--vscode-base-spacing-xxs)) !important;
 }
 
 .monaco-action-bar .checkbox-action-item {
 	display: flex;
 	align-items: center;
-	border-radius: 2px;
-	padding-right: 2px;
+	border-radius: var(--vscode-checkbox-corner-radius);
+	padding-right: var(--vscode-base-spacing-xxs);
 }
 
 .monaco-action-bar .checkbox-action-item:hover {
@@ -61,11 +61,11 @@
 }
 
 .monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
-	margin-right: 4px;
+	margin-right: var(--vscode-base-spacing-xs);
 }
 
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
-	font-size: 12px;
+	font-size: var(--vscode-font-body2-size);
 }
 
 /* hide check when unchecked */
