@@ -19,7 +19,7 @@ import { Range } from '../core/range.js';
 import { ISelection, Selection } from '../core/selection.js';
 import { ICommand, ICursorState, IViewState, ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, type IModelDecoration, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
 import * as textModelEvents from '../textModelEvents.js';
@@ -43,6 +43,12 @@ import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
+
+const minimalAllowedDecorations: string[] = [
+	'marker-decoration',
+	'find-match'
+];
+
 
 export class ViewModel extends Disposable implements IViewModel {
 
@@ -819,10 +825,24 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 	}
 
+	private filterDecorations(decorations: IModelDecoration[]): IModelDecoration[] {
+		const option = this._configuration.options.get(EditorOption.overviewRulerEnabled);
+		if (option === 'on') {
+			return decorations;
+		}
+		if (option === 'off') {
+			return [];
+		}
+		return decorations.filter(d => {
+			return minimalAllowedDecorations.includes(d.options.description);
+		});
+	}
+
 	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
 		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
+		const filteredDecorations = this.filterDecorations(decorations);
+		for (const decoration of filteredDecorations) {
 			const decorationOptions = <ModelDecorationOptions>decoration.options;
 			const opts = decorationOptions.overviewRuler;
 			if (!opts) {
