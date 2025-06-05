@@ -227,7 +227,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverElement.setAttribute('aria-label', ariaLabel);
 		this.element.classList.add('warning');
 
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
+		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
 		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
 	}
 }
@@ -305,7 +305,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
 	hoverService: IHoverService, ariaLabel: string,
-	currentLanguageModelName: string,
+	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState): IDisposable {
@@ -333,7 +333,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 
 	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
+		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else {
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
@@ -599,7 +599,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		}
 
 		const clickHandler = async () => await this.openResource(resource, false, undefined);
-		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
 	}
