@@ -348,7 +348,11 @@ suite('TerminalCompletionModel', function () {
 				createItem({ label: { label: 'main', description: 'Main branch' } })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
-			assertItems(model, ['main', 'master', 'feature-branch']);
+			assertItems(model, [
+				{ label: "main", description: "Main branch" },
+				{ label: "master", description: "Master branch" },
+				{ label: "feature-branch", description: "Feature branch" },
+			]);
 		});
 	});
 });

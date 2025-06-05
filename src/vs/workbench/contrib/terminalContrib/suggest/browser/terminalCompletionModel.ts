@@ -44,23 +44,6 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return score;
 	}
 
-	// Boost main and master branches for git commands (only when scores are equal)
-	// HACK: Currently this just matches leading line content, it should eventually check the
-	//       completion type is a branch
-	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method && /^\s*git\b/.test(leadingLineContent)) {
-		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
-		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
-		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
-		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
-
-		if (aIsMainOrMaster && !bIsMainOrMaster) {
-			return -1;
-		}
-		if (bIsMainOrMaster && !aIsMainOrMaster) {
-			return 1;
-		}
-	}
-
 	// Boost inline completions
 	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
 		return -1;
@@ -95,6 +78,23 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		score = a.fileExtLow.length - b.fileExtLow.length;
 		if (score !== 0) {
 			return score;
+		}
+	}
+
+	// Boost main and master branches for git commands
+	// HACK: Currently this just matches leading line content, it should eventually check the
+	//       completion type is a branch
+	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method && /^\s*git\b/.test(leadingLineContent)) {
+		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
+		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
+		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
+		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
+
+		if (aIsMainOrMaster && !bIsMainOrMaster) {
+			return -1;
+		}
+		if (bIsMainOrMaster && !aIsMainOrMaster) {
+			return 1;
 		}
 	}
 
