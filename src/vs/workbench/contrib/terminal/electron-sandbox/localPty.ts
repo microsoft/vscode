@@ -45,6 +45,13 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		this._proxy.input(this.id, data);
 	}
 
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+		this._proxy.sendSignal(this.id, signal);
+	}
+
 	resize(cols: number, rows: number): void {
 		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
