@@ -991,7 +991,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.SendSignal,
 		title: terminalStrings.sendSignal,
-		f1: false,
+		f1: true,
 		metadata: {
 			description: terminalStrings.sendSignal.value,
 			args: [{
