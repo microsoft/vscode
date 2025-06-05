@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { ChatMode } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { pick } from '../../../../../../../base/common/arrays.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -26,10 +26,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../../../../platform/prompts/common/constants.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -107,6 +107,7 @@ suite('PromptsService', () => {
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
+		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
@@ -158,7 +159,7 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser1.disposed,
+				!parser1.isDisposed,
 				'Parser1 must not be disposed.',
 			);
 
@@ -233,7 +234,7 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
@@ -243,17 +244,17 @@ suite('PromptsService', () => {
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
 			assert(
-				!parser1.disposed,
+				!parser1.isDisposed,
 				'Parser1 must not be disposed.',
 			);
 
 			assert(
-				!parser1_1.disposed,
+				!parser1_1.isDisposed,
 				'Parser1_1 must not be disposed.',
 			);
 
@@ -314,17 +315,17 @@ suite('PromptsService', () => {
 			parser1.dispose();
 
 			assert(
-				parser1.disposed,
+				parser1.isDisposed,
 				'Parser1 must be disposed.',
 			);
 
 			assert(
-				parser1_1.disposed,
+				parser1_1.isDisposed,
 				'Parser1_1 must be disposed.',
 			);
 
 			assert(
-				!parser2.disposed,
+				!parser2.isDisposed,
 				'Parser2 must not be disposed.',
 			);
 
@@ -337,7 +338,7 @@ suite('PromptsService', () => {
 			const parser1_2 = service.getSyntaxParserFor(model1);
 
 			assert(
-				!parser1_2.disposed,
+				!parser1_2.isDisposed,
 				'Parser1_2 must not be disposed.',
 			);
 
@@ -390,13 +391,13 @@ suite('PromptsService', () => {
 
 			// assert that the parser is also disposed
 			assert(
-				parser2.disposed,
+				parser2.isDisposed,
 				'Parser2 must be disposed.',
 			);
 
 			// sanity check that the other parser is not affected
 			assert(
-				!parser1_2.disposed,
+				!parser1_2.isDisposed,
 				'Parser1_2 must not be disposed.',
 			);
 
@@ -416,7 +417,7 @@ suite('PromptsService', () => {
 			const parser2_1 = service.getSyntaxParserFor(model2_1);
 
 			assert(
-				!parser2_1.disposed,
+				!parser2_1.isDisposed,
 				'Parser2_1 must not be disposed.',
 			);
 
@@ -472,7 +473,7 @@ suite('PromptsService', () => {
 
 			// sanity checks
 			assert(
-				!parser.disposed,
+				parser.isDisposed === false,
 				'Parser must not be disposed.',
 			);
 			assert(
@@ -540,1133 +541,6 @@ suite('PromptsService', () => {
 			assert.throws(() => {
 				service.getSyntaxParserFor(model);
 			}, 'Cannot create a prompt parser for a disposed model.');
-		});
-	});
-
-	suite('• getCombinedToolsMetadata', () => {
-		suite('• agent mode', () => {
-			test('• explicit', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'tools: [\'my-tool1\']',
-									'mode: "agent" ',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'tools: [ false, \'my-tool1\' , ]',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'tools: [\'my-tool1\', "my-tool2", true, , ]',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'tools: [\'my-tool3\', false, "my-tool2" ]',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Agent,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.deepStrictEqual(
-					tools,
-					[
-						'my-tool1',
-						'my-tool3',
-						'my-tool2',
-					],
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'tools: [\'my-tool1\']',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'tools: [ false, \'my-tool1\' , ]',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'tools: [\'my-tool1\', "my-tool2", true, , ]',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'tools: [\'my-tool3\', false, "my-tool2" ]',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Agent,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.deepStrictEqual(
-					tools,
-					[
-						'my-tool1',
-						'my-tool3',
-						'my-tool2',
-					],
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit (incorrect value)', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				// both modes must yield the same result
-				const incorrectMode = (randomBoolean())
-					? ChatMode.Ask
-					: ChatMode.Edit;
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'tools: [\'my-tool1\']',
-									`mode: '${incorrectMode}'`,
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'tools: [ false, \'my-tool1\' , ]',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'tools: [\'my-tool1\', "my-tool2", true, , ]',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'tools: [\'my-tool3\', false, "my-tool2" ]',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Agent,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.deepStrictEqual(
-					tools,
-					[
-						'my-tool1',
-						'my-tool3',
-						'my-tool2',
-					],
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-		});
-
-		suite('• edit mode', () => {
-			test('• explicit', async () => {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'mode: "edit"',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'mode: \'ask\'\t',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Edit,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'mode: \'ask\'',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'description: "My prompt."',
-															'mode: "edit"\t\t',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Edit,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit (incorrect value)', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				// both modes must yield the same result
-				const incorrectMode = (randomBoolean())
-					? 'unknown-mode-1'
-					: 'unknown-mode-2';
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									`mode: '${incorrectMode}'`,
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'mode: \'ask\'',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'mode: \'edit\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Edit,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-		});
-
-		suite('• ask mode', () => {
-			test('• explicit', async () => {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'mode:\t\t"ask"\t',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'description: "some text"',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Ask,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'---',
-											'description: "Another prompt description."',
-											'---',
-											'',
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															'---',
-															'description: "My prompt."',
-															'mode: "ask"\t\t',
-															'---',
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Ask,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
-
-			test('• implicit (incorrect value)', async function () {
-				const rootFolderName = 'gets-combined-tools-metadata';
-				const rootFolder = `/${rootFolderName}`;
-
-				const rootFileName = 'file2.prompt.md';
-				const rootFileUri = URI.file(`${rootFolder}/${rootFileName}`);
-
-				// both modes must yield the same result
-				const incorrectMode = (randomBoolean())
-					? 'unknown-mode-1'
-					: 'unknown-mode-2';
-
-				await (instaService.createInstance(MockFilesystem,
-					// the file structure to be created on the disk for the test
-					[{
-						name: rootFolderName,
-						children: [
-							{
-								name: 'file1.prompt.md',
-								contents: [
-									'## Some Header',
-									'some contents',
-									' ',
-								],
-							},
-							{
-								name: rootFileName,
-								contents: [
-									'---',
-									'description: \'Root prompt description.\'',
-									`mode: '${incorrectMode}'`,
-									'---',
-									'## Files',
-									'\t- this file #file:folder1/file3.prompt.md ',
-									'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-									' ',
-								],
-							},
-							{
-								name: 'folder1',
-								children: [
-									{
-										name: 'file3.prompt.md',
-										contents: [
-											'[](./some-other-folder/non-existing-folder)',
-											`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents`,
-											' some more\t content',
-										],
-									},
-									{
-										name: 'some-other-folder',
-										children: [
-											{
-												name: 'file4.prompt.md',
-												contents: [
-													'---',
-													'something: true',
-													'mode: \'ask\'\t',
-													'---',
-													'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-													'',
-													'',
-													'and some',
-													' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-												],
-											},
-											{
-												name: 'file.txt',
-												contents: [
-													'---',
-													'description: "Non-prompt file description".',
-													'tools: ["my-tool-24"]',
-													'---',
-												],
-											},
-											{
-												name: 'yetAnotherFolder🤭',
-												children: [
-													{
-														name: 'another-file.prompt.md',
-														contents: [
-															`[](${rootFolder}/folder1/some-other-folder)`,
-															'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
-														],
-													},
-													{
-														name: 'one_more_file_just_in_case.prompt.md',
-														contents: 'one_more_file_just_in_case.prompt.md contents',
-													},
-												],
-											},
-										],
-									},
-								],
-							},
-						],
-					}])).mock();
-
-				const metadata = await service
-					.getCombinedToolsMetadata([rootFileUri]);
-
-				assertDefined(
-					metadata,
-					'Combined metadata must be defined.',
-				);
-
-				const { tools, mode } = metadata;
-
-				assert.strictEqual(
-					mode,
-					ChatMode.Ask,
-					'Combined metadata \'mode\' must have correct value.',
-				);
-
-				assert.strictEqual(
-					tools,
-					undefined,
-					'Combined metadata \'tools\' must have correct value.',
-				);
-			});
 		});
 	});
 
@@ -1787,17 +661,16 @@ suite('PromptsService', () => {
 				[{
 					uri: rootFileUri,
 					metadata: {
+						promptType: PromptsType.prompt,
 						description: 'Root prompt description.',
 						tools: ['my-tool1'],
 						mode: 'agent',
-						applyTo: undefined,
 					},
 					children: [
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
 							metadata: {
-								description: undefined,
-								applyTo: undefined,
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1'],
 								mode: 'agent',
 							},
@@ -1805,9 +678,8 @@ suite('PromptsService', () => {
 								{
 									uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md'),
 									metadata: {
+										promptType: PromptsType.instructions,
 										description: 'Another file description.',
-										tools: ['my-tool3', 'my-tool2'],
-										mode: 'agent',
 										applyTo: '**/*.tsx',
 									},
 									children: undefined,
@@ -1817,9 +689,9 @@ suite('PromptsService', () => {
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md'),
 							metadata: {
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1', 'my-tool2'],
 								description: 'File 4 splendid description.',
-								applyTo: undefined,
 								mode: 'agent',
 							},
 							children: undefined,
@@ -1849,33 +721,33 @@ suite('PromptsService', () => {
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 				]));
 
@@ -2028,33 +900,33 @@ suite('PromptsService', () => {
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
 						storage: 'local',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
 						storage: 'user',
-						type: 'instructions',
+						type: PromptsType.instructions,
 					},
 				]));
 

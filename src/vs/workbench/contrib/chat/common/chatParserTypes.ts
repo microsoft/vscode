@@ -5,10 +5,10 @@
 
 import { revive } from '../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
+import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
@@ -88,8 +88,29 @@ export class ChatRequestToolPart implements IParsedChatRequestPart {
 		return this.text;
 	}
 
-	toVariableEntry(): IChatRequestVariableEntry {
+	toVariableEntry(): IChatRequestToolEntry {
 		return { kind: 'tool', id: this.toolId, name: this.toolName, range: this.range, value: undefined, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
+	}
+}
+
+/**
+ * An invocation of a tool
+ */
+export class ChatRequestToolSetPart implements IParsedChatRequestPart {
+	static readonly Kind = 'toolset';
+	readonly kind = ChatRequestToolSetPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly id: string, readonly name: string, readonly icon: ThemeIcon, readonly tools: IChatRequestToolEntry[]) { }
+
+	get text(): string {
+		return `${chatVariableLeader}${this.name}`;
+	}
+
+	get promptText(): string {
+		return this.text;
+	}
+
+	toVariableEntry(): IChatRequestToolSetEntry {
+		return { kind: 'toolset', id: this.id, name: this.name, range: this.range, icon: this.icon, value: this.tools };
 	}
 }
 
@@ -213,6 +234,15 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestToolPart).toolId,
 					(part as ChatRequestToolPart).displayName,
 					(part as ChatRequestToolPart).icon,
+				);
+			} else if (part.kind === ChatRequestToolSetPart.Kind) {
+				return new ChatRequestToolSetPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestToolSetPart).id,
+					(part as ChatRequestToolSetPart).name,
+					(part as ChatRequestToolSetPart).icon,
+					(part as ChatRequestToolSetPart).tools ?? [],
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;

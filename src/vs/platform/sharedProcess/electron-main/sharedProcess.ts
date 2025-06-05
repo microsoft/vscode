@@ -159,7 +159,7 @@ export class SharedProcess extends Disposable {
 		const inspectParams = parseSharedProcessDebugPort(this.environmentMainService.args, this.environmentMainService.isBuilt);
 		let execArgv: string[] | undefined = undefined;
 		if (inspectParams.port) {
-			execArgv = ['--nolazy'];
+			execArgv = ['--nolazy', '--experimental-network-inspection'];
 			if (inspectParams.break) {
 				execArgv.push(`--inspect-brk=${inspectParams.port}`);
 			} else {
@@ -169,6 +169,7 @@ export class SharedProcess extends Disposable {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
+			name: 'shared-process',
 			entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
 			respondToAuthRequestsFromMainProcess: true,

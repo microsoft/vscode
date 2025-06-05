@@ -78,7 +78,7 @@ import { ExtHostNotebookKernels } from './extHostNotebookKernels.js';
 import { ExtHostNotebookRenderers } from './extHostNotebookRenderers.js';
 import { IExtHostOutputService } from './extHostOutput.js';
 import { ExtHostProfileContentHandlers } from './extHostProfileContentHandler.js';
-import { ExtHostProgress } from './extHostProgress.js';
+import { IExtHostProgress } from './extHostProgress.js';
 import { ExtHostQuickDiff } from './extHostQuickDiff.js';
 import { createExtHostQuickOpen } from './extHostQuickOpen.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -104,7 +104,7 @@ import * as typeConverters from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { ExtHostUriOpeners } from './extHostUriOpener.js';
 import { IURITransformerService } from './extHostUriTransformerService.js';
-import { ExtHostUrls } from './extHostUrls.js';
+import { IExtHostUrlsService } from './extHostUrls.js';
 import { ExtHostWebviews } from './extHostWebview.js';
 import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
@@ -143,9 +143,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
+	const extHostUrls = accessor.get(IExtHostUrlsService);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
 	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
 	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
+	const extHostProgress = accessor.get(IExtHostProgress);
 	const extHostAuthentication = accessor.get(IExtHostAuthentication);
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
 	const extHostMcp = accessor.get(IExtHostMpcService);
@@ -159,10 +161,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
+	rpcProtocol.set(ExtHostContext.ExtHostUrls, extHostUrls);
 	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
 	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
 	rpcProtocol.set(ExtHostContext.ExtHostEditorTabs, extHostEditorTabs);
 	rpcProtocol.set(ExtHostContext.ExtHostManagedSockets, extHostManagedSockets);
+	rpcProtocol.set(ExtHostContext.ExtHostProgress, extHostProgress);
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
 
@@ -179,7 +183,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLocalization = rpcProtocol.set(ExtHostContext.ExtHostLocalization, accessor.get(IExtHostLocalizationService));
 
 	// manually create and register addressable instances
-	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
@@ -203,7 +206,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostQuickDiff = rpcProtocol.set(ExtHostContext.ExtHostQuickDiff, new ExtHostQuickDiff(rpcProtocol, uriTransformer));
 	const extHostShare = rpcProtocol.set(ExtHostContext.ExtHostShare, new ExtHostShare(rpcProtocol, uriTransformer));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, createExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
-	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
@@ -298,6 +300,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.authorizationServer) {
+					checkProposedApiEnabled(extension, 'authIssuers');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getAccounts(providerId: string) {
@@ -312,6 +317,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
+				if (options?.supportedAuthorizationServers) {
+					checkProposedApiEnabled(extension, 'authIssuers');
+				}
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
 			}
 		};
@@ -1391,10 +1399,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'notebookKernelSource');
 				return extHostNotebookKernels.registerKernelSourceActionProvider(extension, notebookType, provider);
 			},
-			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
-				return _asExtensionEvent(extHostNotebookKernels.onDidChangeNotebookCellExecutionState)(listener, thisArgs, disposables);
-			}
 		};
 
 		// namespace: l10n
@@ -1528,13 +1532,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
 			},
 			registerMcpServerDefinitionProvider(id, provider) {
-				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
-
-		// todo@connor4312: proposed API back-compat
-		(lm as any).registerMcpConfigurationProvider = lm.registerMcpServerDefinitionProvider;
 
 		// namespace: speech
 		const speech: typeof vscode.speech = {
@@ -1808,6 +1808,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
 			ChatResponseMovePart: extHostTypes.ChatResponseMovePart,
 			ChatResponseExtensionsPart: extHostTypes.ChatResponseExtensionsPart,
+			ChatPrepareToolInvocationPart: extHostTypes.ChatPrepareToolInvocationPart,
 			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatRequestTurn2: extHostTypes.ChatRequestTurn,
@@ -1828,7 +1829,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
 			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,
 			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
-			LanguageModelExtraDataPart: extHostTypes.LanguageModelExtraDataPart,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,

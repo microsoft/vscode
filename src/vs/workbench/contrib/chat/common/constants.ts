@@ -39,6 +39,10 @@ export function validateChatMode(mode: unknown): ChatMode | undefined {
 	}
 }
 
+export function isChatMode(mode: unknown): mode is ChatMode {
+	return !!validateChatMode(mode);
+}
+
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {

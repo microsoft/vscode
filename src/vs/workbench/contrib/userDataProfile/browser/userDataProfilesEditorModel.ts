@@ -556,7 +556,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private defaultIcon: string | undefined;
 
 	constructor(
-		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
 		readonly actions: [IAction[], IAction[]],
@@ -573,7 +572,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
-			name,
+			'',
 			undefined,
 			undefined,
 			undefined,
@@ -588,7 +587,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			extensionManagementService,
 			instantiationService,
 		);
-		this.defaultName = name;
+		this.name = this.defaultName = this.getNewProfileName();
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -701,7 +700,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			}
 
 			if (this.defaultName === this.name) {
-				this.name = this.defaultName = localize('untitled', "Untitled");
+				this.name = this.defaultName = this.getNewProfileName();
 			}
 			if (this.defaultIcon === this.icon) {
 				this.icon = this.defaultIcon = undefined;
@@ -715,6 +714,18 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		} finally {
 			this.disabled = false;
 		}
+	}
+
+	private getNewProfileName(): string {
+		const name = localize('untitled', "Untitled");
+		const nameRegEx = new RegExp(`${name}\\s(\\d+)`);
+		let nameIndex = 0;
+		for (const profile of this.userDataProfilesService.profiles) {
+			const matches = nameRegEx.exec(profile.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+		return `${name} ${nameIndex + 1}`;
 	}
 
 	async resolveTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
@@ -1074,7 +1085,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				() => this.exportNewProfile(cancellationTokenSource.token)
 			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
-				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[primaryActions, secondaryActions],
 				[[cancelAction], [exportAction]],

@@ -12,7 +12,7 @@
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"bootstrap-window.ts",
+		"vs/code/electron-sandbox/workbench/workbench.ts",
 		"vs/amdX.ts",
 		"vs/base/browser/trustedTypes.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
@@ -37,6 +37,6 @@
 		"**/*.ts"
 	],
 	"ban-script-content-assignments": [
-		"bootstrap-window.ts"
+		"vs/code/electron-sandbox/workbench/workbench.ts"
 	]
 }

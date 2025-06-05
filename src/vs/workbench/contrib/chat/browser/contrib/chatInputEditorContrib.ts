@@ -15,7 +15,8 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { IChatModeService } from '../../common/chatModes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
@@ -43,6 +44,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -62,6 +64,7 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
+		this._register(this.chatModeService.onDidChangeChatModes(() => this.updateInputEditorDecorations()));
 
 		this.registerViewModelListeners();
 	}
@@ -115,7 +118,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location, this.widget.input.currentMode);
+			const description = this.widget.input.currentMode2.description;
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -126,7 +129,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: viewModel.inputPlaceholder || (defaultAgent?.description ?? ''),
+							contentText: viewModel.inputPlaceholder || (description ?? ''),
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -234,7 +237,7 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
-		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
+		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart || p instanceof ChatRequestToolSetPart);
 		for (const tool of toolParts) {
 			varDecorations.push({ range: tool.editorRange });
 		}

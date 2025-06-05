@@ -9,7 +9,7 @@ import { SimpleToken } from './simpleToken.js';
  * A token that represent a `$` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class DollarSign extends SimpleToken {
+export class DollarSign extends SimpleToken<'$'> {
 	/**
 	 * The underlying symbol of the token.
 	 */
@@ -18,7 +18,7 @@ export class DollarSign extends SimpleToken {
 	/**
 	 * Return text representation of the token.
 	 */
-	public override get text() {
+	public override get text(): '$' {
 		return DollarSign.symbol;
 	}
 

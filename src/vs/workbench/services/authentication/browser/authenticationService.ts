@@ -12,12 +12,15 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { match } from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -57,6 +60,14 @@ const authenticationDefinitionSchema: IJSONSchema = {
 		label: {
 			type: 'string',
 			description: localize('authentication.label', 'The human readable name of the authentication provider.'),
+		},
+		authorizationServerGlobs: {
+			type: 'array',
+			items: {
+				type: 'string',
+				description: localize('authentication.authorizationServerGlobs', 'A list of globs that match the authorization servers that this provider supports.'),
+			},
+			description: localize('authentication.authorizationServerGlobsDescription', 'A list of globs that match the authorization servers that this provider supports.')
 		}
 	}
 };
@@ -94,6 +105,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
+
+	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -250,10 +263,18 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return accounts;
 	}
 
-	async getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
-			return await authProvider.getSessions(scopes, { account });
+			// Check if the authorization server is in the list of supported authorization servers
+			if (options?.authorizationServer) {
+				const authServerStr = options.authorizationServer.toString(true);
+				// TODO: something is off here...
+				if (!authProvider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
+					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
+				}
+			}
+			return await authProvider.getSessions(scopes, { account: options?.account, authorizationServer: options?.authorizationServer });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -263,7 +284,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
 			return await authProvider.createSession(scopes, {
-				account: options?.account
+				account: options?.account,
+				authorizationServer: options?.authorizationServer
 			});
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
@@ -277,6 +299,59 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
+	}
+
+	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+		for (const provider of this._authenticationProviders.values()) {
+			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
+				return provider.id;
+			}
+		}
+
+		const authServerStr = authorizationServer.toString(true);
+		const providers = this._declaredProviders
+			// Only consider providers that are not already registered since we already checked them
+			.filter(p => !this._authenticationProviders.has(p.id))
+			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr)));
+		// TODO:@TylerLeonhardt fan out?
+		for (const provider of providers) {
+			const activeProvider = await this.tryActivateProvider(provider.id, true);
+			// Check the resolved authorization servers
+			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
+				return activeProvider.id;
+			}
+		}
+		return undefined;
+	}
+
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
+		const delegate = this._delegates[0];
+		if (!delegate) {
+			this._logService.error('No authentication provider host delegate found');
+			return undefined;
+		}
+		const providerId = await delegate.create(authorizationServer, serverMetadata, resource);
+		const provider = this._authenticationProviders.get(providerId);
+		if (provider) {
+			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
+			return provider;
+		}
+		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
+		return undefined;
+	}
+
+	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable {
+		this._delegates.push(delegate);
+		this._delegates.sort((a, b) => b.priority - a.priority);
+
+		return {
+			dispose: () => {
+				const index = this._delegates.indexOf(delegate);
+				if (index !== -1) {
+					this._delegates.splice(index, 1);
+				}
+			}
+		};
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {

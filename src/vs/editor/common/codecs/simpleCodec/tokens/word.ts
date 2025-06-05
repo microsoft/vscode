@@ -6,14 +6,13 @@
 import { BaseToken } from '../../baseToken.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
  * A token that represent a word - a set of continuous
  * characters without stop characters, like a `space`,
  * a `tab`, or a `new line`.
  */
-export class Word extends BaseToken {
+export class Word<TText extends string = string> extends BaseToken<TText> {
 	constructor(
 		/**
 		 * The word range.
@@ -23,7 +22,7 @@ export class Word extends BaseToken {
 		/**
 		 * The string value of the word.
 		 */
-		public readonly text: string,
+		public readonly text: TText,
 	) {
 		super(range);
 	}
@@ -34,33 +33,22 @@ export class Word extends BaseToken {
 	 */
 	public static newOnLine(
 		text: string,
-		line: Line,
+		line: Line | number,
 		atColumnNumber: number,
 	): Word {
-		const { range } = line;
+		const startLineNumber = (typeof line === 'number')
+			? line
+			: line.range.startLineNumber;
 
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + text.length);
+		const range = new Range(
+			startLineNumber, atColumnNumber,
+			startLineNumber, atColumnNumber + text.length
+		);
 
 		return new Word(
-			Range.fromPositions(startPosition, endPosition),
+			range,
 			text,
 		);
-	}
-
-	/**
-	 * Check if this token is equal to another one.
-	 */
-	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.equals(other)) {
-			return false;
-		}
-
-		if (!(other instanceof Word)) {
-			return false;
-		}
-
-		return this.text === other.text;
 	}
 
 	/**

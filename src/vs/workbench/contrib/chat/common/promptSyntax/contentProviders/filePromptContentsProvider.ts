@@ -12,8 +12,8 @@ import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js'
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/constants.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
@@ -46,7 +46,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 	constructor(
 		public readonly uri: URI,
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: Partial<IPromptContentsProviderOptions>,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -61,13 +61,15 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 				if (event.contains(this.uri, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 					// we support only full file parsing right now because
 					// the event doesn't contain a list of changed lines
-					return this.onChangeEmitter.fire('full');
+					this.onChangeEmitter.fire('full');
+					return;
 				}
 
 				// if file was deleted, forward the event to
 				// the `getContentsStream()` produce an error
 				if (event.contains(this.uri, FileChangeType.DELETED)) {
-					return this.onChangeEmitter.fire(event);
+					this.onChangeEmitter.fire(event);
+					return;
 				}
 			}),
 		);
@@ -121,7 +123,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 			// after the promise above complete, this object can be already disposed or
 			// the cancellation could be requested, in that case destroy the stream and
 			// throw cancellation error
-			if (this.disposed || cancellationToken?.isCancellationRequested) {
+			if (this.isDisposed || cancellationToken?.isCancellationRequested) {
 				fileStream.value.destroy();
 				throw new CancellationError();
 			}
@@ -152,7 +154,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 	/**
 	 * String representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `file-prompt-contents-provider:${this.uri.path}`;
 	}
 }

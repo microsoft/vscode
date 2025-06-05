@@ -16,14 +16,14 @@
 
 import { IPromptsService } from '../../../service/types.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
+import { isOneOf } from '../../../../../../../../base/common/types.js';
 import { extUri } from '../../../../../../../../base/common/resources.js';
-import { assertOneOf } from '../../../../../../../../base/common/types.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../../../base/common/errors.js';
-import { PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR } from '../../../constants.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../../constants.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
-import { IPromptFileReference, IPromptReference } from '../../../parsers/types.js';
+import { IPromptFileReference, TPromptReference } from '../../../parsers/types.js';
 import { assert, assertNever } from '../../../../../../../../base/common/assert.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
@@ -52,7 +52,7 @@ type TTriggerCharacter = ':' | '.' | '/';
  * Finds a file reference that suites the provided `position`.
  */
 const findFileReference = (
-	references: readonly IPromptReference[],
+	references: readonly TPromptReference[],
 	position: Position,
 ): IPromptFileReference | undefined => {
 	for (const reference of references) {
@@ -102,7 +102,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	) {
 		super();
 
-		this._register(this.languageService.completionProvider.register(PROMPT_AND_INSTRUCTIONS_LANGUAGE_SELECTOR, this));
+		this._register(this.languageService.completionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 	}
 
 	/**
@@ -127,15 +127,14 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return undefined;
 		}
 
-		assertOneOf(
-			triggerCharacter,
-			this.triggerCharacters,
+		assert(
+			isOneOf(triggerCharacter, this.triggerCharacters),
 			`Prompt path autocompletion provider`,
 		);
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
-			!parser.disposed,
+			parser.isDisposed === false,
 			'Prompt parser must not be disposed.',
 		);
 

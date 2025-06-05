@@ -4,27 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { TPromptsType } from '../../../../../common/promptSyntax/service/types.js';
-import { getPromptFileExtension } from '../../../../../../../../platform/prompts/common/constants.js';
+import { getPromptFileExtension, PromptsType } from '../../../../../../../../platform/prompts/common/prompts.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import Severity from '../../../../../../../../base/common/severity.js';
 import { isValidBasename } from '../../../../../../../../base/common/extpath.js';
+import { ServicesAccessor } from '../../../../../../../../editor/browser/editorExtensions.js';
 
 /**
  * Asks the user for a file name.
  */
-export const askForPromptFileName = async (
-	type: TPromptsType,
+export async function askForPromptFileName(
+	accessor: ServicesAccessor,
+	type: PromptsType,
 	selectedFolder: URI,
-	quickInputService: IQuickInputService,
-	fileService: IFileService,
-): Promise<string | undefined> => {
-	const placeHolder = (type === 'instructions')
-		? localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file")
-		: localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
-
+	existingFileName?: string
+): Promise<string | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const fileService = accessor.get(IFileService);
 
 	const sanitizeInput = (input: string) => {
 		const trimmedName = input.trim();
@@ -64,11 +62,37 @@ export const askForPromptFileName = async (
 
 		return undefined;
 	};
-
-	const result = await quickInputService.input({ placeHolder, validateInput });
+	const placeHolder = existingFileName ? getPlaceholderStringForRename(type) : getPlaceholderStringForNew(type);
+	const result = await quickInputService.input({ placeHolder, validateInput, value: existingFileName });
 	if (!result) {
 		return undefined;
 	}
 
 	return sanitizeInput(result);
-};
+}
+
+function getPlaceholderStringForNew(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file");
+		case PromptsType.prompt:
+			return localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
+		case PromptsType.mode:
+			return localize('askForModeFileName.placeholder', "Enter the name of the custom chat mode file");
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}
+
+function getPlaceholderStringForRename(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.instructions:
+			return localize('askForRenamedInstructionsFileName.placeholder', "Enter a new name of the instructions file");
+		case PromptsType.prompt:
+			return localize('askForRenamedPromptFileName.placeholder', "Enter a new name of the prompt file");
+		case PromptsType.mode:
+			return localize('askForRenamedModeFileName.placeholder', "Enter a new name of the custom chat mode file");
+		default:
+			throw new Error('Unknown prompt type');
+	}
+}

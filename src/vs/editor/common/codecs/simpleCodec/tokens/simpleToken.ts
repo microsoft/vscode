@@ -10,7 +10,7 @@ import { Line } from '../../linesCodec/tokens/line.js';
 /**
  * Interface for a class that can be instantiated into a {@link SimpleToken}.
  */
-export interface ISimpleTokenClass<TSimpleToken extends SimpleToken> {
+export interface ISimpleTokenClass<TSimpleToken extends SimpleToken<string>> {
 	/**
 	 * Character representing the token.
 	 */
@@ -26,26 +26,21 @@ export interface ISimpleTokenClass<TSimpleToken extends SimpleToken> {
  * Base class for all "simple" tokens with a `range`.
  * A simple token is the one that represents a single character.
  */
-export abstract class SimpleToken extends BaseToken {
+export abstract class SimpleToken<TSymbol extends string> extends BaseToken<TSymbol> {
 	/**
 	 * The underlying symbol of the token.
 	 */
 	public static readonly symbol: string;
 
 	/**
-	 * Return text representation of the token.
-	 */
-	public abstract override get text(): string;
-
-	/**
 	 * Create new token instance with range inside
 	 * the given `Line` at the given `column number`.
 	 */
-	public static newOnLine<TSimpleToken extends SimpleToken>(
+	public static newOnLine<TSimpleToken extends SimpleToken<string>>(
 		line: Line,
 		atColumnNumber: number,
 		Constructor: ISimpleTokenClass<TSimpleToken>,
-	): SimpleToken {
+	): TSimpleToken {
 		const { range } = line;
 
 		return new Constructor(new Range(
@@ -56,3 +51,9 @@ export abstract class SimpleToken extends BaseToken {
 		));
 	}
 }
+
+/**
+ * Base class for all tokens that represent some form of
+ * a spacing character, e.g. 'space', 'tab', etc.
+ */
+export abstract class SpacingToken<TSymbol extends string = string> extends SimpleToken<TSymbol> { }

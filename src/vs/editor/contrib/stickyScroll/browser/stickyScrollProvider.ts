@@ -14,6 +14,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelProvider.js';
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
+import { Position } from '../../../common/core/position.js';
 
 export class StickyLineCandidate {
 	constructor(
@@ -163,7 +164,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		if (!this._model?.element) {
 			return [];
 		}
-		let stickyLineCandidates: StickyLineCandidate[] = [];
+		const stickyLineCandidates: StickyLineCandidate[] = [];
 		this.getCandidateStickyLinesIntersectingFromStickyModel(range, this._model.element, stickyLineCandidates, 0, 0, -1);
 		return this.filterHiddenRanges(stickyLineCandidates);
 	}
@@ -202,7 +203,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			const { startLineNumber, endLineNumber } = child.range;
 			if (range.startLineNumber <= endLineNumber + 1 && startLineNumber - 1 <= range.endLineNumber && startLineNumber !== lastLine) {
 				lastLine = startLineNumber;
-				const lineHeight = this._editor.getLineHeightForLineNumber(startLineNumber);
+				const lineHeight = this._editor.getLineHeightForPosition(new Position(startLineNumber, 1));
 				result.push(new StickyLineCandidate(startLineNumber, endLineNumber - 1, top, lineHeight));
 				this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, top + lineHeight, startLineNumber);
 			}

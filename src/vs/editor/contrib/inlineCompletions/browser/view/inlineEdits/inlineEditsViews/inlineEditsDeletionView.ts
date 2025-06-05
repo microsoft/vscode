@@ -11,10 +11,10 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';

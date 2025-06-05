@@ -63,7 +63,7 @@ export class WebviewViewPane extends ViewPane {
 	private readonly viewState: MementoObject;
 	private readonly extensionId?: ExtensionIdentifier;
 
-	private _repositionTimeout?: any;
+	private _repositionTimeout?: Timeout;
 
 	constructor(
 		options: IViewletViewOptions,

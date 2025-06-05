@@ -7,7 +7,7 @@ import { Disposable } from '../lifecycle.js';
 import { BaseDecoder } from './baseDecoder.js';
 
 /**
- * Asynchronous interator wrapper for a decoder.
+ * Asynchronous iterator wrapper for a decoder.
  */
 export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable {
 	// Buffer of messages that have been decoded but not yet consumed.
@@ -16,7 +16,7 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 	/**
 	 * A transient promise that is resolved when a new event
 	 * is received. Used in the situation when there is no new
-	 * data avaialble and decoder stream did not finish yet,
+	 * data available and decoder stream did not finish yet,
 	 * hence we need to wait until new event is received.
 	 */
 	private resolveOnNewEvent?: (value: void) => void;
@@ -24,7 +24,7 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 	/**
 	 * @param decoder The decoder instance to wrap.
 	 *
-	 * Note! Assumes ownership of the `decoder` object, hence will `dipose`
+	 * Note! Assumes ownership of the `decoder` object, hence will `dispose`
 	 * 		 it when the decoder stream is ended.
 	 */
 	constructor(
@@ -55,8 +55,16 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 				delete this.resolveOnNewEvent;
 			}
 		};
-		this.decoder.on('data', callback);
+
+		/**
+		 * !NOTE! The order of event subscriptions below is critical here because
+		 *        the `data` event is also starts the stream, hence changing
+		 *        the order of event subscriptions can lead to race conditions.
+		 *        See {@link ReadableStreamEvents} for more info.
+		 */
+
 		this.decoder.on('end', callback);
+		this.decoder.on('data', callback);
 
 		// start flowing the decoder stream
 		this.decoder.start();

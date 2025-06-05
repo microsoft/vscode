@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction } from './actions/developerActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, StopTracing } from './actions/developerActions.js';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
@@ -114,6 +114,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 	registerAction2(ShowGPUInfoAction);
+	registerAction2(StopTracing);
 })();
 
 // Menu
@@ -144,7 +145,6 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'default': 10,
 				'minimum': 1,
 				'maximum': 120,
-				'included': !isWindows,
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
 			}
@@ -239,7 +239,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'enum': ['native', 'custom'],
 				'default': 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. Changes require a full restart to apply."),
 			},
 			'window.controlsStyle': {
 				'type': 'string',
@@ -261,12 +261,32 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in non full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 			},
+			'window.menuStyle': {
+				'type': 'string',
+				'enum': ['custom', 'native', 'inherit'],
+				'markdownEnumDescriptions': isMacintosh ?
+					[
+						localize(`window.menuStyle.custom.mac`, "Use the custom context menu."),
+						localize(`window.menuStyle.native.mac`, "Use the native context menu."),
+						localize(`window.menuStyle.inherit.mac`, "Matches the context menu style to the title bar style defined in {0}.", '`#window.titleBarStyle#`'),
+					] :
+					[
+						localize(`window.menuStyle.custom`, "Use the custom menu."),
+						localize(`window.menuStyle.native`, "Use the native menu. This is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`'),
+						localize(`window.menuStyle.inherit`, "Matches the menu style to the title bar style defined in {0}.", '`#window.titleBarStyle#`'),
+					],
+				'default': isMacintosh ? 'native' : 'inherit',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': isMacintosh ?
+					localize('window.menuStyle.mac', "Adjust the context menu appearances to either be native by the OS, custom, or inherited from the title bar style defined in {0}.", '`#window.titleBarStyle#`') :
+					localize('window.menuStyle', "Adjust the menu style to either be native by the OS, custom, or inherited from the title bar style defined in {0}. This also affects the context menu appearance. Changes require a full restart to apply.", '`#window.titleBarStyle#`'),
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
 				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialog windows.")
+				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom.")
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',
@@ -423,6 +443,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 		schema.properties!['password-store'] = {
 			type: 'string',
 			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
+		};
+	}
+	if (isWindows) {
+		schema.properties!['enable-rdp-display-tracking'] = {
+			type: 'boolean',
+			description: localize('argv.enableRDPDisplayTracking', "Ensures that maximized windows gets restored to correct display during RDP reconnection.")
 		};
 	}
 

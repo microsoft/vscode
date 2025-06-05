@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line } from '../linesCodec/tokens/line.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
@@ -100,11 +99,12 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 		while (i < lineText.length) {
 			// index is 0-based, but column numbers are 1-based
 			const columnNumber = i + 1;
+			const character = lineText[i];
 
 			// check if the current character is a well-known token
 			const tokenConstructor = WELL_KNOWN_TOKENS
 				.find((wellKnownToken) => {
-					return wellKnownToken.symbol === lineText[i];
+					return wellKnownToken.symbol === character;
 				});
 
 			// if it is a well-known token, emit it and continue to the next one

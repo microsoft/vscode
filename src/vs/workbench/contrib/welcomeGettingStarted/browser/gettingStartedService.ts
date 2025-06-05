@@ -33,10 +33,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -426,11 +426,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				order: 0,
 				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
-				icon: {
+				icon: iconStr ? {
 					type: 'image',
-					path: iconStr
-						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
-						: DefaultIconPath
+					path: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
+				} : {
+					icon: extensionDefaultIcon,
+					type: 'icon'
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;

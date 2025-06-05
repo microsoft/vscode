@@ -810,7 +810,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	private toMessage(message: string, request?: IRecursiveWatchRequest): string {
-		return request ? `[File Watcher] ${message} (path: ${request.path})` : `[File Watcher ('parcel')] ${message}`;
+		return request ? `[File Watcher ('parcel')] ${message} (path: ${request.path})` : `[File Watcher ('parcel')] ${message}`;
 	}
 
 	protected get recursiveWatcher() { return this; }
