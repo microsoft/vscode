@@ -697,11 +697,12 @@ class Extensions extends Disposable {
 					extension.gallery = gallery;
 				} else {
 					extension.missingFromGallery = true;
-					this._onChange.fire({ extension });
 				}
+				this._onChange.fire({ extension });
 			}
 		}
 	}
+
 
 	private async mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion): Promise<[Extension, IGalleryExtension][]> {
 		const mappedExtensions = this.mapInstalledExtensionWithGalleryExtension(galleryExtensions);
