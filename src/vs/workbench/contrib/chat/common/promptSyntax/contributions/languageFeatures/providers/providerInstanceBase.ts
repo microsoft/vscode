@@ -6,6 +6,7 @@
 import { IPromptsService, TSharedPrompt } from '../../../service/types.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { ObservableDisposable } from '../../../../../../../../base/common/observableDisposable.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../../base/common/cancellation.js';
 
 /**
  * Abstract base class for all reusable prompt file providers.
@@ -14,7 +15,7 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 	/**
 	 * Function that is called when the prompt parser is settled.
 	 */
-	protected abstract onPromptSettled(error: Error | undefined): this;
+	protected abstract onPromptSettled(error: Error | undefined, token: CancellationToken): this;
 
 	/**
 	 * Returns a string representation of this object.
@@ -35,17 +36,19 @@ export abstract class ProviderInstanceBase extends ObservableDisposable {
 		this.parser = promptsService.getSyntaxParserFor(model);
 
 		this._register(
-			this.parser.onSettled(this.onPromptSettled.bind(this)),
+			this.parser.onDispose(this.dispose.bind(this)),
 		);
 
+		let cancellationSource = new CancellationTokenSource();
 		this._register(
-			this.parser
-				.onDispose(this.dispose.bind(this)),
+			this.parser.onSettled((error) => {
+				cancellationSource.dispose(true);
+				cancellationSource = new CancellationTokenSource();
+
+				this.onPromptSettled(error, cancellationSource.token);
+			}),
 		);
 
 		this.parser.start();
-
-		// initialize an update
-		setTimeout(this.onPromptSettled.bind(this));
 	}
 }

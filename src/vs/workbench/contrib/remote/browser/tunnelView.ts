@@ -559,7 +559,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		});
 	}
 
-	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
+	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData) {
 		templateData.elementDisposable.dispose();
 	}
 

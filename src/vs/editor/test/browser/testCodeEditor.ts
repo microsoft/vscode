@@ -23,11 +23,9 @@ import { LanguageService } from '../../common/services/languageService.js';
 import { IModelService } from '../../common/services/model.js';
 import { ModelService } from '../../common/services/modelService.js';
 import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { ViewModel } from '../../common/viewModel/viewModelImpl.js';
 import { TestConfiguration } from './config/testConfiguration.js';
 import { TestCodeEditorService, TestCommandService } from './editorTestServices.js';
-import { TestTreeSitterParserService } from '../common/services/testTreeSitterService.js';
 import { TestLanguageConfigurationService } from '../common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../common/services/testEditorWorkerService.js';
 import { TestTextResourcePropertiesService } from '../common/services/testTextResourcePropertiesService.js';
@@ -61,6 +59,8 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -220,7 +220,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
-	define(ITreeSitterParserService, TestTreeSitterParserService);
+	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

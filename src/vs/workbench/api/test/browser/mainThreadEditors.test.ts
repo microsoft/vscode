@@ -59,6 +59,8 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { LanguageService } from '../../../../editor/common/services/languageService.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 
 suite('MainThreadEditors', () => {
 
@@ -103,6 +105,7 @@ suite('MainThreadEditors', () => {
 		services.set(ICodeEditorService, new TestCodeEditorService(themeService));
 		services.set(IFileService, new TestFileService());
 		services.set(IUriIdentityService, new SyncDescriptor(UriIdentityService));
+		services.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		services.set(IEditorService, disposables.add(new TestEditorService()));
 		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IWorkingCopyService, new TestWorkingCopyService());

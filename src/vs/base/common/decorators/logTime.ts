@@ -61,7 +61,7 @@ type TObjectWithLogFunction<T extends object> = T & { logTime: TLogFunction };
  * );
  * ```
  */
-export function logTime<TObject extends object>() {
+export function logTime() {
 	return function logExecutionTimeDecorator<
 		TObject extends TObjectWithLogFunction<object>,
 	>(

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
+import { AsyncIterableObject, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
+import { mapValues } from '../../../../base/common/objects.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,8 +30,9 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState, McpServerTransportType } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
+import { UriTemplate } from './uriTemplate.js';
 
 type ServerBootData = {
 	supportsLogging: boolean;
@@ -68,6 +70,8 @@ interface IToolCacheEntry {
 	readonly tools: readonly IValidatedMcpTool[];
 	/** Cached prompts */
 	readonly prompts: readonly MCP.Prompt[] | undefined;
+	/** Cached capabilities */
+	readonly capabilities: McpCapability | undefined;
 }
 
 interface IServerCacheEntry {
@@ -183,11 +187,58 @@ class CachedPrimitive<T, C> {
 }
 
 export class McpServer extends Disposable implements IMcpServer {
+	/**
+	 * Helper function to call the function on the handler once it's online. The
+	 * connection started if it is not already.
+	 */
+	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
+		await server.start(); // idempotent
+
+		let ranOnce = false;
+		let d: IDisposable;
+
+		const callPromise = new Promise<R>((resolve, reject) => {
+
+			d = autorun(reader => {
+				const connection = server.connection.read(reader);
+				if (!connection || ranOnce) {
+					return;
+				}
+
+				const handler = connection.handler.read(reader);
+				if (!handler) {
+					const state = connection.state.read(reader);
+					if (state.state === McpConnectionState.Kind.Error) {
+						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
+						return;
+					} else if (state.state === McpConnectionState.Kind.Stopped) {
+						reject(new McpConnectionFailedError('MCP server has stopped'));
+						return;
+					} else {
+						// keep waiting for handler
+						return;
+					}
+				}
+
+				resolve(fn(handler));
+				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
+			});
+		});
+
+		return raceCancellationError(callPromise, token).finally(() => d.dispose());
+	}
+
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
 
 	public readonly connection = this._connection;
 	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
+
+
+	private readonly _capabilities = observableValue<number | undefined>('mcpserver.capabilities', undefined);
+	public get capabilities() {
+		return this._capabilities;
+	}
 
 	private readonly _tools: CachedPrimitive<IMcpTool, IValidatedMcpTool>;
 	public get tools() {
@@ -204,38 +255,40 @@ export class McpServer extends Disposable implements IMcpServer {
 		collection: McpCollectionDefinition | undefined;
 	}>;
 
-	public readonly toolsState = derived(reader => {
+	public readonly cacheState = derived(reader => {
 		const currentNonce = () => this._fullDefinitions.read(reader)?.server?.cacheNonce;
 		const stateWhenServingFromCache = () => {
 			if (!this._tools.fromCache) {
-				return McpServerToolsState.Unknown;
+				return McpServerCacheState.Unknown;
 			}
 
-			return currentNonce() === this._tools.fromCache.nonce ? McpServerToolsState.Cached : McpServerToolsState.Outdated;
+			return currentNonce() === this._tools.fromCache.nonce ? McpServerCacheState.Cached : McpServerCacheState.Outdated;
 		};
 
 		const fromServer = this._tools.fromServerPromise.read(reader);
 		const connectionState = this.connectionState.read(reader);
-		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
+		const isIdle = McpConnectionState.canBeStarted(connectionState.state) || !fromServer;
 		if (isIdle) {
 			return stateWhenServingFromCache();
 		}
 
 		const fromServerResult = fromServer?.promiseResult.read(reader);
 		if (!fromServerResult) {
-			return this._tools.fromCache ? McpServerToolsState.RefreshingFromCached : McpServerToolsState.RefreshingFromUnknown;
+			return this._tools.fromCache ? McpServerCacheState.RefreshingFromCached : McpServerCacheState.RefreshingFromUnknown;
 		}
 
 		if (fromServerResult.error) {
 			return stateWhenServingFromCache();
 		}
 
-		return fromServerResult.data?.nonce === currentNonce() ? McpServerToolsState.Live : McpServerToolsState.Outdated;
+		return fromServerResult.data?.nonce === currentNonce() ? McpServerCacheState.Live : McpServerCacheState.Outdated;
 	});
 
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
+	/** Count of running tool calls, used to detect if sampling is during an LM call */
+	public runningToolCalls = 0;
 
 	public get trusted() {
 		return this._mcpRegistry.getTrust(this.collection);
@@ -247,6 +300,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _primitiveCache: McpServerMetadataCache,
+		toolPrefix: string,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -257,6 +311,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
 	) {
 		super();
 
@@ -304,15 +359,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		// 3. Publish tools
-		const toolPrefix = this._mcpRegistry.collectionToolPrefix(this.collection);
 		this._tools = new CachedPrimitive<IMcpTool, IValidatedMcpTool>(
 			this.definition.id,
 			this._primitiveCache,
 			(entry) => entry.tools,
-			(entry, reader) => {
-				const prefix = toolPrefix.read(reader);
-				return entry.map(def => new McpTool(this, prefix, def)).sort((a, b) => a.compare(b));
-			},
+			(entry) => entry.map(def => new McpTool(this, toolPrefix, def)).sort((a, b) => a.compare(b)),
 		);
 
 		// 4. Publish promtps
@@ -322,6 +373,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			(entry) => entry.prompts || [],
 			(entry) => entry.map(e => new McpPrompt(this, e)),
 		);
+
+		this._capabilities.set(this._primitiveCache.get(this.definition.id)?.capabilities, undefined);
 	}
 
 	public readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
@@ -331,6 +384,27 @@ export class McpServer extends Disposable implements IMcpServer {
 	public showOutput(): void {
 		this._loggerService.setVisibility(this._loggerId, true);
 		this._outputService.showChannel(this._loggerId);
+	}
+
+	public resources(token?: CancellationToken): AsyncIterable<IMcpResource[]> {
+		const cts = new CancellationTokenSource(token);
+		return new AsyncIterableObject<IMcpResource[]>(async emitter => {
+			await McpServer.callOn(this, async (handler) => {
+				for await (const resource of handler.listResourcesIterable({}, cts.token)) {
+					emitter.emitOne(resource.map(r => new McpResource(this, r)));
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+				}
+			});
+		}, () => cts.dispose(true));
+	}
+
+	public resourceTemplates(token?: CancellationToken): Promise<IMcpResourceTemplate[]> {
+		return McpServer.callOn(this, async (handler) => {
+			const templates = await handler.listResourceTemplates({}, token);
+			return templates.map(t => new McpResourceTemplate(this, t));
+		}, token);
 	}
 
 	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
@@ -380,7 +454,14 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			const start = Date.now();
-			const state = await connection.start();
+			const state = await connection.start({
+				createMessageRequestHandler: params => this._samplingService.sample({
+					isDuringToolCall: true,
+					server: this,
+					params,
+				}).then(r => r.sample)
+			});
+
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
 				state: McpConnectionState.toKindString(state.state),
 				time: Date.now() - start,
@@ -536,17 +617,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		}));
 
 		store.add(handler.onDidChangePromptList(() => {
-			handler.logger.info('Prompts list changed, refreshing tools...');
-			updateTools(undefined);
+			handler.logger.info('Prompts list changed, refreshing prompts...');
+			updatePrompts(undefined);
 		}));
 
 		transaction(tx => {
 			// note: all update* methods must use tx synchronously
+			const capabilities = encodeCapabilities(handler.capabilities);
+			this._capabilities.set(capabilities, tx);
+
 			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
 				this._primitiveCache.store(this.definition.id, {
 					nonce: cacheNonce,
 					tools,
 					prompts,
+					capabilities,
 				});
 
 				this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
@@ -560,47 +645,6 @@ export class McpServer extends Disposable implements IMcpServer {
 			});
 		});
 	}
-
-	/**
-	 * Helper function to call the function on the handler once it's online. The
-	 * connection started if it is not already.
-	 */
-	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
-		await this.start(); // idempotent
-
-		let ranOnce = false;
-		let d: IDisposable;
-
-		const callPromise = new Promise<R>((resolve, reject) => {
-
-			d = autorun(reader => {
-				const connection = this._connection.read(reader);
-				if (!connection || ranOnce) {
-					return;
-				}
-
-				const handler = connection.handler.read(reader);
-				if (!handler) {
-					const state = connection.state.read(reader);
-					if (state.state === McpConnectionState.Kind.Error) {
-						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
-						return;
-					} else if (state.state === McpConnectionState.Kind.Stopped) {
-						reject(new McpConnectionFailedError('MCP server has stopped'));
-						return;
-					} else {
-						// keep waiting for handler
-						return;
-					}
-				}
-
-				resolve(fn(handler));
-				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
-			});
-		});
-
-		return raceCancellationError(callPromise, token).finally(() => d.dispose());
-	}
 }
 
 class McpPrompt implements IMcpPrompt {
@@ -613,21 +657,58 @@ class McpPrompt implements IMcpPrompt {
 		private readonly _server: McpServer,
 		private readonly _definition: MCP.Prompt,
 	) {
-		this.id = (this._server.definition.label + '.' + _definition.name).replace(/[^a-z0-9_.-]/gi, '_');
+		this.id = mcpPromptReplaceSpecialChars(this._server.definition.label + '.' + _definition.name);
 		this.name = _definition.name;
 		this.description = _definition.description;
 		this.arguments = _definition.arguments || [];
 	}
 
 	async resolve(args: Record<string, string>, token?: CancellationToken): Promise<IMcpPromptMessage[]> {
-		const result = await this._server.callOn(h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
+		const result = await McpServer.callOn(this._server, h => h.getPrompt({ name: this._definition.name, arguments: args }, token), token);
 		return result.messages;
 	}
+
+	async complete(argument: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/prompt', name: this._definition.name },
+			argument: { name: argument, value: prefix, }
+		}, token), token);
+		return result.completion.values;
+	}
+}
+
+function encodeCapabilities(cap: MCP.ServerCapabilities): McpCapability {
+	let out = 0;
+	if (cap.logging) { out |= McpCapability.Logging; }
+	if (cap.completions) { out |= McpCapability.Completions; }
+	if (cap.prompts) {
+		out |= McpCapability.Prompts;
+		if (cap.prompts.listChanged) {
+			out |= McpCapability.PromptsListChanged;
+		}
+	}
+	if (cap.resources) {
+		out |= McpCapability.Resources;
+		if (cap.resources.subscribe) {
+			out |= McpCapability.ResourcesSubscribe;
+		}
+		if (cap.resources.listChanged) {
+			out |= McpCapability.ResourcesListChanged;
+		}
+	}
+	if (cap.tools) {
+		out |= McpCapability.Tools;
+		if (cap.tools.listChanged) {
+			out |= McpCapability.ToolsListChanged;
+		}
+	}
+	return out;
 }
 
 export class McpTool implements IMcpTool {
 
 	readonly id: string;
+	readonly referenceName: string;
 
 	public get definition(): MCP.Tool { return this._definition; }
 
@@ -636,17 +717,28 @@ export class McpTool implements IMcpTool {
 		idPrefix: string,
 		private readonly _definition: IValidatedMcpTool,
 	) {
-		this.id = (idPrefix + _definition.name).replaceAll('.', '_');
+		this.referenceName = _definition.name.replaceAll('.', '_');
+		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 	}
 
-	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		return this._server.callOn(h => h.callTool({ name, arguments: params }, token), token);
+		this._server.runningToolCalls++;
+		try {
+			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
+		} finally {
+			this._server.runningToolCalls--;
+		}
 	}
 
-	callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
-		return this._callWithProgress(params, progress, token);
+	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		this._server.runningToolCalls++;
+		try {
+			return await this._callWithProgress(params, progress, token);
+		} finally {
+			this._server.runningToolCalls--;
+		}
 	}
 
 	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
@@ -654,7 +746,7 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
-		return this._server.callOn(h => {
+		return McpServer.callOn(this._server, h => {
 			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
@@ -709,4 +801,56 @@ function warnInvalidTools(instaService: IInstantiationService, serverName: strin
 			}
 		});
 	});
+}
+
+class McpResource implements IMcpResource {
+	uri: URI;
+	mcpUri: string;
+	name: string;
+	description: string | undefined;
+	mimeType: string | undefined;
+	sizeInBytes: number | undefined;
+
+	constructor(
+		server: McpServer,
+		original: MCP.Resource,
+	) {
+		this.mcpUri = original.uri;
+		this.uri = McpResourceURI.fromServer(server.definition, original.uri);
+		this.name = original.name;
+		this.description = original.description;
+		this.mimeType = original.mimeType;
+		this.sizeInBytes = original.size;
+	}
+}
+
+class McpResourceTemplate implements IMcpResourceTemplate {
+	readonly name: string;
+	readonly description?: string;
+	readonly mimeType?: string;
+	readonly template: UriTemplate;
+
+	constructor(
+		private readonly _server: McpServer,
+		private readonly _definition: MCP.ResourceTemplate,
+	) {
+		this.name = _definition.name;
+		this.description = _definition.description;
+		this.mimeType = _definition.mimeType;
+		this.template = UriTemplate.parse(_definition.uriTemplate);
+	}
+
+	public resolveURI(vars: Record<string, unknown>): URI {
+		const serverUri = this.template.resolve(vars);
+		return McpResourceURI.fromServer(this._server.definition, serverUri);
+	}
+
+	async complete(templatePart: string, prefix: string, alreadyResolved: Record<string, string | string[]>, token?: CancellationToken): Promise<string[]> {
+		const result = await McpServer.callOn(this._server, h => h.complete({
+			ref: { type: 'ref/resource', uri: this._definition.uriTemplate },
+			argument: { name: templatePart, value: prefix },
+			resolved: mapValues(alreadyResolved, v => Array.isArray(v) ? v.join('/') : v),
+		}, token), token);
+		return result.completion.values;
+	}
 }

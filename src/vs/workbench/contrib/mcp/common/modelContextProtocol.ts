@@ -5,6 +5,29 @@
 
 /* eslint-disable local/code-no-unexternalized-strings */
 
+//#region proposals
+/**
+ * MCP protocol proposals.
+ * - Proposals here MUST have an MCP PR linked to them
+ * - Proposals here are subject to change and SHALL be removed when
+ *   the upstream MCP PR is merged or closed.
+ */
+export namespace MCP {
+
+	// https://github.com/modelcontextprotocol/modelcontextprotocol/pull/598
+	export interface CompleteRequest2 extends MCP.CompleteRequest {
+		params: MCP.CompleteRequest['params'] & {
+			/**
+			 * Previously-resolved variables in a URI template. The keys of the object
+			 * are be the template's variable expressions including surrounding braces.
+			 */
+			resolved?: { [key: string]: string };
+		};
+	}
+}
+
+//#endregion
+
 /**
  * Schema updated from the Model Context Protocol repository at
  * https://github.com/modelcontextprotocol/specification/tree/main/schema

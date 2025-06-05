@@ -81,7 +81,8 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			editorOptions: {
 				wordWrap: 'on',
 				readOnly: false,
-				tabFocusMode: true
+				tabFocusMode: true,
+				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';

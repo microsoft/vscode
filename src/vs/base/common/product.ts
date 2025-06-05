@@ -334,6 +334,7 @@ export interface IDefaultChatAgent {
 	readonly managePlanUrl: string;
 	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
+	readonly signUpUrl: string;
 
 	readonly providerId: string;
 	readonly providerName: string;

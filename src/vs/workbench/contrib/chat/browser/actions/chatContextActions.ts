@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, isThenable, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertType, isObject } from '../../../../../base/common/types.js';
+import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -26,11 +27,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
@@ -39,10 +40,10 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatContextValueItem, IChatContextPickService, IChatContextPickerItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
@@ -117,7 +118,32 @@ class AttachFileToChatAction extends AttachResourceAction {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext), SearchContext.SearchResultHeaderFocused.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
+			}, {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
 			}]
 		});
 	}
@@ -146,6 +172,19 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}
 		});
 	}
 
@@ -173,6 +212,20 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
+			}
 		});
 	}
 
@@ -493,6 +546,10 @@ export class AttachContextAction extends Action2 {
 
 		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
 
+		const cts = new CancellationTokenSource();
+		store.add(qp.onDidHide(() => cts.cancel()));
+		store.add(toDisposable(() => cts.dispose(true)));
+
 		qp.placeholder = pickerConfig.placeholder;
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
@@ -509,37 +566,33 @@ export class AttachContextAction extends Action2 {
 			qp.items = items;
 			qp.busy = false;
 		} else {
+			const query = observableValue<string>('attachContext.query', qp.value);
+			store.add(qp.onDidChangeValue(() => query.set(qp.value, undefined)));
 
-			let cts: CancellationTokenSource | undefined;
+			const picksObservable = pickerConfig.picks(query, cts.token);
+			store.add(autorun(reader => {
+				const { busy, picks } = picksObservable.read(reader);
+				qp.items = ([] as QuickPickItem[]).concat(picks, extraPicks);
+				qp.busy = busy;
+			}));
+		}
 
-			const update = async () => {
-				assertType(typeof pickerConfig.picks === 'function');
-
-				if (cts) {
-					cts.cancel();
-					store.delete(cts);
-				}
-				cts = store.add(new CancellationTokenSource());
-
-				try {
-					qp.busy = true;
-					const items = await raceCancellationError(pickerConfig.picks(qp.value, cts.token), cts.token);
-					qp.items = ([] as QuickPickItem[]).concat(items, extraPicks);
-				} finally {
-					qp.busy = false;
-				}
-			};
-
-			store.add(qp.onDidChangeValue(update));
-			update();
+		if (cts.token.isCancellationRequested) {
+			return true; // picker got hidden already
 		}
 
 		const defer = new DeferredPromise<boolean>();
+		const addPromises: Promise<void>[] = [];
 
 		store.add(qp.onDidAccept(e => {
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
-				widget.attachmentModel.addContext(selected.asAttachment());
+				const attachment = selected.asAttachment();
+				if (isThenable(attachment)) {
+					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+				} else {
+					widget.attachmentModel.addContext(attachment);
+				}
 			}
 			if (selected === goBackItem) {
 				defer.complete(false);
@@ -554,7 +607,10 @@ export class AttachContextAction extends Action2 {
 		}));
 
 		try {
-			return await defer.p;
+			const result = await defer.p;
+			qp.busy = true; // if still visible
+			await Promise.all(addPromises);
+			return result;
 		} finally {
 			store.dispose();
 		}

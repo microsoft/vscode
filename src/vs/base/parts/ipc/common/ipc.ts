@@ -324,7 +324,7 @@ export function deserialize(reader: IReader): any {
 
 interface PendingRequest {
 	request: IRawPromiseRequest | IRawEventListenRequest;
-	timeoutTimer: any;
+	timeoutTimer: Timeout;
 }
 
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {

@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileReadLimits } from '../../../../platform/files/common/files.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotebookLoggingService } from './notebookLoggingService.js';
+import { parse } from '../../../services/notebook/common/notebookDocumentService.js';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -207,7 +208,11 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		}
 
 		if (uri?.scheme === CellUri.scheme) {
-			throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${uri.toString()}`);
+			const originalUri = uri;
+			uri = parse(uri)?.notebook;
+			if (!uri) {
+				throw new Error(`CANNOT open a cell-uri as notebook. Tried with ${originalUri.toString()}`);
+			}
 		}
 
 		const resource = this._uriIdentService.asCanonicalUri(uri ?? this.createUntitledUri(viewType!));

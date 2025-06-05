@@ -56,7 +56,7 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/editor/common/languages/injections/*.scm',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 

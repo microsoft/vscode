@@ -4077,6 +4077,10 @@ declare namespace monaco.editor {
 		*/
 		cursorMoveOnType?: boolean;
 		/**
+		 * Controls whether the find widget should search as you type.
+		 */
+		findOnType?: boolean;
+		/**
 		 * Controls if we seed search string in the Find Widget with editor selection.
 		 */
 		seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
@@ -7055,7 +7059,8 @@ declare namespace monaco.languages {
 		TypeParameter = 24,
 		User = 25,
 		Issue = 26,
-		Snippet = 27
+		Tool = 27,
+		Snippet = 28
 	}
 
 	export interface CompletionItemLabel {

@@ -56,10 +56,6 @@ export abstract class BaseDecoder<
 		protected readonly stream: ReadableStream<K>,
 	) {
 		super();
-
-		this.tryOnStreamData = this.tryOnStreamData.bind(this);
-		this.onStreamError = this.onStreamError.bind(this);
-		this.onStreamEnd = this.onStreamEnd.bind(this);
 	}
 
 	/**
@@ -125,9 +121,9 @@ export abstract class BaseDecoder<
 		 *        the order of event subscriptions can lead to race conditions.
 		 *        See {@link ReadableStreamEvents} for more info.
 		 */
-		this.stream.on('end', this.onStreamEnd);
-		this.stream.on('error', this.onStreamError);
-		this.stream.on('data', this.tryOnStreamData);
+		this.stream.on('end', this.onStreamEnd.bind(this));
+		this.stream.on('error', this.onStreamError.bind(this));
+		this.stream.on('data', this.tryOnStreamData.bind(this));
 
 		// this allows to compose decoders together, - if a decoder
 		// instance is passed as a readable stream to this decoder,
@@ -308,7 +304,7 @@ export abstract class BaseDecoder<
 	 * We re-emit the error here by default, but subclasses can
 	 * override this method to handle the error differently.
 	 */
-	protected onStreamError(error: Error): void {
+	private onStreamError(error: Error): void {
 		this._onError.fire(error);
 	}
 
@@ -353,13 +349,9 @@ export abstract class BaseDecoder<
 	public override dispose(): void {
 		this.settledPromise.complete();
 
-		// remove all existing event listeners
 		this._listeners.clearAndDisposeAll();
-		this.stream.removeListener('data', this.tryOnStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
-
 		this.stream.destroy();
+
 		super.dispose();
 	}
 }

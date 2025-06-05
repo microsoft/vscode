@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -13,7 +13,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { assertType, isDefined } from '../../../base/common/types.js';
+import { assertType } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { Location } from '../../../editor/common/languages.js';
@@ -107,7 +107,7 @@ class ChatAgentResponseStream {
 
 			const _report = (progress: IChatProgressDto, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart | vscode.ChatResponseReferencePart>) => Thenable<string | void>) => {
 				// Measure the time to the first progress update with real markdown content
-				if (typeof this._firstProgress === 'undefined' && (progress.kind === 'markdownContent' || progress.kind === 'markdownVuln')) {
+				if (typeof this._firstProgress === 'undefined' && (progress.kind === 'markdownContent' || progress.kind === 'markdownVuln' || progress.kind === 'prepareToolInvocation')) {
 					this._firstProgress = this._stopWatch.elapsed();
 				}
 
@@ -456,7 +456,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
 			this.getToolsForRequest(detector.extension, request),
-			this.getTools2ForRequest(detector.extension, request),
 			detector.extension,
 			this._logService);
 
@@ -548,7 +547,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				this.getToolsForRequest(agent.extension, request),
-				this.getTools2ForRequest(agent.extension, request),
 				agent.extension,
 				this._logService
 			);
@@ -579,7 +577,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.confirmationButtons) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -610,29 +608,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getTools2ForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
-		if (!request.userSelectedTools2) {
+	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): Map<string, boolean> {
+		if (!request.userSelectedTools) {
 			return new Map();
 		}
 		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			if (typeof request.userSelectedTools2[tool.name] === 'boolean') {
-				result.set(tool.name, request.userSelectedTools2[tool.name]);
+			if (typeof request.userSelectedTools[tool.name] === 'boolean') {
+				result.set(tool.name, request.userSelectedTools[tool.name]);
 			}
 		}
 		return result;
-	}
-
-	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>): vscode.ChatRequestToolSelection | undefined {
-		if (!isNonEmptyArray(request.userSelectedTools)) {
-			return undefined;
-		}
-		const selector = new Set(request.userSelectedTools);
-		const tools = this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
-		return {
-			tools,
-			isExclusive: request.toolSelectionIsExclusive,
-		};
 	}
 
 	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
@@ -645,13 +631,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			const varsWithoutTools = h.request.variables.variables
-				.filter(v => v.kind !== 'tool')
-				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension), this._logService))
-				.filter(isDefined);
-			const toolReferences = h.request.variables.variables
-				.filter(v => v.kind === 'tool')
-				.map(typeConvert.ChatLanguageModelToolReference.to);
+			const varsWithoutTools: vscode.ChatPromptReference[] = [];
+			const toolReferences: vscode.ChatLanguageModelToolReference[] = [];
+			for (const v of h.request.variables.variables) {
+				if (v.kind === 'tool') {
+					toolReferences.push(typeConvert.ChatLanguageModelToolReference.to(v));
+				} else if (v.kind === 'toolset') {
+					toolReferences.push(...v.value.map(typeConvert.ChatLanguageModelToolReference.to));
+				} else {
+					const ref = typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension), this._logService);
+					if (ref) {
+						varsWithoutTools.push(ref);
+					}
+				}
+			}
+
 			const editedFileEvents = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.editedFileEvents : undefined;
 			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents);
 			res.push(turn);

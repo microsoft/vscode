@@ -13,6 +13,8 @@ import { Position } from '../../../common/core/position.js';
 import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
+import { getPositionOffsetTransformerFromTextModel } from '../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
+import { ITextModel } from '../../../common/model.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
@@ -43,6 +45,14 @@ export function getModifiedRangesAfterApplying(edits: readonly TextReplacement[]
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();
 	return sortPerm.inverse().apply(sortedNewRanges);
+}
+
+export function removeTextReplacementCommonSuffixPrefix(edits: readonly TextReplacement[], textModel: ITextModel): TextReplacement[] {
+	const transformer = getPositionOffsetTransformerFromTextModel(textModel);
+	const text = textModel.getValue();
+	const stringReplacements = edits.map(edit => transformer.getStringReplacement(edit));
+	const minimalStringReplacements = stringReplacements.map(replacement => replacement.removeCommonSuffixPrefix(text));
+	return minimalStringReplacements.map(replacement => transformer.getSingleTextEdit(replacement));
 }
 
 export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {

@@ -9,7 +9,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
 export const FetchWebPageToolData: IToolData = {
@@ -17,7 +17,7 @@ export const FetchWebPageToolData: IToolData = {
 	displayName: 'Fetch Web Page',
 	canBeReferencedInPrompt: false,
 	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
-	source: { type: 'internal' },
+	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -138,11 +138,19 @@ export class FetchWebPageTool implements IToolImpl {
 			let confirmationTitle: string;
 			let confirmationMessage: string | MarkdownString;
 			if (urlsNeedingConfirmation.length === 1) {
-				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch untrusted web page?');
-				confirmationMessage = urlsNeedingConfirmation[0].toString();
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
+				confirmationMessage = new MarkdownString(
+					urlsNeedingConfirmation[0].toString() + '\n\n$(info) ' +
+					localize('fetchWebPage.confirmationMessage.singular', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					{ supportThemeIcons: true }
+				);
 			} else {
-				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch untrusted web pages?');
-				confirmationMessage = new MarkdownString(urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'));
+				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
+				confirmationMessage = new MarkdownString(
+					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n') + '\n\n$(info) ' +
+					localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					{ supportThemeIcons: true }
+				);
 			}
 			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: true };
 		}

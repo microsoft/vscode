@@ -3,7 +3,7 @@
 		"prefix": "New Reusable Chat Prompt",
 		"body": [
 			"---",
-			"mode: '${1|ask,edit,agent|}'",
+			"mode: ${1|ask,edit,agent|}",
 			"---",
 			"${2:Expected output and any relevant constraints for this task.}",
 		],
