@@ -95,7 +95,6 @@ function escapeForPowerShell(path: string): string {
 	// Double quotes are safe inside single quotes
 	if (newPath.includes("'")) {
 		newPath = newPath.replace(/'/g, "''");
-		return `& '${newPath}'`;
 	}
 	
 	return `'${newPath}'`;

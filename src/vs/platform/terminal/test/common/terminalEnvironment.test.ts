@@ -80,7 +80,7 @@ suite('terminalEnvironment', () => {
 		
 		test('should escape for PowerShell', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', GeneralShellType.PowerShell), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), "& '/foo/bar''baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), "'/foo/bar''baz'");
 			strictEqual(escapeNonWindowsPath('/foo/bar"baz', GeneralShellType.PowerShell), "'/foo/bar\"baz'");
 		});
 		
