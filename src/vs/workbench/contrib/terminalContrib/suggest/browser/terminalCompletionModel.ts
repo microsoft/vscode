@@ -51,6 +51,16 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		if (bIsMainOrMaster && !aIsMainOrMaster) {
 			return 1;
 		}
+		
+		// When both are main/master, prioritize main over master
+		if (aIsMainOrMaster && bIsMainOrMaster) {
+			if (aLabel === 'main' && bLabel === 'master') {
+				return -1;
+			}
+			if (aLabel === 'master' && bLabel === 'main') {
+				return 1;
+			}
+		}
 	}
 
 	// Sort by the score
