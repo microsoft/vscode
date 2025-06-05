@@ -6,7 +6,7 @@
 import { PromptStringMetadata } from './base/string.js';
 import { localize } from '../../../../../../../../nls.js';
 import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
-import { isEmptyPattern, parse } from '../../../../../../../../base/common/glob.js';
+import { isEmptyPattern, parse, splitGlobAware } from '../../../../../../../../base/common/glob.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
 import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
 
@@ -85,11 +85,14 @@ export class PromptApplyToMetadata extends PromptStringMetadata {
 		pattern: string,
 	): boolean {
 		try {
-			const globPattern = parse(pattern);
-			if (isEmptyPattern(globPattern)) {
-				return false;
-			}
+			const patterns = splitGlobAware(pattern, ',');
+			for (const pattern of patterns) {
 
+				const globPattern = parse(pattern);
+				if (isEmptyPattern(globPattern)) {
+					return false;
+				}
+			}
 			return true;
 		} catch (_error) {
 			return false;
