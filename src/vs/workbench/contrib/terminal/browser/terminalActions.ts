@@ -138,6 +138,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 };
 
 export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args: unknown) => {
+	const quickInputService = accessor.get(IQuickInputService);
 	const instance = accessor.get(ITerminalService).activeInstance;
 	if (!instance) {
 		return;
@@ -146,8 +147,6 @@ export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args
 	let signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
 
 	if (!signal) {
-		const quickInputService = accessor.get(IQuickInputService);
-
 		const signalOptions: QuickPickItem[] = [
 			{ label: 'SIGINT', description: 'Interrupt process (Ctrl+C)' },
 			{ label: 'SIGTERM', description: 'Terminate process gracefully' },
@@ -185,7 +184,7 @@ export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args
 		}
 	}
 
-	instance.sendSignal(signal);
+	await instance.sendSignal(signal);
 };
 
 export class TerminalLaunchHelpAction extends Action {
