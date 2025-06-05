@@ -18,7 +18,6 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { TerminalContribSettingId } from '../terminalContribExports.js';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -474,7 +473,7 @@ export function setupTerminalMenus(): void {
 						icon: Codicon.clearAll
 					},
 					group: 'navigation',
-					order: 4,
+					order: 6,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
@@ -488,7 +487,7 @@ export function setupTerminalMenus(): void {
 						icon: Codicon.run
 					},
 					group: 'navigation',
-					order: 5,
+					order: 7,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
@@ -500,34 +499,6 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.RunSelectedText,
 						title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text"),
 						icon: Codicon.selection
-					},
-					group: 'navigation',
-					order: 6,
-					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-					isHiddenByDefault: true
-				}
-			},
-			{
-				id: MenuId.ViewTitle,
-				item: {
-					command: {
-						id: TerminalContribSettingId.GoToRecentDirectory,
-						title: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."),
-						icon: Codicon.folder
-					},
-					group: 'navigation',
-					order: 7,
-					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-					isHiddenByDefault: true
-				}
-			},
-			{
-				id: MenuId.ViewTitle,
-				item: {
-					command: {
-						id: TerminalContribSettingId.RunRecentCommand,
-						title: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."),
-						icon: Codicon.history
 					},
 					group: 'navigation',
 					order: 8,

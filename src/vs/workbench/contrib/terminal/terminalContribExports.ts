@@ -11,7 +11,7 @@ import { terminalInitialHintConfiguration } from '../terminalContrib/chat/common
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
-import { defaultTerminalHistoryCommandsToSkipShell, TerminalHistoryCommandId, terminalHistoryConfiguration } from '../terminalContrib/history/common/terminal.history.js';
+import { defaultTerminalHistoryCommandsToSkipShell, terminalHistoryConfiguration } from '../terminalContrib/history/common/terminal.history.js';
 import { TerminalStickyScrollSettingId, terminalStickyScrollConfiguration } from '../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js';
 import { defaultTerminalSuggestCommandsToSkipShell } from '../terminalContrib/suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId, terminalSuggestConfiguration } from '../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
@@ -30,10 +30,8 @@ export const enum TerminalContribCommandId {
 // soft layer breakers between `terminal/` and `terminalContrib/` but there are difficulties in
 // removing the dependency. These are explicitly defined here to avoid an eslint line override.
 export const enum TerminalContribSettingId {
-	GoToRecentDirectory = TerminalHistoryCommandId.GoToRecentDirectory,
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
-	RunRecentCommand = TerminalHistoryCommandId.RunRecentCommand,
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since
