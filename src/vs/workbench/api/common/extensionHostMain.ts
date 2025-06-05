@@ -143,7 +143,7 @@ export abstract class ErrorHandler {
 				// dev-time and (2) collects telemetry so that we can reach out too
 				const extensionDesc = extensionsRegistry.getExtensionDescription(extension);
 				if (extensionDesc) {
-					apiDeprecationService.report(err.name, extensionDesc, err.message);
+					apiDeprecationService.report(err.name, extensionDesc, `${err.message}\n FROM: ${err.stack}`);
 				}
 			} else {
 				mainThreadExtensions.$onExtensionRuntimeError(extension, errorData);
