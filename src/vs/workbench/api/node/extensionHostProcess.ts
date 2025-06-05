@@ -92,7 +92,7 @@ function patchProcess(allowExit: boolean) {
 	} as (code?: number) => never;
 
 	// override Electron's process.crash() method
-	process.crash = function () {
+	(process as any /* bypass layer checker */).crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
@@ -167,7 +167,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			process.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
+			(process as any /* bypass layer checker */).parentPort.on('message', (e: any /* bypass layer checker */) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
