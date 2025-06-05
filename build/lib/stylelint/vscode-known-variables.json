@@ -959,7 +959,7 @@
 	],
 	"sizes": [
 		"--vscode-base-spacing-none",
-		"--vscode-base-spacing-x-xxs",
+		"--vscode-base-spacing-xxxs",
 		"--vscode-base-spacing-xxs",
 		"--vscode-base-spacing-xs",
 		"--vscode-base-spacing-s",
