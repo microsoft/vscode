@@ -35,7 +35,7 @@ export function setup(options?: { skipSuite: boolean }) {
 			expectedLineCount: number = 1
 		): Promise<void> {
 			const data = generateCommandAndOutput(prompt, command, exitCode);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, data);
 			// Verify line count
 			await app.code.waitForElements('.terminal-sticky-scroll .xterm-rows > *', true, e => e.length === expectedLineCount);
 			// Verify content

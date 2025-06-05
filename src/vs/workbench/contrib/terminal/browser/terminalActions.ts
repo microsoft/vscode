@@ -142,7 +142,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 		}
 	}
 
-	// Process escape sequences similar to WriteDataToTerminal
+	// Process escape sequences
 	let processedText = text
 		.replace(/\\n/g, '\n')
 		.replace(/\\r/g, '\r');
