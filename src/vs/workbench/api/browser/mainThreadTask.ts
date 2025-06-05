@@ -498,7 +498,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.ProblemMatcherStarted) {
 				this._proxy.$onDidStartTaskProblemMatchers(TaskProblemMatcherStartedDto.from({ execution: task.getTaskExecution() }));
 			} else if (event.kind === TaskEventKind.ProblemMatcherEnded) {
-				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: (event as ITaskProblemMatcherEndedEvent).hasErrors }));
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: false }));
 			} else if (event.kind === TaskEventKind.ProblemMatcherFoundErrors) {
 				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: true }));
 			}
