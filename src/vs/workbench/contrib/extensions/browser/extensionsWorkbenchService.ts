@@ -703,8 +703,10 @@ class Extensions extends Disposable {
 			}
 			if (extensionsToQuery.length) {
 				const queryResult = await this.galleryService.getExtensions(extensionsToQuery.map(e => ({ ...e.identifier, version: e.version })), CancellationToken.None);
+				const queriedIds: string[] = [];
 				const missingIds: string[] = [];
 				for (const extension of extensionsToQuery) {
+					queriedIds.push(extension.identifier.id);
 					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
 					if (gallery) {
 						extension.gallery = gallery;
@@ -725,7 +727,7 @@ class Extensions extends Disposable {
 					readonly missingIds: TelemetryTrustedValue<string>;
 				};
 				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', {
-					queriedIds: new TelemetryTrustedValue(extensionsToQuery.map(e => e.identifier.id).join(';')),
+					queriedIds: new TelemetryTrustedValue(queriedIds.join(';')),
 					missingIds: new TelemetryTrustedValue(missingIds.join(';'))
 				});
 			}
