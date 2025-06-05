@@ -25,7 +25,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
@@ -148,17 +148,17 @@ export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args
 
 	if (!signal) {
 		const signalOptions: QuickPickItem[] = [
-			{ label: 'SIGINT', description: 'Interrupt process (Ctrl+C)' },
-			{ label: 'SIGTERM', description: 'Terminate process gracefully' },
-			{ label: 'SIGKILL', description: 'Force kill process' },
-			{ label: 'SIGSTOP', description: 'Stop process' },
-			{ label: 'SIGCONT', description: 'Continue process' },
-			{ label: 'SIGHUP', description: 'Hangup' },
-			{ label: 'SIGQUIT', description: 'Quit process' },
-			{ label: 'SIGUSR1', description: 'User-defined signal 1' },
-			{ label: 'SIGUSR2', description: 'User-defined signal 2' },
+			{ label: 'SIGINT', description: localize('SIGINT', 'Interrupt process (Ctrl+C)') },
+			{ label: 'SIGTERM', description: localize('SIGTERM', 'Terminate process gracefully') },
+			{ label: 'SIGKILL', description: localize('SIGKILL', 'Force kill process') },
+			{ label: 'SIGSTOP', description: localize('SIGSTOP', 'Stop process') },
+			{ label: 'SIGCONT', description: localize('SIGCONT', 'Continue process') },
+			{ label: 'SIGHUP', description: localize('SIGHUP', 'Hangup') },
+			{ label: 'SIGQUIT', description: localize('SIGQUIT', 'Quit process') },
+			{ label: 'SIGUSR1', description: localize('SIGUSR1', 'User-defined signal 1') },
+			{ label: 'SIGUSR2', description: localize('SIGUSR2', 'User-defined signal 2') },
 			{ type: 'separator' },
-			{ label: localize('manualSignal', 'Manually enter signal'), description: 'Enter custom signal name' }
+			{ label: localize('manualSignal', 'Manually enter signal') }
 		];
 
 		const selected = await quickInputService.pick(signalOptions, {
