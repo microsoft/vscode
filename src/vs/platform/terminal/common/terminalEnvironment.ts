@@ -72,13 +72,18 @@ function escapeForFishShell(path: string): string {
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
 	newPath = newPath.replace(bannedChars, '');
 	
-	// Fish shell supports escaping with backslashes for single quotes
-	// For double quotes, they're safe inside single quotes
-	if (newPath.includes("'")) {
+	// If the path contains both single and double quotes, use double quotes and escape inner double quotes
+	if (newPath.includes("'") && newPath.includes('"')) {
+		newPath = newPath.replace(/"/g, '\\"');
+		return `"${newPath}"`;
+	} else if (newPath.includes("'")) {
+		// Only single quotes: escape with backslashes
 		newPath = newPath.replace(/'/g, "\\'");
+		return `'${newPath}'`;
+	} else {
+		// No single quotes (may have double quotes): wrap in single quotes
+		return `'${newPath}'`;
 	}
-	
-	return `'${newPath}'`;
 }
 
 /**
@@ -91,13 +96,18 @@ function escapeForPowerShell(path: string): string {
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
 	newPath = newPath.replace(bannedChars, '');
 	
-	// PowerShell uses double single quotes to escape single quotes
-	// Double quotes are safe inside single quotes
-	if (newPath.includes("'")) {
+	// If the path contains both single and double quotes, use double quotes and escape inner double quotes
+	if (newPath.includes("'") && newPath.includes('"')) {
+		newPath = newPath.replace(/"/g, '`"');
+		return `"${newPath}"`;
+	} else if (newPath.includes("'")) {
+		// Only single quotes: use double single quotes to escape
 		newPath = newPath.replace(/'/g, "''");
+		return `'${newPath}'`;
+	} else {
+		// No single quotes (may have double quotes): wrap in single quotes
+		return `'${newPath}'`;
 	}
-	
-	return `'${newPath}'`;
 }
 
 /**

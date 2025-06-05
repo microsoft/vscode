@@ -76,12 +76,14 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Fish), "'/foo/bar'");
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Fish), "'/foo/bar\\'baz'");
 			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Fish), "'/foo/bar\"baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Fish), '"/foo/bar\'baz\\"qux"');
 		});
 
 		test('should escape for PowerShell', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', GeneralShellType.PowerShell), "'/foo/bar'");
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), "'/foo/bar''baz'");
 			strictEqual(escapeNonWindowsPath('/foo/bar"baz', GeneralShellType.PowerShell), "'/foo/bar\"baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', GeneralShellType.PowerShell), '"/foo/bar\'baz`"qux"');
 		});
 
 		test('should default to POSIX escaping for unknown shells', () => {
