@@ -7,7 +7,7 @@ import { flatten } from '../utils/treeUtils.js';
 import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { PromptParser } from '../parsers/promptParser.js';
-import { match } from '../../../../../../base/common/glob.js';
+import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
 import { pick } from '../../../../../../base/common/arrays.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { type IPromptFileReference } from '../parsers/types.js';
@@ -268,23 +268,38 @@ export class PromptsService extends Disposable implements IPromptsService {
 				continue;
 			}
 
-			// if glob pattern is one of the special wildcard values,
-			// add the instructions file event if no files are attached
-			if ((applyTo === '**') || (applyTo === '**/*')) {
-				foundFiles.add(uri);
-
-				continue;
-			}
-
-			// match each attached file with each glob pattern and
-			// add the instructions file if its rule matches the file
-			for (const file of files) {
-				if (match(applyTo, file.fsPath)) {
-					foundFiles.add(uri);
+			const patterns = splitGlobAware(applyTo, ',');
+			const patterMatches = (pattern: string) => {
+				pattern = pattern.trim();
+				if (pattern.length === 0) {
+					// if glob pattern is empty, skip it
+					return false;
 				}
+				if (pattern === '**' || pattern === '**/*' || pattern === '*') {
+					// if glob pattern is one of the special wildcard values,
+					// add the instructions file event if no files are attached
+					return true;
+				}
+				if (!pattern.startsWith('/') && !pattern.startsWith('**/')) {
+					// support relative glob patterns, e.g. `src/**/*.js`
+					pattern = '**/' + pattern;
+				}
+
+				// match each attached file with each glob pattern and
+				// add the instructions file if its rule matches the file
+				for (const file of files) {
+					// if the file is not a valid URI, skip it
+					if (match(pattern, file.path)) {
+						return true;
+					}
+				}
+				return false;
+			};
+
+			if (patterns.some(patterMatches)) {
+				foundFiles.add(uri);
 			}
 		}
-
 		return [...foundFiles];
 	}
 

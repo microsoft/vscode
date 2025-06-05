@@ -689,11 +689,16 @@ class Extensions extends Disposable {
 				if (!flagExtensionsMissingFromGallery.some(f => areSameExtensions(f, extension.identifier))) {
 					continue;
 				}
-				const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
-				if (!gallery) {
-					extension.missingFromGallery = true;
-					this._onChange.fire({ extension });
+				if (galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier))) {
+					continue;
 				}
+				const [gallery] = await this.galleryService.getExtensions([{ ...extension.identifier, version: extension.version }], CancellationToken.None);
+				if (gallery) {
+					extension.gallery = gallery;
+				} else {
+					extension.missingFromGallery = true;
+				}
+				this._onChange.fire({ extension });
 			}
 		}
 	}
