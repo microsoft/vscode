@@ -3,29 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IQuickInputHideEvent, IQuickInputService, IQuickPickDidAcceptEvent } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAuthentication';
-import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TestQuickInputService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPickDidAcceptEvent } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { MainThreadAuthentication } from '../../browser/mainThreadAuthentication.js';
+import { ExtHostContext, MainContext } from '../../common/extHost.protocol.js';
+import { ExtHostAuthentication } from '../../common/extHostAuthentication.js';
+import { IActivityService } from '../../../services/activity/common/activity.js';
+import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
+import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IExtensionService, nullExtensionDescription as extensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { TestEnvironmentService, TestHostService, TestQuickInputService, TestRemoteAgentService } from '../../../test/browser/workbenchTestServices.js';
+import { TestActivityService, TestExtensionService, TestLoggerService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
 import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
+import { AuthenticationUsageService, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { ExtHostWindow } from '../../common/extHostWindow.js';
+import { MainThreadWindow } from '../../browser/mainThreadWindow.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IUserActivityService, UserActivityService } from '../../../services/userActivity/common/userActivityService.js';
+import { ExtHostUrls } from '../../common/extHostUrls.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { DynamicAuthenticationProviderStorageService } from '../../../services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
+import { ExtHostProgress } from '../../common/extHostProgress.js';
 
 class AuthQuickPick {
 	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
@@ -100,20 +118,51 @@ suite('ExtHostAuthentication', () => {
 
 	suiteSetup(async () => {
 		instantiationService = new TestInstantiationService();
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(ISecretStorageService, new TestSecretStorageService());
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, instantiationService.createInstance(DynamicAuthenticationProviderStorageService));
 		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 
 		instantiationService.stub(IActivityService, new TestActivityService());
 		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IHostService, new TestHostService());
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
+		instantiationService.stub(IUserActivityService, new UserActivityService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IAuthenticationAccessService, instantiationService.createInstance(AuthenticationAccessService));
+		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
+		instantiationService.stub(IAuthenticationUsageService, instantiationService.createInstance(AuthenticationUsageService));
 		const rpcProtocol = new TestRPCProtocol();
 
-		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
+		instantiationService.stub(IAuthenticationExtensionsService, instantiationService.createInstance(AuthenticationExtensionsService));
 		rpcProtocol.set(MainContext.MainThreadAuthentication, instantiationService.createInstance(MainThreadAuthentication, rpcProtocol));
-		extHostAuthentication = new ExtHostAuthentication(rpcProtocol);
+		rpcProtocol.set(MainContext.MainThreadWindow, instantiationService.createInstance(MainThreadWindow, rpcProtocol));
+		const initData: IExtHostInitDataService = {
+			environment: {
+				appUriScheme: 'test',
+				appName: 'Test'
+			}
+		} as any;
+		extHostAuthentication = new ExtHostAuthentication(
+			rpcProtocol,
+			{
+				environment: {
+					appUriScheme: 'test',
+					appName: 'Test'
+				}
+			} as any,
+			new ExtHostWindow(initData, rpcProtocol),
+			new ExtHostUrls(rpcProtocol),
+			new ExtHostProgress(rpcProtocol),
+			new TestLoggerService(),
+		);
 		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	});
 

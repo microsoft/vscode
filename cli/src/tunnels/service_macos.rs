@@ -86,7 +86,7 @@ impl ServiceManager for LaunchdService {
 		match capture_command_and_check_status("launchctl", &["stop", &get_service_label()]).await {
 			Ok(_) => {}
 			// status 3 == "no such process"
-			Err(CodeError::CommandFailed { code, .. }) if code == 3 => {}
+			Err(CodeError::CommandFailed { code: 3, .. }) => {}
 			Err(e) => return Err(wrap(e, "error stopping service").into()),
 		};
 

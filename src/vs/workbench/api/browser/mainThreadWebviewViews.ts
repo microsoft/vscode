@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IViewBadge } from 'vs/workbench/common/views';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { MainThreadWebviews, reviveWebviewExtension } from './mainThreadWebviews.js';
+import * as extHostProtocol from '../common/extHost.protocol.js';
+import { IViewBadge } from '../../common/views.js';
+import { IWebviewViewService, WebviewView } from '../../contrib/webviewView/browser/webviewViewService.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 
 export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
@@ -86,14 +86,16 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 					webviewView.webview.options = options;
 				}
 
-				webviewView.onDidChangeVisibility(visible => {
+				const subscriptions = new DisposableStore();
+				subscriptions.add(webviewView.onDidChangeVisibility(visible => {
 					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
-				});
+				}));
 
-				webviewView.onDispose(() => {
+				subscriptions.add(webviewView.onDispose(() => {
 					this._proxy.$disposeWebviewView(handle);
 					this._webviewViews.deleteAndDispose(handle);
-				});
+					subscriptions.dispose();
+				}));
 
 				type CreateWebviewViewTelemetry = {
 					extensionId: string;

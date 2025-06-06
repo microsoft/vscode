@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { LRUCache } from 'vs/base/common/map';
-import { getKoreanAltChars } from 'vs/base/common/naturalLanguage/korean';
-import * as strings from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { LRUCache } from './map.js';
+import { getKoreanAltChars } from './naturalLanguage/korean.js';
+import * as strings from './strings.js';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -280,8 +280,9 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		return null;
 	}
 
+	// TODO: Consider removing this check
 	if (camelCaseWord.length > 60) {
-		return null;
+		camelCaseWord = camelCaseWord.substring(0, 60);
 	}
 
 	const analysis = analyzeCamelCaseWord(camelCaseWord);
@@ -674,7 +675,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 			}
 
 			let diagScore = 0;
-			if (score !== Number.MAX_SAFE_INTEGER) {
+			if (score !== Number.MIN_SAFE_INTEGER) {
 				canComeDiag = true;
 				diagScore = score + _table[row - 1][column - 1];
 			}
@@ -763,7 +764,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		result.push(column);
 	}
 
-	if (wordLen === patternLen && options.boostFullMatch) {
+	if (wordLen - wordStart === patternLen && options.boostFullMatch) {
 		// the word matches the pattern with all characters!
 		// giving the score a total match boost (to come up ahead other words)
 		result[0] += 2;

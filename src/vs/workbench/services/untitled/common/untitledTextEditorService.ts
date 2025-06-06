@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { UntitledTextEditorModel, IUntitledTextEditorModel } from './untitledTextEditorModel.js';
+import { IFilesConfiguration } from '../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -61,7 +61,29 @@ export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INe
 
 type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
 
-export interface IUntitledTextEditorModelManager {
+export interface IUntitledTextEditorModelSaveEvent {
+
+	/**
+	 * The source untitled file that was saved. It is disposed at this point.
+	 */
+	readonly source: URI;
+
+	/**
+	 * The target file the untitled was saved to. Is never untitled.
+	 */
+	readonly target: URI;
+}
+
+export interface IUntitledTextEditorService {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when an untitled editor model was saved to disk.
+	 * At the point the event fires, the untitled editor model is
+	 * disposed.
+	 */
+	readonly onDidSave: Event<IUntitledTextEditorModelSaveEvent>;
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -77,6 +99,11 @@ export interface IUntitledTextEditorModelManager {
 	 * Events for when untitled text editor labels change.
 	 */
 	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
+
+	/**
+	 * Events for when untitled text editor models are created.
+	 */
+	readonly onDidCreate: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Events for when untitled text editors are about to be disposed.
@@ -126,22 +153,31 @@ export interface IUntitledTextEditorModelManager {
 	canDispose(model: IUntitledTextEditorModel): true | Promise<true>;
 }
 
-export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+export interface IUntitledTextEditorModelManager extends IUntitledTextEditorService {
 
-	readonly _serviceBrand: undefined;
+	/**
+	 * Internal method: triggers the onDidSave event.
+	 */
+	notifyDidSave(source: URI, target: URI): void;
 }
 
-export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
+export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorModelManager {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
+
+	private readonly _onDidSave = this._register(new Emitter<IUntitledTextEditorModelSaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+
+	private readonly _onDidCreate = this._register(new Emitter<IUntitledTextEditorModel>());
+	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -267,6 +303,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		// Add to cache
 		this.mapResourceToModel.set(model.resource, model);
 
+		// Emit as event
+		this._onDidCreate.fire(model);
+
 		// If the model is dirty right from the beginning,
 		// make sure to emit this as an event
 		if (model.isDirty()) {
@@ -299,6 +338,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		}
 
 		return true;
+	}
+
+	notifyDidSave(source: URI, target: URI): void {
+		this._onDidSave.fire({ source, target });
 	}
 }
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 
 export interface IURITransformerService extends IURITransformer {
 	readonly _serviceBrand: undefined;

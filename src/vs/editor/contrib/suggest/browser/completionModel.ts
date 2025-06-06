@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { CompletionItem } from './suggest';
+import { quickSelect } from '../../../../base/common/arrays.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
+import { compareIgnoreCase } from '../../../../base/common/strings.js';
+import { InternalSuggestOptions } from '../../../common/config/editorOptions.js';
+import { CompletionItemKind, CompletionItemProvider } from '../../../common/languages.js';
+import { WordDistance } from './wordDistance.js';
+import { CompletionItem } from './suggest.js';
 
 type StrictCompletionItem = Required<CompletionItem>;
 

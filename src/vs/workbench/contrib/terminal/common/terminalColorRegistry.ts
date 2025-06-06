@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { editorOverviewRulerBorder } from '../../../../editor/common/core/editorColorRegistry.js';
+import * as nls from '../../../../nls.js';
 
-import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from '../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from '../../../common/theme.js';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
@@ -23,12 +24,7 @@ export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 }, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
 export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
 export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
-export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
-	light: editorSelectionBackground,
-	dark: editorSelectionBackground,
-	hcDark: editorSelectionBackground,
-	hcLight: editorSelectionBackground
-}, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', editorSelectionBackground, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 export const TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR = registerColor('terminal.inactiveSelectionBackground', {
 	light: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
 	dark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
@@ -59,31 +55,17 @@ export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor(
 	hcDark: '#F14C4C',
 	hcLight: '#B5200D'
 }, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
-export const TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.cursorForeground', {
-	dark: '#A0A0A0CC',
-	light: '#A0A0A0CC',
-	hcDark: '#A0A0A0CC',
-	hcLight: '#A0A0A0CC'
-}, nls.localize('terminalOverviewRuler.cursorForeground', 'The overview ruler cursor color.'));
-export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
-	hcDark: PANEL_BORDER,
-	hcLight: PANEL_BORDER
-}, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
+export const TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.cursorForeground', '#A0A0A0CC', nls.localize('terminalOverviewRuler.cursorForeground', 'The overview ruler cursor color.'));
+export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', PANEL_BORDER, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
+export const TERMINAL_OVERVIEW_RULER_BORDER_COLOR = registerColor('terminalOverviewRuler.border', editorOverviewRulerBorder, nls.localize('terminalOverviewRuler.border', 'The overview ruler left-side border color.'));
 export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.findMatchBackground', {
 	dark: editorFindMatch,
 	light: editorFindMatch,
 	// Use regular selection background in high contrast with a thick border
 	hcDark: null,
 	hcLight: '#0F4A85'
-}, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
-export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', {
-	dark: transparent(editorHoverHighlight, 0.5),
-	light: transparent(editorHoverHighlight, 0.5),
-	hcDark: transparent(editorHoverHighlight, 0.5),
-	hcLight: transparent(editorHoverHighlight, 0.5)
-}, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
+}, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'), true);
+export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', transparent(editorHoverHighlight, 0.5), nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
 export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchBorder', {
 	dark: null,
 	light: null,
@@ -95,7 +77,7 @@ export const TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR = registerColor('ter
 	light: editorFindMatchHighlight,
 	hcDark: null,
 	hcLight: null
-}, nls.localize('terminal.findMatchHighlightBackground', 'Color of the other search matches in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+}, nls.localize('terminal.findMatchHighlightBackground', 'Color of the other search matches in the terminal. The color must not be opaque so as not to hide underlying terminal content.'), true);
 export const TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR = registerColor('terminal.findMatchHighlightBorder', {
 	dark: null,
 	light: null,
@@ -108,18 +90,14 @@ export const TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR = registerColor
 	hcDark: '#f38518',
 	hcLight: '#0F4A85'
 }, nls.localize('terminalOverviewRuler.findMatchHighlightForeground', 'Overview ruler marker color for find matches in the terminal.'));
-export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', {
-	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hcDark: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hcLight: EDITOR_DRAG_AND_DROP_BACKGROUND
-}, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."));
-export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', {
-	dark: TAB_ACTIVE_BORDER,
-	light: TAB_ACTIVE_BORDER,
-	hcDark: TAB_ACTIVE_BORDER,
-	hcLight: TAB_ACTIVE_BORDER
-}, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
+export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', EDITOR_DRAG_AND_DROP_BACKGROUND, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."), true);
+export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', TAB_ACTIVE_BORDER, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
+export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialHintForeground', {
+	dark: '#ffffff56',
+	light: '#0007',
+	hcDark: null,
+	hcLight: null
+}, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
@@ -143,10 +121,10 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiGreen': {
 		index: 2,
 		defaults: {
-			light: '#00BC00',
+			light: '#107C10',
 			dark: '#0DBC79',
 			hcDark: '#00cd00',
-			hcLight: '#00bc00'
+			hcLight: '#136C13'
 		}
 	},
 	'terminal.ansiYellow': {

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import * as nls from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
+import { Action } from '../../../../base/common/actions.js';
+import * as nls from '../../../../nls.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export class OpenLogsFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.openLogsFolder';
-	static readonly TITLE = { value: nls.localize('openLogsFolder', "Open Logs Folder"), original: 'Open Logs Folder' };
+	static readonly TITLE = nls.localize2('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -31,7 +31,7 @@ export class OpenLogsFolderAction extends Action {
 export class OpenExtensionLogsFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.openExtensionLogsFolder';
-	static readonly TITLE = { value: nls.localize('openExtensionLogsFolder', "Open Extension Logs Folder"), original: 'Open Extension Logs Folder' };
+	static readonly TITLE = nls.localize2('openExtensionLogsFolder', "Open Extension Logs Folder");
 
 	constructor(id: string, label: string,
 		@INativeWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,

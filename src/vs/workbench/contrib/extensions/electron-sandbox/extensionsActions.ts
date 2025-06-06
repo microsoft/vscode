@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Schemas } from 'vs/base/common/network';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionsLocalizedLabel, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { localize2 } from '../../../../nls.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 
 export class OpenExtensionsFolderAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.openExtensionsFolder',
-			title: { value: localize('openExtensionsFolder', "Open Extensions Folder"), original: 'Open Extensions Folder' },
+			title: localize2('openExtensionsFolder', 'Open Extensions Folder'),
 			category: ExtensionsLocalizedLabel,
 			f1: true
 		});
@@ -51,7 +51,7 @@ export class CleanUpExtensionsFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.extensions.action.cleanUpExtensionsFolder',
-			title: { value: localize('cleanUpExtensionsFolder', "Cleanup Extensions Folder"), original: 'Cleanup Extensions Folder' },
+			title: localize2('cleanUpExtensionsFolder', 'Cleanup Extensions Folder'),
 			category: Categories.Developer,
 			f1: true
 		});

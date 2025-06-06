@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI } from './uri.js';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -455,6 +455,29 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
+	protected trimNew(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._tail;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.previous;
+			currentSize--;
+		}
+		this._tail = current;
+		this._size = currentSize;
+		if (current) {
+			current.next = undefined;
+		}
+		this._state++;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -601,10 +624,10 @@ export class LinkedMap<K, V> implements Map<K, V> {
 	}
 }
 
-export class LRUCache<K, V> extends LinkedMap<K, V> {
+abstract class Cache<K, V> extends LinkedMap<K, V> {
 
-	private _limit: number;
-	private _ratio: number;
+	protected _limit: number;
+	protected _ratio: number;
 
 	constructor(limit: number, ratio: number = 1) {
 		super();
@@ -640,14 +663,52 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 
 	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
-		this.checkTrim();
 		return this;
 	}
 
-	private checkTrim() {
+	protected checkTrim() {
 		if (this.size > this._limit) {
-			this.trimOld(Math.round(this._limit * this._ratio));
+			this.trim(Math.round(this._limit * this._ratio));
 		}
+	}
+
+	protected abstract trim(newSize: number): void;
+}
+
+export class LRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimOld(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		super.set(key, value);
+		this.checkTrim();
+		return this;
+	}
+}
+
+export class MRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimNew(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		if (this._limit <= this.size && !this.has(key)) {
+			this.trim(Math.round(this._limit * this._ratio) - 1);
+		}
+
+		super.set(key, value);
+		return this;
 	}
 }
 
@@ -788,5 +849,104 @@ export class SetMap<K, V> {
 			return new Set<V>();
 		}
 		return values;
+	}
+}
+
+export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unknown, unknown>): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.size !== b.size) {
+		return false;
+	}
+
+	for (const [key, value] of a) {
+		if (!b.has(key) || b.get(key) !== value) {
+			return false;
+		}
+	}
+
+	for (const [key] of b) {
+		if (!a.has(key)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * A map that is addressable with an arbitrary number of keys. This is useful in high performance
+ * scenarios where creating a composite key whenever the data is accessed is too expensive. For
+ * example for a very hot function, constructing a string like `first-second-third` for every call
+ * will cause a significant hit to performance.
+ */
+export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
+	private _data: Map<any, any> = new Map();
+
+	/**
+	 * Sets a value on the map. Note that unlike a standard `Map`, the first argument is the value.
+	 * This is because the spread operator is used for the keys and must be last..
+	 * @param value The value to set.
+	 * @param keys The keys for the value.
+	 */
+	public set(value: TValue, ...keys: [...TKeys]): void {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			if (!currentMap.has(keys[i])) {
+				currentMap.set(keys[i], new Map());
+			}
+			currentMap = currentMap.get(keys[i]);
+		}
+		currentMap.set(keys[keys.length - 1], value);
+	}
+
+	public get(...keys: [...TKeys]): TValue | undefined {
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			if (!currentMap.has(keys[i])) {
+				return undefined;
+			}
+			currentMap = currentMap.get(keys[i]);
+		}
+		return currentMap.get(keys[keys.length - 1]);
+	}
+
+	public clear(): void {
+		this._data.clear();
+	}
+
+	public *values(): IterableIterator<TValue> {
+		function* iterate(map: Map<any, any>): IterableIterator<TValue> {
+			for (const value of map.values()) {
+				if (value instanceof Map) {
+					yield* iterate(value);
+				} else {
+					yield value;
+				}
+			}
+		}
+		yield* iterate(this._data);
+	}
+
+	/**
+	 * Get a textual representation of the map for debugging purposes.
+	 */
+	public toString(): string {
+		const printMap = (map: Map<any, any>, depth: number): string => {
+			let result = '';
+			for (const [key, value] of map) {
+				result += `${'  '.repeat(depth)}${key}: `;
+				if (value instanceof Map) {
+					result += '\n' + printMap(value, depth + 1);
+				} else {
+					result += `${value}\n`;
+				}
+			}
+			return result;
+		};
+
+		return printMap(this._data, 0);
 	}
 }

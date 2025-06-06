@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
-import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from 'vs/editor/common/languages';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import assert from 'assert';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { CommentsPanel } from '../../browser/commentsView.js';
+import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../browser/commentService.js';
+import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -47,8 +49,10 @@ class TestCommentThread implements CommentThread<IRange> {
 }
 
 class TestCommentController implements ICommentController {
+	activeComment: { thread: CommentThread; comment?: Comment } | undefined;
 	id: string = 'test';
 	label: string = 'Test Comments';
+	owner: string = 'test';
 	features = {};
 	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
@@ -66,6 +70,9 @@ class TestCommentController implements ICommentController {
 		throw new Error('Method not implemented.');
 	}
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo> {
+		throw new Error('Method not implemented.');
+	}
+	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment: Comment } | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -114,6 +121,7 @@ suite('Comments View', function () {
 		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IContextViewService, {});
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		commentService = instantiationService.createInstance(CommentService);

@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IDialogService, IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { Schemas } from 'vs/base/common/network';
-import { BrowserWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/workspaceEditingService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { FileDialogService } from 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { mock } from 'vs/base/test/common/mock';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ISimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
 import * as sinon from 'sinon';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService, IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
+import { ISimpleFileDialog } from '../../browser/simpleFileDialog.js';
+import { FileDialogService } from '../../electron-sandbox/fileDialogService.js';
+import { IEditorService } from '../../../editor/common/editorService.js';
+import { BrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
+import { IHistoryService } from '../../../history/common/history.js';
+import { IHostService } from '../../../host/browser/host.js';
+import { IPathService } from '../../../path/common/pathService.js';
+import { BrowserWorkspaceEditingService } from '../../../workspaces/browser/workspaceEditingService.js';
+import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -73,21 +73,16 @@ class TestFileDialogService extends FileDialogService {
 
 suite('FileDialogService', function () {
 
-	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const testFile: URI = URI.file('/test/file');
 
 	setup(async function () {
-		disposables = new DisposableStore();
-		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
+		disposables.add(instantiationService = workbenchInstantiationService(undefined, disposables));
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('files', { simpleDialog: { enable: true } });
 		instantiationService.stub(IConfigurationService, configurationService);
 
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('Local - open/save workspaces availableFilesystems', async function () {
@@ -102,11 +97,12 @@ suite('FileDialogService', function () {
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
 				return testFile;
 			}
+			dispose(): void { }
 		}
 
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});
@@ -123,6 +119,7 @@ suite('FileDialogService', function () {
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
 				return testFile;
 			}
+			dispose(): void { }
 		}
 
 		instantiationService.stub(IPathService, new class {
@@ -131,7 +128,7 @@ suite('FileDialogService', function () {
 		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});
@@ -150,6 +147,7 @@ suite('FileDialogService', function () {
 				assert.strictEqual(options.availableFileSystems[1], Schemas.file);
 				return testFile;
 			}
+			dispose(): void { }
 		}
 
 		instantiationService.set(IWorkbenchEnvironmentService, new class extends mock<BrowserWorkbenchEnvironmentService>() {
@@ -163,7 +161,7 @@ suite('FileDialogService', function () {
 		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
 		instantiationService.set(IFileDialogService, dialogService);
-		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
+		const workspaceService: IWorkspaceEditingService = disposables.add(instantiationService.createInstance(BrowserWorkspaceEditingService));
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
 	});
@@ -176,6 +174,7 @@ suite('FileDialogService', function () {
 			async showSaveDialog(): Promise<URI | undefined> {
 				return testFile;
 			}
+			dispose(): void { }
 		}
 		instantiationService.set(IWorkbenchEnvironmentService, new class extends mock<BrowserWorkbenchEnvironmentService>() {
 			override get remoteAuthority() {

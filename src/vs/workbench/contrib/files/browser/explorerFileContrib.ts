@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export const enum ExplorerExtensions {
 	FileContributionRegistry = 'workbench.registry.explorer.fileContributions'
@@ -35,12 +36,16 @@ export interface IExplorerFileContributionRegistry {
 	register(descriptor: IExplorerFileContributionDescriptor): void;
 }
 
-class ExplorerFileContributionRegistry implements IExplorerFileContributionRegistry {
+class ExplorerFileContributionRegistry extends Disposable implements IExplorerFileContributionRegistry {
+	private readonly _onDidRegisterDescriptor = this._register(new Emitter<IExplorerFileContributionDescriptor>());
+	public readonly onDidRegisterDescriptor = this._onDidRegisterDescriptor.event;
+
 	private readonly descriptors: IExplorerFileContributionDescriptor[] = [];
 
 	/** @inheritdoc */
 	public register(descriptor: IExplorerFileContributionDescriptor): void {
 		this.descriptors.push(descriptor);
+		this._onDidRegisterDescriptor.fire(descriptor);
 	}
 
 	/**

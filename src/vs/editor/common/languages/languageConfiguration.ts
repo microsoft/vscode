@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { CharCode } from '../../../base/common/charCode.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { ScopedLineTokens } from './supports.js';
 
 /**
  * Describes how comments for a language work.

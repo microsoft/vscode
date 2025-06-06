@@ -3,47 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { insert } from 'vs/base/common/arrays';
+import { raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ITextFileSaveParticipant, ITextFileEditorModel, ITextFileSaveParticipantContext } from './textfiles.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { localize } from '../../../../nls.js';
+import { NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 
 export class TextFileSaveParticipant extends Disposable {
 
-	private readonly saveParticipants: ITextFileSaveParticipant[] = [];
+	private readonly saveParticipants = new LinkedList<ITextFileSaveParticipant>();
 
 	constructor(
+		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
-		const remove = insert(this.saveParticipants, participant);
+		const remove = this.saveParticipants.push(participant);
 
 		return toDisposable(() => remove());
 	}
 
-	participate(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
+	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
-		return this.progressService.withProgress({
-			title: localize('saveParticipants', "Saving '{0}'", model.name),
+		// undoStop before participation
+		model.textEditorModel?.pushStackElement();
+
+		// report to the "outer" progress
+		progress.report({
+			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
+		});
+
+		let bubbleCancel = false;
+
+		// create an "inner" progress to allow to skip over long running save participants
+		await this.progressService.withProgress({
+			priority: NotificationPriority.URGENT,
 			location: ProgressLocation.Notification,
-			cancellable: true,
-			delay: model.isDirty() ? 3000 : 5000
+			cancellable: localize('skip', "Skip"),
+			delay: model.isDirty() ? 5000 : 3000
 		}, async progress => {
 
-			// undoStop before participation
-			model.textEditorModel?.pushStackElement();
+			const participants = Array.from(this.saveParticipants).sort((a, b) => {
+				const aValue = a.ordinal ?? 0;
+				const bValue = b.ordinal ?? 0;
+				return aValue - bValue;
+			});
 
-			for (const saveParticipant of this.saveParticipants) {
+			for (const saveParticipant of participants) {
 				if (cts.token.isCancellationRequested || !model.textEditorModel /* disposed */) {
 					break;
 				}
@@ -52,22 +67,32 @@ export class TextFileSaveParticipant extends Disposable {
 					const promise = saveParticipant.participate(model, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
-					this.logService.error(err);
+					if (!isCancellationError(err)) {
+						this.logService.error(err);
+					} else if (!cts.token.isCancellationRequested) {
+						// we see a cancellation error BUT the token didn't signal it
+						// this means the participant wants the save operation to be cancelled
+						cts.cancel();
+						bubbleCancel = true;
+					}
 				}
 			}
-
-			// undoStop after participation
-			model.textEditorModel?.pushStackElement();
 		}, () => {
-			// user cancel
 			cts.cancel();
-		}).finally(() => {
-			cts.dispose();
 		});
+
+		// undoStop after participation
+		model.textEditorModel?.pushStackElement();
+
+		cts.dispose();
+
+		if (bubbleCancel) {
+			throw new CancellationError();
+		}
 	}
 
 	override dispose(): void {
-		this.saveParticipants.splice(0, this.saveParticipants.length);
+		this.saveParticipants.clear();
 
 		super.dispose();
 	}

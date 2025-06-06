@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IStateReadService = createDecorator<IStateReadService>('stateReadService');
 export interface IStateReadService {

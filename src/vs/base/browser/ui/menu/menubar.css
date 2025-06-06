@@ -99,7 +99,8 @@
 
 .menubar:not(.compact) .menubar-menu-button:first-child .toolbar-toggle-more::before,
 .menubar.compact .toolbar-toggle-more::before {
-	content: "\eb94" !important;
+	content: var(--vscode-icon-menu-content) !important;
+	font-family: var(--vscode-icon-menu-font-family) !important;
 }
 
 /* Match behavior of outline for activity bar icons */

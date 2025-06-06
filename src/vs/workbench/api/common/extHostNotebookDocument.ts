@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
-import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import * as extHostProtocol from './extHost.protocol.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as extHostTypeConverters from './extHostTypeConverters.js';
+import { NotebookRange } from './extHostTypes.js';
+import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
@@ -33,7 +33,7 @@ class RawContentChangeEvent {
 
 export class ExtHostCell {
 
-	static asModelAddData(notebook: vscode.NotebookDocument, cell: extHostProtocol.NotebookCellDto): IExtHostModelAddedData {
+	static asModelAddData(cell: extHostProtocol.NotebookCellDto): extHostProtocol.IModelAddedData {
 		return {
 			EOL: cell.eol,
 			lines: cell.source,
@@ -41,7 +41,7 @@ export class ExtHostCell {
 			uri: cell.uri,
 			isDirty: false,
 			versionId: 1,
-			notebook
+			encoding: 'utf8'
 		};
 	}
 
@@ -212,6 +212,9 @@ export class ExtHostNotebookDocument {
 				},
 				save() {
 					return that._save();
+				},
+				[Symbol.for('debug.description')]() {
+					return `NotebookDocument(${this.uri.toString()})`;
 				}
 			};
 			this._notebook = Object.freeze(apiObject);
@@ -356,7 +359,7 @@ export class ExtHostNotebookDocument {
 		}
 
 		const contentChangeEvents: RawContentChangeEvent[] = [];
-		const addedCellDocuments: IExtHostModelAddedData[] = [];
+		const addedCellDocuments: extHostProtocol.IModelAddedData[] = [];
 		const removedCellDocuments: URI[] = [];
 
 		splices.reverse().forEach(splice => {
@@ -365,7 +368,7 @@ export class ExtHostNotebookDocument {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
+					addedCellDocuments.push(ExtHostCell.asModelAddData(cell));
 				}
 				return extCell;
 			});

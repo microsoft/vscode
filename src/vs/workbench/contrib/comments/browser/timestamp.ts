@@ -3,23 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { fromNow } from 'vs/base/common/date';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import * as dom from '../../../../base/browser/dom.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { language } from '../../../../base/common/platform.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import type { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
 
 export class TimestampWidget extends Disposable {
 	private _date: HTMLElement;
 	private _timestamp: Date | undefined;
 	private _useRelativeTime: boolean;
 
-	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
+	private hover: IManagedHover;
+
+	constructor(
+		private configurationService: IConfigurationService,
+		hoverService: IHoverService,
+		container: HTMLElement,
+		timeStamp?: Date
+	) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
+		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._date, ''));
 		this.setTimestamp(timeStamp);
 	}
 
@@ -52,9 +63,7 @@ export class TimestampWidget extends Disposable {
 			}
 
 			this._date.textContent = textContent;
-			if (tooltip) {
-				this._date.title = tooltip;
-			}
+			this.hover.update(tooltip ?? '');
 		}
 	}
 

@@ -43,3 +43,19 @@
 	/* Don't show markers inline with breadcrumbs */
 	display: none;
 }
+
+.monaco-list-row .notebook-outline-element .action-menu {
+	display: none;
+}
+
+.monaco-list-row.focused.selected .notebook-outline-element .action-menu {
+	display: flex;
+}
+
+.monaco-list-row:hover .notebook-outline-element .action-menu {
+	display: flex;
+}
+
+.monaco-list-row .notebook-outline-element.notebook-outline-toolbar-dropdown-active .action-menu {
+	display: flex;
+}

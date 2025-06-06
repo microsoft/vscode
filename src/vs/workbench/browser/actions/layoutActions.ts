@@ -3,31 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
-import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ICommandActionTitle } from 'vs/platform/action/common/action';
-import { mainWindow } from 'vs/base/browser/window';
+import { ILocalizedString, localize, localize2 } from '../../../nls.js';
+import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../platform/actions/common/actions.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from '../../services/layout/browser/layoutService.js';
+import { ServicesAccessor, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes.js';
+import { isWindows, isLinux, isWeb, isMacintosh, isNative } from '../../../base/common/platform.js';
+import { IsMacNativeContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptorService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from '../../common/views.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from '../../../platform/quickinput/common/quickInput.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
+import { TogglePanelAction } from '../parts/panel/panelActions.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
+import { ICommandActionTitle } from '../../../platform/action/common/action.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { MenuSettings, TitlebarStyle } from '../../../platform/window/common/window.js';
+import { IPreferencesService } from '../../services/preferences/common/preferences.js';
+import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -45,28 +51,12 @@ const panelAlignmentRightIcon = registerIcon('panel-align-right', Codicon.layout
 const panelAlignmentCenterIcon = registerIcon('panel-align-center', Codicon.layoutPanelCenter, localize('panelBottomCenter', "Represents the bottom panel alignment set to the center"));
 const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.layoutPanelJustify, localize('panelBottomJustify', "Represents the bottom panel alignment set to justified"));
 
+const quickInputAlignmentTopIcon = registerIcon('quickInputAlignmentTop', Codicon.arrowUp, localize('quickInputAlignmentTop', "Represents quick input alignment set to the top"));
+const quickInputAlignmentCenterIcon = registerIcon('quickInputAlignmentCenter', Codicon.circle, localize('quickInputAlignmentCenter', "Represents quick input alignment set to the center"));
+
 const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
-
-
-// --- Close Side Bar
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.closeSidebar',
-			title: { value: localize('closeSidebar', "Close Primary Side Bar"), original: 'Close Primary Side Bar' },
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
-	}
-});
 
 export const ToggleActivityBarVisibilityActionId = 'workbench.action.toggleActivityBarVisibility';
 
@@ -78,14 +68,13 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleCenteredLayout',
 			title: {
-				value: localize('toggleCenteredLayout', "Toggle Centered Layout"),
+				...localize2('toggleCenteredLayout', "Toggle Centered Layout"),
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
-				original: 'Toggle Centered Layout'
 			},
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
-			toggled: IsCenteredLayoutContext,
+			toggled: IsMainEditorCenteredLayoutContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
@@ -96,8 +85,10 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		layoutService.centerMainEditorLayout(!layoutService.isMainEditorLayoutCentered());
+		editorGroupService.activeGroup.focus();
 	}
 });
 
@@ -128,10 +119,7 @@ class MoveSidebarRightAction extends MoveSidebarPositionAction {
 	static readonly ID = 'workbench.action.moveSideBarRight';
 
 	constructor() {
-		super(MoveSidebarRightAction.ID, {
-			value: localize('moveSidebarRight', "Move Primary Side Bar Right"),
-			original: 'Move Primary Side Bar Right'
-		}, Position.RIGHT);
+		super(MoveSidebarRightAction.ID, localize2('moveSidebarRight', "Move Primary Side Bar Right"), Position.RIGHT);
 	}
 }
 
@@ -139,10 +127,7 @@ class MoveSidebarLeftAction extends MoveSidebarPositionAction {
 	static readonly ID = 'workbench.action.moveSideBarLeft';
 
 	constructor() {
-		super(MoveSidebarLeftAction.ID, {
-			value: localize('moveSidebarLeft', "Move Primary Side Bar Left"),
-			original: 'Move Primary Side Bar Left'
-		}, Position.LEFT);
+		super(MoveSidebarLeftAction.ID, localize2('moveSidebarLeft', "Move Primary Side Bar Left"), Position.LEFT);
 	}
 }
 
@@ -163,7 +148,7 @@ export class ToggleSidebarPositionAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSidebarPositionAction.ID,
-			title: { value: localize('toggleSidebarPosition', "Toggle Primary Side Bar Position"), original: 'Toggle Primary Side Bar Position' },
+			title: localize2('toggleSidebarPosition', "Toggle Primary Side Bar Position"),
 			category: Categories.View,
 			f1: true
 		});
@@ -188,7 +173,10 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.negate(),
+		ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	)
 });
 
 
@@ -204,17 +192,6 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Primary Side Bar Right")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
 	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
@@ -226,36 +203,25 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Primary Side Bar Left")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }]);
@@ -288,9 +254,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleEditorVisibility',
 			title: {
-				value: localize('toggleEditor', "Toggle Editor Area Visibility"),
+				...localize2('toggleEditor', "Toggle Editor Area Visibility"),
 				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
-				original: 'Toggle Editor Area Visibility'
 			},
 			category: Categories.View,
 			f1: true,
@@ -314,18 +279,22 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 
 // Toggle Sidebar Visibility
 
-class ToggleSidebarVisibilityAction extends Action2 {
+export class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
-			title: { value: localize('toggleSidebar', "Toggle Primary Side Bar Visibility"), original: 'Toggle Primary Side Bar Visibility' },
+			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
 			toggled: {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
 				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
+			},
+			metadata: {
+				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
 			category: Categories.View,
 			f1: true,
@@ -370,40 +339,41 @@ MenuRegistry.appendMenuItems([
 			order: 2
 		}
 	}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
-			},
-			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-			order: 2
-		}
-	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
 				icon: panelLeftOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+			),
 			order: 0
 		}
 	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', "Toggle Primary Side Bar"),
 				icon: panelRightOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+			),
 			order: 2
 		}
 	}
@@ -421,9 +391,8 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 		super({
 			id: ToggleStatusbarVisibilityAction.ID,
 			title: {
-				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
+				...localize2('toggleStatusbar', "Toggle Status Bar Visibility"),
 				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
-				original: 'Toggle Status Bar Visibility'
 			},
 			category: Categories.View,
 			f1: true,
@@ -449,83 +418,109 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 
 registerAction2(ToggleStatusbarVisibilityAction);
 
+// ------------------- Editor Tabs Layout --------------------------------
+
+abstract class AbstractSetShowTabsAction extends Action2 {
+
+	constructor(private readonly settingName: string, private readonly value: string, title: ICommandActionTitle, id: string, precondition: ContextKeyExpression, description: string | ILocalizedString | undefined) {
+		super({
+			id,
+			title,
+			category: Categories.View,
+			precondition,
+			metadata: description ? { description } : undefined,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(this.settingName, this.value);
+	}
+}
+
 // --- Hide Editor Tabs
 
-export class HideEditorTabsAction extends Action2 {
+export class HideEditorTabsAction extends AbstractSetShowTabsAction {
 
 	static readonly ID = 'workbench.action.hideEditorTabs';
 
 	constructor() {
-		super({
-			id: HideEditorTabsAction.ID,
-			title: {
-				value: localize('hideEditorTabs', "Hide Editor Tabs"),
-				original: 'Hide Editor Tabs'
-			},
-			category: Categories.View,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(), InEditorZenModeContext.negate()),
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.showTabs', 'none');
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext.negate())!;
+		const title = localize2('hideEditorTabs', 'Hide Editor Tabs');
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.NONE, title, HideEditorTabsAction.ID, precondition, localize2('hideEditorTabsDescription', "Hide Tab Bar"));
 	}
 }
-registerAction2(HideEditorTabsAction);
+
+export class ZenHideEditorTabsAction extends AbstractSetShowTabsAction {
+
+	static readonly ID = 'workbench.action.zenHideEditorTabs';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext)!;
+		const title = localize2('hideEditorTabsZenMode', 'Hide Editor Tabs in Zen Mode');
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.NONE, title, ZenHideEditorTabsAction.ID, precondition, localize2('hideEditorTabsZenModeDescription', "Hide Tab Bar in Zen Mode"));
+	}
+}
 
 // --- Show Multiple Editor Tabs
 
-export class ShowMultipleEditorTabsAction extends Action2 {
+export class ShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 
 	static readonly ID = 'workbench.action.showMultipleEditorTabs';
 
 	constructor() {
-		super({
-			id: ShowMultipleEditorTabsAction.ID,
-			title: {
-				value: localize('showMultipleEditorTabs', "Show Multiple Editor Tabs"),
-				original: 'Show Multiple Editor Tabs'
-			},
-			category: Categories.View,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple').negate(), InEditorZenModeContext.negate()),
-			f1: true
-		});
-	}
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext.negate())!;
+		const title = localize2('showMultipleEditorTabs', 'Show Multiple Editor Tabs');
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.showTabs', 'multiple');
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.MULTIPLE, title, ShowMultipleEditorTabsAction.ID, precondition, localize2('showMultipleEditorTabsDescription', "Show Tab Bar with multiple tabs"));
 	}
 }
-registerAction2(ShowMultipleEditorTabsAction);
+
+export class ZenShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
+
+	static readonly ID = 'workbench.action.zenShowMultipleEditorTabs';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext)!;
+		const title = localize2('showMultipleEditorTabsZenMode', 'Show Multiple Editor Tabs in Zen Mode');
+
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.MULTIPLE, title, ZenShowMultipleEditorTabsAction.ID, precondition, localize2('showMultipleEditorTabsZenModeDescription', "Show Tab Bar in Zen Mode"));
+	}
+}
 
 // --- Show Single Editor Tab
 
-export class ShowSingleEditorTabAction extends Action2 {
+export class ShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 
 	static readonly ID = 'workbench.action.showEditorTab';
 
 	constructor() {
-		super({
-			id: ShowSingleEditorTabAction.ID,
-			title: {
-				value: localize('showSingleEditorTab', "Show Single Editor Tab"),
-				original: 'Show Single Editor Tab'
-			},
-			category: Categories.View,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single').negate(), InEditorZenModeContext.negate()),
-			f1: true
-		});
-	}
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext.negate())!;
+		const title = localize2('showSingleEditorTab', 'Show Single Editor Tab');
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.showTabs', 'single');
+		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.SINGLE, title, ShowSingleEditorTabAction.ID, precondition, localize2('showSingleEditorTabDescription', "Show Tab Bar with one Tab"));
 	}
 }
+
+export class ZenShowSingleEditorTabAction extends AbstractSetShowTabsAction {
+
+	static readonly ID = 'workbench.action.zenShowEditorTab';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext)!;
+		const title = localize2('showSingleEditorTabZenMode', 'Show Single Editor Tab in Zen Mode');
+
+		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.SINGLE, title, ZenShowSingleEditorTabAction.ID, precondition, localize2('showSingleEditorTabZenModeDescription', "Show Tab Bar in Zen Mode with one Tab"));
+	}
+}
+
+registerAction2(HideEditorTabsAction);
+registerAction2(ZenHideEditorTabsAction);
+registerAction2(ShowMultipleEditorTabsAction);
+registerAction2(ZenShowMultipleEditorTabsAction);
 registerAction2(ShowSingleEditorTabAction);
+registerAction2(ZenShowSingleEditorTabAction);
 
 // --- Tab Bar Submenu in View Appearance Menu
 
@@ -537,6 +532,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	when: InEditorZenModeContext.negate()
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.EditorTabsBarShowTabsZenModeSubmenu,
+	title: localize('tabBar', "Tab Bar"),
+	group: '3_workbench_layout_move',
+	order: 10,
+	when: InEditorZenModeContext
+});
+
 // --- Show Editor Actions in Title Bar
 
 export class EditorActionsTitleBarAction extends Action2 {
@@ -546,22 +549,17 @@ export class EditorActionsTitleBarAction extends Action2 {
 	constructor() {
 		super({
 			id: EditorActionsTitleBarAction.ID,
-			title: {
-				value: localize('moveEditorActionsToTitleBar', "Move Editor Actions to Title Bar"),
-				original: 'Move Editor Actions to Title Bar'
-			},
+			title: localize2('moveEditorActionsToTitleBar', "Move Editor Actions to Title Bar"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'titleBar').negate(),
-				ContextKeyExpr.equals('config.window.style', 'native').negate(),
-			),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
+			metadata: { description: localize2('moveEditorActionsToTitleBarDescription', "Move Editor Actions from the tab bar to the title bar") },
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'titleBar');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.TITLEBAR);
 	}
 }
 registerAction2(EditorActionsTitleBarAction);
@@ -575,22 +573,20 @@ export class EditorActionsDefaultAction extends Action2 {
 	constructor() {
 		super({
 			id: EditorActionsDefaultAction.ID,
-			title: {
-				value: localize('moveEditorActionsToTabBar', "Move Editor Actions to Tab Bar"),
-				original: 'Move Editor Actions to Tab Bar'
-			},
+			title: localize2('moveEditorActionsToTabBar', "Move Editor Actions to Tab Bar"),
 			category: Categories.View,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'default').negate(),
-				ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(),
+				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT).negate(),
+				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(),
 			),
+			metadata: { description: localize2('moveEditorActionsToTabBarDescription', "Move Editor Actions from the title bar to the tab bar") },
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.DEFAULT);
 	}
 }
 registerAction2(EditorActionsDefaultAction);
@@ -604,19 +600,17 @@ export class HideEditorActionsAction extends Action2 {
 	constructor() {
 		super({
 			id: HideEditorActionsAction.ID,
-			title: {
-				value: localize('hideEditorActons', "Hide Editor Actions"),
-				original: 'Hide Editor Actions'
-			},
+			title: localize2('hideEditorActons', "Hide Editor Actions"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden').negate(),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN).negate(),
+			metadata: { description: localize2('hideEditorActonsDescription', "Hide Editor Actions in the tab and title bar") },
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'hidden');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.HIDDEN);
 	}
 }
 registerAction2(HideEditorActionsAction);
@@ -630,19 +624,17 @@ export class ShowEditorActionsAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowEditorActionsAction.ID,
-			title: {
-				value: localize('showEditorActons', "Show Editor Actions"),
-				original: 'Show Editor Actions'
-			},
+			title: localize2('showEditorActons', "Show Editor Actions"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden'),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN),
+			metadata: { description: localize2('showEditorActonsDescription', "Make Editor Actions visible.") },
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.DEFAULT);
 	}
 }
 registerAction2(ShowEditorActionsAction);
@@ -656,6 +648,48 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 11
 });
 
+// --- Configure Tabs Layout
+
+export class ConfigureEditorTabsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditorTabs';
+
+	constructor() {
+		super({
+			id: ConfigureEditorTabsAction.ID,
+			title: localize2('configureTabs', "Configure Tabs"),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor tab' });
+	}
+}
+registerAction2(ConfigureEditorTabsAction);
+
+// --- Configure Editor
+
+export class ConfigureEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.configureEditor';
+
+	constructor() {
+		super({
+			id: ConfigureEditorAction.ID,
+			title: localize2('configureEditors', "Configure Editors"),
+			category: Categories.View,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const preferencesService = accessor.get(IPreferencesService);
+		preferencesService.openSettings({ jsonEditor: false, query: 'workbench.editor' });
+	}
+}
+registerAction2(ConfigureEditorAction);
+
 // --- Toggle Pinned Tabs On Separate Row
 
 registerAction2(class extends Action2 {
@@ -663,12 +697,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleSeparatePinnedEditorTabs',
-			title: {
-				value: localize('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
-				original: 'Separate Pinned Editor Tabs'
-			},
+			title: localize2('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple'),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE),
+			metadata: { description: localize2('toggleSeparatePinnedEditorTabsDescription', "Toggle whether pinned editor tabs are shown on a separate row above unpinned tabs.") },
 			f1: true
 		});
 	}
@@ -691,9 +723,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleZenMode',
 			title: {
-				value: localize('toggleZenMode', "Toggle Zen Mode"),
+				...localize2('toggleZenMode', "Toggle Zen Mode"),
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
-				original: 'Toggle Zen Mode'
 			},
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
@@ -739,13 +770,12 @@ if (isWindows || isLinux || isWeb) {
 			super({
 				id: 'workbench.action.toggleMenuBar',
 				title: {
-					value: localize('toggleMenuBar', "Toggle Menu Bar"),
+					...localize2('toggleMenuBar', "Toggle Menu Bar"),
 					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
-					original: 'Toggle Menu Bar'
 				},
 				category: Categories.View,
 				f1: true,
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
+				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')),
 				menu: [{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
@@ -765,10 +795,10 @@ if (isWindows || isLinux || isWeb) {
 			command: {
 				id: 'workbench.action.toggleMenuBar',
 				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact'))
 			},
-			when: IsAuxiliaryWindowFocusedContext.toNegated(),
-			group: menuId === MenuId.TitleBarTitleContext ? '2_config' : undefined,
+			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
+			group: '2_config',
 			order: 0
 		});
 	}
@@ -781,10 +811,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetViewLocations',
-			title: {
-				value: localize('resetViewLocations', "Reset View Locations"),
-				original: 'Reset View Locations'
-			},
+			title: localize2('resetViewLocations', "Reset View Locations"),
 			category: Categories.View,
 			f1: true
 		});
@@ -802,10 +829,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.moveView',
-			title: {
-				value: localize('moveView', "Move View"),
-				original: 'Move View'
-			},
+			title: localize2('moveView', "Move View"),
 			category: Categories.View,
 			f1: true
 		});
@@ -916,13 +940,14 @@ registerAction2(class extends Action2 {
 	}
 
 	private async getView(quickInputService: IQuickInputService, viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService, viewId?: string): Promise<string> {
-		const quickPick = quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
 		quickPick.items = this.getViewItems(viewDescriptorService, paneCompositePartService);
 		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
 
 		return new Promise((resolve, reject) => {
-			quickPick.onDidAccept(() => {
+			disposables.add(quickPick.onDidAccept(() => {
 				const viewId = quickPick.selectedItems[0];
 				if (viewId.id) {
 					resolve(viewId.id);
@@ -931,9 +956,12 @@ registerAction2(class extends Action2 {
 				}
 
 				quickPick.hide();
-			});
+			}));
 
-			quickPick.onDidHide(() => reject());
+			disposables.add(quickPick.onDidHide(() => {
+				disposables.dispose();
+				reject();
+			}));
 
 			quickPick.show();
 		});
@@ -947,10 +975,7 @@ class MoveFocusedViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.moveFocusedView',
-			title: {
-				value: localize('moveFocusedView', "Move Focused View"),
-				original: 'Move Focused View'
-			},
+			title: localize2('moveFocusedView', "Move Focused View"),
 			category: Categories.View,
 			precondition: FocusedViewContext.notEqualsTo(''),
 			f1: true
@@ -978,7 +1003,8 @@ class MoveFocusedViewAction extends Action2 {
 			return;
 		}
 
-		const quickPick = quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
 		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name.value);
 
@@ -1073,17 +1099,17 @@ class MoveFocusedViewAction extends Action2 {
 
 		quickPick.items = items;
 
-		quickPick.onDidAccept(() => {
+		disposables.add(quickPick.onDidAccept(() => {
 			const destination = quickPick.selectedItems[0];
 
 			if (destination.id === '_.panel.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Sidebar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.auxiliarybar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.AuxiliaryBar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!, undefined, this.desc.id);
@@ -1091,7 +1117,9 @@ class MoveFocusedViewAction extends Action2 {
 			}
 
 			quickPick.hide();
-		});
+		}));
+
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 
 		quickPick.show();
 	}
@@ -1106,10 +1134,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetFocusedViewLocation',
-			title: {
-				value: localize('resetFocusedViewLocation', "Reset Focused View Location"),
-				original: 'Reset Focused View Location'
-			},
+			title: localize2('resetFocusedViewLocation', "Reset Focused View Location"),
 			category: Categories.View,
 			f1: true,
 			precondition: FocusedViewContext.notEqualsTo('')
@@ -1183,8 +1208,9 @@ class IncreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewSize',
-			title: { value: localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
-			f1: true
+			title: localize2('increaseViewSize', 'Increase Current View Size'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1198,8 +1224,9 @@ class IncreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewWidth',
-			title: { value: localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
-			f1: true
+			title: localize2('increaseEditorWidth', 'Increase Editor Width'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1213,8 +1240,9 @@ class IncreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewHeight',
-			title: { value: localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
-			f1: true
+			title: localize2('increaseEditorHeight', 'Increase Editor Height'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1228,8 +1256,9 @@ class DecreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewSize',
-			title: { value: localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
-			f1: true
+			title: localize2('decreaseViewSize', 'Decrease Current View Size'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1242,8 +1271,9 @@ class DecreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewWidth',
-			title: { value: localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
-			f1: true
+			title: localize2('decreaseEditorWidth', 'Decrease Editor Width'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1257,8 +1287,9 @@ class DecreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewHeight',
-			title: { value: localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
-			f1: true
+			title: localize2('decreaseEditorHeight', 'Decrease Editor Height'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1274,6 +1305,42 @@ registerAction2(IncreaseViewHeightAction);
 registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
+
+//#region Quick Input Alignment Actions
+
+registerAction2(class AlignQuickInputTopAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputTop',
+			title: localize2('alignQuickInputTop', 'Align Quick Input Top'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('top');
+	}
+});
+
+registerAction2(class AlignQuickInputCenterAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputCenter',
+			title: localize2('alignQuickInputCenter', 'Align Quick Input Center'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('center');
+	}
+});
+
+//#endregion
 
 type ContextualLayoutVisualIcon = { iconA: ThemeIcon; iconB: ThemeIcon; whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
@@ -1320,14 +1387,14 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 	};
 };
 
-const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')) as ContextKeyExpression;
+const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')) as ContextKeyExpression;
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if (!isMacintosh || !isNative) {
 	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar"), menubarIcon));
 }
 
 ToggleVisibilityActions.push(...[
-	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
+	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'hidden'), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
@@ -1346,14 +1413,19 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify"), panelAlignmentJustifyIcon),
 ];
 
+const QuickInputActions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem('workbench.action.alignQuickInputTop', QuickInputAlignmentContextKey.isEqualTo('top'), localize('top', "Top"), quickInputAlignmentTopIcon),
+	CreateOptionLayoutItem('workbench.action.alignQuickInputCenter', QuickInputAlignmentContextKey.isEqualTo('center'), localize('center', "Center"), quickInputAlignmentCenterIcon),
+];
+
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
+	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
-	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
+	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsMainEditorCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
 ];
 
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...MiscLayoutOptions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
@@ -1361,12 +1433,12 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
 
-	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+	private _currentQuickPick?: IQuickPick<IQuickPickItem, { useSeparators: true }>;
 
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
-			title: { original: 'Customize Layout...', value: localize('customizeLayout', "Customize Layout...") },
+			title: localize2('customizeLayout', "Customize Layout..."),
 			f1: true,
 			icon: configureLayoutIcon,
 			menu: [
@@ -1376,14 +1448,17 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				},
 				{
 					id: MenuId.LayoutControlMenu,
-					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-					group: 'z_end'
+					when: ContextKeyExpr.and(
+						IsAuxiliaryWindowContext.toNegated(),
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+					),
+					group: '1_layout'
 				}
 			]
 		});
 	}
 
-	getItems(contextKeyService: IContextKeyService): QuickPickItem[] {
+	getItems(contextKeyService: IContextKeyService, keybindingService: IKeybindingService): QuickPickItem[] {
 		const toQuickPickItem = (item: CustomizeLayoutItem): IQuickPickItem => {
 			const toggled = item.active.evaluate(contextKeyService.getContext(null));
 			let label = item.useButtons ?
@@ -1409,6 +1484,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				id: item.id,
 				label,
 				ariaLabel,
+				keybinding: keybindingService.lookupKeybinding(item.id, contextKeyService),
 				buttons: !item.useButtons ? undefined : [
 					{
 						alwaysVisible: false,
@@ -1436,6 +1512,11 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			...AlignPanelActions.map(toQuickPickItem),
 			{
 				type: 'separator',
+				label: localize('quickOpen', "Quick Input Position")
+			},
+			...QuickInputActions.map(toQuickPickItem),
+			{
+				type: 'separator',
 				label: localize('layoutModes', "Modes"),
 			},
 			...MiscLayoutOptions.map(toQuickPickItem),
@@ -1452,10 +1533,14 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const quickPick = quickInputService.createQuickPick();
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const disposables = new DisposableStore();
+
+		const quickPick = disposables.add(quickInputService.createQuickPick({ useSeparators: true }));
 
 		this._currentQuickPick = quickPick;
-		quickPick.items = this.getItems(contextKeyService);
+		quickPick.items = this.getItems(contextKeyService, keybindingService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
 		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
@@ -1477,11 +1562,10 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			closeButton
 		];
 
-		const disposables = new DisposableStore();
 		let selectedItem: CustomizeLayoutItem | undefined = undefined;
 		disposables.add(contextKeyService.onDidChangeContext(changeEvent => {
 			if (changeEvent.affectsSome(LayoutContextKeySet)) {
-				quickPick.items = this.getItems(contextKeyService);
+				quickPick.items = this.getItems(contextKeyService, keybindingService);
 				if (selectedItem) {
 					quickPick.activeItems = quickPick.items.filter(item => (item as CustomizeLayoutItem).id === selectedItem?.id) as IQuickPickItem[];
 				}
@@ -1490,21 +1574,21 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			}
 		}));
 
-		quickPick.onDidAccept(event => {
+		disposables.add(quickPick.onDidAccept(event => {
 			if (quickPick.selectedItems.length) {
 				selectedItem = quickPick.selectedItems[0] as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
-		});
+		}));
 
-		quickPick.onDidTriggerItemButton(event => {
+		disposables.add(quickPick.onDidTriggerItemButton(event => {
 			if (event.item) {
 				selectedItem = event.item as CustomizeLayoutItem;
 				commandService.executeCommand(selectedItem.id);
 			}
-		});
+		}));
 
-		quickPick.onDidTriggerButton((button) => {
+		disposables.add(quickPick.onDidTriggerButton((button) => {
 			if (button === closeButton) {
 				quickPick.hide();
 			} else if (button === resetButton) {
@@ -1515,7 +1599,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				};
 
 				// Reset all layout options
-				resetSetting('workbench.activityBar.visible');
+				resetSetting('workbench.activityBar.location');
 				resetSetting('workbench.sideBar.location');
 				resetSetting('workbench.statusBar.visible');
 				resetSetting('workbench.panel.defaultLocation');
@@ -1525,17 +1609,18 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				}
 
 				commandService.executeCommand('workbench.action.alignPanelCenter');
+				commandService.executeCommand('workbench.action.alignQuickInputTop');
 			}
-		});
+		}));
 
-		quickPick.onDidHide(() => {
+		disposables.add(quickPick.onDidHide(() => {
 			quickPick.dispose();
-		});
+		}));
 
-		quickPick.onDispose(() => {
+		disposables.add(quickPick.onDispose(() => {
 			this._currentQuickPick = undefined;
 			disposables.dispose();
-		});
+		}));
 
 		quickPick.show();
 	}

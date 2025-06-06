@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/window';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser.js';
+import { mainWindow } from './window.js';
+import * as platform from '../common/platform.js';
 
 export const enum KeyboardSupport {
 	Always,
@@ -43,5 +43,5 @@ export const BrowserFeatures = {
 	// 'ontouchstart' in window always evaluates to true with typescript's modern typings. This causes `window` to be
 	// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
 	touch: 'ontouchstart' in mainWindow || navigator.maxTouchPoints > 0,
-	pointerEvents: mainWindow.PointerEvent && ('ontouchstart' in mainWindow || navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0)
+	pointerEvents: mainWindow.PointerEvent && ('ontouchstart' in mainWindow || navigator.maxTouchPoints > 0)
 };

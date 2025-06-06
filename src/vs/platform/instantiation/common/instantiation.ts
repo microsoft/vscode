@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as descriptors from './descriptors';
-import { ServiceCollection } from './serviceCollection';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import * as descriptors from './descriptors.js';
+import { ServiceCollection } from './serviceCollection.js';
 
 // ------ internal util
 
@@ -51,7 +52,7 @@ export interface IInstantiationService {
 	 * Synchronously creates an instance that is denoted by the descriptor
 	 */
 	createInstance<T>(descriptor: descriptors.SyncDescriptor0<T>): T;
-	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+	createInstance<Ctor extends new (...args: any[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
 
 	/**
 	 * Calls a function with a service accessor.
@@ -61,8 +62,21 @@ export interface IInstantiationService {
 	/**
 	 * Creates a child of this service which inherits all current services
 	 * and adds/overwrites the given services.
+	 *
+	 * NOTE that the returned child is `disposable` and should be disposed when not used
+	 * anymore. This will also dispose all the services that this service has created.
 	 */
-	createChild(services: ServiceCollection): IInstantiationService;
+	createChild(services: ServiceCollection, store?: DisposableStore): IInstantiationService;
+
+	/**
+	 * Disposes this instantiation service.
+	 *
+	 * - Will dispose all services that this instantiation service has created.
+	 * - Will dispose all its children but not its parent.
+	 * - Will NOT dispose services-instances that this service has been created with
+	 * - Will NOT dispose consumer-instances this service has created
+	 */
+	dispose(): void;
 }
 
 
@@ -92,7 +106,7 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 		return _util.serviceIds.get(serviceId)!;
 	}
 
-	const id = <any>function (target: Function, key: string, index: number): any {
+	const id = <any>function (target: Function, key: string, index: number) {
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { IFileQuery, IFolderQuery, ISerializedSearchProgressItem, isProgressMessage, QueryType } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
+import assert from 'assert';
+import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { IFileQuery, IFolderQuery, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
+import { SearchService } from '../../node/rawSearchService.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const TEST_FIXTURES2 = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures2').fsPath);
@@ -25,11 +25,13 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(MORE_FIXTURES) }
 ];
 
+const numThreads = undefined;
+
 async function doSearchTest(query: IFileQuery, expectedResultCount: number | Function): Promise<void> {
 	const svc = new SearchService();
 
 	const results: ISerializedSearchProgressItem[] = [];
-	await svc.doFileSearch(query, e => {
+	await svc.doFileSearch(query, numThreads, e => {
 		if (!isProgressMessage(e)) {
 			if (Array.isArray(e)) {
 				results.push(...e);

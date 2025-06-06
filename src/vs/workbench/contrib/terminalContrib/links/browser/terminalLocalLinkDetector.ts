@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from './links.js';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { detectLinks } from './terminalLinkParsing.js';
+import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 const enum Constants {
 	/**
@@ -37,6 +37,8 @@ const enum Constants {
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	/^ +FILE +(?<link>(?<path>.+)(?::(?<line>\d+)(?::(?<col>\d+))?)?)/,
 	// Some C++ compile error formats:
 	// C:\foo\bar baz(339) : error ...
 	// C:\foo\bar baz(339,12) : error ...
@@ -110,7 +112,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
 			const osPath = osPathModule(os);
-			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
+			const isUri = parsedLink.path.text.startsWith('file://');
+			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~') || isUri) {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
@@ -265,7 +268,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._linkResolver.resolveLink(this._processManager, link);
+			let uri: URI | undefined;
+			if (link.startsWith('file://')) {
+				uri = URI.parse(link);
+			}
+			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
 			if (result) {
 				return result;
 			}

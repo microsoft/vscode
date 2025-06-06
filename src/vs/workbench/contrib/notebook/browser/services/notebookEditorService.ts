@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Event } from 'vs/base/common/event';
-import { Dimension } from 'vs/base/browser/dom';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { URI } from 'vs/base/common/uri';
+import { CodeWindow } from '../../../../../base/browser/window.js';
+import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookEditor, INotebookEditorCreationOptions } from '../notebookBrowser.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { NotebookEditorWidget } from '../notebookEditorWidget.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
@@ -21,7 +20,7 @@ export interface IBorrowValue<T> {
 export interface INotebookEditorService {
 	_serviceBrand: undefined;
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, dimension?: Dimension): IBorrowValue<INotebookEditor>;
+	retrieveWidget(accessor: ServicesAccessor, groupId: number, input: { resource: URI; typeId: string }, creationOptions?: INotebookEditorCreationOptions, dimension?: Dimension, codeWindow?: CodeWindow): IBorrowValue<INotebookEditor>;
 
 	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined;
 	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[];
@@ -31,4 +30,5 @@ export interface INotebookEditorService {
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;
 	listNotebookEditors(): readonly INotebookEditor[];
+	updateReplContextKey(uri: string): void;
 }

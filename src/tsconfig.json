@@ -1,18 +1,21 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"isolatedModules": false,
 		"outDir": "../out/vs",
 		"types": [
+			"@webgpu/types",
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg",
 			"trusted-types",
+			"winreg",
 			"wicg-file-system-access"
 		],
 		"plugins": [
@@ -23,12 +26,10 @@
 		]
 	},
 	"include": [
-		"./bootstrap.js",
-		"./bootstrap-amd.js",
-		"./server-main.js",
+		"./*.ts",
 		"./typings",
 		"./vs/**/*.ts",
-		"vscode-dts/vscode.proposed.*.d.ts",
-		"vscode-dts/vscode.d.ts"
+		"./vscode-dts/vscode.proposed.*.d.ts",
+		"./vscode-dts/vscode.d.ts"
 	]
 }

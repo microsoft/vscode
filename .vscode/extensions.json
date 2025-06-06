@@ -6,7 +6,6 @@
 		"editorconfig.editorconfig",
 		"github.vscode-pull-request-github",
 		"ms-vscode.vscode-github-issue-notebooks",
-		"ms-vscode.vscode-selfhost-test-provider",
 		"ms-vscode.extension-test-runner",
 		"jrieken.vscode-pr-pinger"
 	]

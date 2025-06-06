@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from 'vs/platform/remoteTunnel/common/remoteTunnel';
-import { Emitter } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogger, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
-import { dirname, join } from 'vs/base/common/path';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from '../common/remoteTunnel.js';
+import { Emitter } from '../../../base/common/event.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILogger, ILoggerService, LogLevelToString } from '../../log/common/log.js';
+import { dirname, join } from '../../../base/common/path.js';
 import { ChildProcess, StdioOptions, spawn } from 'child_process';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
+import { IProductService } from '../../product/common/productService.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../base/common/async.js';
+import { ISharedProcessLifecycleService } from '../../lifecycle/node/sharedProcessLifecycleService.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { localize } from '../../../nls.js';
 import { hostname, homedir } from 'os';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isString } from 'vs/base/common/types';
-import { StreamSplitter } from 'vs/base/node/nodeStreams';
-import { joinPath } from 'vs/base/common/resources';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { isString } from '../../../base/common/types.js';
+import { StreamSplitter } from '../../../base/node/nodeStreams.js';
+import { joinPath } from '../../../base/common/resources.js';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
-	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
+	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
 };
 
 type RemoteTunnelEnablementEvent = {
@@ -209,20 +209,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._mode.active) {
-			return;
-		}
+		if (this._mode.active) {
+			// Be careful to only uninstall the service if we're the ones who installed it:
+			const needsServiceUninstall = this._mode.asService;
+			this.setMode(INACTIVE_TUNNEL_MODE);
 
-		// Be careful to only uninstall the service if we're the ones who installed it:
-		const needsServiceUninstall = this._mode.asService;
-		this.setMode(INACTIVE_TUNNEL_MODE);
-
-		try {
-			if (needsServiceUninstall) {
-				this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+			try {
+				if (needsServiceUninstall) {
+					this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+				}
+			} catch (e) {
+				this._logger.error(e);
 			}
-		} catch (e) {
-			this._logger.error(e);
 		}
 
 		try {
@@ -308,7 +306,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				a = a.replaceAll(token, '*'.repeat(4));
 				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput, { VSCODE_CLI_ACCESS_TOKEN: token });
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -410,7 +408,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput): CancelablePromise<number> {
+	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput, env?: Record<string, string>): CancelablePromise<number> {
 		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
@@ -428,12 +426,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run\n', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio, env: { ...process.env, RUST_BACKTRACE: '1', ...env } });
 				} else {
 					onOutput('Running tunnel CLI\n', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio, env: { ...process.env, ...env } });
 				}
 
 				tunnelProcess.stdout!.pipe(new StreamSplitter('\n')).on('data', data => {

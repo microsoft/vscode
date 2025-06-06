@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from '../../common/config/editorOptions.js';
 
 export interface ISettingsReader {
 	(key: string): any;
@@ -93,6 +93,7 @@ registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false
 registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
+registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
@@ -221,5 +222,20 @@ registerEditorSettingMigration('codeActionWidget.includeNearbyQuickfixes', (valu
 		if (typeof read('codeActionWidget.includeNearbyQuickFixes') === 'undefined') {
 			write('codeActionWidget.includeNearbyQuickFixes', value);
 		}
+	}
+});
+
+// Migrate the lightbulb settings
+registerEditorSettingMigration('lightbulb.enabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('lightbulb.enabled', value ? undefined : 'off');
+	}
+});
+
+// NES Code Shifting
+registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('inlineSuggest.edits.codeShifting', undefined);
+		write('inlineSuggest.edits.allowCodeShifting', value ? 'always' : 'never');
 	}
 });

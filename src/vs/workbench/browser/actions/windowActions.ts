@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsAuxiliaryWindowFocusedContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind } from 'vs/platform/files/common/files';
-import { splitRecentLabel } from 'vs/base/common/labels';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ResourceMap } from 'vs/base/common/map';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize, localize2 } from '../../../nls.js';
+import { IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from '../../../platform/actions/common/actions.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { IsMainWindowFullscreenContext } from '../../common/contextkeys.js';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { URI } from '../../../base/common/uri.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { splitRecentLabel } from '../../../base/common/labels.js';
+import { isMacintosh, isWeb, isWindows } from '../../../base/common/platform.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { inQuickPickContext, getQuickNavigateHandler } from '../quickaccess.js';
+import { IHostService } from '../../services/host/browser/host.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { isFolderBackupInfo, isWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
+import { getActiveElement, getActiveWindow, isHTMLElement } from '../../../base/browser/dom.js';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -212,7 +211,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.fileUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
 			openable = { fileUri: resource };
-			fullLabel = recent.label || labelService.getUriLabel(resource);
+			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
 
 		const { name, parentPath } = splitRecentLabel(fullLabel);
@@ -238,9 +237,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		super({
 			id: OpenRecentAction.ID,
 			title: {
-				value: localize('openRecent', "Open Recent..."),
+				...localize2('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
-				original: 'Open Recent...'
 			},
 			category: Categories.File,
 			f1: true,
@@ -267,7 +265,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -284,9 +282,8 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				...localize2('toggleFullScreen', "Toggle Full Screen"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
 			},
 			category: Categories.View,
 			f1: true,
@@ -298,7 +295,7 @@ class ToggleFullScreenAction extends Action2 {
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			toggled: IsMainWindowFullscreenContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
@@ -321,9 +318,8 @@ export class ReloadWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
+			title: localize2('reloadWindow', 'Reload Window'),
 			category: Categories.Developer,
-			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -336,9 +332,7 @@ export class ReloadWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		if (getActiveWindow() === mainWindow) {
-			return hostService.reload(); // only supported for main window
-		}
+		return hostService.reload();
 	}
 }
 
@@ -348,9 +342,8 @@ class ShowAboutDialogAction extends Action2 {
 		super({
 			id: 'workbench.action.showAboutDialog',
 			title: {
-				value: localize('about', "About"),
+				...localize2('about', "About"),
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
-				original: 'About'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -376,9 +369,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				value: localize('newWindow', "New Window"),
+				...localize2('newWindow', "New Window"),
 				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
-				original: 'New Window'
 			},
 			f1: true,
 			keybinding: {
@@ -406,13 +398,13 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+			title: localize2('blur', 'Remove keyboard focus from focused element')
 		});
 	}
 
 	run(): void {
 		const activeElement = getActiveElement();
-		if (activeElement instanceof HTMLElement) {
+		if (isHTMLElement(activeElement)) {
 			activeElement.blur();
 		}
 	}

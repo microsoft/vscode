@@ -52,7 +52,7 @@
 	display: flex;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .label {
 	margin-right: 4px;
 }
 
@@ -71,7 +71,8 @@
 	left: 2px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source,
+.monaco-workbench .repl .repl-tree .group .source {
 	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;

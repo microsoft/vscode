@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { isWindows, isMacintosh } from '../../../../base/common/platform.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { KeyMod, KeyCode, KeyChord } from '../../../../base/common/keyCodes.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { getMultiSelectedResources, IExplorerService } from '../browser/files.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { revealResourcesInOS } from './fileCommands.js';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { appendToCommandPalette, appendEditorTitleContextMenuItem } from '../browser/fileActions.contribution.js';
+import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
 const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -36,7 +37,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyR
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
@@ -57,13 +58,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', 0);
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL.value, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', false, 0);
 
 // Menu registration - open editors
 
 const revealInOsCommand = {
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: REVEAL_IN_OS_LABEL
+	title: REVEAL_IN_OS_LABEL.value
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
@@ -89,9 +90,27 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 // Command Palette
 
-const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
+const category = nls.localize2('filesCategory', "File");
 appendToCommandPalette({
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' },
+	title: REVEAL_IN_OS_LABEL,
 	category: category
 }, REVEAL_IN_OS_WHEN_CONTEXT);
+
+// Menu registration - chat attachments context
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: 'navigation',
+	order: 20,
+	command: revealInOsCommand,
+	when: REVEAL_IN_OS_WHEN_CONTEXT
+});
+
+// Menu registration - chat inline anchor
+
+MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+	group: 'navigation',
+	order: 20,
+	command: revealInOsCommand,
+	when: REVEAL_IN_OS_WHEN_CONTEXT
+});

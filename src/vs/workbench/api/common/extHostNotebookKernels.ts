@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from 'vs/base/common/arrays';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
-import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { asArray } from '../../../base/common/arrays.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto, VariablesResult } from './extHost.protocol.js';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from './extHostCommands.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { ExtHostNotebookController } from './extHostNotebook.js';
+import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument.js';
+import * as extHostTypeConverters from './extHostTypeConverters.js';
+import { NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from './extHostTypes.js';
+import { asWebviewUri } from '../../contrib/webview/common/webview.js';
+import { INotebookKernelSourceAction } from '../../contrib/notebook/common/notebookCommon.js';
+import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import * as vscode from 'vscode';
+import { variablePageSize } from '../../contrib/notebook/common/notebookKernelService.js';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -54,9 +55,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
 
-	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
-	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
-
 	constructor(
 		mainContext: IMainContext,
 		private readonly _initData: IExtHostInitDataService,
@@ -83,13 +81,39 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 						if (notebookEditorId === undefined) {
 							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.notebook.uri.toString()}`);
 						}
+						if ('skipIfAlreadySelected' in v) {
+							return { notebookEditorId, skipIfAlreadySelected: v.skipIfAlreadySelected };
+						}
 						return { notebookEditorId };
 					}
 					return v;
 				})
 			],
 			ApiCommandResult.Void);
+
+		const requestKernelVariablesApiCommand = new ApiCommand(
+			'vscode.executeNotebookVariableProvider',
+			'_executeNotebookVariableProvider',
+			'Execute notebook variable provider',
+			[ApiCommandArgument.Uri],
+			new ApiCommandResult<VariablesResult[], vscode.VariablesResult[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
+				return value.map(variable => {
+					return {
+						variable: {
+							name: variable.name,
+							value: variable.value,
+							expression: variable.expression,
+							type: variable.type,
+							language: variable.language
+						},
+						hasNamedChildren: variable.hasNamedChildren,
+						indexedChildrenCount: variable.indexedChildrenCount
+					};
+				});
+			})
+		);
 		this._commands.registerApiCommand(selectKernelApiCommand);
+		this._commands.registerApiCommand(requestKernelVariablesApiCommand);
 	}
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
@@ -409,13 +433,17 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj.controller.interruptHandler) {
 			// If we're interrupting all cells, we also need to cancel the notebook level execution.
 			const items = this._activeNotebookExecutions.get(document.uri);
+			this._activeNotebookExecutions.delete(document.uri);
 			if (handles.length && Array.isArray(items) && items.length) {
 				items.forEach(d => d.dispose());
 			}
 		}
 	}
 
-	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
+	private id = 0;
+	private variableStore: Record<string, vscode.Variable> = {};
+
+	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			return;
@@ -427,14 +455,45 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			return;
 		}
 
-		const parent = parentName ? { name: parentName, value: '' } : undefined;
+		let parent: vscode.Variable | undefined = undefined;
+		if (parentId !== undefined) {
+			parent = this.variableStore[parentId];
+			if (!parent) {
+				// request for unknown parent
+				return;
+			}
+		} else {
+			// root request, clear store
+			this.variableStore = {};
+		}
+
+
 		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
-		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
-		for await (const variable of variables) {
+		const variableResults = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
+
+		let resultCount = 0;
+		for await (const result of variableResults) {
 			if (token.isCancellationRequested) {
 				return;
 			}
+			const variable = {
+				id: this.id++,
+				name: result.variable.name,
+				value: result.variable.value,
+				type: result.variable.type,
+				interfaces: result.variable.interfaces,
+				language: result.variable.language,
+				expression: result.variable.expression,
+				hasNamedChildren: result.hasNamedChildren,
+				indexedChildrenCount: result.indexedChildrenCount,
+				extensionId: obj.extensionId.value,
+			};
+			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);
+
+			if (resultCount++ >= variablePageSize) {
+				return;
+			}
 		}
 	}
 
@@ -449,19 +508,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
 	}
 
-	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: NotebookCellExecutionState | undefined): void {
-		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
-		const cell = document.getCell(cellHandle);
-		if (cell) {
-			const newState = state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle;
-			if (newState !== undefined) {
-				this._onDidChangeCellExecutionState.fire({
-					cell: cell.apiCell,
-					state: newState
-				});
-			}
-		}
-	}
 
 	// ---
 
@@ -650,7 +696,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			end(success: boolean | undefined, endTime?: number): void {
+			end(success: boolean | undefined, endTime?: number, executionError?: vscode.CellExecutionError): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -662,9 +708,12 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
+				const error = createSerializeableError(executionError);
+
 				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
-					lastRunSuccess: success
+					lastRunSuccess: success,
+					error
 				}));
 			},
 
@@ -697,6 +746,31 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 }
 
+function createSerializeableError(executionError: vscode.CellExecutionError | undefined) {
+	const convertRange = (range: vscode.Range | undefined) => (range ? {
+		startLineNumber: range.start.line,
+		startColumn: range.start.character,
+		endLineNumber: range.end.line,
+		endColumn: range.end.character
+	} : undefined);
+
+	const convertStackFrame = (frame: vscode.CellErrorStackFrame) => ({
+		uri: frame.uri,
+		position: frame.position,
+		label: frame.label
+	});
+
+	const error = executionError ? {
+		name: executionError.name,
+		message: executionError.message,
+		stack: executionError.stack instanceof Array
+			? executionError.stack.map(frame => convertStackFrame(frame))
+			: executionError.stack,
+		location: convertRange(executionError.location),
+		uri: executionError.uri
+	} : undefined;
+	return error;
+}
 
 enum NotebookExecutionTaskState {
 	Init,

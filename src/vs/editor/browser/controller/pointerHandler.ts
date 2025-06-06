@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
-import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
-import { mainWindow } from 'vs/base/browser/window';
+import { BrowserFeatures } from '../../../base/browser/canIUse.js';
+import * as dom from '../../../base/browser/dom.js';
+import { EventType, Gesture, GestureEvent } from '../../../base/browser/touch.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { IPointerHandlerHelper, MouseHandler } from './mouseHandler.js';
+import { NavigationCommandRevealType } from '../coreCommands.js';
+import { IMouseTarget, MouseTargetType } from '../editorBrowser.js';
+import { EditorMouseEvent, EditorPointerEventFactory } from '../editorDom.js';
+import { ViewController } from '../view/viewController.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import { TextAreaSyntethicEvents } from './editContext/textArea/textAreaEditContextInput.js';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.
@@ -33,7 +33,7 @@ export class PointerEventHandler extends MouseHandler {
 		this._lastPointerType = 'mouse';
 
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
-			const pointerType = <any>e.pointerType;
+			const pointerType = e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
 				return;
@@ -60,32 +60,36 @@ export class PointerEventHandler extends MouseHandler {
 
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		this._dispatchGesture(event, /*inSelectionMode*/false);
+	}
 
+	private onChange(event: GestureEvent): void {
+		if (this._lastPointerType === 'touch') {
+			this._context.viewModel.viewLayout.deltaScrollNow(-event.translationX, -event.translationY);
+		}
+		if (this._lastPointerType === 'pen') {
+			this._dispatchGesture(event, /*inSelectionMode*/true);
+		}
+	}
+
+	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 		if (target.position) {
-			// this.viewController.moveTo(target.position);
 			this.viewController.dispatchMouse({
 				position: target.position,
 				mouseColumn: target.position.column,
 				startedOnLineNumbers: false,
 				revealType: NavigationCommandRevealType.Minimal,
 				mouseDownCount: event.tapCount,
-				inSelectionMode: false,
+				inSelectionMode,
 				altKey: false,
 				ctrlKey: false,
 				metaKey: false,
 				shiftKey: false,
-
 				leftButton: false,
 				middleButton: false,
 				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
 			});
-		}
-	}
-
-	private onChange(e: GestureEvent): void {
-		if (this._lastPointerType === 'touch') {
-			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 		}
 	}
 
@@ -137,7 +141,8 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
+		const isPhone = platform.isIOS || (platform.isAndroid && platform.isMobile);
+		if (isPhone && BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));

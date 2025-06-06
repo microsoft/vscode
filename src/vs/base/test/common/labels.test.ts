@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as labels from '../../common/labels.js';
+import { isMacintosh, isWindows, OperatingSystem } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -145,17 +145,17 @@ suite('Labels', () => {
 	});
 
 	test('mnemonicButtonLabel', () => {
-		assert.strictEqual(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
-		assert.strictEqual(labels.mnemonicButtonLabel(''), '');
+		assert.strictEqual(labels.mnemonicButtonLabel('Hello World').withMnemonic, 'Hello World');
+		assert.strictEqual(labels.mnemonicButtonLabel('').withMnemonic, '');
 		if (isWindows) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello && World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do &not Save && Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello && World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do &not Save && Continue');
 		} else if (isMacintosh) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do not Save & Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello & World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do not Save & Continue');
 		} else {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello & World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do _not Save & Continue');
 		}
 	});
 

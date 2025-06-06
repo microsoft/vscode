@@ -4,24 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
-import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
-import { textMimeTypes } from './deserializers';
+import type { NotebookCell, NotebookCellData, NotebookCellOutput, NotebookData, NotebookDocument } from 'vscode';
+import { CellOutputMetadata, type CellMetadata } from './common';
+import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
 
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
-}
-
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData,
-	preferredLanguage: string | undefined
+	preferredLanguage: string | undefined,
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
-	if (vscCell.kind === NotebookCellKind.Markup) {
+	if (vscCell.kind === NotebookCellKindMarkup) {
 		cell = createMarkdownCellFromNotebookCell(vscCell);
 	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
@@ -54,36 +48,64 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 	return obj;
 }
 
-export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
-	return {
-		// it contains the cell id, and the cell metadata, along with other nb cell metadata
-		...(cell.metadata?.custom ?? {}),
-		// promote the cell attachments to the top level
-		attachments: cell.metadata?.custom?.attachments ?? cell.metadata?.attachments
-	};
+export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
+	if ('cell' in options) {
+		const cell = options.cell;
+		const metadata = {
+			execution_count: null,
+			// it contains the cell id, and the cell metadata, along with other nb cell metadata
+			...(cell.metadata ?? {})
+		} satisfies CellMetadata;
+		if (cell.kind === NotebookCellKindMarkup) {
+			delete (metadata as any).execution_count;
+		}
+		return metadata;
+	} else {
+		const cell = options;
+		const metadata = {
+			// it contains the cell id, and the cell metadata, along with other nb cell metadata
+			...(cell.metadata ?? {})
+		};
+
+		return metadata as CellMetadata;
+	}
+}
+
+export function getVSCodeCellLanguageId(metadata: CellMetadata): string | undefined {
+	return metadata.metadata?.vscode?.languageId;
+}
+export function setVSCodeCellLanguageId(metadata: CellMetadata, languageId: string) {
+	metadata.metadata = metadata.metadata || {};
+	metadata.metadata.vscode = { languageId };
+}
+export function removeVSCodeCellLanguageId(metadata: CellMetadata) {
+	if (metadata.metadata?.vscode) {
+		delete metadata.metadata.vscode;
+	}
 }
 
 function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
-	const cellMetadata = getCellMetadata(cell);
-	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
+	const cellMetadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata({ cell })));
+	cellMetadata.metadata = cellMetadata.metadata || {}; // This cannot be empty.
 	if (cell.languageId !== preferredLanguage) {
-		metadata = {
-			...metadata,
-			vscode: {
-				languageId: cell.languageId
-			}
-		};
+		setVSCodeCellLanguageId(cellMetadata, cell.languageId);
 	} else {
 		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
-		metadata.vscode = undefined;
+		removeVSCodeCellLanguageId(cellMetadata);
 	}
 
-	const codeCell: any = {
+	const codeCell: nbformat.ICodeCell = {
 		cell_type: 'code',
-		execution_count: cell.executionSummary?.executionOrder ?? null,
+		// Metadata should always contain the execution_count.
+		// When ever execution summary data changes we will update the metadata to contain the execution count.
+		// Failing to do so means we have a problem.
+		// Also do not read the value of executionSummary here, as its possible user reverted changes to metadata
+		// & in that case execution summary could contain the data, but metadata will not.
+		// In such cases we do not want to re-set the metadata with the value from execution summary (remember, user reverted that).
+		execution_count: cellMetadata.execution_count ?? null,
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: metadata
+		metadata: cellMetadata.metadata
 	};
 	if (cellMetadata?.id) {
 		codeCell.id = cellMetadata.id;
@@ -92,7 +114,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 }
 
 function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
-	const cellMetadata = getCellMetadata(cell);
+	const cellMetadata = getCellMetadata({ cell });
 	const rawCell: any = {
 		cell_type: 'raw',
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
@@ -343,7 +365,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 }
 
 export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
-	const cellMetadata = getCellMetadata(cell);
+	const cellMetadata = getCellMetadata({ cell });
 	const markdownCell: any = {
 		cell_type: 'markdown',
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
@@ -360,10 +382,10 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 	// Source is usually a single string on input. Convert back to an array
-	const result = {
+	const result: nbformat.ICell = {
 		...cell,
 		source: splitMultilineString(cell.source)
-	} as nbformat.ICell;
+	};
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {
@@ -425,4 +447,37 @@ function fixupOutput(output: nbformat.IOutput): nbformat.IOutput {
 		}
 	}
 	return result;
+}
+
+
+export function serializeNotebookToString(data: NotebookData): string {
+	const notebookContent = getNotebookMetadata(data);
+	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+
+	notebookContent.cells = data.cells
+		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
+		.map(pruneCell);
+
+	const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		data.metadata.indentAmount :
+		' ';
+
+	return serializeNotebookToJSON(notebookContent, indentAmount);
+}
+function serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): string {
+	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
+	const sorted = sortObjectPropertiesRecursively(notebookContent);
+
+	return JSON.stringify(sorted, undefined, indentAmount) + '\n';
+}
+
+export function getNotebookMetadata(document: NotebookDocument | NotebookData) {
+	const existingContent: Partial<nbformat.INotebookContent> = document.metadata || {};
+	const notebookContent: Partial<nbformat.INotebookContent> = {};
+	notebookContent.cells = existingContent.cells || [];
+	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = existingContent.metadata || {};
+	return notebookContent;
 }

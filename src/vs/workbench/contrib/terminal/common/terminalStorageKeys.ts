@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum TerminalStorageKeys {
-	NeverMeasureRenderTime = 'terminal.integrated.neverMeasureRenderTime',
 	SuggestedRendererType = 'terminal.integrated.suggestedRendererType',
 	TabsListWidthHorizontal = 'tabs-list-width-horizontal',
 	TabsListWidthVertical = 'tabs-list-width-vertical',
+	TabsShowDetailed = 'terminal.integrated.tabs.showDetailed',
 	DeprecatedEnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollections',
 	EnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollectionsV2',
 	TerminalBufferState = 'terminal.integrated.bufferState',

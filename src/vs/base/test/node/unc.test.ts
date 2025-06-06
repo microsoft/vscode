@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { getUNCHost } from 'vs/base/node/unc';
+import { getUNCHost } from '../../node/unc.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('UNC', () => {
 
@@ -43,4 +44,6 @@ suite('UNC', () => {
 		strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\a'), 'localhost');
 		strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\a'), 'localhost');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

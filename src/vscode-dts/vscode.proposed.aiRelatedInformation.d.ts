@@ -14,7 +14,7 @@ declare module 'vscode' {
 		SettingInformation = 4
 	}
 
-	interface RelatedInformationBaseResult {
+	export interface RelatedInformationBaseResult {
 		type: RelatedInformationType;
 		weight: number;
 	}

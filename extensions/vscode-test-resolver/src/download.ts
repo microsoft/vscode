@@ -36,33 +36,31 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 		https.get(requestOptions, res => {
 			if (res.statusCode !== 302) {
 				reject('Failed to get VS Code server archive location');
+				res.resume(); // read the rest of the response data and discard it
+				return;
 			}
 			const archiveUrl = res.headers.location;
 			if (!archiveUrl) {
 				reject('Failed to get VS Code server archive location');
+				res.resume(); // read the rest of the response data and discard it
 				return;
 			}
 
 			const archiveRequestOptions: https.RequestOptions = parseUrl(archiveUrl);
-			if (archiveUrl.endsWith('.zip')) {
-				const archivePath = path.resolve(destDir, `vscode-server-${commit}.zip`);
-				const outStream = fs.createWriteStream(archivePath);
-				outStream.on('close', () => {
-					resolve(archivePath);
+			const archivePath = path.resolve(destDir, `vscode-server-${commit}.${archiveUrl.endsWith('.zip') ? 'zip' : 'tgz'}`);
+			const outStream = fs.createWriteStream(archivePath);
+			outStream.on('finish', () => {
+				resolve(archivePath);
+			});
+			outStream.on('error', err => {
+				reject(err);
+			});
+			https.get(archiveRequestOptions, res => {
+				res.pipe(outStream);
+				res.on('error', err => {
+					reject(err);
 				});
-				https.get(archiveRequestOptions, res => {
-					res.pipe(outStream);
-				});
-			} else {
-				const zipPath = path.resolve(destDir, `vscode-server-${commit}.tgz`);
-				const outStream = fs.createWriteStream(zipPath);
-				https.get(archiveRequestOptions, res => {
-					res.pipe(outStream);
-				});
-				outStream.on('close', () => {
-					resolve(zipPath);
-				});
-			}
+			});
 		});
 	});
 }

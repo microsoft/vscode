@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
-import { capabilityContextKeys } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { InternalTestItem } from '../../common/testTypes.js';
+import { capabilityContextKeys } from '../../common/testProfileService.js';
+import { TestId } from '../../common/testId.js';
+import { TestingContextKeys } from '../../common/testingContextKeys.js';
 
 export const getTestItemContextOverlay = (test: InternalTestItem | undefined, capabilities: number): [string, unknown][] => {
 	if (!test) {

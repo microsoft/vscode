@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IBaseCellEditorOptions, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { deepClone } from '../../../../../base/common/objects.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IBaseCellEditorOptions, INotebookEditorDelegate } from '../notebookBrowser.js';
+import { NotebookOptions } from '../notebookOptions.js';
 
 export class BaseCellEditorOptions extends Disposable implements IBaseCellEditorOptions {
 	private static fixedEditorOptions: IEditorOptions = {
@@ -32,7 +32,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		lineNumbersMinChars: 3
 	};
 
-	private _localDisposableStore = this._register(new DisposableStore());
+	private readonly _localDisposableStore = this._register(new DisposableStore());
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;
@@ -83,11 +83,13 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 
 	private _computeEditorOptions() {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const editorOptionsOverrideRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations ?? {};
-		const editorOptionsOverride: { [key: string]: any } = {};
-		for (const key in editorOptionsOverrideRaw) {
-			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];
+		const editorOptionsOverrideRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const editorOptionsOverride: Record<string, any> = {};
+		if (editorOptionsOverrideRaw) {
+			for (const key in editorOptionsOverrideRaw) {
+				if (key.indexOf('editor.') === 0) {
+					editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key as keyof typeof editorOptionsOverrideRaw];
+				}
 			}
 		}
 		const computed = Object.freeze({

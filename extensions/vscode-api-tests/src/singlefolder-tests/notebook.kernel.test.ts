@@ -91,14 +91,14 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	},
 	deserializeNotebook(_content, _token) {
 		const dto: vscode.NotebookData = {
-			metadata: { custom: { testMetadata: false } },
+			metadata: { testMetadata: false },
 			cells: [
 				{
 					value: 'test',
 					languageId: 'typescript',
 					kind: vscode.NotebookCellKind.Code,
 					outputs: [],
-					metadata: { custom: { testCellMetadata: 123 } },
+					metadata: { testCellMetadata: 123 },
 					executionSummary: { timing: { startTime: 10, endTime: 20 } }
 				},
 				{
@@ -115,7 +115,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 							})
 					],
 					executionSummary: { executionOrder: 5, success: true },
-					metadata: { custom: { testCellMetadata: 456 } }
+					metadata: { testCellMetadata: 456 }
 				}
 			]
 		};
@@ -276,38 +276,6 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
 			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my second output');
 		});
-	});
-
-	test('onDidChangeCellExecutionState is fired', async () => {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		const cell = editor.notebook.cellAt(0);
-
-		let eventCount = 0;
-		const def = new DeferredPromise<void>();
-		testDisposables.push(vscode.notebooks.onDidChangeNotebookCellExecutionState(e => {
-			try {
-				assert.strictEqual(e.cell.document.uri.toString(), cell.document.uri.toString(), 'event should be fired for the executing cell');
-
-				if (eventCount === 0) {
-					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
-				} else if (eventCount === 1) {
-					assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
-					assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
-				} else if (e.state === vscode.NotebookCellExecutionState.Idle) {
-					assert.strictEqual(cell.outputs.length, 1, 'should have an output');
-					def.complete();
-				}
-
-				eventCount++;
-			} catch (err) {
-				def.error(err);
-			}
-		}));
-
-		vscode.commands.executeCommand('notebook.cell.execute', { document: notebook.uri, ranges: [{ start: 0, end: 1 }] });
-
-		await def.p;
 	});
 
 	test('Output changes are applied once the promise resolves', async function () {

@@ -31,6 +31,14 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label-iconpath {
+	width: 16px;
+	height: 16px;
+	padding-left: 2px;
+	margin-top: 2px;
+	display: flex;
+}
+
 .monaco-icon-label-container.disabled {
 	color: var(--vscode-disabledForeground);
 }
@@ -51,13 +59,13 @@
 	opacity: 0.5;
 }
 
-.monaco-icon-label>.monaco-icon-label-container>.monaco-icon-suffix-container>.label-suffix {
-	opacity: .7;
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
+	color: var(--vscode-peekViewTitleDescription-foreground);
 	white-space: pre;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
-	opacity: .7;
+	color: var(--vscode-peekViewTitleDescription-foreground);
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
@@ -79,11 +87,6 @@
 .monaco-icon-label.deprecated {
 	text-decoration: line-through;
 	opacity: 0.66;
-}
-
-/* make sure apply italic font style to decorations as well */
-.monaco-icon-label.italic::after {
-	font-style: italic;
 }
 
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,

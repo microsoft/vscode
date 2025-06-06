@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUserDataProfilesService, reviveProfile } from '../../userDataProfile/common/userDataProfile.js';
 import {
 	IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError, IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, IUserDataSyncService,
 	SyncResource, SyncStatus, UserDataSyncError
-} from 'vs/platform/userDataSync/common/userDataSync';
+} from './userDataSync.js';
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
 
@@ -25,7 +25,7 @@ function reviewSyncResourceHandle(syncResourceHandle: ISyncResourceHandle): ISyn
 	return { created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) };
 }
 
-export class UserDataSyncChannel implements IServerChannel {
+export class UserDataSyncServiceChannel implements IServerChannel {
 
 	private readonly manualSyncTasks = new Map<string, IUserDataManualSyncTask>();
 	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
@@ -51,7 +51,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'manualSync/onSynchronizeResources': return this.onManualSynchronizeResources.event;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[UserDataSyncServiceChannel] Event not found: ${event}`);
 	}
 
 	async call(context: any, command: string, args?: any): Promise<any> {
@@ -119,7 +119,7 @@ export class UserDataSyncChannel implements IServerChannel {
 
 }
 
-export class UserDataSyncChannelClient extends Disposable implements IUserDataSyncService {
+export class UserDataSyncServiceChannelClient extends Disposable implements IUserDataSyncService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -291,6 +291,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IUserDataManualS
 
 	override dispose(): void {
 		this.channel.call('dispose');
+		super.dispose();
 	}
 
 }

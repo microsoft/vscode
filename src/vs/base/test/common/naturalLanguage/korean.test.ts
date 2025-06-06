@@ -6,7 +6,8 @@
 // allow-any-unicode-file
 
 import { strictEqual } from 'assert';
-import { getKoreanAltChars } from 'vs/base/common/naturalLanguage/korean';
+import { getKoreanAltChars } from '../../../common/naturalLanguage/korean.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 
 function getKoreanAltCharsForString(text: string): string {
 	let result = '';
@@ -22,6 +23,8 @@ function getKoreanAltCharsForString(text: string): string {
 }
 
 suite('Korean', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('getKoreanAltChars', () => {
 		test('Modern initial consonants', () => {
 			const cases = new Map([

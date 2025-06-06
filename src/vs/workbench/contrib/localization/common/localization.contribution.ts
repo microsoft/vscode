@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/common/localizationsActions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from './localizationsActions.js';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 
 export class BaseLocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor() {
@@ -70,3 +74,52 @@ export class BaseLocalizationWorkbenchContribution extends Disposable implements
 		});
 	}
 }
+
+class LocalizationsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.localizations;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const localizations = manifest.contributes?.localizations || [];
+		if (!localizations.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('language id', "Language ID"),
+			localize('localizations language name', "Language Name"),
+			localize('localizations localized language name', "Language Name (Localized)"),
+		];
+
+		const rows: IRowData[][] = localizations
+			.sort((a, b) => a.languageId.localeCompare(b.languageId))
+			.map(localization => {
+				return [
+					localization.languageId,
+					localization.languageName ?? '',
+					localization.localizedLanguageName ?? ''
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'localizations',
+	label: localize('localizations', "Langauage Packs"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(LocalizationsDataRenderer),
+});

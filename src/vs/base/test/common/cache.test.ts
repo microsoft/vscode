@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Cache } from 'vs/base/common/cache';
+import assert from 'assert';
+import { timeout } from '../../common/async.js';
+import { Cache } from '../../common/cache.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Cache', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple value', () => {
 		let counter = 0;

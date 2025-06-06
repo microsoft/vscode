@@ -3,33 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Schemas } from 'vs/base/common/network';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import * as nls from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from '../../../services/remote/common/remoteAgentService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchContributionsExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from '../../../services/dialogs/browser/simpleFileDialog.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IContextKeyService, RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IRemoteExplorerService, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from '../../../services/remote/common/remoteExplorerService.js';
+import { Tunnel, TunnelCloseReason } from '../../../services/remote/common/tunnelModel.js';
+import { localize } from '../../../../nls.js';
+import { RemoteNameContext } from '../../../common/contextkeys.js';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	constructor(
@@ -65,27 +71,32 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	}
 }
 
-class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
+class RemoteExtensionHostEnvironmentUpdater extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
 		@IExtensionService extensionService: IExtensionService
 	) {
+		super();
+
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.onDidStateChange(async e => {
+			this._register(connection.onDidStateChange(async e => {
 				if (e.type === PersistentConnectionEventType.ConnectionGain) {
 					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
 					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
 						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
 					}
 				}
-			});
+			}));
 		}
 	}
 }
 
 class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteTelemetryEnablementUpdater';
+
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -108,6 +119,9 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteEmptyWorkbenchPresentation';
+
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -145,6 +159,8 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
  */
 class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.wslContextKeyInitializer';
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@INativeHostService nativeHostService: INativeHostService,
@@ -178,10 +194,10 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Ready);
+registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchPhase.BlockRestore);
 if (isWindows) {
-	workbenchContributionsRegistry.registerWorkbenchContribution(WSLContextKeyInitializer, LifecyclePhase.Ready);
+	registerWorkbenchContribution2(WSLContextKeyInitializer.ID, WSLContextKeyInitializer, WorkbenchPhase.BlockRestore);
 }
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
@@ -233,4 +249,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: RemoteFileDialogContext,
 	metadata: { description: SaveLocalFileCommand.LABEL, args: [] },
 	handler: SaveLocalFileCommand.handler()
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.remote.action.closeUnusedPorts',
+			title: localize('remote.actions.closeUnusedPorts', 'Close Unused Forwarded Ports'),
+			category: localize('remote.category', 'Remote'),
+			menu: [{
+				id: MenuId.CommandPalette
+			}],
+			precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${PORT_AUTO_SOURCE_SETTING}`, PORT_AUTO_SOURCE_SETTING_OUTPUT), RemoteNameContext)
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const remoteExplorerService = accessor.get(IRemoteExplorerService);
+		const ports: Tunnel[] = [];
+		// collect all forwarded ports and filter out those who do not have a process running
+		const forwarded = remoteExplorerService.tunnelModel.forwarded;
+		for (const [_, tunnel] of forwarded) {
+			if (tunnel.hasRunningProcess === false) {
+				ports.push(tunnel);
+			}
+		}
+
+		// Close the collected unused ports
+		if (ports.length) {
+			for (const port of ports) {
+				await remoteExplorerService.close({
+					host: port.remoteHost,
+					port: port.remotePort
+				}, TunnelCloseReason.User);
+			}
+		}
+	}
 });

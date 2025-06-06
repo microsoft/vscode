@@ -58,6 +58,7 @@ pub async fn acquire_singleton(lock_file: &Path) -> Result<SingletonConnection, 
 		.read(true)
 		.write(true)
 		.create(true)
+		.truncate(false)
 		.open(lock_file)
 		.map_err(CodeError::SingletonLockfileOpenFailed)?;
 

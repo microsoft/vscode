@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
-import * as workerpool from 'workerpool';
+import ts from 'typescript';
+import workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
 
-let service: ts.LanguageService | undefined;// = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
+let service: ts.LanguageService | undefined;
 
 function findRenameLocations(
 	projectPath: string,
@@ -18,7 +18,9 @@ function findRenameLocations(
 		service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	return service.findRenameLocations(fileName, position, false, false, true) ?? [];
+	return service.findRenameLocations(fileName, position, false, false, {
+		providePrefixAndSuffixTextForRename: true,
+	}) ?? [];
 }
 
 workerpool.worker({

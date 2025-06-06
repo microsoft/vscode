@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ITextFileService, snapshotToString, TextFileOperationError, TextFileOperationResult, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { join, basename } from 'vs/base/common/path';
-import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
-import { isWindows } from 'vs/base/common/platform';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { ITextFileService, snapshotToString, TextFileOperationError, TextFileOperationResult, stringToSnapshot } from '../../common/textfiles.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { join, basename } from '../../../../../base/common/path.js';
+import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from '../../common/encoding.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { ITextSnapshot, DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { createTextBufferFactoryFromStream } from '../../../../../editor/common/model/textModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 export interface Params {
 	setup(): Promise<{
@@ -375,7 +375,7 @@ export default function createSuite(params: Params) {
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 
-		await service.write(resource, 'Hello World', { encoding: detectedEncoding! });
+		await service.write(resource, 'Hello World', { encoding: detectedEncoding });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
@@ -592,6 +592,21 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.encoding, 'windows1252');
 	});
 
+	test('readStream - autoguessEncoding (candidateGuessEncodings)', async () => {
+		// This file is determined to be Windows-1252 unless candidateDetectEncoding is set.
+		const resource = URI.file(join(testDir, 'some.shiftjis.1.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true, candidateGuessEncodings: ['utf-8', 'shiftjis', 'euc-jp'] });
+		assert.strictEqual(result.encoding, 'shiftjis');
+	});
+
+	test('readStream - autoguessEncoding (candidateGuessEncodings is Empty)', async () => {
+		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
+
+		const result = await service.readStream(resource, { autoGuessEncoding: true, candidateGuessEncodings: [] });
+		assert.strictEqual(result.encoding, 'windows1252');
+	});
+
 	test('readStream - FILE_IS_BINARY', async () => {
 		const resource = URI.file(join(testDir, 'binary.txt'));
 
@@ -603,7 +618,7 @@ export default function createSuite(params: Params) {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assert.strictEqual(error.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.strictEqual(result.name, 'small.txt');
@@ -620,7 +635,7 @@ export default function createSuite(params: Params) {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assert.strictEqual(error.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.strictEqual(result.name, 'small.txt');
