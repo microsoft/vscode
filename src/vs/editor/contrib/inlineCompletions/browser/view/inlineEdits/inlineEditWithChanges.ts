@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleLineEdit } from '../../../../../common/core/edits/lineEdit.js';
+import { LineReplacement } from '../../../../../common/core/edits/lineEdit.js';
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
@@ -13,7 +13,7 @@ import { InlineSuggestionItem } from '../../model/inlineSuggestionItem.js';
 
 export class InlineEditWithChanges {
 	public get lineEdit() {
-		return SingleLineEdit.fromSingleTextEdit(this.edit.toReplacement(this.originalText), this.originalText);
+		return LineReplacement.fromSingleTextEdit(this.edit.toReplacement(this.originalText), this.originalText);
 	}
 
 	public get originalLineRange() { return this.lineEdit.lineRange; }
