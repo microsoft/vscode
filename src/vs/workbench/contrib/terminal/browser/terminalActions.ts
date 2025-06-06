@@ -135,7 +135,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 		if (!text) {
 			text = await quickInputService.input({
 				value: '',
-				placeHolder: 'Enter sequence to send (supports \\n, \\r, \\x{AB})',
+				placeHolder: 'Enter sequence to send (supports \\n, \\r, \\xAB)',
 				prompt: localize('workbench.action.terminal.sendSequence.prompt', "Enter sequence to send to the terminal"),
 			});
 			if (!text) {
