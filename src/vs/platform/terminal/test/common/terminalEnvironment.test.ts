@@ -56,44 +56,44 @@ suite('terminalEnvironment', () => {
 
 	suite('escapeNonWindowsPath', () => {
 		test('should escape for bash/sh/zsh shells', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Bash), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Bash), "'/foo/bar'\\''baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Bash), "'/foo/bar\"baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Bash), "$'/foo/bar\\'baz\"qux'");
-			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Sh), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Sh), "'/foo/bar'\\''baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Zsh), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Zsh), "'/foo/bar'\\''baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Bash), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Bash), '\'/foo/bar\'\\\'\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Bash), '\'/foo/bar"baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Bash), '$\'/foo/bar\\\'baz"qux\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Sh), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Sh), '\'/foo/bar\'\\\'\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Zsh), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Zsh), '\'/foo/bar\'\\\'\'baz\'');
 		});
 
 		test('should escape for git bash', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar', WindowsShellType.GitBash), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', WindowsShellType.GitBash), "'/foo/bar'\\''baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar"baz', WindowsShellType.GitBash), "'/foo/bar\"baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar', WindowsShellType.GitBash), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', WindowsShellType.GitBash), '\'/foo/bar\'\\\'\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar"baz', WindowsShellType.GitBash), '\'/foo/bar"baz\'');
 		});
 
 		test('should escape for fish shell', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Fish), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Fish), "'/foo/bar\\'baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Fish), "'/foo/bar\"baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Fish), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Fish), '\'/foo/bar\\\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Fish), '\'/foo/bar"baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Fish), '"/foo/bar\'baz\\"qux"');
 		});
 
 		test('should escape for PowerShell', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar', GeneralShellType.PowerShell), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), "'/foo/bar''baz'");
-			strictEqual(escapeNonWindowsPath('/foo/bar"baz', GeneralShellType.PowerShell), "'/foo/bar\"baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar', GeneralShellType.PowerShell), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), '\'/foo/bar\'\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar"baz', GeneralShellType.PowerShell), '\'/foo/bar"baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', GeneralShellType.PowerShell), '"/foo/bar\'baz`"qux"');
 		});
 
 		test('should default to POSIX escaping for unknown shells', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar'), "'/foo/bar'");
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), "'/foo/bar'\\''baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar'), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\'\\\'\'baz\'');
 		});
 
 		test('should remove dangerous characters', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), "'/foo/bar(echo evil)'");
-			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), "'/foo/barwhoami'");
+			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
 		});
 	});
 });
