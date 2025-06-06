@@ -196,7 +196,6 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 }
 
 function getPrefix(commandLine: string, cursorPosition: number, shellType: TerminalShellType | undefined): string {
-	// Use resetChars imported from tokens.ts
 
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
