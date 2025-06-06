@@ -469,6 +469,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite();
 	}
 
+	sendSignal(signal: string): void {
+		if (this._store.isDisposed || !this._ptyProcess) {
+			return;
+		}
+		this._ptyProcess.kill(signal);
+	}
+
 	async processBinary(data: string): Promise<void> {
 		this.input(data, true);
 	}
