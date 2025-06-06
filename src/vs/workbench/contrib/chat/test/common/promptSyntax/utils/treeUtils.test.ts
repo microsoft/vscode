@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { CompositeToken } from '../../../../../../../editor/common/codecs/compositeToken.js';
+import { BaseToken } from '../../../../common/promptSyntax/codecs/base/baseToken.js';
+import { CompositeToken } from '../../../../common/promptSyntax/codecs/base/compositeToken.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { curry, difference, flatten, forEach, map, TTree } from '../../../../common/promptSyntax/utils/treeUtils.js';
-import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
 
 suite('tree utilities', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

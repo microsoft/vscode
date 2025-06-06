@@ -5,7 +5,7 @@
 
 import { IPromptsService, TSharedPrompt } from '../../../service/types.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
-import { ObservableDisposable } from '../../../../../../../../base/common/observableDisposable.js';
+import { ObservableDisposable } from '../../../utils/observableDisposable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../../base/common/cancellation.js';
 
 /**

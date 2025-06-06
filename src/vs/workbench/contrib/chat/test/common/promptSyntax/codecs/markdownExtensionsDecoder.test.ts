@@ -7,20 +7,20 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
+import { Text } from '../../../../common/promptSyntax/codecs/base/textToken.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
-import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
-import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
-import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
+import { TestDecoder } from './base/utils/testDecoder.js';
+import { Word } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/word.js';
+import { NewLine } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/newLine.js';
 import { type TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
-import { TestSimpleDecoder } from '../../../../../../../editor/test/common/codecs/simpleDecoder.test.js';
+import { TestSimpleDecoder } from './base/simpleDecoder.test.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
-import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
-import { Colon, Dash, DoubleQuote, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
-import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
+import { CarriageReturn } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/carriageReturn.js';
+import { FrontMatterHeader } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { Colon, Dash, DoubleQuote, Space, Tab, VerticalTab } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
+import { MarkdownExtensionsDecoder } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/markdownExtensionsDecoder.js';
+import { FrontMatterMarker, TMarkerToken } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
  * Type for supported end-of-line tokens.

@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
-import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
+import { ObservableDisposable } from '../../common/promptSyntax/utils/observableDisposable.js';
 import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
