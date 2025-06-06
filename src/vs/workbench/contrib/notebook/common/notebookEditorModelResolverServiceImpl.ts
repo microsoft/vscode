@@ -17,7 +17,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from '../../../services/workingCopy/common/fileWorkingCopyManager.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { NotebookProviderInfo } from './notebookProvider.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileReadLimits } from '../../../../platform/files/common/files.js';
@@ -188,7 +188,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	}
 
 	private createUntitledUri(notebookType: string) {
-		const info = this._notebookService.getContributedNotebookType(assertIsDefined(notebookType));
+		const info = this._notebookService.getContributedNotebookType(assertReturnsDefined(notebookType));
 		if (!info) {
 			throw new Error('UNKNOWN notebook type: ' + notebookType);
 		}

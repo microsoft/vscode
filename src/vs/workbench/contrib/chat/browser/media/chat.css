@@ -1947,7 +1947,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		box-shadow: none;
 	}
 
-	.interactive-request .header.header-disabled {
+	.interactive-request .header.header-disabled,
+	.request-hover.has-no-actions {
 		display: none !important;
 	}
 	.request-hover {
@@ -1973,12 +1974,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 3px 3px;
 	}
 
-	.request-hover.has-no-actions {
-		display: none !important;
-	}
-
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 		overflow: visible !important;
+	}
+
+	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.monaco-list-row.focused.request {
+		outline: none !important;
 	}
 
 	div[data-index="0"] .monaco-tl-contents {
@@ -1990,7 +1991,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			top: 0px;
 		}
 	}
-
 
 	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
 		outline: none !important;

@@ -21,7 +21,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { TPromptsStorage } from '../service/types.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 
 /**
  * Utility class to locate prompt files.
@@ -57,18 +57,21 @@ export class PromptFilesLocator extends Disposable {
 		return files.filter(file => getPromptFileType(file) === type);
 	}
 
-	public getFilesUpdatedEvent(type: PromptsType): Event<void> {
-		const eventEmitter = this._register(new Emitter<void>());
+	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
+		const disoposables = new DisposableStore();
+		const eventEmitter = disoposables.add(new Emitter<void>());
 		const key = getPromptFileLocationsConfigKey(type);
+		const userDataFolder = this.userDataService.currentProfile.promptsHome;
+
 		let parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
-		this._register(this.configService.onDidChangeConfiguration(e => {
+		disoposables.add(this.configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(key)) {
 				parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
 				eventEmitter.fire();
 			}
 		}));
-		this._register(this.fileService.onDidFilesChange(e => {
-			if (e.affects(this.userDataService.currentProfile.promptsHome)) {
+		disoposables.add(this.fileService.onDidFilesChange(e => {
+			if (e.contains(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
@@ -77,7 +80,8 @@ export class PromptFilesLocator extends Disposable {
 				return;
 			}
 		}));
-		return eventEmitter.event;
+		disoposables.add(this.fileService.watch(userDataFolder));
+		return { event: eventEmitter.event, dispose: () => disoposables.dispose() };
 	}
 
 	/**

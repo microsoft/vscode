@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { assertIsDefined } from '../../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../../base/common/types.js';
 import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
 import { diffDeleteDecoration, diffRemoveIcon } from '../../registrations.contribution.js';
@@ -239,7 +239,7 @@ export class DiffEditorViewZones extends Disposable {
 						let zoneId: string | undefined = undefined;
 						alignmentViewZonesDisposables.add(
 							new InlineDiffDeletedCodeMargin(
-								() => assertIsDefined(zoneId),
+								() => assertReturnsDefined(zoneId),
 								marginDomNode,
 								this._editors.modified,
 								a.diff,

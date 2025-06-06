@@ -17,6 +17,7 @@ export enum Selector {
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
+	Name = '.label-name',
 	Description = '.label-description',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
@@ -40,7 +41,7 @@ export enum TerminalCommandIdWithValue {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
+	SendSequence = 'workbench.action.terminal.sendSequence'
 }
 
 /**
@@ -155,7 +156,7 @@ export class Terminal {
 	/**
 	 * Creates an empty terminal by opening a regular terminal and resetting its state such that it
 	 * essentially acts like an Pseudoterminal extension API-based terminal. This can then be paired
-	 * with `TerminalCommandIdWithValue.WriteDataToTerminal` to make more reliable tests.
+	 * with `TerminalCommandIdWithValue.SendSequence` to make more reliable tests.
 	 */
 	async createEmptyTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.createTerminal(expectedLocation);
@@ -166,11 +167,11 @@ export class Terminal {
 		await this.waitForTerminalText(buffer => buffer.some(line => line.startsWith('initialized')));
 
 		// Erase all content and reset cursor to top
-		await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+		await this.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${csi('2J')}${csi('H')}`);
 
 		// Force windows pty mode off; assume all sequences are rendered in correct position
 		if (process.platform === 'win32') {
-			await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
+			await this.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${vsc('P;IsWindows=False')}`);
 		}
 	}
 
@@ -212,7 +213,7 @@ export class Terminal {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
-			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Name}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
 			const description: IElement | undefined = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, () => true);
 
 			const label: TerminalLabel = {
@@ -237,7 +238,7 @@ export class Terminal {
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string, description?: string): Promise<void> {
 		if (listIndex) {
 			if (nameRegex) {
-				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
+				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} ${Selector.Name}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
 				if (description) {
 					await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} ${Selector.Description}`, e => !!e && e.textContent === description);
 				}

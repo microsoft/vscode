@@ -121,20 +121,49 @@ export async function getCwdForSplit(
 }
 
 export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, args: unknown) => {
-	const instance = accessor.get(ITerminalService).activeInstance;
-	if (instance) {
-		const text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
+	const historyService = accessor.get(IHistoryService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const terminalService = accessor.get(ITerminalService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+
+	const instance = terminalService.activeInstance || await terminalService.getActiveOrCreateInstance();
+	if (!instance) {
+		return;
+	}
+
+	let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
+
+	// If no text provided, prompt user for input
+	if (!text) {
+		text = await quickInputService.input({
+			value: '',
+			placeHolder: 'Enter sequence to send (supports \\n, \\r, \\x escape sequences)',
+			prompt: localize('workbench.action.terminal.sendSequence.prompt', "Enter sequence to send to the terminal"),
+		});
 		if (!text) {
 			return;
 		}
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
-		instance.sendText(resolvedText, false);
 	}
+
+	// Process escape sequences
+	let processedText = text
+		.replace(/\\n/g, '\n')
+		.replace(/\\r/g, '\r');
+
+	// Process hex escape sequences (\xNN)
+	while (true) {
+		const match = processedText.match(/\\x([0-9a-fA-F]{2})/);
+		if (match === null || match.index === undefined || match.length < 2) {
+			break;
+		}
+		processedText = processedText.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + processedText.slice(match.index + 4);
+	}
+
+	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
+	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+	const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, processedText);
+	instance.sendText(resolvedText, false);
 };
 
 export class TerminalLaunchHelpAction extends Action {
@@ -957,14 +986,13 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.SendSequence,
 		title: terminalStrings.sendSequence,
-		f1: false,
+		f1: true,
 		metadata: {
 			description: terminalStrings.sendSequence.value,
 			args: [{
 				name: 'args',
 				schema: {
 					type: 'object',
-					required: ['text'],
 					properties: {
 						text: {
 							description: localize('sendSequence', "The sequence of text to send to the terminal"),
