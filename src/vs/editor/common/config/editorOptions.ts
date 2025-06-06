@@ -295,6 +295,10 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Scroll editor on middle click
+	 */
+	scrollOnMiddleClick?: boolean;
+	/**
 	 * Enable that scrolling can go beyond the last column by a number of columns.
 	 * Defaults to 5.
 	 */
@@ -5647,7 +5651,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveExperimentalEditContextEnabled,
+	scrollOnMiddleClick,
 }
 
 export const EditorOptions = {
@@ -6242,6 +6247,10 @@ export const EditorOptions = {
 	scrollBeyondLastLine: register(new EditorBooleanOption(
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
+	)),
+	scrollOnMiddleClick: register(new EditorBooleanOption(
+		EditorOption.scrollOnMiddleClick, 'scrollOnMiddleClick', false,
+		{ description: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed.") }
 	)),
 	scrollPredominantAxis: register(new EditorBooleanOption(
 		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
