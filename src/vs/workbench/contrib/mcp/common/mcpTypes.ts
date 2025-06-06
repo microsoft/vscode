@@ -330,7 +330,7 @@ export interface IMcpPrompt {
 	readonly arguments: readonly MCP.PromptArgument[];
 
 	/** Gets string completions for the given prompt part. */
-	complete(argument: string, prefix: string, token: CancellationToken): Promise<string[]>;
+	complete(argument: string, prefix: string, alreadyResolved: Record<string, string>, token: CancellationToken): Promise<string[]>;
 
 	resolve(args: Record<string, string | undefined>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
