@@ -23,7 +23,6 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
@@ -45,11 +44,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly fileLocator: PromptFilesLocator;
 
-	/**
-	 * Function used by the `@logTime` decorator to log
-	 * execution time of some of the decorated methods.
-	 */
-	public logTime: TLogFunction;
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -66,8 +60,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
-
-		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -200,7 +192,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	@logTime()
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = (await this.listPromptFiles(PromptsType.mode, CancellationToken.None))
 			.map(modeFile => modeFile.uri);
@@ -241,7 +232,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadataList;
 	}
 
-	@logTime()
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
@@ -307,7 +297,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metaDatas[0];
 	}
 
-	@logTime()
 	public async getAllMetadata(
 		promptUris: readonly URI[],
 	): Promise<IMetadata[]> {
