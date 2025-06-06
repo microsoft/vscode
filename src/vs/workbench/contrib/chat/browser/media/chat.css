@@ -1184,6 +1184,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context-attachment .label-suffix {
 	color: var(--vscode-peekViewTitleDescription-foreground);
+	opacity: 1;
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
