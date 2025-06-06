@@ -13,8 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 suite('Prompt Constants', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• getCleanPromptName', () => {
-		test('• returns a clean prompt name', () => {
+	suite('getCleanPromptName', () => {
+		test('returns a clean prompt name', () => {
 			assert.strictEqual(
 				getCleanPromptName(URI.file('/path/to/my-prompt.prompt.md')),
 				'my-prompt',
@@ -53,8 +53,8 @@ suite('Prompt Constants', () => {
 		});
 	});
 
-	suite('• isPromptOrInstructionsFile', () => {
-		test('• returns `true` for prompt files', () => {
+	suite('isPromptOrInstructionsFile', () => {
+		test('returns `true` for prompt files', () => {
 			assert(
 				isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md')),
 			);
@@ -72,7 +72,7 @@ suite('Prompt Constants', () => {
 			);
 		});
 
-		test('• returns `false` for non-prompt files', () => {
+		test('returns `false` for non-prompt files', () => {
 			assert(
 				!isPromptOrInstructionsFile(URI.file('/path/to/my-prompt.prompt.md1')),
 			);

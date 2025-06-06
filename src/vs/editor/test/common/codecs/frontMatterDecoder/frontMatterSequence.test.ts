@@ -13,7 +13,7 @@ import { FrontMatterSequence } from '../../../../common/codecs/frontMatterCodec/
 suite('FrontMatterSequence', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• extends \'FrontMatterValueToken\'', () => {
+	test('extends \'FrontMatterValueToken\'', () => {
 		const sequence = new FrontMatterSequence([
 			new Word(
 				new Range(1, 1, 1, 5),
@@ -27,8 +27,8 @@ suite('FrontMatterSequence', () => {
 		);
 	});
 
-	suite('• trimEnd()', () => {
-		test('• trims space tokens at the end of the sequence', () => {
+	suite('trimEnd()', () => {
+		test('trims space tokens at the end of the sequence', () => {
 			const sequence = new FrontMatterSequence([
 				new Word(new Range(4, 18, 4, 18 + 10), 'some-value'),
 				new Space(new Range(4, 28, 4, 29)),
@@ -59,7 +59,7 @@ suite('FrontMatterSequence', () => {
 			);
 		});
 
-		test('• remains functional if only spacing tokens were present', () => {
+		test('remains functional if only spacing tokens were present', () => {
 			const sequence = new FrontMatterSequence([
 				new Space(new Range(4, 28, 4, 29)),
 				new Space(new Range(4, 29, 4, 30)),
@@ -98,7 +98,7 @@ suite('FrontMatterSequence', () => {
 		});
 	});
 
-	test('• throws if no tokens provided', () => {
+	test('throws if no tokens provided', () => {
 		assert.throws(() => {
 			new FrontMatterSequence([]);
 		});

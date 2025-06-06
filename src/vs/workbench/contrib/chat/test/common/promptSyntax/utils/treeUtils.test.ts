@@ -15,7 +15,7 @@ import { ExclamationMark, Space, Tab, VerticalTab, Word } from '../../../../../.
 suite('tree utilities', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• flatten', () => {
+	test('flatten', () => {
 		const tree = {
 			id: '1',
 			children: [
@@ -61,8 +61,8 @@ suite('tree utilities', () => {
 		assert.deepStrictEqual(flatten({}), [{}]);
 	});
 
-	suite('• forEach', () => {
-		test('• iterates though all nodes', () => {
+	suite('forEach', () => {
+		test('iterates though all nodes', () => {
 			const tree = {
 				id: '1',
 				children: [
@@ -120,7 +120,7 @@ suite('tree utilities', () => {
 			);
 		});
 
-		test('• can be stopped prematurely', () => {
+		test('can be stopped prematurely', () => {
 			const tree = {
 				id: '1',
 				children: [
@@ -185,8 +185,8 @@ suite('tree utilities', () => {
 		});
 	});
 
-	suite('• map', () => {
-		test('• maps a tree', () => {
+	suite('map', () => {
+		test('maps a tree', () => {
 			interface ITree {
 				id: string;
 				children?: ITree[];
@@ -295,7 +295,7 @@ suite('tree utilities', () => {
 			);
 		});
 
-		test('• callback can control resulting children', () => {
+		test('callback can control resulting children', () => {
 			interface ITree {
 				id: string;
 				children?: ITree[];
@@ -457,7 +457,7 @@ suite('tree utilities', () => {
 		});
 	});
 
-	test('• curry', () => {
+	test('curry', () => {
 		const originalFunction = (a: number, b: number, c: number) => {
 			return a + b + c;
 		};
@@ -484,7 +484,7 @@ suite('tree utilities', () => {
 		}
 	});
 
-	suite('• difference', () => {
+	suite('difference', () => {
 		class TestCompositeToken extends CompositeToken<TTree<BaseToken[]>> {
 			public override toString(): string {
 				return `CompositeToken:\n${BaseToken.render(this.children, '\n')})`;
@@ -492,7 +492,7 @@ suite('tree utilities', () => {
 		}
 
 
-		test('• tree roots differ (no children)', () => {
+		test('tree roots differ (no children)', () => {
 			const tree1 = new Word(new Range(1, 1, 1, 1 + 5), 'hello');
 			const tree2 = new Word(new Range(1, 1, 1, 1 + 5), 'halou');
 
@@ -507,7 +507,7 @@ suite('tree utilities', () => {
 			);
 		});
 
-		test('• returns tree difference (single children level)', () => {
+		test('returns tree difference (single children level)', () => {
 			const tree1 = asTreeNode<TTree<BaseToken>>(
 				new Word(new Range(1, 1, 1, 1 + 5), 'hello'),
 				[
@@ -548,7 +548,7 @@ suite('tree utilities', () => {
 			);
 		});
 
-		test('• returns tree difference (multiple children levels)', () => {
+		test('returns tree difference (multiple children levels)', () => {
 			const compositeToken1 = new TestCompositeToken([
 				new VerticalTab(new Range(1, 13, 1, 14)),
 				new Space(new Range(1, 14, 1, 15)),
@@ -610,7 +610,7 @@ suite('tree utilities', () => {
 			);
 		});
 
-		test('• returns null for equal trees', () => {
+		test('returns null for equal trees', () => {
 			const tree1 = new TestCompositeToken([
 				asTreeNode(new Word(
 					new Range(1, 1, 1, 1 + 5),

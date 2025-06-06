@@ -1290,6 +1290,11 @@ export interface IFindEditorOptions {
 	 * as matching, even if the editor is opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY;
+
+	/**
+	 * The order in which to consider editors for finding.
+	 */
+	order?: EditorsOrder;
 }
 
 export interface IMatchEditorOptions {

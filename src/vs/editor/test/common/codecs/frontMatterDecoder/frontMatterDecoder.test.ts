@@ -33,7 +33,7 @@ export class TestFrontMatterDecoder extends TestDecoder<TSimpleDecoderToken, Fro
 suite('FrontMatterDecoder', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• produces expected tokens', async () => {
+	test('produces expected tokens', async () => {
 		const test = disposables.add(new TestFrontMatterDecoder());
 
 		await test.run(
@@ -115,9 +115,9 @@ suite('FrontMatterDecoder', () => {
 			]);
 	});
 
-	suite('• record', () => {
-		suite('• values', () => {
-			test('• unquoted string', async () => {
+	suite('record', () => {
+		suite('values', () => {
+			test('unquoted string', async () => {
 				const test = disposables.add(new TestFrontMatterDecoder());
 
 				await test.run(
@@ -164,7 +164,7 @@ suite('FrontMatterDecoder', () => {
 					]);
 			});
 
-			test('• quoted string', async () => {
+			test('quoted string', async () => {
 				const test = disposables.add(new TestFrontMatterDecoder());
 
 				await test.run(
@@ -219,7 +219,7 @@ suite('FrontMatterDecoder', () => {
 					]);
 			});
 
-			test('• boolean', async () => {
+			test('boolean', async () => {
 				const test = disposables.add(new TestFrontMatterDecoder());
 
 				await test.run(
@@ -269,8 +269,8 @@ suite('FrontMatterDecoder', () => {
 					]);
 			});
 
-			suite('• array', () => {
-				test('• empty', async () => {
+			suite('array', () => {
+				test('empty', async () => {
 					const test = disposables.add(new TestFrontMatterDecoder());
 
 					await test.run(
@@ -314,7 +314,7 @@ suite('FrontMatterDecoder', () => {
 						]);
 				});
 
-				test('• mixed values', async () => {
+				test('mixed values', async () => {
 					const test = disposables.add(new TestFrontMatterDecoder());
 
 					await test.run(
@@ -358,7 +358,7 @@ suite('FrontMatterDecoder', () => {
 						]);
 				});
 
-				test('• redundant commas', async () => {
+				test('redundant commas', async () => {
 					const test = disposables.add(new TestFrontMatterDecoder());
 
 					await test.run(
@@ -405,7 +405,7 @@ suite('FrontMatterDecoder', () => {
 		});
 	});
 
-	test('• empty', async () => {
+	test('empty', async () => {
 		const test = disposables.add(
 			new TestFrontMatterDecoder(),
 		);

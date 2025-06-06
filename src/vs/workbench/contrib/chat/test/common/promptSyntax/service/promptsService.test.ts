@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -20,7 +19,8 @@ import { createTextModel } from '../../../../../../../editor/test/common/testTex
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { randomBoolean, waitRandom } from '../../../../../../../base/test/common/testUtils.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -133,8 +133,8 @@ suite('PromptsService', () => {
 		service = disposables.add(instaService.createInstance(PromptsService));
 	});
 
-	suite('• getParserFor', () => {
-		test('• provides cached parser instance', async () => {
+	suite('getParserFor', () => {
+		test('provides cached parser instance', async () => {
 			// both languages must yield the same result
 			const languageId = (randomBoolean())
 				? PROMPT_LANGUAGE_ID
@@ -190,7 +190,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Next, get parser for the same exact model and
@@ -223,7 +223,7 @@ suite('PromptsService', () => {
 			));
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			const parser2 = service.getSyntaxParserFor(model2);
 
@@ -306,7 +306,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Dispose the first parser, perform basic validations, and confirm
@@ -378,7 +378,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * This time dispose model of the second parser instead of
@@ -459,7 +459,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• auto-updated on model changes', async () => {
+		test('auto-updated on model changes', async () => {
 			const langId = 'bazLang';
 
 			const model = disposables.add(createTextModel(
@@ -527,7 +527,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• throws if a disposed model provided', async function () {
+		test('throws if a disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',
@@ -544,8 +544,8 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• getAllMetadata', () => {
-		test('• explicit', async function () {
+	suite('getAllMetadata', () => {
+		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
@@ -702,12 +702,12 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• findInstructionFilesFor', () => {
+	suite('findInstructionFilesFor', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('• finds correct instruction files', async () => {
+		test('finds correct instruction files', async () => {
 			const rootFolderName = 'finds-instruction-files';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -874,7 +874,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -886,7 +886,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• does not have duplicates', async () => {
+		test('does not have duplicates', async () => {
 			const rootFolderName = 'finds-instruction-files-without-duplicates';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1055,7 +1055,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

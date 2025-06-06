@@ -15,7 +15,6 @@ import { MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/a
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { EditorsOrder } from '../../../../common/editor.js';
 import { IDebugService } from '../../../debug/common/debug.js';
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { insertCell } from './cellOperations.js';
@@ -243,8 +242,11 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 		renderAllMarkdownCells(context);
 
 		const editorService = accessor.get(IEditorService);
-		const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
-			editor => editor.editor instanceof NotebookEditorInput && editor.editor.viewType === context.notebookEditor.textModel.viewType && editor.editor.resource.toString() === context.notebookEditor.textModel.uri.toString());
+		const editor = editorService.findEditors({
+			resource: context.notebookEditor.textModel.uri,
+			typeId: NotebookEditorInput.ID,
+			editorId: context.notebookEditor.textModel.viewType
+		}).at(0);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		if (editor) {

@@ -60,12 +60,12 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
-	opacity: .7;
+	color: var(--vscode-peekViewTitleDescription-foreground);
 	white-space: pre;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
-	opacity: .7;
+	color: var(--vscode-peekViewTitleDescription-foreground);
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */

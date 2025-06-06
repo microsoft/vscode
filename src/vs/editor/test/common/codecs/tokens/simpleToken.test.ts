@@ -11,8 +11,8 @@ import { SpacingToken, SimpleToken, Space, Tab, VerticalTab } from '../../../../
 suite('SimpleToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• SpacingToken', () => {
-		test('• extends \'SimpleToken\'', () => {
+	suite('SpacingToken', () => {
+		test('extends \'SimpleToken\'', () => {
 			class TestClass extends SpacingToken {
 				public override get text(): string {
 					throw new Error('Method not implemented.');
@@ -31,8 +31,8 @@ suite('SimpleToken', () => {
 		});
 	});
 
-	suite('• Space', () => {
-		test('• extends \'SpacingToken\'', () => {
+	suite('Space', () => {
+		test('extends \'SpacingToken\'', () => {
 			const token = new Space(new Range(1, 1, 1, 2));
 
 			assert(
@@ -42,8 +42,8 @@ suite('SimpleToken', () => {
 		});
 	});
 
-	suite('• Tab', () => {
-		test('• extends \'SpacingToken\'', () => {
+	suite('Tab', () => {
+		test('extends \'SpacingToken\'', () => {
 			const token = new Tab(new Range(1, 1, 1, 2));
 
 			assert(
@@ -53,8 +53,8 @@ suite('SimpleToken', () => {
 		});
 	});
 
-	suite('• VerticalTab', () => {
-		test('• extends \'SpacingToken\'', () => {
+	suite('VerticalTab', () => {
+		test('extends \'SpacingToken\'', () => {
 			const token = new VerticalTab(new Range(1, 1, 1, 2));
 
 			assert(

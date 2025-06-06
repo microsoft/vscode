@@ -13,8 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 suite('mockService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• mockObject', () => {
-		test('• overrides properties and functions', () => {
+	suite('mockObject', () => {
+		test('overrides properties and functions', () => {
 			interface ITestObject {
 				foo: string;
 				bar: string;
@@ -67,7 +67,7 @@ suite('mockService', () => {
 			});
 		});
 
-		test('• immutability of the overrides object', () => {
+		test('immutability of the overrides object', () => {
 			interface ITestObject {
 				foo: string;
 				bar: string;
@@ -101,8 +101,8 @@ suite('mockService', () => {
 		});
 	});
 
-	suite('• mockService', () => {
-		test('• overrides properties and functions', () => {
+	suite('mockService', () => {
+		test('overrides properties and functions', () => {
 			interface ITestService {
 				readonly _serviceBrand: undefined;
 				prop1: string;
@@ -156,7 +156,7 @@ suite('mockService', () => {
 			});
 		});
 
-		test('• immutability of the overrides object', () => {
+		test('immutability of the overrides object', () => {
 			interface ITestService {
 				readonly _serviceBrand: undefined;
 				foo: string;

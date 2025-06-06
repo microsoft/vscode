@@ -163,20 +163,6 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/workbench/api/common/extHostExtensionService.ts
-    {
-        target: '**/vs/workbench/api/common/extHostExtensionService.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to global
-            'global'
-        ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
-            '@types/node' // no node.js
-        ]
-    },
     // Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
     {
         target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
@@ -209,15 +195,6 @@ const RULES = [
             ...CORE_TYPES,
             'localStorage'
         ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            '@types/node' // no node.js
-        ]
-    },
-    // Browser (editor contrib)
-    {
-        target: '**/src/vs/editor/contrib/**',
-        allowedTypes: CORE_TYPES,
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
@@ -279,7 +256,7 @@ function checkFile(program, sourceFile, rule) {
         }
         if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
             const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-            console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
+            console.log(`[build/checker/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
             hasErrors = true;
             return;
         }
@@ -303,7 +280,7 @@ function checkFile(program, sourceFile, rule) {
                                 for (const disallowedDefinition of rule.disallowedDefinitions) {
                                     if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
                                         const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-                                        console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}) Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
+                                        console.log(`[build/checker/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}) Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
                                         hasErrors = true;
                                         return;
                                     }
