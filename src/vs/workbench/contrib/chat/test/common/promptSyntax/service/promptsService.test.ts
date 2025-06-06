@@ -19,7 +19,8 @@ import { createTextModel } from '../../../../../../../editor/test/common/testTex
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { randomBoolean, waitRandom } from '../../../../../../../base/test/common/testUtils.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -189,7 +190,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Next, get parser for the same exact model and
@@ -222,7 +223,7 @@ suite('PromptsService', () => {
 			));
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			const parser2 = service.getSyntaxParserFor(model2);
 
@@ -305,7 +306,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Dispose the first parser, perform basic validations, and confirm
@@ -377,7 +378,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * This time dispose model of the second parser instead of

@@ -5,7 +5,6 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { timeout } from '../../common/async.js';
-import { waitRandom } from './testUtils.js';
 import { randomInt } from '../../common/numbers.js';
 import { Disposable, IDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
@@ -63,7 +62,7 @@ suite('ObservableDisposable', () => {
 				'`onDispose` callback must not be called yet.',
 			);
 
-			await waitRandom(10);
+			await timeout(10);
 
 			assert(
 				onDisposeSpy.notCalled,
@@ -94,7 +93,7 @@ suite('ObservableDisposable', () => {
 
 			object.dispose();
 			object.dispose();
-			await waitRandom(10, 5);
+			await timeout(10);
 			object.dispose();
 
 			assert(
@@ -128,7 +127,7 @@ suite('ObservableDisposable', () => {
 				'`onDispose` callback must be called immediately.',
 			);
 
-			await waitRandom(10, 5);
+			await timeout(10);
 
 			disposables.add(object.onDispose(onDisposeSpy));
 
@@ -302,7 +301,7 @@ suite('ObservableDisposable', () => {
 				object.assertNotDisposed('Object must not be disposed.');
 			});
 
-			await waitRandom(10);
+			await timeout(10);
 
 			assert.doesNotThrow(() => {
 				object.assertNotDisposed('Object must not be disposed.');
@@ -316,7 +315,7 @@ suite('ObservableDisposable', () => {
 				object.assertNotDisposed('Object must not be disposed.');
 			});
 
-			await waitRandom(10);
+			await timeout(10);
 
 			assert.throws(() => {
 				object.assertNotDisposed('Object must not be disposed.');
@@ -336,7 +335,7 @@ suite('ObservableDisposable', () => {
 				);
 			});
 
-			await waitRandom(10);
+			await timeout(10);
 
 			assert.doesNotThrow(() => {
 				assertNotDisposed(
@@ -356,7 +355,7 @@ suite('ObservableDisposable', () => {
 				);
 			});
 
-			await waitRandom(10);
+			await timeout(10);
 
 			assert.throws(() => {
 				assertNotDisposed(

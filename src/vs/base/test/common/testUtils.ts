@@ -5,8 +5,6 @@
 
 import { assert } from '../../common/assert.js';
 import { isOneOf } from '../../common/types.js';
-import { randomInt } from '../../common/numbers.js';
-import { timeout } from '../../common/async.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -22,16 +20,6 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 		fn.call(this);
 	});
 }
-
-
-
-
-/**
- * Helper function that allows to await for a random amount of time.
- * @param maxMs The `maximum` amount of time to wait, in milliseconds.
- * @param minMs [`optional`] The `minimum` amount of time to wait, in milliseconds.
- */
-export const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => timeout(randomInt(maxMs, minMs));
 
 /**
  * (pseudo)Random boolean generator.
