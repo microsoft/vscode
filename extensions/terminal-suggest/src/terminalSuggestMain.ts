@@ -20,7 +20,7 @@ import { getBashGlobals } from './shell/bash';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
-import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars, shellTypeCommandSeparators, defaultShellTypeCommandSeparators } from './tokens';
+import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars } from './tokens';
 import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
@@ -126,7 +126,9 @@ export async function activate(context: vscode.ExtensionContext) {
 					terminal.shellIntegration?.cwd,
 					getEnvAsRecord(currentTerminalEnv),
 					terminal.name,
-					token
+					token,
+					undefined,
+					terminalShellType
 				),
 				createTimeoutPromise(300, undefined)
 			]);
@@ -248,6 +250,7 @@ export async function getCompletionItemsFromSpecs(
 	name: string,
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
+	terminalShellType: TerminalShellType | undefined = undefined
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
@@ -256,7 +259,7 @@ export async function getCompletionItemsFromSpecs(
 	let fileExtensions: string[] | undefined;
 
 	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
-	
+
 	// Make precedingText shell-aware by extracting text after the last command separator
 	const commandResetChars = terminalShellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(terminalShellType) ?? defaultShellTypeResetChars;
 	let lastSeparatorIndex = -1;
@@ -266,12 +269,12 @@ export async function getCompletionItemsFromSpecs(
 			lastSeparatorIndex = index + separator.length - 1;
 		}
 	}
-	
+
 	// Get the text after the last separator (or keep original if no separator found)
 	if (lastSeparatorIndex >= 0) {
 		precedingText = precedingText.slice(lastSeparatorIndex + 1).trimStart();
 	}
-	
+
 	if (isWindows) {
 		const spaceIndex = precedingText.indexOf(' ');
 		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
