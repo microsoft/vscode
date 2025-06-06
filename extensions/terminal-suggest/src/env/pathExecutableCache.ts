@@ -72,7 +72,7 @@ export class PathExecutableCache implements vscode.Disposable {
 
 		// Extract executables from PATH
 		const paths = pathValue.split(isWindows ? ';' : ':');
-		const pathSeparator = isWindows ? '\\' : '/';
+		const pathSeparator = (isWindows && shellType !== TerminalShellType.GitBash) ? '\\' : '/';
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
 		for (const path of paths) {
