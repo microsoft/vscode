@@ -680,20 +680,56 @@ class Extensions extends Disposable {
 			}
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
-		// This indicates that it was likely removed from the gallery
 		if (flagExtensionsMissingFromGallery) {
+			const extensionsToQuery = [];
 			for (const extension of this.local) {
+				// Extension is already paired with a gallery object
+				if (extension.gallery) {
+					continue;
+				}
+				// Already flagged as missing from gallery
+				if (extension.missingFromGallery) {
+					continue;
+				}
+				// A UUID indicates extension originated from gallery
 				if (!extension.identifier.uuid) {
 					continue;
 				}
+				// Extension is not present in the set we are concerned about
 				if (!flagExtensionsMissingFromGallery.some(f => areSameExtensions(f, extension.identifier))) {
 					continue;
 				}
-				const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
-				if (!gallery) {
-					extension.missingFromGallery = true;
+				extensionsToQuery.push(extension);
+			}
+			if (extensionsToQuery.length) {
+				const queryResult = await this.galleryService.getExtensions(extensionsToQuery.map(e => ({ ...e.identifier, version: e.version })), CancellationToken.None);
+				const queriedIds: string[] = [];
+				const missingIds: string[] = [];
+				for (const extension of extensionsToQuery) {
+					queriedIds.push(extension.identifier.id);
+					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
+					if (gallery) {
+						extension.gallery = gallery;
+					} else {
+						extension.missingFromGallery = true;
+						missingIds.push(extension.identifier.id);
+					}
 					this._onChange.fire({ extension });
 				}
+				type MissingFromGalleryClassification = {
+					owner: 'joshspicer';
+					comment: 'Report when installed extensions are no longer available in the gallery';
+					queriedIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions queried as potentially missing from gallery' };
+					missingIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions determined missing from gallery' };
+				};
+				type MissingFromGalleryEvent = {
+					readonly queriedIds: TelemetryTrustedValue<string>;
+					readonly missingIds: TelemetryTrustedValue<string>;
+				};
+				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', {
+					queriedIds: new TelemetryTrustedValue(queriedIds.join(';')),
+					missingIds: new TelemetryTrustedValue(missingIds.join(';'))
+				});
 			}
 		}
 	}
@@ -2647,27 +2683,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		const dependents: IExtension[] = [];
+		const dependents: ILocalExtension[] = [];
+		let extensionsFromAllProfiles: [ILocalExtension, URI][] | undefined;
 		for (const { extension } of extensionsToUninstall) {
-			for (const local of this.local) {
-				if (!local.local) {
-					continue;
+			const installedExtensions: [ILocalExtension, URI | undefined][] = [];
+			if (extension.isApplicationScoped && this.userDataProfilesService.profiles.length > 1) {
+				if (!extensionsFromAllProfiles) {
+					extensionsFromAllProfiles = [];
+					await Promise.allSettled(this.userDataProfilesService.profiles.map(async profile => {
+						const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource);
+						for (const local of installed) {
+							extensionsFromAllProfiles?.push([local, profile.extensionsResource]);
+						}
+					}));
 				}
+				installedExtensions.push(...extensionsFromAllProfiles);
+			} else {
+				for (const { local } of this.local) {
+					if (local) {
+						installedExtensions.push([local, undefined]);
+					}
+				}
+			}
+			for (const [local, profileLocation] of installedExtensions) {
 				if (areSameExtensions(local.identifier, extension.identifier)) {
 					continue;
 				}
-				if (local.dependencies.length === 0) {
+				if (!local.manifest.extensionDependencies || local.manifest.extensionDependencies.length === 0) {
 					continue;
 				}
 				if (extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier))) {
 					continue;
 				}
-				if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
+				if (dependents.some(d => d.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier)))) {
 					continue;
 				}
-				if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
+				if (local.manifest.extensionDependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
 					dependents.push(local);
-					extensionsToUninstall.push({ extension: local.local });
+					extensionsToUninstall.push({ extension: local, options: { profileLocation } });
 				}
 			}
 		}
@@ -2719,16 +2772,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return [];
 	}
 
-	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
+	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: ILocalExtension[]): string {
 		if (dependents.length === 1) {
-			return nls.localize('singleDependentUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' extension depends on this. Do you want to uninstall all these extensions?", extension.displayName, dependents[0].displayName);
+			return nls.localize('singleDependentUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' extension depends on this. Do you want to uninstall all these extensions?", extension.displayName, dependents[0].manifest.displayName);
 		}
 		if (dependents.length === 2) {
 			return nls.localize('twoDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' and '{2}' extensions depend on this. Do you want to uninstall all these extensions?",
-				extension.displayName, dependents[0].displayName, dependents[1].displayName);
+				extension.displayName, dependents[0].manifest.displayName, dependents[1].manifest.displayName);
 		}
 		return nls.localize('multipleDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to uninstall all these extensions?",
-			extension.displayName, dependents[0].displayName, dependents[1].displayName);
+			extension.displayName, dependents[0].manifest.displayName, dependents[1].manifest.displayName);
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {

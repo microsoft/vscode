@@ -173,17 +173,21 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Setup windows/linux system context menu so it only is allowed over the app icon
-		if ((isWindows || (isLinux && typeof electron.screen.screenToDipPoint === 'function') /* TODO@bpasero remove check */) && useCustomTitleStyle) {
+		if ((isWindows || isLinux) && useCustomTitleStyle) {
 			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))(e => {
 				const [x, y] = win.getPosition();
 				const cursorPos = electron.screen.screenToDipPoint(e.point);
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				if (cx > 35 /* Cursor is beyond app icon in title bar */) {
-					e.event.preventDefault();
+				// TODO@bpasero TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// where showing the custom menu seems broken on Windows
+				if (isLinux) {
+					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
+						e.event.preventDefault();
 
-					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+					}
 				}
 			}));
 		}
