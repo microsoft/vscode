@@ -4,41 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDetection/promptInputModel.js';
 import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
 import { ReplayEntry } from '../terminalProcess.js';
-
-interface IEvent<T, U = void> {
-	(listener: (arg1: T, arg2: U) => any): IDisposable;
-}
-
-export interface IMarker extends IDisposable {
-	/**
-	 * A unique identifier for this marker.
-	 */
-	readonly id: number;
-
-	/**
-	 * Whether this marker is disposed.
-	 */
-	readonly isDisposed: boolean;
-
-	/**
-	 * The actual line index in the buffer at this point in time. This is set to
-	 * -1 if the marker has been disposed.
-	 */
-	readonly line: number;
-
-	/**
-	 * Event listener to get notified when the marker gets disposed. Automatic disposal
-	 * might happen for a marker, that got invalidated by scrolling out or removal of
-	 * a line from the buffer.
-	 */
-	onDispose: IEvent<void>;
-}
-
+import type { IMarker } from '@xterm/headless';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -283,8 +253,8 @@ export interface INaiveCwdDetectionCapability {
 
 export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
-	readonly commands: readonly IXtermMarker[];
-	readonly onCommandFinished: Event<IXtermMarker>;
+	readonly commands: readonly IMarker[];
+	readonly onCommandFinished: Event<IMarker>;
 }
 
 interface IBaseTerminalCommand {
@@ -307,9 +277,9 @@ interface IBaseTerminalCommand {
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
 	readonly promptStartMarker?: IMarker;
-	readonly marker?: IXtermMarker;
-	endMarker?: IXtermMarker;
-	readonly executedMarker?: IXtermMarker;
+	readonly marker?: IMarker;
+	endMarker?: IMarker;
+	readonly executedMarker?: IMarker;
 	readonly aliases?: string[][];
 	readonly wasReplayed?: boolean;
 
@@ -332,15 +302,15 @@ export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 /**
  * A clone of the IMarker from xterm which cannot be imported from common
  */
-export interface IXtermMarker {
-	readonly id: number;
-	readonly isDisposed: boolean;
-	readonly line: number;
-	dispose(): void;
-	onDispose: {
-		(listener: () => any): { dispose(): void };
-	};
-}
+// export interface IMarker {
+// 	readonly id: number;
+// 	readonly isDisposed: boolean;
+// 	readonly line: number;
+// 	dispose(): void;
+// 	onDispose: {
+// 		(listener: () => any): { dispose(): void };
+// 	};
+// }
 
 export interface IMarkProperties {
 	hoverMessage?: string;

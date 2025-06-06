@@ -5,7 +5,7 @@
 
 import { DecorationBase } from './decorationBase.js';
 import { Position } from '../../../../../../../../../../../editor/common/core/position.js';
-import { BaseToken } from '../../../../../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../../../../../../codecs/base/baseToken.js';
 import type { IReactiveDecorationClassNames, TAddAccessor, TChangeAccessor, TRemoveAccessor } from './types.js';
 
 /**
