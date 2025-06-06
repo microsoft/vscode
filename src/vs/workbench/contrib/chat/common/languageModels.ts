@@ -86,6 +86,7 @@ export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart
 export const enum LanguageModelInitiatorKind {
 	Extension = 1,
 	McpServer = 2,
+	Editor = 3,
 }
 
 export interface IExtensionLanguageModelRequestInitiator {
@@ -95,10 +96,16 @@ export interface IExtensionLanguageModelRequestInitiator {
 
 export interface IMcpServerLanguageModelRequestInitiator {
 	kind: LanguageModelInitiatorKind.McpServer;
-	id: string;
+	label: string;
+	id: string | undefined;
 }
 
-export type LanguageModelRequestInitiator = IExtensionLanguageModelRequestInitiator | IMcpServerLanguageModelRequestInitiator;
+export interface IEditorLanguageModelRequestInitiator {
+	kind: LanguageModelInitiatorKind.Editor;
+	reason: string;
+}
+
+export type LanguageModelRequestInitiator = IExtensionLanguageModelRequestInitiator | IMcpServerLanguageModelRequestInitiator | IEditorLanguageModelRequestInitiator;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;

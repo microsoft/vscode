@@ -5126,6 +5126,7 @@ export enum LanguageModelChatToolMode {
 export enum LanguageModelRequestInitiatorKind {
 	Extension = 1,
 	McpServer = 2,
+	Editor = 3,
 }
 
 //#endregion

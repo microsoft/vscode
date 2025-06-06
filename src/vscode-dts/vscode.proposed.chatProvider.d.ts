@@ -40,6 +40,11 @@ declare module 'vscode' {
 		 * Used when an MCP server is making a request to the language model.
 		 */
 		McpServer = 2,
+
+		/**
+		 * Used when an editor feature is causing the request to be made.
+		 */
+		Editor = 3,
 	}
 
 	/**
@@ -67,12 +72,32 @@ declare module 'vscode' {
 		 */
 		kind: LanguageModelRequestInitiatorKind.McpServer;
 		/**
-		 * Label of the MCP server.
+		 * User-defined label of the MCP server.
 		 */
 		label: string;
+		/**
+		 * Unique ID for the MCP server when retrieved from a registry.
+		 */
+		id?: string;
 	}
 
-	export type LanguageModelRequestInitiator = ExtensionLanguageModelRequestInitiator | McpServerLanguageModelRequestInitiator;
+	/**
+	 * Passed to {@link LanguageModelChatProvider.provideLanguageModelResponse}
+	 * when it is being called from an internal editor feature.
+	 */
+	export interface InternalLanguageModelRequestInitiator {
+		/**
+		 * The kind of initiator making the request.
+		 */
+		kind: LanguageModelRequestInitiatorKind.Editor;
+		/**
+		 * A unique, opaque reason for the request. This string is not localized
+		 * and `reason`s may change between versions of the editor.
+		 */
+		reason: string;
+	}
+
+	export type LanguageModelRequestInitiator = ExtensionLanguageModelRequestInitiator | McpServerLanguageModelRequestInitiator | InternalLanguageModelRequestInitiator;
 
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response

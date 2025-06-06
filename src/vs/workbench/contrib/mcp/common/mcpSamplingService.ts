@@ -68,8 +68,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}).filter(isDefined);
 
 		const model = await this._getMatchingModel(opts);
-		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, { kind: LanguageModelInitiatorKind.McpServer, id: opts.server.definition.id }, messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, { kind: LanguageModelInitiatorKind.McpServer, id: undefined, label: opts.server.definition.id }, messages, {}, token);
 
 		let responseText = '';
 
