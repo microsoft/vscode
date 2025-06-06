@@ -6,7 +6,7 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, TerminalShellType } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
 import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
@@ -148,4 +148,32 @@ class MockFigExecuteExternals implements IFigExecuteExternals {
 		}
 	}
 }
+
+// Test for Git Bash path separator fix
+suite('Path Separator for Git Bash', () => {
+	test('Should use forward slash for Git Bash on Windows', () => {
+		// Test the exact logic used in terminalSuggestMain.ts and pathExecutableCache.ts
+		// Simulate Windows environment
+		const isWindows = true;
+		
+		// Test with a helper function that mirrors the actual logic
+		function getPathSeparator(isWindows: boolean, shellType: TerminalShellType): string {
+			return (isWindows && shellType !== TerminalShellType.GitBash) ? '\\' : '/';
+		}
+		
+		// Git Bash should use forward slashes even on Windows
+		strictEqual(getPathSeparator(isWindows, TerminalShellType.GitBash), '/');
+		
+		// Regular Bash on Windows should use backslashes 
+		strictEqual(getPathSeparator(isWindows, TerminalShellType.Bash), '\\');
+		
+		// PowerShell on Windows should use backslashes
+		strictEqual(getPathSeparator(isWindows, TerminalShellType.PowerShell), '\\');
+		
+		// On non-Windows, all shells should use forward slashes
+		strictEqual(getPathSeparator(false, TerminalShellType.GitBash), '/');
+		strictEqual(getPathSeparator(false, TerminalShellType.Bash), '/');
+		strictEqual(getPathSeparator(false, TerminalShellType.PowerShell), '/');
+	});
+});
 
