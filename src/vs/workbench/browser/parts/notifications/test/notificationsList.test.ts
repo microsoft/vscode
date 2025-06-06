@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { NotificationAccessibilityProvider } from '../notificationsList.js';
+import { NotificationViewItem, INotificationsFilter } from '../../../../common/notifications.js';
+import { Severity, NotificationsFilter } from '../../../../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestKeybindingService } from '../../../../../platform/keybinding/test/common/testKeybindingService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+
+suite('NotificationsList AccessibilityProvider', () => {
+
+	const noFilter: INotificationsFilter = { global: NotificationsFilter.OFF, sources: new Map() };
+	let configurationService: IConfigurationService;
+	let keybindingService: IKeybindingService;
+	let accessibilityProvider: NotificationAccessibilityProvider;
+
+	setup(() => {
+		configurationService = new TestConfigurationService();
+		keybindingService = new TestKeybindingService();
+		accessibilityProvider = new NotificationAccessibilityProvider({}, keybindingService, configurationService);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getAriaLabel includes severity prefix for Error notifications', () => {
+		const notification = NotificationViewItem.create({ severity: Severity.Error, message: 'Something went wrong' }, noFilter)!;
+		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
+		
+		assert.ok(ariaLabel.startsWith('Error: '), `Expected aria label to start with "Error: ", but got: ${ariaLabel}`);
+		assert.ok(ariaLabel.includes('Something went wrong'), 'Expected aria label to include original message');
+		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
+	});
+
+	test('getAriaLabel includes severity prefix for Warning notifications', () => {
+		const notification = NotificationViewItem.create({ severity: Severity.Warning, message: 'This is a warning' }, noFilter)!;
+		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
+		
+		assert.ok(ariaLabel.startsWith('Warning: '), `Expected aria label to start with "Warning: ", but got: ${ariaLabel}`);
+		assert.ok(ariaLabel.includes('This is a warning'), 'Expected aria label to include original message');
+		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
+	});
+
+	test('getAriaLabel includes severity prefix for Info notifications', () => {
+		const notification = NotificationViewItem.create({ severity: Severity.Info, message: 'Information message' }, noFilter)!;
+		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
+		
+		assert.ok(ariaLabel.startsWith('Info: '), `Expected aria label to start with "Info: ", but got: ${ariaLabel}`);
+		assert.ok(ariaLabel.includes('Information message'), 'Expected aria label to include original message');
+		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
+	});
+
+	test('getAriaLabel includes source when present', () => {
+		const notification = NotificationViewItem.create({ 
+			severity: Severity.Error, 
+			message: 'Error with source', 
+			source: 'TestExtension' 
+		}, noFilter)!;
+		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
+		
+		assert.ok(ariaLabel.startsWith('Error: '), 'Expected aria label to start with severity prefix');
+		assert.ok(ariaLabel.includes('Error with source'), 'Expected aria label to include original message');
+		assert.ok(ariaLabel.includes('source: TestExtension'), 'Expected aria label to include source information');
+		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
+	});
+});
