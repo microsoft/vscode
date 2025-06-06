@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getPromptFileExtension, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { getPromptFileExtension } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';

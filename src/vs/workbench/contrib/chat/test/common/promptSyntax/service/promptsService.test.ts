@@ -5,31 +5,31 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
-import { Range } from '../../../../../../../editor/common/core/range.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/types.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
-import { PromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
-import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
+import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
+import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 
 /**
  * Helper class to assert the properties of a link.

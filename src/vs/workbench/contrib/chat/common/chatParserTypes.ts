@@ -13,7 +13,7 @@ import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IToolData } from './languageModelToolsService.js';
-import { IChatPromptSlashCommand } from './promptSyntax/service/types.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 

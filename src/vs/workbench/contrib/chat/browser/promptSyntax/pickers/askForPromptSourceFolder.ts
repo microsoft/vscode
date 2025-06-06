@@ -9,11 +9,10 @@ import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensi
 import { localize } from '../../../../../../nls.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { PROMPT_DOCUMENTATION_URL, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/constants.js';
-import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 
 
 interface IFolderQuickPickItem extends IQuickPickItem {
