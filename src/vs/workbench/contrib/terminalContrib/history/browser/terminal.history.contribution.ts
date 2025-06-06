@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -147,21 +147,17 @@ registerTerminalAction({
 		}
 	],
 	run: async (c, accessor) => {
-		// If there are no active instances, then create a new terminal instance
-		const activeInstance = await c.service.getActiveOrCreateInstance();
-		// Newly created instances will not have a shell type set yet
-		// This will result in the command picker not showing up, so wait for it to be set
-		if (!activeInstance.shellType) {
+		let activeInstance = c.service.activeInstance;
+		// If an instanec doesn't exist, create one and wait for shell type to be set
+		if (!activeInstance) {
+			const newInstance = activeInstance = await c.service.getActiveOrCreateInstance();
 			await c.service.revealActiveTerminal();
-			const wasDisposedPrematurely = await new Promise<boolean>(resolve => {
-				activeInstance.onDidChangeShellType(() => {
-					resolve(false);
-				});
-				activeInstance.onDisposed(() => {
-					resolve(true);
-				});
+			const store = new DisposableStore();
+			const wasDisposedPrematurely = await new Promise<boolean>(r => {
+				store.add(newInstance.onDidChangeShellType(() => r(false)));
+				store.add(newInstance.onDisposed(() => r(true)));
 			});
-			// If the instance was disposed before the shell type was set, then exit
+			store.dispose();
 			if (wasDisposedPrematurely) {
 				return;
 			}
