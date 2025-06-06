@@ -48,5 +48,22 @@ suite('Terminal Suggest', () => {
 		test('arguments after reset char', () => {
 			strictEqual(getTokenType({ commandLine: `Write-Host hello -and $true `, cursorPosition: `Write-Host hello -and $true `.length }, TerminalShellType.PowerShell), TokenType.Argument);
 		});
+		test('; reset char', () => {
+			strictEqual(getTokenType({ commandLine: `Write-Host hello; `, cursorPosition: `Write-Host hello; `.length }, TerminalShellType.PowerShell), TokenType.Command);
+		});
+		suite('multiple commands on the line', () => {
+			test('multiple commands, cursor at end', () => {
+				strictEqual(getTokenType({ commandLine: 'echo hello && echo world', cursorPosition: 'echo hello && ech'.length }, undefined), TokenType.Command);
+			});
+			test('multiple commands, cursor mid text', () => {
+				strictEqual(getTokenType({ commandLine: 'echo hello && echo world', cursorPosition: 'echo hello && echo w'.length }, undefined), TokenType.Argument);
+			});
+			test('multiple commands, cursor at end with reset char', () => {
+				strictEqual(getTokenType({ commandLine: 'echo hello && echo world; ', cursorPosition: 'echo hello && echo world; '.length }, undefined), TokenType.Command);
+			});
+			test('multiple commands, cursor mid text with reset char', () => {
+				strictEqual(getTokenType({ commandLine: 'echo hello && echo world; ', cursorPosition: 'echo hello && echo worl'.length }, undefined), TokenType.Argument);
+			});
+		});
 	});
 });
