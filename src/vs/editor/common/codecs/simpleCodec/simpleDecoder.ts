@@ -38,7 +38,6 @@ import {
 	LeftAngleBracket,
 	RightAngleBracket,
 } from './tokens/index.js';
-import { pick } from '../../../../base/common/arrays.js';
 import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
 
 /**
@@ -71,7 +70,7 @@ export const WELL_KNOWN_TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Obj
  *       the {@link LinesDecoder} which emits {@link Line} tokens without them.
  */
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze(
-	WELL_KNOWN_TOKENS.map(pick('symbol')),
+	WELL_KNOWN_TOKENS.map(token => token.symbol),
 );
 
 /**
