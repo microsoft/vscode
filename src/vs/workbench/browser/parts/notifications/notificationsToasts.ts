@@ -200,11 +200,14 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
+				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
+				const severityPrefix = this.getSeverityPrefix(item.severity);
+				const messageWithSeverity = `${severityPrefix}${item.message.raw}`;
 
 				if (!item.source) {
-					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
+					return localize('notificationAriaLabel', "{0}, notification", messageWithSeverity);
 				}
-				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
+				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, item.source);
 			})()
 		});
 		itemDisposables.add(notificationList);
@@ -621,5 +624,15 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private isToastInDOM(toast: INotificationToast): boolean {
 		return !!toast.container.parentElement;
+	}
+
+	private getSeverityPrefix(severity: Severity): string {
+		if (severity === Severity.Error) {
+			return localize('severityPrefix.error', "Error: ");
+		} else if (severity === Severity.Warning) {
+			return localize('severityPrefix.warning', "Warning: ");
+		} else {
+			return localize('severityPrefix.info', "Info: ");
+		}
 	}
 }

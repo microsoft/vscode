@@ -68,4 +68,20 @@ suite('NotificationsList AccessibilityProvider', () => {
 		assert.ok(ariaLabel.includes('source: TestExtension'), 'Expected aria label to include source information');
 		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
 	});
+
+	test('severity prefix consistency', () => {
+		// Test that the severity prefixes are consistent with the ARIA alerts
+		const errorNotification = NotificationViewItem.create({ severity: Severity.Error, message: 'Error message' }, noFilter)!;
+		const warningNotification = NotificationViewItem.create({ severity: Severity.Warning, message: 'Warning message' }, noFilter)!;
+		const infoNotification = NotificationViewItem.create({ severity: Severity.Info, message: 'Info message' }, noFilter)!;
+
+		const errorLabel = accessibilityProvider.getAriaLabel(errorNotification);
+		const warningLabel = accessibilityProvider.getAriaLabel(warningNotification);
+		const infoLabel = accessibilityProvider.getAriaLabel(infoNotification);
+
+		// Check that each severity type gets the correct prefix
+		assert.ok(errorLabel.includes('Error: Error message'), 'Error notifications should have Error prefix');
+		assert.ok(warningLabel.includes('Warning: Warning message'), 'Warning notifications should have Warning prefix');
+		assert.ok(infoLabel.includes('Info: Info message'), 'Info notifications should have Info prefix');
+	});
 });
