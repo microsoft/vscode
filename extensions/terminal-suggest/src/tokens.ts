@@ -29,11 +29,28 @@ const defaultShellTypeCommandSeparators = shellTypeCommandSeparators.get(Termina
 
 export { shellTypeResetChars, defaultShellTypeResetChars, shellTypeCommandSeparators, defaultShellTypeCommandSeparators };
 
+/**
+ * Determines whether the cursor position in a command line represents a command or argument context.
+ * This is used to provide appropriate terminal suggestions - commands vs arguments/flags.
+ * 
+ * @param ctx - Context containing the command line text and cursor position
+ * @param shellType - The type of shell (bash, zsh, powershell) to determine appropriate separators
+ * @returns TokenType.Command for command context, TokenType.Argument for argument context
+ * 
+ * Examples:
+ * - "git |" → Command (cursor after space following separator)
+ * - "git;" → Argument (cursor immediately after separator, no space)
+ * - "ls && git |" → Command (git is new command after &&)
+ * - "git status |" → Argument (cursor is in arguments of git command)
+ * - "git s|" → Command (partial command name)
+ * - "git status --all |" → Argument (cursor in arguments area)
+ */
 export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
 	const beforeCursor = ctx.commandLine.substring(0, ctx.cursorPosition);
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
 	
 	// Check if the text before cursor ends with any reset character AND has whitespace after it
+	// Examples: "git commit ; |" → Command, "git commit;|" → Argument (no space after separator)
 	const trimmedBeforeCursor = beforeCursor.trim();
 	for (const separator of commandResetChars) {
 		if (trimmedBeforeCursor.endsWith(separator)) {
@@ -50,6 +67,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	}
 	
 	// Find the last command separator (that starts a new command context)
+	// Examples: in "ls && git status", find the "&&" separator
 	const commandSeparators = shellType === undefined ? defaultShellTypeCommandSeparators : shellTypeCommandSeparators.get(shellType) ?? defaultShellTypeCommandSeparators;
 	let lastSeparatorIndex = -1;
 	for (const separator of commandSeparators) {
@@ -60,10 +78,12 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	}
 	
 	// Get the text after the last separator (or from the beginning if no separator found)
+	// Examples: "ls && git status" → "git status", "git status" → "git status"
 	const afterSeparator = lastSeparatorIndex >= 0 ? beforeCursor.slice(lastSeparatorIndex + 1) : beforeCursor;
 	
 	// If there's no content after separator (empty or only whitespace), 
 	// check if there's at least one space for command mode
+	// Examples: "ls && |" → Command, "ls &&|" → Argument
 	if (afterSeparator.trim() === '') {
 		// If there's at least one space after separator, it's command mode
 		// If there's no space (cursor immediately after separator), it's argument mode
@@ -77,6 +97,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	const trimmedAfterSeparator = afterSeparator.trim();
 	
 	// If no spaces at all, definitely command
+	// Examples: "ls && git|" → Command, "ls && g|" → Command
 	if (trimmedAfterSeparator.indexOf(' ') === -1) {
 		return TokenType.Command;
 	}
@@ -87,9 +108,11 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	const words = trimmedAfterSeparator.split(/\s+/).filter(w => w.length > 0);
 	
 	// Single complete word followed by more text usually means arguments
+	// Examples: "git status --all|" → Argument, "git s|" → Command (short second word)
 	if (words.length >= 2) {
 		// But if it's just 2 words and the second is very short (1-2 chars), 
 		// it might still be command completion
+		// Examples: "git s|" → Command, "git status|" → Argument
 		if (words.length === 2 && words[1].length <= 2) {
 			return TokenType.Command;
 		}
@@ -97,6 +120,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	}
 	
 	// Single word - check if cursor is clearly past it with trailing space
+	// Examples: "git |" → Argument, "gi|" → Command
 	if (words.length === 1) {
 		const separatorEndPos = lastSeparatorIndex + 1;
 		const leadingWhitespace = afterSeparator.length - trimmedAfterSeparator.length;
@@ -104,6 +128,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 		const wordEndPos = trimmedStartPos + words[0].length;
 		
 		// If cursor is past the word with trailing space, it's argument mode
+		// Examples: "git |" → Argument, "gi|" → Command
 		if (ctx.cursorPosition > wordEndPos) {
 			return TokenType.Argument;
 		}
