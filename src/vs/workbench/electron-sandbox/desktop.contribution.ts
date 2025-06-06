@@ -263,7 +263,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			},
 			'window.menuStyle': {
 				'type': 'string',
-				'enum': ['custom', 'native', 'inherit'],
+				'enum': isMacintosh ? ['custom', 'native', 'inherit'] : ['custom', 'native', 'inherit', 'force-native'],
 				'markdownEnumDescriptions': isMacintosh ?
 					[
 						localize(`window.menuStyle.custom.mac`, "Use the custom context menu."),
@@ -274,6 +274,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 						localize(`window.menuStyle.custom`, "Use the custom menu."),
 						localize(`window.menuStyle.native`, "Use the native menu. This is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`'),
 						localize(`window.menuStyle.inherit`, "Matches the menu style to the title bar style defined in {0}.", '`#window.titleBarStyle#`'),
+						localize(`window.menuStyle.force-native`, "Use the native menu. Opposed to {0}, this is not ignored when {1} is set to {2}.", '`native', '`#window.titleBarStyle#`', '`custom`'),
 					],
 				'default': isMacintosh ? 'native' : 'inherit',
 				'scope': ConfigurationScope.APPLICATION,

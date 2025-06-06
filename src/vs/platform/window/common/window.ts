@@ -136,6 +136,7 @@ export const enum MenuStyleConfiguration {
 	CUSTOM = 'custom',
 	NATIVE = 'native',
 	INHERIT = 'inherit',
+	FORCE_NATIVE = 'force-native',
 }
 
 export function hasNativeContextMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
@@ -145,6 +146,10 @@ export function hasNativeContextMenu(configurationService: IConfigurationService
 
 	const nativeTitle = hasNativeTitlebar(configurationService, titleBarStyle);
 	const windowConfigurations = configurationService.getValue<IWindowSettings | undefined>('window');
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.FORCE_NATIVE) {
+		return true;
+	}
 
 	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
 		// Do not support native menu with custom title bar
