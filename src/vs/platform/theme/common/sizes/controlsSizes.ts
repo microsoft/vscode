@@ -8,11 +8,15 @@
 import * as nls from '../../../../nls.js';
 import { registerSize } from '../sizeUtils.js';
 
-export const buttonTestExampleValue = registerSize('button.test.example.value', { default: '0px' }, nls.localize('buttonTestExampleValue', "Example Value"));
 export const checkboxWidth = registerSize('checkbox.width', { default: '18px' }, nls.localize('checkboxWidth', "Width"));
 export const checkboxHeight = registerSize('checkbox.height', { default: '18px' }, nls.localize('checkboxHeight', "Height"));
 export const dropdownCornerRadius = registerSize('dropdown.corner.radius', { default: '5px' }, nls.localize('dropdownCornerRadius', "Corner Radius"));
 export const dropdownLineHeight = registerSize('dropdown.line.height', { default: '16px' }, nls.localize('dropdownLineHeight', "Line Height"));
+export const progressHeight = registerSize('progress.height', { default: '2px' }, nls.localize('progressHeight', "Height"));
+export const hoverMenubarHorizontalSpacing = registerSize('hover.menubar.horizontal.spacing', { default: '5px' }, nls.localize('hoverMenubarHorizontalSpacing', "Horizontal Spacing"));
+export const hoverMenubarCornerRadius = registerSize('hover.menubar.corner.radius', { default: '5px' }, nls.localize('hoverMenubarCornerRadius', "Corner Radius"));
+export const hoverMenubarToggleWidth = registerSize('hover.menubar.toggle.width', { default: '22px' }, nls.localize('hoverMenubarToggleWidth', "Width"));
+export const hoverMenubarToggleHeight = registerSize('hover.menubar.toggle.height', { default: '22px' }, nls.localize('hoverMenubarToggleHeight', "Height"));
 export const chatMessageCornerRadius = registerSize('chat.message.corner.radius', { default: '4px' }, nls.localize('chatMessageCornerRadius', "Corner Radius"));
 export const chatMessagePadding = registerSize('chat.message.padding', { default: '8px' }, nls.localize('chatMessagePadding', "Padding"));
 export const chatPadding = registerSize('chat.padding', { default: '16px' }, nls.localize('chatPadding', "Padding"));
@@ -27,3 +31,10 @@ export const dropdownFontSize = registerSize('dropdown.font.size', { default: '1
 export const toggleCorderRadius = registerSize('toggle.corder.radius', { default: '3px' }, nls.localize('toggleCorderRadius', "Corder Radius"));
 export const toggleWidth = registerSize('toggle.width', { default: '20px' }, nls.localize('toggleWidth', "Width"));
 export const toggleHeight = registerSize('toggle.height', { default: '20px' }, nls.localize('toggleHeight', "Height"));
+export const hoverMenubarVerticalSpacing = registerSize('hover.menubar.vertical.spacing', { default: '4px' }, nls.localize('hoverMenubarVerticalSpacing', "Vertical Spacing"));
+export const hoverMarkupcontentHoriztonalSpacing = registerSize('hover.markupcontent.horiztonal.spacing', { default: '20px' }, nls.localize('hoverMarkupcontentHoriztonalSpacing', "Horiztonal Spacing"));
+export const hoverStatusbarHorizontalSpacing = registerSize('hover.statusbar.horizontal.spacing', { default: '8px' }, nls.localize('hoverStatusbarHorizontalSpacing', "Horizontal Spacing"));
+export const hoverContentHorizontalSpacing = registerSize('hover.content.horizontal.spacing', { default: '0px' }, nls.localize('hoverContentHorizontalSpacing', "Horizontal Spacing"));
+export const hoverContentVerticalSpacing = registerSize('hover.content.vertical.spacing', { default: '8px' }, nls.localize('hoverContentVerticalSpacing', "Vertical Spacing"));
+export const hoverTooltipHorizontalSpacing = registerSize('hover.tooltip.horizontal.spacing', { default: '8px' }, nls.localize('hoverTooltipHorizontalSpacing', "Horizontal Padding"));
+export const hoverTooltipVerticalSpacing = registerSize('hover.tooltip.vertical.spacing', { default: '4px' }, nls.localize('hoverTooltipVerticalSpacing', "Vertical Padding"));

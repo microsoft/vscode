@@ -10,3 +10,5 @@ import { registerSize } from '../sizeUtils.js';
 
 export const codiconWidth = registerSize('codicon.width', { default: '16px' }, nls.localize('codiconWidth', "Width"));
 export const codiconHeight = registerSize('codicon.height', { default: '16px' }, nls.localize('codiconHeight', "Height"));
+export const iconWidth = registerSize('icon.width', { default: '16px' }, nls.localize('iconWidth', "Width"));
+export const iconHeight = registerSize('icon.height', { default: '16px' }, nls.localize('iconHeight', "Height"));

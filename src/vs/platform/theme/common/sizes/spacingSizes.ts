@@ -9,7 +9,7 @@ import * as nls from '../../../../nls.js';
 import { registerSize } from '../sizeUtils.js';
 
 export const baseSpacingNone = registerSize('base.spacing.none', { default: '0px' }, nls.localize('baseSpacingNone', "Spacing None"));
-export const baseSpacingXXxs = registerSize('base.spacing.x.xxs', { default: '1px' }, nls.localize('baseSpacingXxxs', "Spacing XXXS"));
+export const baseSpacingXxxs = registerSize('base.spacing.xxxs', { default: '1px' }, nls.localize('baseSpacingXxxs', "Spacing XXXS"));
 export const baseSpacingXxs = registerSize('base.spacing.xxs', { default: '2px' }, nls.localize('baseSpacingXxs', "Spacing XXS"));
 export const baseSpacingXs = registerSize('base.spacing.xs', { default: '4px' }, nls.localize('baseSpacingXs', "Spacing XS"));
 export const baseSpacingS = registerSize('base.spacing.s', { default: '8px' }, nls.localize('baseSpacingS', "Spacing S"));
