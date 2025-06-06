@@ -63,7 +63,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
 				const severityPrefix = getSeverityPrefix(notification.severity);
 				const messageWithSeverity = `${severityPrefix}${message}`;
-				
+
 				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', messageWithSeverity, notification.source) : localize('notification.accessibleView', '{0}', messageWithSeverity);
 			}
 			const content = getContentForNotification();

@@ -31,7 +31,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 	test('getAriaLabel includes severity prefix for Error notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Error, message: 'Something went wrong' }, noFilter)!;
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
-		
+
 		assert.ok(ariaLabel.startsWith('Error: '), `Expected aria label to start with "Error: ", but got: ${ariaLabel}`);
 		assert.ok(ariaLabel.includes('Something went wrong'), 'Expected aria label to include original message');
 		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
@@ -40,7 +40,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 	test('getAriaLabel includes severity prefix for Warning notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Warning, message: 'This is a warning' }, noFilter)!;
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
-		
+
 		assert.ok(ariaLabel.startsWith('Warning: '), `Expected aria label to start with "Warning: ", but got: ${ariaLabel}`);
 		assert.ok(ariaLabel.includes('This is a warning'), 'Expected aria label to include original message');
 		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
@@ -49,20 +49,20 @@ suite('NotificationsList AccessibilityProvider', () => {
 	test('getAriaLabel includes severity prefix for Info notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Info, message: 'Information message' }, noFilter)!;
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
-		
+
 		assert.ok(ariaLabel.startsWith('Info: '), `Expected aria label to start with "Info: ", but got: ${ariaLabel}`);
 		assert.ok(ariaLabel.includes('Information message'), 'Expected aria label to include original message');
 		assert.ok(ariaLabel.includes('notification'), 'Expected aria label to include "notification"');
 	});
 
 	test('getAriaLabel includes source when present', () => {
-		const notification = NotificationViewItem.create({ 
-			severity: Severity.Error, 
-			message: 'Error with source', 
-			source: 'TestExtension' 
+		const notification = NotificationViewItem.create({
+			severity: Severity.Error,
+			message: 'Error with source',
+			source: 'TestExtension'
 		}, noFilter)!;
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
-		
+
 		assert.ok(ariaLabel.startsWith('Error: '), 'Expected aria label to start with severity prefix');
 		assert.ok(ariaLabel.includes('Error with source'), 'Expected aria label to include original message');
 		assert.ok(ariaLabel.includes('source: TestExtension'), 'Expected aria label to include source information');

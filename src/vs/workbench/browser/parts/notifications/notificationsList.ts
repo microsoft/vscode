@@ -257,18 +257,18 @@ export class NotificationAccessibilityProvider implements IListAccessibilityProv
 		if (this._configurationService.getValue('accessibility.verbosity.notification')) {
 			accessibleViewHint = keybinding ? localize('notificationAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('notificationAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 		}
-		
+
 		// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
 		const severityPrefix = this.getSeverityPrefix(element.severity);
 		const messageWithSeverity = `${severityPrefix}${element.message.raw}`;
-		
+
 		if (!element.source) {
 			return accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", messageWithSeverity, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", messageWithSeverity);
 		}
 
 		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", messageWithSeverity, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, element.source);
 	}
-	
+
 	private getSeverityPrefix(severity: Severity): string {
 		if (severity === Severity.Error) {
 			return localize('severityPrefix.error', "Error: ");
