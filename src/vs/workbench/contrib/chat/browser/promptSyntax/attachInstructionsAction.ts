@@ -3,36 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat.js';
-import { CHAT_CATEGORY } from '../chatActions.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../../../nls.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { attachInstructionsFiles, IAttachOptions } from './dialogs/askToSelectPrompt/utils/attachInstructions.js';
-import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../../chatContextPickService.js';
-import { IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { getCleanPromptName, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { compare } from '../../../../../../base/common/strings.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { dirname } from '../../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry } from '../../../common/chatModel.js';
-import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { PromptFilePickers } from './pickers/promptFilePickers.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
+import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { getCleanPromptName, PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { compare } from '../../../../../base/common/strings.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { dirname } from '../../../../../base/common/resources.js';
+import { IPromptFileVariableEntry } from '../../common/chatModel.js';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -100,7 +97,6 @@ class AttachInstructionsAction extends Action2 {
 		options?: IAttachInstructionsActionOptions,
 	): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
-		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
 
 		if (!options) {
@@ -114,25 +110,15 @@ class AttachInstructionsAction extends Action2 {
 
 		const { skipSelectionDialog, resource } = options;
 
-		const attachOptions: IAttachOptions = {
-			widget: options.widget,
-			viewsService,
-			commandService,
-		};
 
-		if (skipSelectionDialog) {
-			assertDefined(
-				resource,
-				'Resource must be defined when skipping prompt selection dialog.',
-			);
+		const widget = options.widget ?? (await showChatView(viewsService));
+		if (!widget) {
+			return;
+		}
 
-			const widget = await attachInstructionsFiles(
-				[resource],
-				attachOptions,
-			);
-
+		if (skipSelectionDialog && resource) {
+			widget.attachmentModel.promptInstructions.add(resource);
 			widget.focusInput();
-
 			return;
 		}
 
@@ -144,10 +130,7 @@ class AttachInstructionsAction extends Action2 {
 		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
-			const widget = await attachInstructionsFiles(
-				[result.promptFile],
-				attachOptions,
-			);
+			widget.attachmentModel.promptInstructions.add(result.promptFile);
 			widget.focusInput();
 		}
 	}

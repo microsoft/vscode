@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../../base/common/resources.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { getCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
-import { SnippetController2 } from '../../../../../../../editor/contrib/snippet/browser/snippetController2.js';
-import { localize } from '../../../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILogService } from '../../../../../../../platform/log/common/log.js';
-import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../../../platform/notification/common/notification.js';
-import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
-import { IUserDataSyncEnablementService, SyncResource } from '../../../../../../../platform/userDataSync/common/userDataSync.js';
-import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../../../services/userDataSync/common/userDataSync.js';
-import { ISnippetsService } from '../../../../../snippets/browser/snippets.js';
-import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
-import { getLanguageIdForPromptsType } from '../../../../common/promptSyntax/constants.js';
-import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
-import { askForPromptFileName } from './dialogs/askForPromptName.js';
-import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
-import { createPromptFile } from './utils/createPromptFile.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { localize } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
+import { ISnippetsService } from '../../../snippets/browser/snippets.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { getLanguageIdForPromptsType } from '../../common/promptSyntax/constants.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { askForPromptFileName } from './pickers/askForPromptName.js';
+import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 
-class AbstractNewPromptOrInstructionsFileAction extends Action2 {
+
+class AbstractNewPromptFileAction extends Action2 {
 
 	constructor(id: string, title: string, private readonly type: PromptsType) {
 		super({
@@ -70,11 +70,12 @@ class AbstractNewPromptOrInstructionsFileAction extends Action2 {
 			return;
 		}
 
-		const promptUri = await createPromptFile(fileService, {
-			fileName,
-			folder: selectedFolder.uri,
-			content: ''
-		});
+		// create the prompt file
+
+		await fileService.createFolder(selectedFolder.uri);
+
+		const promptUri = URI.joinPath(selectedFolder.uri, fileName);
+		await fileService.createFile(promptUri);
 
 		await openerService.open(promptUri);
 
@@ -150,24 +151,26 @@ export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';
 export const NEW_MODE_COMMAND_ID = 'workbench.command.new.mode';
 
-class NewPromptFileAction extends AbstractNewPromptOrInstructionsFileAction {
+class NewPromptFileAction extends AbstractNewPromptFileAction {
 	constructor() {
 		super(NEW_PROMPT_COMMAND_ID, localize('commands.new.prompt.local.title', "New Prompt File..."), PromptsType.prompt);
 	}
 }
 
-class NewInstructionsFileAction extends AbstractNewPromptOrInstructionsFileAction {
+class NewInstructionsFileAction extends AbstractNewPromptFileAction {
 	constructor() {
 		super(NEW_INSTRUCTIONS_COMMAND_ID, localize('commands.new.instructions.local.title', "New Instructions File..."), PromptsType.instructions);
 	}
 }
 
-class NewModeFileAction extends AbstractNewPromptOrInstructionsFileAction {
+class NewModeFileAction extends AbstractNewPromptFileAction {
 	constructor() {
 		super(NEW_MODE_COMMAND_ID, localize('commands.new.mode.local.title', "New Mode File..."), PromptsType.mode);
 	}
 }
 
-registerAction2(NewPromptFileAction);
-registerAction2(NewInstructionsFileAction);
-registerAction2(NewModeFileAction);
+export function registerNewPromptFileActions(): void {
+	registerAction2(NewPromptFileAction);
+	registerAction2(NewInstructionsFileAction);
+	registerAction2(NewModeFileAction);
+}
