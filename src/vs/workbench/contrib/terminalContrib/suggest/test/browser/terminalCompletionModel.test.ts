@@ -301,10 +301,10 @@ suite('TerminalCompletionModel', function () {
 	suite('git branch priority sorting', () => {
 		test('should prioritize main and master branches for git commands', () => {
 			const items = [
-				createItem({ label: 'feature-branch' }),
-				createItem({ label: 'master' }),
-				createItem({ label: 'development' }),
-				createItem({ label: 'main' })
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'development' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
 			assertItems(model, ['main', 'master', 'development', 'feature-branch']);
@@ -312,10 +312,10 @@ suite('TerminalCompletionModel', function () {
 
 		test('should prioritize main and master branches for git switch command', () => {
 			const items = [
-				createItem({ label: 'feature-branch' }),
-				createItem({ label: 'main' }),
-				createItem({ label: 'another-feature' }),
-				createItem({ label: 'master' })
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'another-feature' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('git switch ', 0));
 			assertItems(model, ['main', 'master', 'another-feature', 'feature-branch']);
@@ -323,9 +323,9 @@ suite('TerminalCompletionModel', function () {
 
 		test('should not prioritize main and master for non-git commands', () => {
 			const items = [
-				createItem({ label: 'feature-branch' }),
-				createItem({ label: 'master' }),
-				createItem({ label: 'main' })
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('ls ', 0));
 			assertItems(model, ['feature-branch', 'main', 'master']);
@@ -333,9 +333,9 @@ suite('TerminalCompletionModel', function () {
 
 		test('should handle git commands with leading whitespace', () => {
 			const items = [
-				createItem({ label: 'feature-branch' }),
-				createItem({ label: 'master' }),
-				createItem({ label: 'main' })
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'feature-branch' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('  git checkout ', 0));
 			assertItems(model, ['main', 'master', 'feature-branch']);
@@ -343,9 +343,9 @@ suite('TerminalCompletionModel', function () {
 
 		test('should work with complex label objects', () => {
 			const items = [
-				createItem({ label: { label: 'feature-branch', description: 'Feature branch' } }),
-				createItem({ label: { label: 'master', description: 'Master branch' } }),
-				createItem({ label: { label: 'main', description: 'Main branch' } })
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'feature-branch', description: 'Feature branch' } }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'master', description: 'Master branch' } }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: { label: 'main', description: 'Main branch' } })
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
 			assertItems(model, [
