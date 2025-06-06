@@ -197,7 +197,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	return undefined;
 }
 
-function getPrefix(commandLine: string, cursorPosition: number, shellType?: TerminalShellType): string {
+export function getPrefix(commandLine: string, cursorPosition: number, shellType?: TerminalShellType): string {
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
 		return '';
