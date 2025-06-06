@@ -110,11 +110,6 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	// Single complete word followed by more text usually means arguments
 	// Examples: "git status --all|" → Argument, "git s|" → Argument
 	if (words.length >= 2) {
-		// But if it's just 2 words and the second is very short (1-2 chars),
-		// it might still be command completion
-		if (words.length === 2 && words[1].length <= 2) {
-			return TokenType.Command;
-		}
 		// After a command separator, the first word is the command,
 		// anything after that should be arguments regardless of length
 		// Examples: "git s|" → Argument, "git status|" → Argument
