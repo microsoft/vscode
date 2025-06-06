@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { WrappingIndent } from '../config/editorOptions.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
+import { IModelDecoration, IModelDeltaDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
 import { ModelDecorationOptions } from '../model/textModel.js';
-import { LineInjectedText } from '../textModelEvents.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, ViewLineData } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, SingleLineInlineDecoration, ViewLineData } from '../viewModel.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { InlineDecorations, isModelDecorationVisible } from './viewModelDecorations.js';
+import { LineInjectedText } from '../textModelEvents.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -27,7 +29,7 @@ export interface IViewModelLines extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
 	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
@@ -45,7 +47,7 @@ export interface IViewModelLines extends IDisposable {
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
-	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
+	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -62,8 +64,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
-	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	private readonly _lineBreaksComputerFactory: ILineBreaksComputerFactory;
 
 	private fontInfo: FontInfo;
 	private tabSize: number;
@@ -80,12 +81,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
+	private config: IEditorConfiguration;
 
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		lineBreaksComputerFactory: ILineBreaksComputerFactory,
+		config: IEditorConfiguration,
 		fontInfo: FontInfo,
 		tabSize: number,
 		wrappingStrategy: 'simple' | 'advanced',
@@ -96,8 +98,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
-		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this._lineBreaksComputerFactory = lineBreaksComputerFactory;
+		this.config = config;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
 		this.wrappingStrategy = wrappingStrategy;
@@ -117,6 +119,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
+		console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -124,14 +127,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		}
 
 		const linesContent = this.model.getLinesContent();
-		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
 		const lineCount = linesContent.length;
-		const lineBreaksComputer = this.createLineBreaksComputer();
+		const lineBreaksComputer = this.createLineBreaksComputer(this._getLineBreaksComputerContext());
 
-		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
-			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+			lineBreaksComputer.addRequest(i + 1, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -303,13 +303,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		const lineBreaksComputerFactory = (
-			this.wrappingStrategy === 'advanced'
-				? this._domLineBreaksComputerFactory
-				: this._monospaceLineBreaksComputerFactory
-		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
+	public createLineBreaksComputer(context: ILineBreaksComputerContext): ILineBreaksComputer {
+		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, this.config, this.tabSize);
 	}
 
 	public onModelFlushed(): void {
@@ -905,14 +900,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
 			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
 		}
 
 		let result: IModelDecoration[] = [];
@@ -931,14 +926,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
 					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation, onlyMinimapDecorations));
+					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations));
 					reqStart = null;
 				}
 			}
 		}
 
 		if (reqStart !== null) {
-			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, onlyMinimapDecorations));
+			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations));
 			reqStart = null;
 		}
 
@@ -993,6 +988,191 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		// We deliberately don't handle the case that indentation is wrapped
 		// to avoid two view lines reporting indentation for the very same model line.
 		return 0;
+	}
+
+	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
+		return {
+			getLineContent: (lineNumber: number) => {
+				return this.model.getLineContent(lineNumber);
+			},
+			getLineTokens: (lineNumber: number) => {
+				let injectionOptions: InjectedTextOptions[] | null;
+				let injectionOffsets: number[] | null;
+				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+				const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+				if (curInjectedTexts) {
+					injectionOptions = curInjectedTexts.map(t => t.options);
+					injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+				} else {
+					injectionOptions = null;
+					injectionOffsets = null;
+				}
+				let lineWithInjections: LineTokens;
+				if (injectionOffsets) {
+					const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+					for (let idx = 0; idx < injectionOffsets.length; idx++) {
+						const offset = injectionOffsets[idx];
+						const tokens = injectionOptions![idx].tokens;
+						if (tokens) {
+							tokens.forEach((range, info) => {
+								tokensToInsert.push({
+									offset,
+									text: range.substring(injectionOptions![idx].content),
+									tokenMetadata: info.metadata,
+								});
+							});
+						} else {
+							tokensToInsert.push({
+								offset,
+								text: injectionOptions![idx].content,
+								tokenMetadata: LineTokens.defaultTokenMetadata,
+							});
+						}
+					}
+					lineWithInjections = this.model.tokenization.getLineTokens(lineNumber).withInserted(tokensToInsert);
+				} else {
+					lineWithInjections = this.model.tokenization.getLineTokens(lineNumber);
+				}
+				return lineWithInjections;
+			},
+			getLineInjectedText: (lineNumber: number) => {
+				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+			},
+			getInlineDecorations: (lineNumber: number): InlineDecorations => {
+				const inlineDecorationsFromModel = this._getInlineDecorationsFromModel(lineNumber);
+				const injectedTextDecorations = this._getInjectedInlineDecorations(lineNumber);
+				if (injectedTextDecorations) {
+					for (const inlineDecoration of injectedTextDecorations) {
+						inlineDecorationsFromModel.push(inlineDecoration.toInlineDecoration(lineNumber), inlineDecoration.affectsFont);
+					}
+				}
+				return inlineDecorationsFromModel;
+			}
+		};
+	}
+
+	private _getInlineDecorationsFromModel(lineNumber: number): InlineDecorations {
+		const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+		const modelDecorations = this.model.getDecorationsInRange(modelRange);
+		const inlineDecorations = new InlineDecorations();
+		for (let i = 0, len = modelDecorations.length; i < len; i++) {
+			const modelDecoration = modelDecorations[i];
+			const decorationOptions = modelDecoration.options;
+			if (!isModelDecorationVisible(this.model, modelDecoration)) {
+				continue;
+			}
+			const decorationRange = modelDecoration.range;
+			if (lineNumber < decorationRange.startLineNumber || lineNumber > decorationRange.endLineNumber) {
+				continue;
+			}
+			const adjustedRange = this._adjustDecorationRangeForInjectedText(modelDecoration, lineNumber);
+			if (decorationOptions.inlineClassName) {
+				const inlineClassName = decorationOptions.inlineClassName;
+				const type = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+				const inlineDecoration: InlineDecoration = { range: adjustedRange, inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+			if (decorationOptions.beforeContentClassName) {
+				const inlineClassName = decorationOptions.beforeContentClassName;
+				const type = InlineDecorationType.Before;
+				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.startLineNumber, adjustedRange.startColumn)), inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+			if (decorationOptions.afterContentClassName) {
+				const inlineClassName = decorationOptions.afterContentClassName;
+				const type = InlineDecorationType.After;
+				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.endLineNumber, adjustedRange.endColumn)), inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+		}
+		return inlineDecorations;
+	}
+
+	private _getInjectedInlineDecorations(lineNumber: number): SingleLineInlineDecoration[] | null {
+		let injectionOptions: InjectedTextOptions[] | null;
+		let injectionOffsets: number[] | null;
+		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+		const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+		if (curInjectedTexts) {
+			injectionOptions = curInjectedTexts.map(t => t.options);
+			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		} else {
+			injectionOptions = null;
+			injectionOffsets = null;
+		}
+		if (injectionOffsets) {
+			let totalInjectedTextLengthBefore = 0;
+			let currentInjectedOffset = 0;
+			const inlineDecorations = new Array<SingleLineInlineDecoration>();
+			while (currentInjectedOffset < injectionOffsets.length) {
+				const length = injectionOptions![currentInjectedOffset].content.length;
+				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
+				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+
+				const options = injectionOptions![currentInjectedOffset];
+				if (options.inlineClassName) {
+					const start = injectedTextStartOffsetInInputWithInjections;
+					const end = injectedTextEndOffsetInInputWithInjections;
+					if (start !== end) {
+						inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!, false));
+					}
+				}
+				totalInjectedTextLengthBefore += length;
+				currentInjectedOffset++;
+			}
+			return inlineDecorations;
+		}
+		return null;
+	}
+
+	private _adjustDecorationRangeForInjectedText(modelDecoration: IModelDecoration, lineNumber: number): Range {
+		let injectionOptions: InjectedTextOptions[] | null;
+		let injectionOffsets: number[] | null;
+		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+		const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
+		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+		if (curInjectedTexts) {
+			injectionOptions = curInjectedTexts.map(t => t.options);
+			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		} else {
+			injectionOptions = null;
+			injectionOffsets = null;
+		}
+		const modelRange = modelDecoration.range;
+		const options = modelDecoration.options;
+		let adjustedRange: Range;
+		if (options.isWholeLine) {
+			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, 1, PositionAffinity.Left));
+			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, this.model.getLineMaxColumn(lineNumber), PositionAffinity.Right));
+			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		} else {
+			// For backwards compatibility reasons, we want injected text before any decoration.
+			// Thus, move decorations to the right.
+			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.startLineNumber < lineNumber ? 1 : modelRange.startColumn, PositionAffinity.Left));
+			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.endLineNumber > lineNumber ? this.model.getLineMaxColumn(lineNumber) : modelRange.endColumn, PositionAffinity.Right));
+			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		}
+		return adjustedRange;
+	}
+
+	private _adjustOffsetForInjectedText(injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null, inputOffset: number, affinity: PositionAffinity): number {
+		let inputOffsetInInputWithInjection = inputOffset;
+		if (injectionOffsets !== null) {
+			for (let i = 0; i < injectionOffsets.length; i++) {
+				if (inputOffset < injectionOffsets[i]) {
+					break;
+				}
+				if (affinity !== PositionAffinity.Right && inputOffset === injectionOffsets[i]) {
+					break;
+				}
+				inputOffsetInInputWithInjection += injectionOptions![i].content.length;
+			}
+		}
+		return inputOffsetInInputWithInjection;
 	}
 }
 
@@ -1142,7 +1322,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {
@@ -1238,8 +1418,8 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return result;
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
-		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {

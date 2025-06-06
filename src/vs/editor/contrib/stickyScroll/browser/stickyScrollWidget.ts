@@ -313,7 +313,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		let actualInlineDecorations: LineDecoration[];
 		try {
-			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
+			actualInlineDecorations = LineDecoration.filter(lineRenderingData.inlineDecorations.decorations, viewLineNumber, lineRenderingData.minColumn, lineRenderingData.maxColumn);
 		} catch (err) {
 			actualInlineDecorations = [];
 		}
