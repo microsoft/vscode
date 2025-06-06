@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CHAT_CATEGORY } from '../chatActions.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { localize, localize2 } from '../../../../../../nls.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { ChatViewId } from '../../chat.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { PromptFilePickers } from './pickers/promptFilePickers.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ChatViewId } from '../chat.js';
 
 /**
  * Action ID for the `Configure Custom Chat Mode` action.

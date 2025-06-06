@@ -73,7 +73,6 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { SAVE_TO_PROMPT_SLASH_COMMAND_NAME, runSaveToPromptAction } from './actions/promptActions/chatSaveToPromptAction.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
@@ -105,12 +104,12 @@ import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
-import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
+import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/chatSaveToPromptAction.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../../../../nls.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
-import { basename, extUri, isEqual } from '../../../../../../../../base/common/resources.js';
-import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
-import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
-import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { ServicesAccessor } from '../../../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../../../../platform/prompts/common/prompts.js';
+import { basename, extUri, isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { localize } from '../../../../../../nls.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/constants.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
+
 
 interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folder: IPromptPath;

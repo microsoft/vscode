@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget } from '../../chat.js';
-import { CHAT_CATEGORY } from '../chatActions.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { OS } from '../../../../../../base/common/platform.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
-import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
-import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
-import { ICommandAction } from '../../../../../../platform/action/common/action.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { PromptFilePickers } from './dialogs/askToSelectPrompt/promptFilePickers.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IRunPromptOptions, runPromptFile } from './dialogs/askToSelectPrompt/utils/runPrompt.js';
-import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
-import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ChatViewId, IChatWidget, showChatView } from '../chat.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { assertDefined } from '../../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
+import { UILabelProvider } from '../../../../../base/common/keybindingLabels.js';
+import { ICommandAction } from '../../../../../platform/action/common/action.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { PromptFilePickers } from './pickers/promptFilePickers.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { getPromptCommandName } from '../../common/promptSyntax/service/promptsService.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
@@ -132,7 +132,7 @@ abstract class RunPromptBaseAction extends Action2 {
 		resource: URI | undefined,
 		inNewChat: boolean,
 		accessor: ServicesAccessor,
-	): Promise<IChatWidget> {
+	): Promise<IChatWidget | undefined> {
 		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 
@@ -142,15 +142,16 @@ abstract class RunPromptBaseAction extends Action2 {
 			'Cannot find URI resource for an active text editor.',
 		);
 
-		const { widget } = await runPromptFile(
-			resource,
-			{
-				inNewChat,
-				commandService,
-				viewsService,
-			},
-		);
+		if (inNewChat === true) {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
 
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.setInput(`/${getPromptCommandName(resource.path)}`);
+			// submit the prompt immediately
+			await widget.acceptInput();
+		}
 		return widget;
 	}
 }
@@ -177,7 +178,7 @@ class RunCurrentPromptAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI | undefined,
-	): Promise<IChatWidget> {
+	): Promise<IChatWidget | undefined> {
 		return await super.execute(
 			resource,
 			false,
@@ -225,16 +226,18 @@ class RunSelectedPromptAction extends Action2 {
 		}
 
 		const { promptFile, keyMods } = result;
-		const runPromptOptions: IRunPromptOptions = {
-			inNewChat: keyMods.ctrlCmd,
-			viewsService,
-			commandService,
-		};
-		const { widget } = await runPromptFile(
-			promptFile,
-			runPromptOptions,
-		);
-		widget.focusInput();
+
+		if (keyMods.ctrlCmd === true) {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
+
+		const widget = await showChatView(viewsService);
+		if (widget) {
+			widget.setInput(`/${getPromptCommandName(promptFile.path)}`);
+			// submit the prompt immediately
+			await widget.acceptInput();
+			widget.focusInput();
+		}
 	}
 }
 
@@ -281,16 +284,14 @@ class ManagePromptFilesAction extends Action2 {
 /**
  * Gets `URI` of a prompt file open in an active editor instance, if any.
  */
-export const getActivePromptFileUri = (
-	accessor: ServicesAccessor,
-): URI | undefined => {
+function getActivePromptFileUri(accessor: ServicesAccessor): URI | undefined {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const model = codeEditorService.getActiveCodeEditor()?.getModel();
 	if (model?.getLanguageId() === PROMPT_LANGUAGE_ID) {
 		return model.uri;
 	}
 	return undefined;
-};
+}
 
 
 /**
@@ -329,7 +330,7 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 	public override async run(
 		accessor: ServicesAccessor,
 		resource: URI,
-	): Promise<IChatWidget> {
+	): Promise<IChatWidget | undefined> {
 		return await super.execute(
 			resource,
 			true,
@@ -341,9 +342,9 @@ class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 /**
  * Helper to register all the `Run Current Prompt` actions.
  */
-export const registerRunPromptActions = () => {
+export function registerRunPromptActions(): void {
 	registerAction2(RunCurrentPromptInNewChatAction);
 	registerAction2(RunCurrentPromptAction);
 	registerAction2(RunSelectedPromptAction);
 	registerAction2(ManagePromptFilesAction);
-};
+}

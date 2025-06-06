@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget } from '../../chat.js';
-import { CHAT_CATEGORY } from '../chatActions.js';
-import { localize2 } from '../../../../../../nls.js';
-import { IEditorPane } from '../../../../../common/editor.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { chatSubcommandLeader, IParsedChatRequest } from '../../../common/chatParserTypes.js';
-import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { assertDefined } from '../../../../../base/common/types.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { IEditorPane } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidget } from '../chat.js';
+
 
 /**
  * Action ID for the `Save Prompt` action.

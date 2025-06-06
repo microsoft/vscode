@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../../../../nls.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../../../base/common/assert.js';
-import { Codicon } from '../../../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
-import { dirname, extUri, joinPath } from '../../../../../../../../base/common/resources.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { IFileService } from '../../../../../../../../platform/files/common/files.js';
-import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
-import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName, PromptsType } from '../../../../../../../../platform/prompts/common/prompts.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
-import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_MODE_COMMAND_ID } from '../../../../promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
-import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../../../platform/quickinput/common/quickInput.js';
-import { askForPromptFileName } from '../../../../promptSyntax/contributions/createPromptCommand/dialogs/askForPromptName.js';
-import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
-import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
-import { askForPromptSourceFolder } from '../../../../promptSyntax/contributions/createPromptCommand/dialogs/askForPromptSourceFolder.js';
-import { UILabelProvider } from '../../../../../../../../base/common/keybindingLabels.js';
-import { OS } from '../../../../../../../../base/common/platform.js';
+import { localize } from '../../../../../../nls.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { assert } from '../../../../../../base/common/assert.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { getCleanPromptName, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/constants.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_MODE_COMMAND_ID } from '../newPromptFileActions.js';
+import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { askForPromptFileName } from './askForPromptName.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { UILabelProvider } from '../../../../../../base/common/keybindingLabels.js';
+import { OS } from '../../../../../../base/common/platform.js';
+import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
