@@ -969,7 +969,7 @@ export function registerTerminalActions() {
 			{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 4,
+				order: 5,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
 			}
