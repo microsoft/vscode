@@ -43,10 +43,22 @@ suite('Terminal Suggest', () => {
 			strictEqual(getTokenType({ commandLine: 'git |', cursorPosition: 'git |'.length }, TerminalShellType.Bash), TokenType.Command);
 		});
 		test('partial command after separator', () => {
-			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.Bash), TokenType.Argument);
+			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.Bash), TokenType.Command);
 		});
 		test('cursor right after separator', () => {
 			strictEqual(getTokenType({ commandLine: 'echo a ; ', cursorPosition: 'echo a ; '.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('command after double ampersand', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git', cursorPosition: 'ls && git'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('argument after command in multi-command', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git add', cursorPosition: 'ls && git add'.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('cursor in middle of command after separator', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git add', cursorPosition: 'ls && gi'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('cursor in argument after separator', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git add file', cursorPosition: 'ls && git add fi'.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
 	});
 	suite('pwsh', () => {
@@ -66,7 +78,7 @@ suite('Terminal Suggest', () => {
 			strictEqual(getTokenType({ commandLine: 'echo a ; ', cursorPosition: 'echo a ; '.length }, TerminalShellType.PowerShell), TokenType.Command);
 		});
 		test('command after semicolon', () => {
-			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.PowerShell), TokenType.Argument);
+			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.PowerShell), TokenType.Command);
 		});
 	});
 });

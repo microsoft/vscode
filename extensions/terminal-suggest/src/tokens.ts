@@ -17,19 +17,59 @@ const shellTypeResetChars = new Map<TerminalShellType, string[]>([
 	[TerminalShellType.PowerShell, ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', '-and', '-or', '-not', '!', '&', ';', '-eq', '-ne', '-gt', '-lt', '-ge', '-le', '-like', '-notlike', '-match', '-notmatch', '-contains', '-notcontains', '-in', '-notin']]
 ]);
 
-const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
+// Command separators that start new command contexts (vs logical operators that stay in argument context)
+const shellTypeCommandSeparators = new Map<TerminalShellType, string[]>([
+	[TerminalShellType.Bash, ['|', '|&', '&&', '||', '&', ';', '(', '{']],
+	[TerminalShellType.Zsh, ['|', '|&', '&&', '||', '&', ';', '(', '{']],
+	[TerminalShellType.PowerShell, ['|', '&', ';']]
+]);
 
-export { shellTypeResetChars, defaultShellTypeResetChars };
+const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
+const defaultShellTypeCommandSeparators = shellTypeCommandSeparators.get(TerminalShellType.Bash)!;
+
+export { shellTypeResetChars, defaultShellTypeResetChars, shellTypeCommandSeparators, defaultShellTypeCommandSeparators };
 
 export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
-	const spaceIndex = ctx.commandLine.substring(0, ctx.cursorPosition).lastIndexOf(' ');
-	if (spaceIndex === -1) {
-		return TokenType.Command;
-	}
-	const precedingText = ctx.commandLine.substring(0, ctx.cursorPosition).trim();
+	const beforeCursor = ctx.commandLine.substring(0, ctx.cursorPosition);
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
-	if (commandResetChars.some(e => precedingText.endsWith(e))) {
+	
+	// Check if the text before cursor ends with any reset character
+	const trimmedBeforeCursor = beforeCursor.trim();
+	if (commandResetChars.some(e => trimmedBeforeCursor.endsWith(e))) {
 		return TokenType.Command;
 	}
+	
+	// Find the last command separator (that starts a new command context)
+	const commandSeparators = shellType === undefined ? defaultShellTypeCommandSeparators : shellTypeCommandSeparators.get(shellType) ?? defaultShellTypeCommandSeparators;
+	let lastSeparatorIndex = -1;
+	for (const separator of commandSeparators) {
+		const index = beforeCursor.lastIndexOf(separator);
+		if (index > lastSeparatorIndex) {
+			lastSeparatorIndex = index + separator.length - 1;
+		}
+	}
+	
+	// Get the text after the last separator (or from the beginning if no separator found)
+	const afterSeparator = lastSeparatorIndex >= 0 ? beforeCursor.slice(lastSeparatorIndex + 1) : beforeCursor;
+	
+	// Check if the content after separator contains a space (indicating we have command + args)
+	const trimmedAfterSeparator = afterSeparator.trim();
+	const spaceIndex = trimmedAfterSeparator.indexOf(' ');
+	if (spaceIndex === -1) {
+		// No space found, so we're still in the command part
+		return TokenType.Command;
+	}
+	
+	// We have a space, so check if cursor is in the command part or argument part
+	const commandPart = trimmedAfterSeparator.substring(0, spaceIndex);
+	
+	// Calculate position within the afterSeparator text
+	const leadingWhitespace = afterSeparator.length - trimmedAfterSeparator.length;
+	const positionInTrimmed = ctx.cursorPosition - (lastSeparatorIndex + 1) - leadingWhitespace;
+	
+	if (positionInTrimmed <= commandPart.length) {
+		return TokenType.Command;
+	}
+	
 	return TokenType.Argument;
 }
