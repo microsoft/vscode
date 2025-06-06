@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';

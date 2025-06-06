@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
-import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
-import { ISearchService, IFileQuery, IFileMatch } from '../../../../../../services/search/common/search.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { match } from '../../../../../../../base/common/glob.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockService } from './mock.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.

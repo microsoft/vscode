@@ -10,13 +10,13 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidget } from '../chat.js';
 
