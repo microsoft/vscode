@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../common/assert.js';
-import { isOneOf } from '../../common/types.js';
 
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
@@ -34,32 +32,3 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 export const randomBoolean = (): boolean => {
 	return Math.random() > 0.5;
 };
-
-/**
- * @deprecated use `mock.ts#mock` instead
- */
-export function mockObject<TObject extends Object>(
-	overrides: Partial<TObject>,
-): TObject {
-	// ensure that the overrides object cannot be modified afterward
-	overrides = Object.freeze(overrides);
-
-	const keys = Object.keys(overrides) as (keyof (typeof overrides))[];
-	const service = new Proxy(
-		{},
-		{
-			get: (_target, key: string | number | Symbol) => {
-				// sanity check for the provided `key`
-				assert(
-					isOneOf(key, keys),
-					`The '${key}' is not mocked.`,
-				);
-
-				return overrides[key];
-			},
-		});
-
-	// note! it's ok to `as TObject` here, because of
-	// 		 the runtime checks in the `Proxy` getter
-	return service as (typeof overrides) as TObject;
-}
