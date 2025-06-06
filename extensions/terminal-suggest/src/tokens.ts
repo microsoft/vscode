@@ -62,24 +62,54 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	// Get the text after the last separator (or from the beginning if no separator found)
 	const afterSeparator = lastSeparatorIndex >= 0 ? beforeCursor.slice(lastSeparatorIndex + 1) : beforeCursor;
 	
-	// Check if the content after separator contains a space (indicating we have command + args)
+	// If there's no content after separator (empty or only whitespace), 
+	// check if there's at least one space for command mode
+	if (afterSeparator.trim() === '') {
+		// If there's at least one space after separator, it's command mode
+		// If there's no space (cursor immediately after separator), it's argument mode
+		return afterSeparator.length > 0 ? TokenType.Command : TokenType.Argument;
+	}
+	
+	// For the remaining cases, use a simpler heuristic:
+	// Look at the trimmed content after separator and see if it looks like we're still
+	// in the process of typing a command (vs clearly in arguments)
+	
 	const trimmedAfterSeparator = afterSeparator.trim();
-	const spaceIndex = trimmedAfterSeparator.indexOf(' ');
-	if (spaceIndex === -1) {
-		// No space found, so we're still in the command part
+	
+	// If no spaces at all, definitely command
+	if (trimmedAfterSeparator.indexOf(' ') === -1) {
 		return TokenType.Command;
 	}
 	
-	// We have a space, so check if cursor is in the command part or argument part
-	const commandPart = trimmedAfterSeparator.substring(0, spaceIndex);
+	// If there are spaces, we need to be smarter
+	// Heuristic: if the text after separator looks like it has just one word and some
+	// partial typing, consider it command mode. Otherwise, argument mode.
+	const words = trimmedAfterSeparator.split(/\s+/).filter(w => w.length > 0);
 	
-	// Calculate position within the afterSeparator text
-	const leadingWhitespace = afterSeparator.length - trimmedAfterSeparator.length;
-	const positionInTrimmed = ctx.cursorPosition - (lastSeparatorIndex + 1) - leadingWhitespace;
+	// Single complete word followed by more text usually means arguments
+	if (words.length >= 2) {
+		// But if it's just 2 words and the second is very short (1-2 chars), 
+		// it might still be command completion
+		if (words.length === 2 && words[1].length <= 2) {
+			return TokenType.Command;
+		}
+		return TokenType.Argument;
+	}
 	
-	if (positionInTrimmed <= commandPart.length) {
+	// Single word - check if cursor is clearly past it with trailing space
+	if (words.length === 1) {
+		const separatorEndPos = lastSeparatorIndex + 1;
+		const leadingWhitespace = afterSeparator.length - trimmedAfterSeparator.length;
+		const trimmedStartPos = separatorEndPos + leadingWhitespace;
+		const wordEndPos = trimmedStartPos + words[0].length;
+		
+		// If cursor is past the word with trailing space, it's argument mode
+		if (ctx.cursorPosition > wordEndPos) {
+			return TokenType.Argument;
+		}
 		return TokenType.Command;
 	}
 	
-	return TokenType.Argument;
+	// Default to command mode for edge cases
+	return TokenType.Command;
 }
