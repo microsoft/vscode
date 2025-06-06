@@ -97,7 +97,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public get onDidChangeCustomChatModes(): Event<void> {
 		if (!this.onDidChangeCustomChatModesEvent) {
-			this.onDidChangeCustomChatModesEvent = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
+			this.onDidChangeCustomChatModesEvent = this._register(this.fileLocator.createFilesUpdatedEvent(PromptsType.mode)).event;
 		}
 		return this.onDidChangeCustomChatModesEvent;
 	}
