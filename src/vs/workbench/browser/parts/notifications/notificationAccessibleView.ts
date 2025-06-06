@@ -16,6 +16,7 @@ import { IListService, WorkbenchList } from '../../../../platform/list/browser/l
 import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -59,7 +60,11 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 				if (!notification) {
 					return;
 				}
-				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
+				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
+				const severityPrefix = getSeverityPrefix(notification.severity);
+				const messageWithSeverity = `${severityPrefix}${message}`;
+				
+				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', messageWithSeverity, notification.source) : localize('notification.accessibleView', '{0}', messageWithSeverity);
 			}
 			const content = getContentForNotification();
 			if (!content) {
@@ -93,6 +98,16 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 			);
 		}
 		return getProvider();
+	}
+}
+
+function getSeverityPrefix(severity: Severity): string {
+	if (severity === Severity.Error) {
+		return localize('severityPrefix.error', "Error: ");
+	} else if (severity === Severity.Warning) {
+		return localize('severityPrefix.warning', "Warning: ");
+	} else {
+		return localize('severityPrefix.info', "Info: ");
 	}
 }
 
