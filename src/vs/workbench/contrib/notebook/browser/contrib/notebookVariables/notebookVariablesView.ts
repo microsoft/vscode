@@ -105,7 +105,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		// Set up autorun to watch the widget aria label observable and update the tree's aria label
 		this._register(autorun(reader => {
-			const ariaLabel = reader.readObservable(this.accessibilityProvider.widgetAriaLabel);
+			const ariaLabel = reader.readObservable(this.accessibilityProvider!.widgetAriaLabel);
 			this.tree!.ariaLabel = ariaLabel;
 		}));
 
