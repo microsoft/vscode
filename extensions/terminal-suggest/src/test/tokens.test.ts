@@ -85,11 +85,11 @@ suite('Terminal Suggest', () => {
 		});
 	});
 	suite('word length heuristics', () => {
-		test('short second word → command (git s)', () => {
-			strictEqual(getTokenType({ commandLine: 'ls && git s', cursorPosition: 'ls && git s'.length }, TerminalShellType.Bash), TokenType.Command);
+		test('short second word → argument (git s)', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git s', cursorPosition: 'ls && git s'.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
-		test('short second word 2 chars → command (git st)', () => {
-			strictEqual(getTokenType({ commandLine: 'ls && git st', cursorPosition: 'ls && git st'.length }, TerminalShellType.Bash), TokenType.Command);
+		test('short second word 2 chars → argument (git st)', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git st', cursorPosition: 'ls && git st'.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
 		test('longer second word → argument (git status)', () => {
 			strictEqual(getTokenType({ commandLine: 'ls && git status', cursorPosition: 'ls && git status'.length }, TerminalShellType.Bash), TokenType.Argument);
@@ -174,6 +174,23 @@ suite('Terminal Suggest', () => {
 		});
 		test('PowerShell without space after operator → argument', () => {
 			strictEqual(getTokenType({ commandLine: 'test -eq', cursorPosition: 'test -eq'.length }, TerminalShellType.PowerShell), TokenType.Argument);
+		});
+	});
+	suite('command vs argument distinction', () => {
+		test('git s → argument (git subcommand)', () => {
+			strictEqual(getTokenType({ commandLine: 'git s', cursorPosition: 'git s'.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('git st → argument (git subcommand)', () => {
+			strictEqual(getTokenType({ commandLine: 'git st', cursorPosition: 'git st'.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('git status → argument (git subcommand)', () => {
+			strictEqual(getTokenType({ commandLine: 'git status', cursorPosition: 'git status'.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('git → command (only command)', () => {
+			strictEqual(getTokenType({ commandLine: 'git', cursorPosition: 'git'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('git → argument (with trailing space)', () => {
+			strictEqual(getTokenType({ commandLine: 'git ', cursorPosition: 'git '.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
 	});
 	suite('edge cases and fallbacks', () => {
