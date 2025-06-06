@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { ObjectCache } from '../../common/objectCache.js';
-import { wait } from '../../../base/test/common/testUtils.js';
+import { timeout } from '../../../base/common/async.js';
 import { ObservableDisposable } from '../../common/observableDisposable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
@@ -126,7 +126,7 @@ suite('ObjectCache', function () {
 			obj3.dispose();
 			// the object is removed from the cache asynchronously
 			// so add a small delay to ensure the object is removed
-			await wait(5);
+			await timeout(5);
 
 			const obj5 = cache.get(key1);
 			assert(

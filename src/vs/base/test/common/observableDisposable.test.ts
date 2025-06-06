@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { spy } from 'sinon';
-import { wait, waitRandom } from './testUtils.js';
+import { timeout } from '../../common/async.js';
+import { waitRandom } from './testUtils.js';
 import { randomInt } from '../../common/numbers.js';
 import { Disposable, IDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
@@ -71,7 +72,7 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(1);
+			await timeout(1);
 
 			/**
 			 * Validate that the callback was called.
@@ -115,12 +116,12 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(10);
+			await timeout(10);
 
 			const onDisposeSpy = spy();
 			disposables.add(object.onDispose(onDisposeSpy));
 
-			await wait(10);
+			await timeout(10);
 
 			assert(
 				onDisposeSpy.calledOnce,
@@ -131,7 +132,7 @@ suite('ObservableDisposable', () => {
 
 			disposables.add(object.onDispose(onDisposeSpy));
 
-			await wait(10);
+			await timeout(10);
 
 			assert(
 				onDisposeSpy.calledTwice,
@@ -140,7 +141,7 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(10);
+			await timeout(10);
 
 			assert(
 				onDisposeSpy.calledTwice,
@@ -309,7 +310,7 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(1);
+			await timeout(1);
 
 			assert.throws(() => {
 				object.assertNotDisposed('Object must not be disposed.');
@@ -346,7 +347,7 @@ suite('ObservableDisposable', () => {
 
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
-			await wait(1);
+			await timeout(1);
 
 			assert.throws(() => {
 				assertNotDisposed(
