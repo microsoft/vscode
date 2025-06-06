@@ -17,7 +17,6 @@ import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -193,11 +192,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// prompt files may have nested child references to other prompt
 		// files that are resolved asynchronously, hence we need to wait
 		// for the entire prompt instruction tree to be processed
-		await logExecutionTime('instructions tree resolve',
-			this.promptInstructionsAttachmentsPart
-				.allSettled.bind(this.promptInstructionsAttachmentsPart),
-			this.logService.trace.bind(this.logService),
-		);
+		this.promptInstructionsAttachmentsPart
+			.allSettled.bind(this.promptInstructionsAttachmentsPart);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
