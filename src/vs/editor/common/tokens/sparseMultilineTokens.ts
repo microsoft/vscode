@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { CharCode } from '../../../base/common/charCode.js';
+import { Position } from '../core/position.js';
+import { IRange, Range } from '../core/range.js';
+import { countEOL } from '../core/misc/eolCounter.js';
+import { ITextModel } from '../model.js';
+import { RateLimiter } from './common.js';
 
 /**
  * Represents sparse tokens over a contiguous range of lines.
@@ -161,6 +163,10 @@ export class SparseMultilineTokens {
 		}
 
 		this._tokens.acceptInsertText(lineIndex, position.column - 1, eolCount, firstLineLength, lastLineLength, firstCharCode);
+	}
+
+	public reportIfInvalid(model: ITextModel): void {
+		this._tokens.reportIfInvalid(model, this._startLineNumber);
 	}
 }
 
@@ -431,18 +437,10 @@ class SparseMultilineTokensStorage {
 				// 3a, 3b, 3c
 				if (tokenDeltaLine === endDeltaLine && tokenEndCharacter > endCharacter) {
 					// 3c. The token starts inside the deletion range, and ends after the deletion range
-					// => the token moves left and shrinks
-					if (tokenDeltaLine === startDeltaLine) {
-						// the deletion started on the same line as the token
-						// => the token moves left and shrinks
-						tokenStartCharacter = startCharacter;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
-					} else {
-						// the deletion started on a line above the token
-						// => the token moves to the beginning of the line
-						tokenStartCharacter = 0;
-						tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
-					}
+					// => the token moves to continue right after the deletion
+					tokenDeltaLine = startDeltaLine;
+					tokenStartCharacter = startCharacter;
+					tokenEndCharacter = tokenStartCharacter + (tokenEndCharacter - endCharacter);
 				} else {
 					// 3a. The token is inside the deletion range
 					// 3b. The token starts inside the deletion range, and ends at the same position as the deletion range
@@ -564,6 +562,26 @@ class SparseMultilineTokensStorage {
 			tokens[offset] = tokenDeltaLine;
 			tokens[offset + 1] = tokenStartCharacter;
 			tokens[offset + 2] = tokenEndCharacter;
+		}
+	}
+
+	private static _rateLimiter = new RateLimiter(10 / 60); // limit to 10 times per minute
+
+	public reportIfInvalid(model: ITextModel, startLineNumber: number): void {
+		for (let i = 0; i < this._tokenCount; i++) {
+			const lineNumber = this._getDeltaLine(i) + startLineNumber;
+
+			if (lineNumber > model.getLineCount()) {
+				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
+					console.error('Invalid Semantic Tokens Data From Extension: lineNumber > model.getLineCount()');
+				});
+			}
+
+			if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
+				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
+					console.error('Invalid Semantic Tokens Data From Extension: end character > model.getLineLength(lineNumber)');
+				});
+			}
 		}
 	}
 }

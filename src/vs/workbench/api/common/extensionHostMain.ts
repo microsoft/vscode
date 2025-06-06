@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as performance from 'vs/base/common/performance';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { Mutable } from 'vs/base/common/types';
+import * as errors from '../../../base/common/errors.js';
+import * as performance from '../../../base/common/performance.js';
+import { URI } from '../../../base/common/uri.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
+import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
+import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
+import { RPCProtocol } from '../../services/extensions/common/rpcProtocol.js';
+import { ExtensionError, ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { getSingletonServiceDescriptors } from '../../../platform/instantiation/common/extensions.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { InstantiationService } from '../../../platform/instantiation/common/instantiationService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService, ExtHostRpcService } from './extHostRpcService.js';
+import { IURITransformerService, URITransformerService } from './extHostUriTransformerService.js';
+import { IExtHostExtensionService, IHostUtils } from './extHostExtensionService.js';
+import { IExtHostTelemetry } from './extHostTelemetry.js';
+import { Mutable } from '../../../base/common/types.js';
+import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -32,14 +33,13 @@ export interface IConsolePatchFn {
 	(mainThreadConsole: MainThreadConsoleShape): any;
 }
 
-abstract class ErrorHandler {
-
-	static {
-		// increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-		Error.stackTraceLimit = 100;
-	}
+export abstract class ErrorHandler {
 
 	static async installEarlyHandler(accessor: ServicesAccessor): Promise<void> {
+
+		// increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+		Error.stackTraceLimit = 100;
+
 		// does NOT dependent of extension information, can be installed immediately, and simply forwards
 		// to the log service and main thread errors
 		const logService = accessor.get(ILogService);
@@ -60,16 +60,22 @@ abstract class ErrorHandler {
 		const rpcService = accessor.get(IExtHostRpcService);
 		const extensionService = accessor.get(IExtHostExtensionService);
 		const extensionTelemetry = accessor.get(IExtHostTelemetry);
+		const apiDeprecationService = accessor.get(IExtHostApiDeprecationService);
 
 		const mainThreadExtensions = rpcService.getProxy(MainContext.MainThreadExtensionService);
 		const mainThreadErrors = rpcService.getProxy(MainContext.MainThreadErrors);
 
-		const map = await extensionService.getExtensionPathIndex();
-		const extensionErrors = new WeakMap<Error, ExtensionIdentifier | undefined>();
+		const extensionsRegistry = await extensionService.getExtensionRegistry();
+		const extensionsMap = await extensionService.getExtensionPathIndex();
+		const extensionErrors = new WeakMap<Error, { extensionIdentifier: ExtensionIdentifier | undefined; stack: string }>();
 
+		// PART 1
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
-		(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+		function prepareStackTraceAndFindExtension(error: Error, stackTrace: errors.V8CallSite[]) {
+			if (extensionErrors.has(error)) {
+				return extensionErrors.get(error)!.stack;
+			}
 			let stackTraceMessage = '';
 			let extension: IExtensionDescription | undefined;
 			let fileName: string | null;
@@ -77,26 +83,77 @@ abstract class ErrorHandler {
 				stackTraceMessage += `\n\tat ${call.toString()}`;
 				fileName = call.getFileName();
 				if (!extension && fileName) {
-					extension = map.findSubstr(URI.file(fileName));
+					extension = extensionsMap.findSubstr(URI.file(fileName));
 				}
 			}
-			extensionErrors.set(error, extension?.identifier);
-			return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
-		};
+			const result = `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			extensionErrors.set(error, { extensionIdentifier: extension?.identifier, stack: result });
+			return result;
+		}
 
+		const _wasWrapped = Symbol('prepareStackTrace wrapped');
+		let _prepareStackTrace = prepareStackTraceAndFindExtension;
+
+		Object.defineProperty(Error, 'prepareStackTrace', {
+			configurable: false,
+			get() {
+				return _prepareStackTrace;
+			},
+			set(v) {
+				if (v === prepareStackTraceAndFindExtension || !v || v[_wasWrapped]) {
+					_prepareStackTrace = v || prepareStackTraceAndFindExtension;
+					return;
+				}
+
+				_prepareStackTrace = function (error, stackTrace) {
+					prepareStackTraceAndFindExtension(error, stackTrace);
+					return v.call(Error, error, stackTrace);
+				};
+
+				Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
+			},
+		});
+
+		// PART 2
+		// set the unexpectedErrorHandler and check for extensions that have been identified as
+		// having caused the error. Note that the runtime order is actually reversed, the code
+		// below accesses the stack-property which triggers the code above
 		errors.setUnexpectedErrorHandler(err => {
-			logService.error(err);
 
-			const data = errors.transformErrorForSerialization(err);
-			const extension = extensionErrors.get(err);
+			if (!errors.PendingMigrationError.is(err)) {
+				logService.error(err);
+			}
+
+			const errorData = errors.transformErrorForSerialization(err);
+
+			let extension: ExtensionIdentifier | undefined;
+			if (err instanceof ExtensionError) {
+				extension = err.extension;
+			} else {
+				const stackData = extensionErrors.get(err);
+				extension = stackData?.extensionIdentifier;
+			}
+
 			if (!extension) {
-				mainThreadErrors.$onUnexpectedError(data);
 				return;
 			}
 
-			mainThreadExtensions.$onExtensionRuntimeError(extension, data);
-			const reported = extensionTelemetry.onExtensionError(extension, err);
-			logService.trace('forwarded error to extension?', reported, extension);
+			if (errors.PendingMigrationError.is(err)) {
+				// report pending migration via the API deprecation service which (1) informs the extensions author during
+				// dev-time and (2) collects telemetry so that we can reach out too
+				const extensionDesc = extensionsRegistry.getExtensionDescription(extension);
+				if (extensionDesc) {
+					apiDeprecationService.report(err.name, extensionDesc, `${err.message}\n FROM: ${err.stack}`);
+				}
+			} else {
+				mainThreadExtensions.$onExtensionRuntimeError(extension, errorData);
+				const reported = extensionTelemetry.onExtensionError(extension, err);
+				logService.trace('forwarded error to extension?', reported, extension);
+			}
+		});
+
+		errors.errorHandler.addListener(err => {
+			mainThreadErrors.$onUnexpectedError(err);
 		});
 	}
 }
@@ -163,13 +220,8 @@ export class ExtensionHostMain {
 	}
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
-		initData.allExtensions.forEach((ext) => {
-			(<Mutable<IRelaxedExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
-			const browserNlsBundleUris: { [language: string]: URI } = {};
-			if (ext.browserNlsBundleUris) {
-				Object.keys(ext.browserNlsBundleUris).forEach(lang => browserNlsBundleUris[lang] = URI.revive(rpcProtocol.transformIncomingURIs(ext.browserNlsBundleUris![lang])));
-				(<Mutable<IRelaxedExtensionDescription>>ext).browserNlsBundleUris = browserNlsBundleUris;
-			}
+		initData.extensions.allExtensions.forEach((ext) => {
+			(<Mutable<IExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
 		});
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
@@ -179,10 +231,8 @@ export class ExtensionHostMain {
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.environment.workspaceStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.workspaceStorageHome));
-		initData.environment.extensionTelemetryLogResource = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTelemetryLogResource));
 		initData.nlsBaseUrl = URI.revive(rpcProtocol.transformIncomingURIs(initData.nlsBaseUrl));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
-		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}

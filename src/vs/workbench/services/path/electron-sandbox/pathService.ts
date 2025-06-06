@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IPathService, AbstractPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IPathService, AbstractPathService } from '../common/pathService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export class NativePathService extends AbstractPathService {
 

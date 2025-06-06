@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionContext, Uri } from 'vscode';
+import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
 import { LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
-
-declare const Worker: {
-	new(stringUrl: string): any;
-};
-declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
-};
 
 let client: AsyncDisposable | undefined;
 
@@ -22,8 +15,10 @@ export async function activate(context: ExtensionContext) {
 	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/htmlServerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString());
+		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
+
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+			return new LanguageClient(id, name, worker, clientOptions);
 		};
 
 		const timer = {

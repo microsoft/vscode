@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger, ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostLoggerService as BaseExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerService';
-import { Schemas } from 'vs/base/common/network';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { generateUuid } from 'vs/base/common/uuid';
+import { ILogger, ILoggerOptions, ILoggerResource, LogLevel } from '../../../platform/log/common/log.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtHostLoggerService as BaseExtHostLoggerService } from '../common/extHostLoggerService.js';
+import { Schemas } from '../../../base/common/network.js';
+import { SpdLogLogger } from '../../../platform/log/node/spdlogLog.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 export class ExtHostLoggerService extends BaseExtHostLoggerService {
 
@@ -18,6 +18,16 @@ export class ExtHostLoggerService extends BaseExtHostLoggerService {
 			return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 		}
 		return super.doCreateLogger(resource, logLevel, options);
+	}
+
+	override registerLogger(resource: ILoggerResource): void {
+		super.registerLogger(resource);
+		this._proxy.$registerLogger(resource);
+	}
+
+	override deregisterLogger(resource: URI): void {
+		super.deregisterLogger(resource);
+		this._proxy.$deregisterLogger(resource);
 	}
 
 }

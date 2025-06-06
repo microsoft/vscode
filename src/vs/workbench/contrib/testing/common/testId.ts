@@ -78,6 +78,13 @@ export class TestId {
 	}
 
 	/**
+	 * Splits a test ID into its parts.
+	 */
+	public static split(idString: string) {
+		return idString.split(TestIdPathParts.Delimiter);
+	}
+
+	/**
 	 * Gets the string ID resulting from adding b to the base ID.
 	 */
 	public static joinToString(base: string | TestId, b: string) {
@@ -93,22 +100,60 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply gets the local ID of a test identified with the string.
+	 */
+	public static localId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? idString : idString.slice(idx + TestIdPathParts.Delimiter.length);
+	}
+
+	/**
+	 * Gets whether maybeChild is a child of maybeParent.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
+	 */
+	public static isChild(maybeParent: string, maybeChild: string) {
+		return maybeChild[maybeParent.length] === TestIdPathParts.Delimiter && maybeChild.startsWith(maybeParent);
+	}
+
+	/**
 	 * Compares the position of the two ID strings.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static compare(a: string, b: string) {
 		if (a === b) {
 			return TestPosition.IsSame;
 		}
 
-		if (b.startsWith(a + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(a, b)) {
 			return TestPosition.IsChild;
 		}
 
-		if (a.startsWith(b + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(b, a)) {
 			return TestPosition.IsParent;
 		}
 
 		return TestPosition.Disconnected;
+	}
+
+	public static getLengthOfCommonPrefix(length: number, getId: (i: number) => TestId): number {
+		if (length === 0) {
+			return 0;
+		}
+
+		let commonPrefix = 0;
+		while (commonPrefix < length - 1) {
+			for (let i = 1; i < length; i++) {
+				const a = getId(i - 1);
+				const b = getId(i);
+				if (a.path[commonPrefix] !== b.path[commonPrefix]) {
+					return commonPrefix;
+				}
+			}
+
+			commonPrefix++;
+		}
+
+		return commonPrefix;
 	}
 
 	constructor(
@@ -118,6 +163,13 @@ export class TestId {
 		if (path.length === 0 || viewEnd < 1) {
 			throw new Error('cannot create test with empty path');
 		}
+	}
+
+	/**
+	 * Gets the ID of the parent test.
+	 */
+	public get rootId(): TestId {
+		return new TestId(this.path, 1);
 	}
 
 	/**

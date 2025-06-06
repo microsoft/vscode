@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { protocol } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 
 
 export class WebviewProtocolProvider extends Disposable {
@@ -36,7 +36,7 @@ export class WebviewProtocolProvider extends Disposable {
 				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
 				const url = FileAccess.asFileUri(relativeResourcePath);
 				return callback({
-					path: decodeURIComponent(url.fsPath),
+					path: url.fsPath,
 					headers: {
 						...COI.getHeadersFromQuery(request.url),
 						'Cross-Origin-Resource-Policy': 'cross-origin'

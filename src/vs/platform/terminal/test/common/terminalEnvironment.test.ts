@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { collapseTildePath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { collapseTildePath, sanitizeCwd } from '../../common/terminalEnvironment.js';
 
 suite('terminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('collapseTildePath', () => {
 		test('should return empty string for a falsy path', () => {
 			strictEqual(collapseTildePath('', '/foo', '/'), '');

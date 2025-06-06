@@ -2,10 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from '../../browser/snippetParser.js';
 
 suite('SnippetParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Scanner', () => {
 
@@ -299,6 +302,7 @@ suite('SnippetParser', () => {
 		assertTextsnippetString('\\$1', '\\$1');
 		assertTextsnippetString('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(${1|not\\, not, five, 5, 1   23|});');
 		assertTextsnippetString('console.log(${1|not\\, not, \\| five, 5, 1   23|});', 'console.log(${1|not\\, not, \\| five, 5, 1   23|});');
+		assertTextsnippetString('${1|cho\\,ices,wi\\|th,esc\\\\aping,chall\\\\\\,enges|}', '${1|cho\\,ices,wi\\|th,esc\\\\aping,chall\\\\\\,enges|}');
 		assertTextsnippetString('this is text', 'this is text');
 		assertTextsnippetString('this ${1:is ${2:nested with $var}}', 'this ${1:is ${2:nested with ${var}}}');
 		assertTextsnippetString('this ${1:is ${2:nested with $var}}}', 'this ${1:is ${2:nested with ${var}}}\\}');
@@ -772,10 +776,10 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, 'import { hello } from world');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
 	});
 
 	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
@@ -785,9 +789,29 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, '\\');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, '\\');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
+	});
+
+	test('Snippet placeholder empty right after expansion #152553', function () {
+
+		const snippet = new SnippetParser().parse('${1:prog}: ${2:$1.cc} - $2');
+		const actual = snippet.toString();
+		assert.strictEqual(actual, 'prog: prog.cc - prog.cc');
+
+		const snippet2 = new SnippetParser().parse('${1:prog}: ${3:${2:$1.cc}.33} - $2 $3');
+		const actual2 = snippet2.toString();
+		assert.strictEqual(actual2, 'prog: prog.cc.33 - prog.cc prog.cc.33');
+
+		// cyclic references of placeholders
+		const snippet3 = new SnippetParser().parse('${1:$2.one} <> ${2:$1.two}');
+		const actual3 = snippet3.toString();
+		assert.strictEqual(actual3, '.two.one.two.one <> .one.two.one.two');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		assertTextAndMarker('${1|aaa$aaa|}bbb\\$bbb', 'aaa$aaabbb$bbb', Placeholder, Text);
 	});
 });

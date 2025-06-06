@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as semver from 'vs/base/common/semver/semver';
+import { ExtensionIdentifierMap, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { localize } from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import * as semver from '../../../../base/common/semver/semver.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 // TODO: @sandy081 merge this with deduping in extensionsScannerService.ts
-export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
-	const result = new Map<string, IExtensionDescription>();
+export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], workspace: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
+	const result = new ExtensionIdentifierMap<IExtensionDescription>();
 	system.forEach((systemExtension) => {
-		const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
-		const extension = result.get(extensionKey);
+		const extension = result.get(systemExtension.identifier);
 		if (extension) {
 			logService.warn(localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
 		}
-		result.set(extensionKey, systemExtension);
+		result.set(systemExtension.identifier, systemExtension);
 	});
 	user.forEach((userExtension) => {
-		const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
-		const extension = result.get(extensionKey);
+		const extension = result.get(userExtension.identifier);
 		if (extension) {
 			if (extension.isBuiltin) {
 				if (semver.gte(extension.version, userExtension.version)) {
@@ -29,7 +28,7 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 					return;
 				}
 				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning
-				(<IRelaxedExtensionDescription>userExtension).isBuiltin = true;
+				(<Mutable<IExtensionDescription>>userExtension).isBuiltin = true;
 			} else {
 				logService.warn(localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
 			}
@@ -37,21 +36,25 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 			logService.warn(`Skipping obsolete builtin extension ${userExtension.extensionLocation.path}`);
 			return;
 		}
-		result.set(extensionKey, userExtension);
+		result.set(userExtension.identifier, userExtension);
+	});
+	workspace.forEach(workspaceExtension => {
+		const extension = result.get(workspaceExtension.identifier);
+		if (extension) {
+			logService.warn(localize('overwritingWithWorkspaceExtension', "Overwriting {0} with Workspace Extension {1}.", extension.extensionLocation.fsPath, workspaceExtension.extensionLocation.fsPath));
+		}
+		result.set(workspaceExtension.identifier, workspaceExtension);
 	});
 	development.forEach(developedExtension => {
 		logService.info(localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
-		const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
-		const extension = result.get(extensionKey);
+		const extension = result.get(developedExtension.identifier);
 		if (extension) {
 			if (extension.isBuiltin) {
 				// Overwriting a builtin extension inherits the `isBuiltin` property
-				(<IRelaxedExtensionDescription>developedExtension).isBuiltin = true;
+				(<Mutable<IExtensionDescription>>developedExtension).isBuiltin = true;
 			}
 		}
-		result.set(extensionKey, developedExtension);
+		result.set(developedExtension.identifier, developedExtension);
 	});
-	const r: IExtensionDescription[] = [];
-	result.forEach((value) => r.push(value));
-	return r;
+	return Array.from(result.values());
 }

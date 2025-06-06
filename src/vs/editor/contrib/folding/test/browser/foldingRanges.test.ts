@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FoldingMarkers } from '../../../../common/languages/languageConfiguration.js';
+import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from '../../browser/foldingRanges.js';
+import { RangesCollector, computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 const markers: FoldingMarkers = {
-	start: /^\s*#region\b/,
-	end: /^\s*#endregion\b/
+	start: /^#region$/,
+	end: /^#endregion$/
 };
 
 suite('FoldingRanges', () => {
-
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, source: FoldSource = FoldSource.provider, type: string | undefined = undefined) =>
 		<FoldRange>{
 			startLineNumber: from,
@@ -35,20 +36,17 @@ suite('FoldingRanges', () => {
 	test('test max folding regions', () => {
 		const lines: string[] = [];
 		const nRegions = MAX_FOLDING_REGIONS;
+		const collector = new RangesCollector({ limit: MAX_FOLDING_REGIONS, update: () => { } });
 		for (let i = 0; i < nRegions; i++) {
+			const startLineNumber = lines.length;
 			lines.push('#region');
-		}
-		for (let i = 0; i < nRegions; i++) {
+			const endLineNumber = lines.length;
 			lines.push('#endregion');
+			collector.insertFirst(startLineNumber, endLineNumber, 0);
 		}
 		const model = createTextModel(lines.join('\n'));
-		const actual = computeRanges(model, false, markers, { limit: MAX_FOLDING_REGIONS, report: () => { } });
+		const actual = collector.toIndentRanges(model);
 		assert.strictEqual(actual.length, nRegions, 'len');
-		for (let i = 0; i < nRegions; i++) {
-			assert.strictEqual(actual.getStartLineNumber(i), i + 1, 'start' + i);
-			assert.strictEqual(actual.getEndLineNumber(i), nRegions * 2 - i, 'end' + i);
-			assert.strictEqual(actual.getParentIndex(i), i - 1, 'parent' + i);
-		}
 		model.dispose();
 
 	});

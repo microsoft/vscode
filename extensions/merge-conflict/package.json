@@ -165,9 +165,11 @@
       }
     }
   },
-  "dependencies": {},
+  "dependencies": {
+    "@vscode/extension-telemetry": "^0.9.8"
+  },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

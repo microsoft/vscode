@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { equals } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWebviewPortMapping } from '../../../../platform/webview/common/webviewPortMapping.js';
+import { Memento, MementoObject } from '../../../common/memento.js';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -71,6 +72,8 @@ export interface WebviewInitInfo {
 	readonly providedViewType?: string;
 	readonly origin?: string;
 
+	readonly title: string | undefined;
+
 	readonly options: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
 
@@ -92,6 +95,12 @@ export interface WebviewOptions {
 	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
+
+	/**
+	 * Disable the service worker used for loading local resources in the webview.
+	 */
+	readonly disableServiceWorker?: boolean;
+
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
@@ -180,9 +189,14 @@ export interface IWebview extends IDisposable {
 	readonly origin: string;
 
 	/**
-	 * The html content of the webview.
+	 * Set html content of the webview.
 	 */
-	html: string;
+	setHtml(html: string): void;
+
+	/**
+	 * Set the title of the webview. This is set on the webview's iframe element.
+	 */
+	setTitle(title: string): void;
 
 	/**
 	 * Control what content is allowed/blocked inside the webview.
@@ -208,15 +222,26 @@ export interface IWebview extends IDisposable {
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+
+	/**
+	 * Fired when the webview is disposed of.
+	 */
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
+
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<WebviewMessageReceivedEvent>;
+
+	/**
+	 * Fired when the webview cannot be loaded or is now in a non-functional state.
+	 */
+	readonly onFatalError: Event<{ readonly message: string }>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
+
+	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 
 	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
@@ -252,7 +277,7 @@ export interface IWebviewElement extends IWebview {
 	 *
 	 * @param parent Element to append the webview to.
 	 */
-	mountTo(parent: HTMLElement): void;
+	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
 }
 
 /**
@@ -282,7 +307,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param claimant Identifier for the object claiming the webview.
 	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
-	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
+	claim(claimant: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void;
 
 	/**
 	 * Release ownership of the webview.

@@ -1,28 +1,96 @@
 {
 	"comments": {
 		"lineComment": "//", // "#"
-		"blockComment": [ "/*", "*/" ]
+		"blockComment": [
+			"/*",
+			"*/"
+		]
 	},
 	"brackets": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
 	],
 	"autoClosingPairs": [
-		{ "open": "{", "close": "}", "notIn": ["string"] },
-		{ "open": "[", "close": "]", "notIn": ["string"] },
-		{ "open": "(", "close": ")", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "/**", "close": " */", "notIn": ["string"] }
+		{
+			"open": "{",
+			"close": "}",
+			"notIn": [
+				"string"
+			]
+		},
+		{
+			"open": "[",
+			"close": "]",
+			"notIn": [
+				"string"
+			]
+		},
+		{
+			"open": "(",
+			"close": ")",
+			"notIn": [
+				"string"
+			]
+		},
+		{
+			"open": "'",
+			"close": "'",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "\"",
+			"close": "\"",
+			"notIn": [
+				"string",
+				"comment"
+			]
+		},
+		{
+			"open": "/**",
+			"close": " */",
+			"notIn": [
+				"string"
+			]
+		}
 	],
 	"surroundingPairs": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"],
-		["'", "'"],
-		["\"", "\""],
-		["`", "`"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		],
+		[
+			"'",
+			"'"
+		],
+		[
+			"\"",
+			"\""
+		],
+		[
+			"`",
+			"`"
+		]
 	],
 	"indentationRules": {
 		"increaseIndentPattern": "({(?!.*}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch|case).*:)\\s*((/[/*].*|)?$|\\?>)",
@@ -76,6 +144,28 @@
 				"indent": "none",
 				"removeText": 1
 			}
-		}
+		},
+		{
+			// Decrease indentation after single line if/else if/else, for, foreach, or while
+			"previousLineText": "^\\s*(((else ?)?if|for(each)?|while)\\s*\\(.*\\)\\s*|else\\s*)$",
+			// But make sure line doesn't have braces or is not another if statement
+			"beforeText": "^\\s+([^{i\\s]|i(?!f\\b))",
+			"action": {
+				"indent": "outdent"
+			}
+		},
+		// Add // when pressing enter from inside line comment
+		{
+			"beforeText": {
+				"pattern": "\/\/.*"
+			},
+			"afterText": {
+				"pattern": "^(?!\\s*$).+"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "// "
+			}
+		},
 	]
 }

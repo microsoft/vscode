@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getNodeFileFS } from './nodeFs';
-import { Disposable, ExtensionContext } from 'vscode';
+import { Disposable, ExtensionContext, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
-import { TextDecoder } from 'util';
 import * as fs from 'fs';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
@@ -44,6 +43,10 @@ export async function activate(context: ExtensionContext) {
 			return { dispose: () => clearTimeout(handle) };
 		}
 	};
+
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
 	client = await startClient(context, newLanguageClient, { fileFs: getNodeFileFS(), TextDecoder, telemetry, timer });
 }

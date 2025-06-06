@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { Iterable } from 'vs/base/common/iterator';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotebookRendererInfo, ContributedNotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec, NotebookRendererEntrypoint, INotebookStaticPreloadInfo as INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as glob from '../../../../base/common/glob.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { INotebookRendererInfo, ContributedNotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec, NotebookRendererEntrypoint, INotebookStaticPreloadInfo as INotebookStaticPreloadInfo } from './notebookCommon.js';
 
 class DependencyList {
 	private readonly value: ReadonlySet<string>;
@@ -124,15 +124,18 @@ export class NotebookStaticPreloadInfo implements INotebookStaticPreloadInfo {
 	readonly type: string;
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
 
 	constructor(descriptor: {
 		readonly type: string;
 		readonly entrypoint: string;
+		readonly localResourceRoots: readonly string[];
 		readonly extension: IExtensionDescription;
 	}) {
 		this.type = descriptor.type;
 
 		this.entrypoint = joinPath(descriptor.extension.extensionLocation, descriptor.entrypoint);
 		this.extensionLocation = descriptor.extension.extensionLocation;
+		this.localResourceRoots = descriptor.localResourceRoots.map(root => joinPath(descriptor.extension.extensionLocation, root));
 	}
 }

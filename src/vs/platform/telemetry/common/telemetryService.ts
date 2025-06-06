@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { MutableObservableValue } from 'vs/base/common/observableValue';
-import { isWeb } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { mixin } from '../../../base/common/objects.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
+import { IProductService } from '../../product/common/productService.js';
+import { Registry } from '../../registry/common/platform.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
+import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry.js';
+import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils.js';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
-	commonProperties?: Promise<{ [name: string]: any }>;
+	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
 }
 
@@ -32,13 +31,19 @@ export class TelemetryService implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
+	readonly sessionId: string;
+	readonly machineId: string;
+	readonly sqmId: string;
+	readonly devDeviceId: string;
+	readonly firstSessionDate: string;
+	readonly msftInternal: boolean | undefined;
+
 	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any }>;
+	private _commonProperties: ICommonProperties;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
+	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
-
-	public readonly telemetryLevel = new MutableObservableValue<TelemetryLevel>(TelemetryLevel.USAGE);
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -49,8 +54,17 @@ export class TelemetryService implements ITelemetryService {
 		@IProductService private _productService: IProductService
 	) {
 		this._appenders = config.appenders;
-		this._commonProperties = config.commonProperties || Promise.resolve({});
+		this._commonProperties = config.commonProperties ?? Object.create(null);
+
+		this.sessionId = this._commonProperties['sessionID'] as string;
+		this.machineId = this._commonProperties['common.machineId'] as string;
+		this.sqmId = this._commonProperties['common.sqmId'] as string;
+		this.devDeviceId = this._commonProperties['common.devDeviceId'] as string;
+		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
+		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
+
 		this._piiPaths = config.piiPaths || [];
+		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -65,7 +79,16 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._updateTelemetryLevel();
-		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			// Check on the telemetry settings and update the state if changed
+			const affectsTelemetryConfig =
+				e.affectsConfiguration(TELEMETRY_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+			if (affectsTelemetryConfig) {
+				this._updateTelemetryLevel();
+			}
+		}));
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -83,74 +106,59 @@ export class TelemetryService implements ITelemetryService {
 			level = Math.min(level, maxCollectableTelemetryLevel);
 		}
 
-		this.telemetryLevel.value = level;
+		this._telemetryLevel = level;
 	}
 
 	get sendErrorTelemetry(): boolean {
 		return this._sendErrorTelemetry;
 	}
 
-	async getTelemetryInfo(): Promise<ITelemetryInfo> {
-		const values = await this._commonProperties;
-
-		// well known properties
-		const sessionId = values['sessionID'];
-		const machineId = values['common.machineId'];
-		const firstSessionDate = values['common.firstSessionDate'];
-		const msftInternal = values['common.msftInternal'];
-
-		return { sessionId, machineId, firstSessionDate, msftInternal };
+	get telemetryLevel(): TelemetryLevel {
+		return this._telemetryLevel;
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData) {
 		// don't send events when the user is optout
-		if (this.telemetryLevel.value < eventLevel) {
-			return Promise.resolve(undefined);
+		if (this._telemetryLevel < eventLevel) {
+			return;
 		}
 
-		return this._commonProperties.then(values => {
+		// add experiment properties
+		data = mixin(data, this._experimentProperties);
 
-			// add experiment properties
-			data = mixin(data, this._experimentProperties);
+		// remove all PII from data
+		data = cleanData(data as Record<string, any>, this._cleanupPatterns);
 
-			// remove all PII from data
-			data = cleanData(data as Record<string, any>, this._cleanupPatterns);
+		// add common properties
+		data = mixin(data, this._commonProperties);
 
-			// add common properties
-			data = mixin(data, values);
-
-			// Log to the appenders of sufficient level
-			this._appenders.forEach(a => a.log(eventName, data));
-
-		}, err => {
-			// unsure what to do now...
-			console.error(err);
-		});
+		// Log to the appenders of sufficient level
+		this._appenders.forEach(a => a.log(eventName, data));
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data);
+	publicLog(eventName: string, data?: ITelemetryData) {
+		this._log(eventName, TelemetryLevel.USAGE, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLog(eventName, data as ITelemetryData);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
+	publicLogError(errorEventName: string, data?: ITelemetryData) {
 		if (!this._sendErrorTelemetry) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Send error event and anonymize paths
-		return this._log(errorEventName, TelemetryLevel.ERROR, data);
+		this._log(errorEventName, TelemetryLevel.ERROR, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLogError(eventName, data as ITelemetryData);
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLogError(eventName, data as ITelemetryData);
 	}
 }
 
@@ -168,11 +176,11 @@ function getTelemetryLevelSettingDescription(): string {
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
 	const telemetryTable = `
 |       | ${crashReportsHeader} | ${errorsHeader} | ${usageHeader} |
-|:------|:---------------------:|:---------------:|:--------------:|
-| all   |            ✓          |        ✓        |        ✓       |
-| error |            ✓          |        ✓        |        -       |
-| crash |            ✓          |        -        |        -       |
-| off   |            -          |        -        |        -       |
+|:------|:-------------:|:---------------:|:----------:|
+| all   |       ✓       |        ✓        |     ✓      |
+| error |       ✓       |        ✓        |     -      |
+| crash |       ✓       |        -        |     -      |
+| off   |       -       |        -        |     -      |
 `;
 
 	const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "****Note:*** If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.*");
@@ -192,9 +200,10 @@ ${deprecatedSettingNote}
 	return telemetryDescription;
 }
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+	'order': 1,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {
@@ -211,18 +220,23 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
-		}
-	}
-});
-
-// Deprecated telemetry setting
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
-	'type': 'object',
-	'title': localize('telemetryConfigurationTitle', "Telemetry"),
-	'properties': {
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'policy': {
+				name: 'TelemetryLevel',
+				minimumVersion: '1.99',
+				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
+			}
+		},
+		'telemetry.feedback.enabled': {
+			type: 'boolean',
+			default: true,
+			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and feedback options in features like Copilot Chat."),
+			policy: {
+				name: 'EnableFeedback',
+				minimumVersion: '1.99',
+			}
+		},
+		// Deprecated telemetry setting
 		[TELEMETRY_OLD_SETTING_ID]: {
 			'type': 'boolean',
 			'markdownDescription':
@@ -235,6 +249,5 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']
 		}
-	}
+	},
 });
-

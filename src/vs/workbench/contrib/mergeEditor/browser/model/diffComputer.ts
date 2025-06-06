@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { IReader, observableFromEvent } from 'vs/base/common/observable';
-import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { IReader } from '../../../../../base/common/observable.js';
+import { RangeMapping as DiffRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { MergeEditorLineRange } from './lineRange.js';
+import { DetailedLineRangeMapping, RangeMapping } from './mapping.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
@@ -21,25 +23,29 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableFromEvent(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description config: mergeAlgorithm.diffAlgorithm */ this.configurationService.getValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm')
-	);
+	private readonly mergeAlgorithm;
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		this.mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+			'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+			.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 	}
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
 		const diffAlgorithm = this.mergeAlgorithm.read(reader);
+		const inputVersion = textModel1.getVersionId();
+		const outputVersion = textModel2.getVersionId();
+
 		const result = await this.editorWorkerService.computeDiff(
 			textModel1.uri,
 			textModel2.uri,
 			{
 				ignoreTrimWhitespace: false,
 				maxComputationTimeMs: 0,
+				computeMoves: false,
 			},
 			diffAlgorithm,
 		);
@@ -54,22 +60,60 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 		const changes = result.changes.map(c =>
 			new DetailedLineRangeMapping(
-				toLineRange(c.originalRange),
+				toLineRange(c.original),
 				textModel1,
-				toLineRange(c.modifiedRange),
+				toLineRange(c.modified),
 				textModel2,
 				c.innerChanges?.map(ic => toRangeMapping(ic))
 			)
 		);
 
+		const newInputVersion = textModel1.getVersionId();
+		const newOutputVersion = textModel2.getVersionId();
+
+		if (inputVersion !== newInputVersion || outputVersion !== newOutputVersion) {
+			return { diffs: null };
+		}
+
 		assertFn(() => {
-			return changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
+			for (const c of changes) {
+				const inputRange = c.inputRange;
+				const outputRange = c.outputRange;
+				const inputTextModel = c.inputTextModel;
+				const outputTextModel = c.outputTextModel;
+
+				for (const map of c.rangeMappings) {
+					let inputRangesValid = inputRange.startLineNumber - 1 <= map.inputRange.startLineNumber
+						&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive;
+					if (inputRangesValid && map.inputRange.startLineNumber === inputRange.startLineNumber - 1) {
+						inputRangesValid = map.inputRange.endColumn >= inputTextModel.getLineMaxColumn(map.inputRange.startLineNumber);
+					}
+					if (inputRangesValid && map.inputRange.endLineNumber === inputRange.endLineNumberExclusive) {
+						inputRangesValid = map.inputRange.endColumn === 1;
+					}
+
+					let outputRangesValid = outputRange.startLineNumber - 1 <= map.outputRange.startLineNumber
+						&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive;
+					if (outputRangesValid && map.outputRange.startLineNumber === outputRange.startLineNumber - 1) {
+						outputRangesValid = map.outputRange.endColumn >= outputTextModel.getLineMaxColumn(map.outputRange.endLineNumber);
+					}
+					if (outputRangesValid && map.outputRange.endLineNumber === outputRange.endLineNumberExclusive) {
+						outputRangesValid = map.outputRange.endColumn === 1;
+					}
+
+					if (!inputRangesValid || !outputRangesValid) {
+						return false;
+					}
+				}
+			}
+
+			return changes.length === 0 || (changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
 				checkAdjacentItems(changes,
 					(m1, m2) => m2.inputRange.startLineNumber - m1.inputRange.endLineNumberExclusive === m2.outputRange.startLineNumber - m1.outputRange.endLineNumberExclusive &&
 						// There has to be an unchanged line in between (otherwise both diffs should have been joined)
 						m1.inputRange.endLineNumberExclusive < m2.inputRange.startLineNumber &&
 						m1.outputRange.endLineNumberExclusive < m2.outputRange.startLineNumber,
-				);
+				));
 		});
 
 		return {
@@ -78,8 +122,8 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 	}
 }
 
-export function toLineRange(range: DiffLineRange): LineRange {
-	return new LineRange(range.startLineNumber, range.length);
+export function toLineRange(range: LineRange): MergeEditorLineRange {
+	return MergeEditorLineRange.fromLength(range.startLineNumber, range.length);
 }
 
 export function toRangeMapping(mapping: DiffRangeMapping): RangeMapping {

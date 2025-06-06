@@ -26,6 +26,14 @@
 	display: none;
 }
 
+.markers-panel  .markers-panel-container .codicon.codicon-light-bulb {
+	color:  var(--vscode-editorLightBulb-foreground);
+}
+
+.markers-panel  .markers-panel-container .codicon.codicon-lightbulb-autofix {
+	color:  var(--vscode-editorLightBulbAutoFix-foreground);
+}
+
 .markers-panel .markers-panel-container .tree-container.hidden {
 	display: none;
 	visibility: hidden;
@@ -67,7 +75,7 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	white-space: pre;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
@@ -174,7 +182,7 @@
 .markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code,
 .markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .message,
 .markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .file,
-.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .owner {
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .source {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

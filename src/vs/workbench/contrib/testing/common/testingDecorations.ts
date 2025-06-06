@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITestMessage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IAction } from '../../../../base/common/actions.js';
+import { binarySearch } from '../../../../base/common/arrays.js';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITestMessage } from './testTypes.js';
 
 export interface ITestingDecorationsService {
 	_serviceBrand: undefined;
@@ -30,13 +31,21 @@ export interface ITestingDecorationsService {
 	 * Ensures decorations in the given document URI are up to date,
 	 * and returns them.
 	 */
-	syncDecorations(resource: URI): ReadonlyMap<string, ITestDecoration>;
+	syncDecorations(resource: URI): Iterable<ITestDecoration> & {
+		readonly size: number;
+		getById(decorationId: string): ITestDecoration | undefined;
+	};
 
 	/**
 	 * Gets the range where a test ID is displayed, in the given URI.
 	 * Returns undefined if there's no such decoration.
 	 */
-	getDecoratedRangeForTest(resource: URI, testId: string): Range | undefined;
+	getDecoratedTestPosition(resource: URI, testId: string): Position | undefined;
+
+	/**
+	 * Sets that alternative actions are displayed on the model.
+	 */
+	updateDecorationsAlternateAction(resource: URI, isAlt: boolean): void;
 }
 
 export interface ITestDecoration {
@@ -55,6 +64,8 @@ export interface ITestDecoration {
 	 * Editor decoration instance.
 	 */
 	readonly editorDecoration: IModelDeltaDecoration;
+
+	getContextMenuActions(): { object: IAction[]; dispose(): void };
 }
 
 export class TestDecorations<T extends { id: string; line: number } = ITestDecoration> {

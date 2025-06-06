@@ -63,7 +63,10 @@ ${info Parentheses () in braces {()}: $(ok)}
 
 ifeq ("${ok}", "skip")
   $(ok))}
+else ifeq ("${ok}", "skip")
   ${ok}})
+else
+  $(info Else: ${ok})
 endif
 
 result != echo "'$(ok)' $(shell echo "from inlined shell")"

@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { SelectTypeScriptVersionCommand } from '../commands/selectTypeScriptVersion';
+import { jsTsLanguageModes } from '../configuration/languageIds';
 import { TypeScriptVersion } from '../tsServer/versionProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes } from '../utils/languageIds';
 
 
 export class VersionStatus extends Disposable {
@@ -23,7 +23,7 @@ export class VersionStatus extends Disposable {
 		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.version', jsTsLanguageModes));
 
 		this._statusItem.name = vscode.l10n.t("TypeScript Version");
-		this._statusItem.detail = vscode.l10n.t("TypeScript Version");
+		this._statusItem.detail = vscode.l10n.t("TypeScript version");
 
 		this._register(this._client.onTsServerStarted(({ version }) => this.onDidChangeTypeScriptVersion(version)));
 	}

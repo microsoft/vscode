@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { CommentThread, CommentThreadCollapsibleState } from 'vs/editor/common/languages';
-import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { CommentThread, CommentThreadCollapsibleState } from '../../../../editor/common/languages.js';
+import { IModelDecorationOptions, IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { ICommentInfo, ICommentService } from './commentService.js';
 
 class CommentThreadRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;
@@ -44,7 +44,8 @@ export class CommentThreadRangeDecorator extends Disposable {
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
 			zIndex: 20,
-			className: 'comment-thread-range'
+			className: 'comment-thread-range',
+			shouldFillLineOnLineBreak: true
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
@@ -53,7 +54,8 @@ export class CommentThreadRangeDecorator extends Disposable {
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
 			zIndex: 20,
-			className: 'comment-thread-range-current'
+			className: 'comment-thread-range-current',
+			shouldFillLineOnLineBreak: true
 		};
 
 		this.activeDecorationOptions = ModelDecorationOptions.createDynamic(activeDecorationOptions);
@@ -66,14 +68,14 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	private updateCurrent(thread: CommentThread<IRange> | undefined) {
-		if (!this.editor) {
+		if (!this.editor || (thread?.resource && (thread.resource?.toString() !== this.editor.getModel()?.uri.toString()))) {
 			return;
 		}
 		this.currentThreadCollapseStateListener?.dispose();
 		const newDecoration: CommentThreadRangeDecoration[] = [];
 		if (thread) {
 			const range = thread.range;
-			if (!((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
+			if (range && !((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
 				if (thread.collapsibleState === CommentThreadCollapsibleState.Expanded) {
 					this.currentThreadCollapseStateListener = thread.onDidChangeCollapsibleState(state => {
 						if (state === CommentThreadCollapsibleState.Collapsed) {
@@ -108,7 +110,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 				const range = thread.range;
 				// We only want to show a range decoration when there's the range spans either multiple lines
 				// or, when is spans multiple characters on the sample line
-				if ((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
+				if (!range || (range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
 					return;
 				}
 

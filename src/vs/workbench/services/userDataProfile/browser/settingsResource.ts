@@ -3,22 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile.js';
+import { updateIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
+import { IUserDataSyncUtilService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views.js';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 interface ISettingsContent {
 	settings: string | null;
+}
+
+export class SettingsResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const settingsContent: ISettingsContent = JSON.parse(content);
+		if (settingsContent.settings === null) {
+			this.logService.info(`Initializing Profile: No settings to apply...`);
+			return;
+		}
+		await this.fileService.writeFile(this.userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString(settingsContent.settings));
+	}
 }
 
 export class SettingsResource implements IProfileResource {
@@ -50,7 +70,7 @@ export class SettingsResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		if (settingsContent.settings === null) {
-			this.logService.info(`Profile: No settings to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No settings to apply...`);
 			return;
 		}
 		const localSettingsContent = await this.getLocalFileContent(profile);
@@ -61,7 +81,7 @@ export class SettingsResource implements IProfileResource {
 
 	private getIgnoredSettings(): string[] {
 		const allSettings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const ignoredSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.MACHINE || allSettings[key]?.scope === ConfigurationScope.MACHINE_OVERRIDABLE);
+		const ignoredSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.MACHINE || allSettings[key]?.scope === ConfigurationScope.APPLICATION_MACHINE || allSettings[key]?.scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 		return ignoredSettings;
 	}
 
@@ -84,22 +104,33 @@ export class SettingsResource implements IProfileResource {
 export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Settings;
-	readonly handle = this.profile.settingsResource.toString();
+	readonly handle = ProfileResourceType.Settings;
 	readonly label = { label: localize('settings', "Settings") };
-	readonly collapsibleState = TreeItemCollapsibleState.None;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
-	readonly command = {
-		id: API_OPEN_EDITOR_COMMAND_ID,
-		title: '',
-		arguments: [this.profile.settingsResource, undefined, undefined]
-	};
+	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async getChildren(): Promise<undefined> { return undefined; }
+	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
+		return [{
+			handle: this.profile.settingsResource.toString(),
+			resourceUri: this.profile.settingsResource,
+			collapsibleState: TreeItemCollapsibleState.None,
+			parent: this,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(this.profile.settingsResource)
+			},
+			command: {
+				id: API_OPEN_EDITOR_COMMAND_ID,
+				title: '',
+				arguments: [this.profile.settingsResource, undefined, undefined]
+			}
+		}];
+	}
 
 	async hasContent(): Promise<boolean> {
 		const settingsContent = await this.instantiationService.createInstance(SettingsResource).getSettingsContent(this.profile);
@@ -108,6 +139,10 @@ export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	async getContent(): Promise<string> {
 		return this.instantiationService.createInstance(SettingsResource).getContent(this.profile);
+	}
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.settings;
 	}
 
 }

@@ -36,6 +36,11 @@ export class SettingsDocument {
 			return this.provideLanguageCompletionItems(location, position);
 		}
 
+		// workbench.editor.label
+		if (location.path[0] === 'workbench.editor.label.patterns') {
+			return this.provideEditorLabelCompletionItems(location, position);
+		}
+
 		// settingsSync.ignoredExtensions
 		if (location.path[0] === 'settingsSync.ignoredExtensions') {
 			let ignoredExtensions = [];
@@ -111,7 +116,8 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderShort'), range, vscode.l10n.t("the name of the folder the file is contained in (e.g. myFileFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderMedium'), range, vscode.l10n.t("the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeFolderLong'), range, vscode.l10n.t("the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, vscode.l10n.t("name of the workspace (e.g. myFolder or myWorkspace)")));
+		completions.push(this.newSimpleCompletionItem(getText('rootName'), range, vscode.l10n.t("name of the workspace with optional remote name and workspace indicator if applicable (e.g. myFolder, myRemoteFolder [SSH] or myWorkspace (Workspace))")));
+		completions.push(this.newSimpleCompletionItem(getText('rootNameShort'), range, vscode.l10n.t("shortened name of the workspace without suffixes (e.g. myFolder or myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem(getText('rootPath'), range, vscode.l10n.t("file path of the workspace (e.g. /Users/Development/myWorkspace)")));
 		completions.push(this.newSimpleCompletionItem(getText('folderName'), range, vscode.l10n.t("name of the workspace folder the file is contained in (e.g. myFolder)")));
 		completions.push(this.newSimpleCompletionItem(getText('folderPath'), range, vscode.l10n.t("file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
@@ -119,7 +125,34 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem(getText('remoteName'), range, vscode.l10n.t("e.g. SSH")));
 		completions.push(this.newSimpleCompletionItem(getText('dirty'), range, vscode.l10n.t("an indicator for when the active editor has unsaved changes")));
 		completions.push(this.newSimpleCompletionItem(getText('separator'), range, vscode.l10n.t("a conditional separator (' - ') that only shows when surrounded by variables with values")));
+		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryName'), range, vscode.l10n.t("the name of the active repository (e.g. vscode)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryBranchName'), range, vscode.l10n.t("the name of the active branch in the active repository (e.g. main)")));
+		completions.push(this.newSimpleCompletionItem(getText('activeEditorState'), range, vscode.l10n.t("the state of the active editor (e.g. modified).")));
+		return completions;
+	}
 
+	private async provideEditorLabelCompletionItems(location: Location, pos: vscode.Position): Promise<vscode.CompletionItem[]> {
+		const completions: vscode.CompletionItem[] = [];
+
+		if (!this.isCompletingPropertyValue(location, pos)) {
+			return completions;
+		}
+
+		let range = this.document.getWordRangeAtPosition(pos, /\$\{[^"\}]*\}?/);
+		if (!range || range.start.isEqual(pos) || range.end.isEqual(pos) && this.document.getText(range).endsWith('}')) {
+			range = new vscode.Range(pos, pos);
+		}
+
+		const getText = (variable: string) => {
+			const text = '${' + variable + '}';
+			return location.previousNode ? text : JSON.stringify(text);
+		};
+
+
+		completions.push(this.newSimpleCompletionItem(getText('dirname'), range, vscode.l10n.t("The parent folder name of the editor (e.g. myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('dirname(1)'), range, vscode.l10n.t("The nth parent folder name of the editor")));
+		completions.push(this.newSimpleCompletionItem(getText('filename'), range, vscode.l10n.t("The file name of the editor without its directory or extension (e.g. myFile)")));
+		completions.push(this.newSimpleCompletionItem(getText('extname'), range, vscode.l10n.t("The file extension of the editor (e.g. txt)")));
 		return completions;
 	}
 
@@ -265,7 +298,7 @@ export class SettingsDocument {
 			const languageOverrideRange = languageOverridesRanges.find(range => range.contains(position));
 
 			/**
-			 *  Skip if suggestsions are for first language override range
+			 *  Skip if suggestions are for first language override range
 			 *  Since VSCode registers language overrides to the schema, JSON language server does suggestions for first language override.
 			 */
 			if (languageOverrideRange && !languageOverrideRange.isEqual(languageOverridesRanges[0])) {

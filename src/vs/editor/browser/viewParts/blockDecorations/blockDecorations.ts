@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import 'vs/css!./blockDecorations';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { createFastDomNode, FastDomNode } from '../../../../base/browser/fastDomNode.js';
+import './blockDecorations.css';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
 
 export class BlockDecorations extends ViewPart {
 
@@ -18,6 +18,7 @@ export class BlockDecorations extends ViewPart {
 	private readonly blocks: FastDomNode<HTMLElement>[] = [];
 
 	private contentWidth: number = -1;
+	private contentLeft: number = 0;
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -38,6 +39,12 @@ export class BlockDecorations extends ViewPart {
 
 		if (this.contentWidth !== newContentWidth) {
 			this.contentWidth = newContentWidth;
+			didChange = true;
+		}
+
+		const newContentLeft = layoutInfo.contentLeft;
+		if (this.contentLeft !== newContentLeft) {
+			this.contentLeft = newContentLeft;
 			didChange = true;
 		}
 
@@ -92,16 +99,18 @@ export class BlockDecorations extends ViewPart {
 				bottom = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 			} else {
 				top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
-				bottom = decoration.range.isEmpty()
+				bottom = decoration.range.isEmpty() && !decoration.options.blockDoesNotCollapse
 					? ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, false)
 					: ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 			}
 
+			const [paddingTop, paddingRight, paddingBottom, paddingLeft] = decoration.options.blockPadding ?? [0, 0, 0, 0];
+
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
-			block.setLeft(ctx.scrollLeft);
-			block.setWidth(this.contentWidth);
-			block.setTop(top);
-			block.setHeight(bottom - top);
+			block.setLeft(this.contentLeft - paddingLeft);
+			block.setWidth(this.contentWidth + paddingLeft + paddingRight);
+			block.setTop(top - ctx.scrollTop - paddingTop);
+			block.setHeight(bottom - top + paddingTop + paddingBottom);
 
 			count++;
 		}

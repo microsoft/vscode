@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../nls.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TERMINAL_VIEW_ID } from './terminal.js';
 
 export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
@@ -14,6 +16,9 @@ export const enum TerminalContextKeyStrings {
 	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
+	FocusInAny = 'terminalFocusInAny',
+	AccessibleBufferFocus = 'terminalAccessibleBufferFocus',
+	AccessibleBufferOnLastLine = 'terminalAccessibleBufferOnLastLine',
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
@@ -21,10 +26,11 @@ export const enum TerminalContextKeyStrings {
 	TerminalEditorActive = 'terminalEditorActive',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
+	SuggestWidgetVisible = 'terminalSuggestWidgetVisible',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
-	NavigationModeActive = 'terminalNavigationModeActive',
 	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
+	TextSelectedInFocused = 'terminalTextSelectedInFocused',
 	FindVisible = 'terminalFindVisible',
 	FindInputFocused = 'terminalFindInputFocused',
 	FindFocused = 'terminalFindFocused',
@@ -32,7 +38,7 @@ export const enum TerminalContextKeyStrings {
 	SplitTerminal = 'terminalSplitTerminal',
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
-	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled'
+	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
 }
 
 export namespace TerminalContextKeys {
@@ -41,6 +47,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal is focused. */
 	export const focus = new RawContextKey<boolean>(TerminalContextKeyStrings.Focus, false, localize('terminalFocusContextKey', "Whether the terminal is focused."));
+
+	/** Whether any terminal is focused, including detached terminals used in other UI. */
+	export const focusInAny = new RawContextKey<boolean>(TerminalContextKeyStrings.FocusInAny, false, localize('terminalFocusInAnyContextKey', "Whether any terminal is focused, including detached terminals used in other UI."));
 
 	/** Whether a terminal in the editor area is focused. */
 	export const editorFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.EditorFocus, false, localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused."));
@@ -72,11 +81,14 @@ export namespace TerminalContextKeys {
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);
 
-	/** The shell type of the active terminal, this is set to the last known value when no terminals exist. */
-	export const shellType = new RawContextKey<string>(TerminalContextKeyStrings.ShellType, undefined, { type: 'string', description: localize('terminalShellTypeContextKey', "The shell type of the active terminal, this is set to the last known value when no terminals exist.") });
+	/** The shell type of the active terminal, this is set if the type can be detected. */
+	export const shellType = new RawContextKey<string>(TerminalContextKeyStrings.ShellType, undefined, { type: 'string', description: localize('terminalShellTypeContextKey', "The shell type of the active terminal, this is set if the type can be detected.") });
 
 	/** Whether the terminal's alt buffer is active. */
 	export const altBufferActive = new RawContextKey<boolean>(TerminalContextKeyStrings.AltBufferActive, false, localize('terminalAltBufferActive', "Whether the terminal's alt buffer is active."));
+
+	/** Whether the terminal's suggest widget is visible. */
+	export const suggestWidgetVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetVisible', "Whether the terminal's suggest widget is visible."));
 
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();
@@ -84,16 +96,11 @@ export namespace TerminalContextKeys {
 	/** Whether the terminal view is showing. */
 	export const viewShowing = new RawContextKey<boolean>(TerminalContextKeyStrings.ViewShowing, false, localize('terminalViewShowing', "Whether the terminal view is showing"));
 
-	/** Whether the user is navigating a terminal's the accessibility tree. */
-	export const a11yTreeFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.A11yTreeFocus, false, true);
-
-	/**
-	 * Whether the user is currently in navigation mode
-	 */
-	export const navigationModeActive = new RawContextKey<boolean>(TerminalContextKeyStrings.NavigationModeActive, false, true);
-
 	/** Whether text is selected in the active terminal. */
 	export const textSelected = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelected, false, localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal."));
+
+	/** Whether text is selected in a focused terminal. `textSelected` counts text selected in an active in a terminal view or an editor, where `textSelectedInFocused` simply counts text in an element with DOM focus. */
+	export const textSelectedInFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelectedInFocused, false, localize('terminalTextSelectedInFocusedContextKey', "Whether text is selected in a focused terminal."));
 
 	/** Whether text is NOT selected in the active terminal. */
 	export const notTextSelected = textSelected.toNegated();
@@ -127,4 +134,28 @@ export namespace TerminalContextKeys {
 
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
+
+	export const shouldShowViewInlineActions = ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+				)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+		)
+	);
 }

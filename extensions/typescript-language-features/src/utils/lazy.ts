@@ -3,37 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface Lazy<T> {
-	value: T;
-	hasValue: boolean;
-	map<R>(f: (x: T) => R): Lazy<R>;
-}
+export class Lazy<T> {
 
-class LazyValue<T> implements Lazy<T> {
-	private _hasValue: boolean = false;
+	private _didRun: boolean = false;
 	private _value?: T;
+	private _error: Error | undefined;
 
 	constructor(
-		private readonly _getValue: () => T
+		private readonly executor: () => T,
 	) { }
 
+	/**
+	 * True if the lazy value has been resolved.
+	 */
+	get hasValue() { return this._didRun; }
+
+	/**
+	 * Get the wrapped value.
+	 *
+	 * This will force evaluation of the lazy value if it has not been resolved yet. Lazy values are only
+	 * resolved once. `getValue` will re-throw exceptions that are hit while resolving the value
+	 */
 	get value(): T {
-		if (!this._hasValue) {
-			this._hasValue = true;
-			this._value = this._getValue();
+		if (!this._didRun) {
+			try {
+				this._value = this.executor();
+			} catch (err) {
+				this._error = err;
+			} finally {
+				this._didRun = true;
+			}
+		}
+		if (this._error) {
+			throw this._error;
 		}
 		return this._value!;
 	}
 
-	get hasValue(): boolean {
-		return this._hasValue;
-	}
-
-	public map<R>(f: (x: T) => R): Lazy<R> {
-		return new LazyValue(() => f(this.value));
-	}
-}
-
-export function lazy<T>(getValue: () => T): Lazy<T> {
-	return new LazyValue<T>(getValue);
+	/**
+	 * Get the wrapped value without forcing evaluation.
+	 */
+	get rawValue(): T | undefined { return this._value; }
 }

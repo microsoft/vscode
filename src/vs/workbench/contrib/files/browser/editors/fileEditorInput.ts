@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { URI } from '../../../../../base/common/uri.js';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput, IFileEditorInputOptions } from '../../../../common/editor.js';
+import { EditorInput, IUntypedEditorOptions } from '../../../../common/editor/editorInput.js';
+import { AbstractTextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { BinaryEditorModel } from '../../../../common/editor/binaryEditorModel.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from '../../../../services/textfile/common/textfiles.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IReference, dispose, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from '../../common/files.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ICustomEditorLabelService } from '../../../../services/editor/common/customEditorLabelService.js';
 
 const enum ForceOpenAs {
 	None,
@@ -52,7 +55,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		} else {
 			if (this.fileService.hasProvider(this.resource)) {
-				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				if (this.filesConfigurationService.isReadonly(this.resource)) {
 					capabilities |= EditorInputCapabilities.Readonly;
 				}
 			} else {
@@ -90,14 +93,16 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		preferredContents: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService textFileService: ITextFileService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -189,6 +194,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredName;
 	}
 
+	override isReadonly(): boolean | IMarkdownString {
+		return this.model ? this.model.isReadonly() : this.filesConfigurationService.isReadonly(this.resource);
+	}
+
 	override getDescription(verbosity?: Verbosity): string | undefined {
 		return this.preferredDescription || super.getDescription(verbosity);
 	}
@@ -207,6 +216,29 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	getPreferredDescription(): string | undefined {
 		return this.preferredDescription;
+	}
+
+	override getTitle(verbosity?: Verbosity): string {
+		let title = super.getTitle(verbosity);
+
+		const preferredTitle = this.getPreferredTitle();
+		if (preferredTitle) {
+			title = `${preferredTitle} (${title})`;
+		}
+
+		return title;
+	}
+
+	protected getPreferredTitle(): string | undefined {
+		if (this.preferredName && this.preferredDescription) {
+			return `${this.preferredName} ${this.preferredDescription}`;
+		}
+
+		if (this.preferredName || this.preferredDescription) {
+			return this.preferredName ?? this.preferredDescription;
+		}
+
+		return undefined;
 	}
 
 	getEncoding(): string | undefined {
@@ -288,7 +320,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// and it could result in bad UX where an editor can be closed even though
 		// it shows up as dirty and has not finished saving yet.
 
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (this.filesConfigurationService.hasShortAutoSaveDelay(this)) {
 			return true; // a short auto save is configured, treat this as being saved
 		}
 
@@ -303,7 +335,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
-	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	override resolve(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
@@ -311,10 +343,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 
 		// Resolve as text
-		return this.doResolveAsText();
+		return this.doResolveAsText(options);
 	}
 
-	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	private async doResolveAsText(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
 			// Unset preferred contents after having applied it once
@@ -331,7 +363,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: TextFileResolveReason.EDITOR
+				reason: TextFileResolveReason.EDITOR,
+				limits: this.ensureLimits(options)
 			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
@@ -339,7 +372,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			// resolve() ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
 			if (!this.cachedTextFileModelReference) {
-				this.cachedTextFileModelReference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
+				this.cachedTextFileModelReference = await this.textModelService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
 			}
 
 			const model = this.cachedTextFileModelReference.object;
@@ -354,11 +387,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			return model;
 		} catch (error) {
 
-			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if (
-				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
-			) {
+			// Handle binary files with binary model
+			if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 				return this.doResolveAsBinary();
 			}
 
@@ -390,7 +420,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
+	override toUntyped(options?: IUntypedEditorOptions): ITextResourceEditorInput {
 		const untypedInput: IUntypedFileEditorInput = {
 			resource: this.preferredResource,
 			forceFile: true,
@@ -404,8 +434,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
-				if (model?.isDirty()) {
-					return model.textEditorModel.getValue(); // only if dirty
+				if (model?.isDirty() && !model.textEditorModel.isTooLargeForHeapOperation()) {
+					return model.textEditorModel.getValue(); // only if dirty and not too large
 				}
 
 				return undefined;

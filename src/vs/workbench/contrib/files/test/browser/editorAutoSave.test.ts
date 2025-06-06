@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService, TestTextResourceConfigurationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ITextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { EditorAutoSave } from '../../../../browser/parts/editor/editorAutoSave.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
+import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestContextService, TestMarkerService } from '../../../../test/common/workbenchTestServices.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 suite('EditorAutoSave', () => {
 
@@ -41,17 +43,25 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
-
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+		instantiationService.stub(IAccessibilitySignalService, {
+			playSignal: async () => { },
+			isSoundEnabled(signal: unknown) { return false; },
+		} as any);
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
-			new TestContextService(TestWorkspace)
-		));
+			new TestContextService(TestWorkspace),
+			TestEnvironmentService,
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
+			disposables.add(new TestFileService()),
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -67,14 +77,14 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
+		const model: ITextFileEditorModel = disposables.add(await accessor.textFileService.files.resolve(resource));
+		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
 
 		await awaitModelSaved(model);
 
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
 	});
 
 	test('editor auto saves on focus change if configured', async function () {
@@ -83,19 +93,23 @@ suite('EditorAutoSave', () => {
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
+		const model: ITextFileEditorModel = disposables.add(await accessor.textFileService.files.resolve(resource));
+		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
 
-		await accessor.editorService.openEditor({ resource: toResource.call(this, '/path/index_other.txt') });
+		const editorPane = await accessor.editorService.openEditor({ resource: toResource.call(this, '/path/index_other.txt') });
 
 		await awaitModelSaved(model);
 
-		assert.ok(!model.isDirty());
+		assert.strictEqual(model.isDirty(), false);
+
+		await editorPane?.group.closeAllEditors();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
 		return Event.toPromise(Event.once(model.onDidChangeDirty));
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

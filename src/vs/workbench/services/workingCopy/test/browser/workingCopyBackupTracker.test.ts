@@ -3,34 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { toResource } from 'vs/base/test/common/utils';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
-import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { IEditorService } from '../../../editor/common/editorService.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { EditorService } from '../../../editor/browser/editorService.js';
+import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { IWorkingCopyBackupService } from '../../common/workingCopyBackup.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IFilesConfigurationService } from '../../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyService } from '../../common/workingCopyService.js';
+import { IWorkingCopyBackup } from '../../common/workingCopy.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILifecycleService, LifecyclePhase } from '../../../lifecycle/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { BrowserWorkingCopyBackupTracker } from '../../browser/workingCopyBackupTracker.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../common/workingCopyEditorService.js';
+import { bufferToReadable, VSBuffer } from '../../../../../base/common/buffer.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -40,7 +38,9 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		disposables.add(registerTestResourceEditor());
 	});
 
-	teardown(() => {
+	teardown(async () => {
+		await workbenchTeardown(accessor.instantiationService);
+
 		disposables.clear();
 	});
 
@@ -69,7 +69,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			return this.unrestoredBackups;
 		}
 
-		override async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
+		async testRestoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
 			return super.restoreBackups(handler);
 		}
 	}
@@ -85,10 +85,8 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		}
 	}
 
-	async function createTracker(): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; workingCopyBackupService: InMemoryTestWorkingCopyBackupService; instantiationService: IInstantiationService; cleanup: () => void }> {
-		const disposables = new DisposableStore();
-
-		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
+	async function createTracker(): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; workingCopyBackupService: InMemoryTestWorkingCopyBackupService; instantiationService: IInstantiationService }> {
+		const workingCopyBackupService = disposables.add(new InMemoryTestWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
@@ -97,24 +95,21 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		disposables.add(registerTestResourceEditor());
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const tracker = disposables.add(instantiationService.createInstance(TestWorkingCopyBackupTracker));
 
-		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService, cleanup: () => disposables.dispose() };
+		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService };
 	}
 
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
-		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
+		const { accessor, workingCopyBackupService } = await createTracker();
 
-		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
-
-		const untitledTextModel = await untitledTextEditor.resolve();
+		const untitledTextEditor = disposables.add((await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput);
+		const untitledTextModel = disposables.add(await untitledTextEditor.resolve());
 
 		if (!untitled?.contents) {
 			untitledTextModel.textEditorModel?.setValue('Super Good');
@@ -129,8 +124,6 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		await workingCopyBackupService.joinDiscardBackup();
 
 		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), false);
-
-		cleanup();
 	}
 
 	test('Track backups (untitled)', function () {
@@ -142,27 +135,27 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	});
 
 	test('Track backups (custom)', async function () {
-		const { accessor, tracker, cleanup, workingCopyBackupService } = await createTracker();
+		const { accessor, tracker, workingCopyBackupService } = await createTracker();
 
 		class TestBackupWorkingCopy extends TestWorkingCopy {
-
-			backupDelay = 0;
 
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				disposables.add(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
+			readonly backupDelay = 10;
+
 			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-				await timeout(this.backupDelay);
+				await timeout(0);
 
 				return {};
 			}
 		}
 
-		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		const resource: URI = toResource.call(this, '/path/custom.txt');
+		const customWorkingCopy = disposables.add(new TestBackupWorkingCopy(resource));
 
 		// Normal
 		customWorkingCopy.setDirty(true);
@@ -188,29 +181,22 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		assert.strictEqual(tracker.pendingBackupOperationCount, 1);
 		await workingCopyBackupService.joinDiscardBackup();
 		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), false);
-
-		customWorkingCopy.dispose();
-		cleanup();
 	});
 
-	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor, IDisposable]> {
+	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor]> {
 		const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 		const barFile = URI.file(isWindows ? 'c:\\Bar' : '/Bar');
 		const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 		const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
 
-		const disposables = new DisposableStore();
-
-		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
+		const workingCopyBackupService = disposables.add(new InMemoryTestWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -230,11 +216,11 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		accessor.lifecycleService.phase = LifecyclePhase.Restored;
 
-		return [tracker, accessor, disposables];
+		return [tracker, accessor];
 	}
 
 	test('Restore backups (basics, some handled)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+		const [tracker, accessor] = await restoreBackupsInit();
 
 		assert.strictEqual(tracker.getUnrestoredBackups().size, 0);
 
@@ -242,7 +228,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		let isOpenCounter = 0;
 		let createEditorCounter = 0;
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => {
 				handlesCounter++;
 
@@ -256,7 +242,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			createEditor: workingCopy => {
 				createEditorCounter++;
 
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				return disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 			}
 		});
 
@@ -272,14 +258,12 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			assert.ok(editor instanceof TestUntitledTextEditorInput);
 			assert.strictEqual(editor.resolved, true);
 		}
-
-		dispose(disposables);
 	});
 
 	test('Restore backups (basics, none handled)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+		const [tracker, accessor] = await restoreBackupsInit();
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => false,
 			isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
 			createEditor: workingCopy => { throw new Error('unexpected'); }
@@ -287,15 +271,13 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		assert.strictEqual(accessor.editorService.count, 0);
 		assert.strictEqual(tracker.getUnrestoredBackups().size, 4);
-
-		dispose(disposables);
 	});
 
 	test('Restore backups (basics, error case)', async function () {
-		const [tracker, , disposables] = await restoreBackupsInit();
+		const [tracker] = await restoreBackupsInit();
 
 		try {
-			await tracker.restoreBackups({
+			await tracker.testRestoreBackups({
 				handles: workingCopy => true,
 				isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
 				createEditor: workingCopy => { throw new Error('unexpected'); }
@@ -305,14 +287,12 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		}
 
 		assert.strictEqual(tracker.getUnrestoredBackups().size, 4);
-
-		dispose(disposables);
 	});
 
 	test('Restore backups (multiple handlers)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+		const [tracker, accessor] = await restoreBackupsInit();
 
-		const firstHandler = tracker.restoreBackups({
+		const firstHandler = tracker.testRestoreBackups({
 			handles: workingCopy => {
 				return workingCopy.typeId === 'testBackupTypeId';
 			},
@@ -320,11 +300,11 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				return false;
 			},
 			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				return disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 			}
 		});
 
-		const secondHandler = tracker.restoreBackups({
+		const secondHandler = tracker.testRestoreBackups({
 			handles: workingCopy => {
 				return workingCopy.typeId.length === 0;
 			},
@@ -332,7 +312,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				return false;
 			},
 			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				return disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 			}
 		});
 
@@ -346,27 +326,25 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			assert.ok(editor instanceof TestUntitledTextEditorInput);
 			assert.strictEqual(editor.resolved, true);
 		}
-
-		dispose(disposables);
 	});
 
 	test('Restore backups (editors already opened)', async function () {
-		const [tracker, accessor, disposables] = await restoreBackupsInit();
+		const [tracker, accessor] = await restoreBackupsInit();
 
 		assert.strictEqual(tracker.getUnrestoredBackups().size, 0);
 
 		let handlesCounter = 0;
 		let isOpenCounter = 0;
 
-		const editor1 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
-		const editor2 = accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+		const editor1 = disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
+		const editor2 = disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 
 		await accessor.editorService.openEditors([{ editor: editor1 }, { editor: editor2 }]);
 
 		editor1.resolved = false;
 		editor2.resolved = false;
 
-		await tracker.restoreBackups({
+		await tracker.testRestoreBackups({
 			handles: workingCopy => {
 				handlesCounter++;
 
@@ -396,7 +374,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				assert.strictEqual(editor.resolved, true);
 			}
 		}
-
-		dispose(disposables);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

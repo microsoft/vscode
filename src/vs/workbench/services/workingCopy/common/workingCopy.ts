@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from '../../../common/editor.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 
 export const enum WorkingCopyCapabilities {
 
@@ -21,7 +21,14 @@ export const enum WorkingCopyCapabilities {
 	 * additional input when saving, e.g. an
 	 * associated path to save to.
 	 */
-	Untitled = 1 << 1
+	Untitled = 1 << 1,
+
+	/**
+	 * The working copy will not indicate that
+	 * it is dirty and unsaved content will be
+	 * discarded without prompting if closed.
+	 */
+	Scratchpad = 1 << 2
 }
 
 /**
@@ -156,12 +163,33 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 
 	//#region Dirty Tracking
 
+	/**
+	 * Indicates that the file has unsaved changes
+	 * and should confirm before closing.
+	 */
 	isDirty(): boolean;
+
+	/**
+	 * Indicates that the file has unsaved changes.
+	 * Used for backup tracking and accounts for
+	 * working copies that are never dirty e.g.
+	 * scratchpads.
+	 */
+	isModified(): boolean;
 
 	//#endregion
 
 
 	//#region Save / Backup
+
+	/**
+	 * The delay in milliseconds to wait before triggering
+	 * a backup after the content of the model has changed.
+	 *
+	 * If not configured, a sensible default will be taken
+	 * based on user settings.
+	 */
+	readonly backupDelay?: number;
 
 	/**
 	 * The workbench may call this method often after it receives

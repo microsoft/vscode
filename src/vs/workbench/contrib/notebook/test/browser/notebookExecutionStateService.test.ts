@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionServiceImpl';
-import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionStateServiceImpl';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { insertCellAtIndex } from '../../browser/controller/cellOperations.js';
+import { NotebookExecutionService } from '../../browser/services/notebookExecutionServiceImpl.js';
+import { NotebookExecutionStateService } from '../../browser/services/notebookExecutionStateServiceImpl.js';
+import { NotebookKernelService } from '../../browser/services/notebookKernelServiceImpl.js';
+import { NotebookViewModel } from '../../browser/viewModel/notebookViewModelImpl.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata, NotebookExecutionState } from '../../common/notebookCommon.js';
+import { CellExecutionUpdateType, INotebookExecutionService } from '../../common/notebookExecutionService.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { setupInstantiationService, withTestNotebook as _withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookExecutionStateService', () => {
 
@@ -32,6 +35,12 @@ suite('NotebookExecutionStateService', () => {
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
 	let testNotebookModel: NotebookTextModel | undefined;
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -57,23 +66,24 @@ suite('NotebookExecutionStateService', () => {
 				};
 			}
 		});
+		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+			override debug(category: string, output: string): void {
+				//
+			}
+		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-		instantiationService.set(INotebookExecutionService, instantiationService.createInstance(NotebookExecutionService));
-		instantiationService.set(INotebookExecutionStateService, instantiationService.createInstance(NotebookExecutionStateService));
+		instantiationService.set(INotebookExecutionService, disposables.add(instantiationService.createInstance(NotebookExecutionService)));
+		instantiationService.set(INotebookExecutionStateService, disposables.add(instantiationService.createInstance(NotebookExecutionStateService)));
 	});
 
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
-		return _withTestNotebook(cells, (editor, viewModel) => callback(viewModel, viewModel.notebookDocument));
+	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel, disposables: DisposableStore) => void | Promise<void>) {
+		return _withTestNotebook(cells, (editor, viewModel) => callback(viewModel, viewModel.notebookDocument, disposables));
 	}
 
 	function testCancelOnDelete(expectedCancels: number, implementsInterrupt: boolean) {
-		return withTestNotebook([], async viewModel => {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
 			testNotebookModel = viewModel.notebookDocument;
 
 			let cancels = 0;
@@ -90,15 +100,15 @@ suite('NotebookExecutionStateService', () => {
 					cancels += handles.length;
 				}
 			};
-			kernelService.registerKernel(kernel);
+			disposables.add(kernelService.registerKernel(kernel));
 			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 			// Should cancel executing and pending cells, when kernel does not implement interrupt
-			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			const cell2 = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-			const cell3 = insertCellAtIndex(viewModel, 2, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
+			const cell2 = disposables.add(insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
+			const cell3 = disposables.add(insertCellAtIndex(viewModel, 2, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
 			insertCellAtIndex(viewModel, 3, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true); // Not deleted
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle); // Executing
 			exe.confirm();
@@ -125,11 +135,11 @@ suite('NotebookExecutionStateService', () => {
 	});
 
 	test('fires onDidChangeCellExecution when cell is completed while deleted', async function () {
-		return withTestNotebook([], async viewModel => {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
 			testNotebookModel = viewModel.notebookDocument;
 
 			const kernel = new TestNotebookKernel();
-			kernelService.registerKernel(kernel);
+			disposables.add(kernelService.registerKernel(kernel));
 			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
@@ -137,8 +147,10 @@ suite('NotebookExecutionStateService', () => {
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = !e.changed;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					didFire = !e.changed;
+				}
 			}));
 
 			viewModel.notebookDocument.applyEdits([{
@@ -150,20 +162,22 @@ suite('NotebookExecutionStateService', () => {
 	});
 
 	test('does not fire onDidChangeCellExecution for output updates', async function () {
-		return withTestNotebook([], async viewModel => {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
 			testNotebookModel = viewModel.notebookDocument;
 
 			const kernel = new TestNotebookKernel();
-			kernelService.registerKernel(kernel);
+			disposables.add(kernelService.registerKernel(kernel));
 			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
-			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = true;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					didFire = true;
+				}
 			}));
 
 			exe.update([{ editType: CellExecutionUpdateType.OutputItems, items: [], outputId: '1' }]);
@@ -176,28 +190,30 @@ suite('NotebookExecutionStateService', () => {
 
 	// #142466
 	test('getCellExecution and onDidChangeCellExecution', async function () {
-		return withTestNotebook([], async viewModel => {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
 			testNotebookModel = viewModel.notebookDocument;
 
 			const kernel = new TestNotebookKernel();
-			kernelService.registerKernel(kernel);
+			disposables.add(kernelService.registerKernel(kernel));
 			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
-			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
 
 			const deferred = new DeferredPromise<void>();
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				const cellUri = CellUri.generate(e.notebook, e.cellHandle);
-				const exe = executionStateService.getCellExecution(cellUri);
-				assert.ok(exe);
-				assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
-				assert.strictEqual(e.cellHandle, exe.cellHandle);
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					const cellUri = CellUri.generate(e.notebook, e.cellHandle);
+					const exe = executionStateService.getCellExecution(cellUri);
+					assert.ok(exe);
+					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+					assert.strictEqual(e.cellHandle, exe.cellHandle);
 
-				assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
-				assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
+					assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
+					assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
 
-				deferred.complete();
+					deferred.complete();
+				}
 			}));
 
 			executionStateService.createCellExecution(viewModel.uri, cell.handle);
@@ -205,23 +221,137 @@ suite('NotebookExecutionStateService', () => {
 			return deferred.p;
 		});
 	});
-
-	test('force-cancel works', async function () {
-		return withTestNotebook([], async viewModel => {
+	test('getExecution and onDidChangeExecution', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
 			testNotebookModel = viewModel.notebookDocument;
 
 			const kernel = new TestNotebookKernel();
-			kernelService.registerKernel(kernel);
+			disposables.add(kernelService.registerKernel(kernel));
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const eventRaisedWithExecution: boolean[] = [];
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.onDidChangeExecution(e => eventRaisedWithExecution.push(e.type === NotebookExecutionType.notebook && !!e.changed), this, disposables);
+
+			const deferred = new DeferredPromise<void>();
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.notebook) {
+					const exe = executionStateService.getExecution(viewModel.uri);
+					assert.ok(exe);
+					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+					assert.ok(e.affectsNotebook(viewModel.uri));
+					assert.deepStrictEqual(eventRaisedWithExecution, [true]);
+					deferred.complete();
+				}
+			}));
+
+			executionStateService.createExecution(viewModel.uri);
+
+			return deferred.p;
+		});
+	});
+
+	test('getExecution and onDidChangeExecution 2', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			disposables.add(kernelService.registerKernel(kernel));
 			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
 
 			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
-			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+
+			const deferred = new DeferredPromise<void>();
+			const expectedNotebookEventStates: (NotebookExecutionState | undefined)[] = [NotebookExecutionState.Unconfirmed, NotebookExecutionState.Pending, NotebookExecutionState.Executing, undefined];
+			executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.notebook) {
+					const expectedState = expectedNotebookEventStates.shift();
+					if (typeof expectedState === 'number') {
+						const exe = executionStateService.getExecution(viewModel.uri);
+						assert.ok(exe);
+						assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+						assert.strictEqual(e.changed?.state, expectedState);
+					} else {
+						assert.ok(e.changed === undefined);
+					}
+
+					assert.ok(e.affectsNotebook(viewModel.uri));
+					if (expectedNotebookEventStates.length === 0) {
+						deferred.complete();
+					}
+				}
+			}, this, disposables);
+
+			const execution = executionStateService.createExecution(viewModel.uri);
+			execution.confirm();
+			execution.begin();
+			execution.complete();
+
+			return deferred.p;
+		});
+	});
+
+	test('force-cancel works for Cell Execution', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			disposables.add(kernelService.registerKernel(kernel));
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			const cell = disposables.add(insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true));
 			executionStateService.createCellExecution(viewModel.uri, cell.handle);
 			const exe = executionStateService.getCellExecution(cell.uri);
 			assert.ok(exe);
 
 			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
 			const exe2 = executionStateService.getCellExecution(cell.uri);
+			assert.strictEqual(exe2, undefined);
+		});
+	});
+	test('force-cancel works for Notebook Execution', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			disposables.add(kernelService.registerKernel(kernel));
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+			const eventRaisedWithExecution: boolean[] = [];
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.onDidChangeExecution(e => eventRaisedWithExecution.push(e.type === NotebookExecutionType.notebook && !!e.changed), this, disposables);
+			executionStateService.createExecution(viewModel.uri);
+			const exe = executionStateService.getExecution(viewModel.uri);
+			assert.ok(exe);
+			assert.deepStrictEqual(eventRaisedWithExecution, [true]);
+
+			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
+			const exe2 = executionStateService.getExecution(viewModel.uri);
+			assert.deepStrictEqual(eventRaisedWithExecution, [true, false]);
+			assert.strictEqual(exe2, undefined);
+		});
+	});
+	test('force-cancel works for Cell and Notebook Execution', async function () {
+		return withTestNotebook([], async (viewModel, _document, disposables) => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			disposables.add(kernelService.registerKernel(kernel));
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.createExecution(viewModel.uri);
+			executionStateService.createExecution(viewModel.uri);
+			const cellExe = executionStateService.getExecution(viewModel.uri);
+			const exe = executionStateService.getExecution(viewModel.uri);
+			assert.ok(cellExe);
+			assert.ok(exe);
+
+			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
+			const cellExe2 = executionStateService.getExecution(viewModel.uri);
+			const exe2 = executionStateService.getExecution(viewModel.uri);
+			assert.strictEqual(cellExe2, undefined);
 			assert.strictEqual(exe2, undefined);
 		});
 	});
@@ -241,6 +371,9 @@ class TestNotebookKernel implements INotebookKernel {
 	supportedLanguages: string[] = [];
 	async executeNotebookCellsRequest(): Promise<void> { }
 	async cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void> { }
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+		return AsyncIterableObject.EMPTY;
+	}
 
 	constructor(opts?: { languages?: string[]; id?: string }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];

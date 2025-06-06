@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Constants } from 'vs/base/common/uint';
-import { Range } from 'vs/editor/common/core/range';
-import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { Constants } from '../../../../base/common/uint.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { DiffComputer, ICharChange, ILineChange } from '../../../common/diff/legacyLinesDiffComputer.js';
+import { IIdentifiedSingleEditOperation, ITextModel } from '../../../common/model.js';
+import { createTextModel } from '../testTextModel.js';
 
 function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: ILineChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
 	const diffComputer = new DiffComputer(originalLines, modifiedLines, {
@@ -222,6 +223,8 @@ function createCharChange(
 }
 
 suite('Editor Diff - DiffComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- insertions
 
@@ -1063,5 +1066,26 @@ suite('Editor Diff - DiffComputer', () => {
 			)
 		];
 		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #169552: Assertion error when having both leading and trailing whitespace diffs', () => {
+		const original = [
+			'if True:',
+			'    print(2)',
+		];
+		const modified = [
+			'if True:',
+			'\tprint(2) ',
+		];
+		const expected = [
+			createLineChange(
+				2, 2, 2, 2,
+				[
+					createCharChange(2, 1, 2, 5, 2, 1, 2, 2),
+					createCharChange(2, 13, 2, 13, 2, 10, 2, 11),
+				]
+			),
+		];
+		assertDiff(original, modified, expected, true, false, false);
 	});
 });

@@ -54,12 +54,12 @@ class AudioPreview extends MediaPreview {
 	protected async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
-			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			src: await this.getResourcePath(this._webviewEditor, this._resource, version),
 		};
 
 		const nonce = getNonce();
 
-		const cspSource = this.webviewEditor.webview.cspSource;
+		const cspSource = this._webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,7 +76,7 @@ class AudioPreview extends MediaPreview {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="container loading">
+<body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
 	<div class="loading-indicator"></div>
 	<div class="loading-error">
 		<p>${vscode.l10n.t("An error occurred while loading the audio file.")}</p>
@@ -104,7 +104,7 @@ class AudioPreview extends MediaPreview {
 	}
 
 	private extensionResource(...parts: string[]) {
-		return this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
+		return this._webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
 	}
 }
 

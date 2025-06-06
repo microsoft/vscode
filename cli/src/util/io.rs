@@ -15,6 +15,8 @@ use tokio::{
 	time::sleep,
 };
 
+use super::ring_buffer::RingBuffer;
+
 pub trait ReportCopyProgress {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64);
 }
@@ -132,8 +134,7 @@ pub fn tailf(file: File, n: usize) -> mpsc::UnboundedReceiver<TailEvent> {
 
 	// Read the initial "n" lines back from the request. initial_lines
 	// is a small ring buffer.
-	let mut initial_lines = Vec::with_capacity(n);
-	let mut initial_lines_i = 0;
+	let mut initial_lines = RingBuffer::new(n);
 	loop {
 		let mut line = String::new();
 		let bytes_read = match reader.read_line(&mut line) {
@@ -151,26 +152,11 @@ pub fn tailf(file: File, n: usize) -> mpsc::UnboundedReceiver<TailEvent> {
 		}
 
 		pos += bytes_read as u64;
-		if initial_lines.len() < initial_lines.capacity() {
-			initial_lines.push(line)
-		} else {
-			initial_lines[initial_lines_i] = line;
-		}
-
-		initial_lines_i = (initial_lines_i + 1) % n;
+		initial_lines.push(line);
 	}
 
-	// remove tail lines...
-	if initial_lines_i < initial_lines.len() {
-		for line in initial_lines.drain((initial_lines_i)..) {
-			tx.send(TailEvent::Line(line)).ok();
-		}
-	}
-	// then the remaining lines
-	if !initial_lines.is_empty() {
-		for line in initial_lines.drain(0..) {
-			tx.send(TailEvent::Line(line)).ok();
-		}
+	for line in initial_lines.into_iter() {
+		tx.send(TailEvent::Line(line)).ok();
 	}
 
 	// now spawn the poll process to keep reading new lines
@@ -249,17 +235,14 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 
 		let mut rx = tailf(read_file, 32);
 		assert!(rx.try_recv().is_err());
 
-		let mut append_file = OpenOptions::new()
-			.write(true)
-			.append(true)
-			.open(&file_path)
-			.unwrap();
+		let mut append_file = OpenOptions::new().append(true).open(&file_path).unwrap();
 		writeln!(&mut append_file, "some line").unwrap();
 
 		let recv = rx.recv().await;
@@ -289,6 +272,7 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 
@@ -323,6 +307,7 @@ mod tests {
 			.write(true)
 			.read(true)
 			.create(true)
+			.truncate(true)
 			.open(&file_path)
 			.unwrap();
 		let mut rng = rand::thread_rng();
@@ -331,7 +316,7 @@ mod tests {
 		let base_line = "Elit ipsum cillum ex cillum. Adipisicing consequat cupidatat do proident ut in sunt Lorem ipsum tempor. Eiusmod ipsum Lorem labore exercitation sunt pariatur excepteur fugiat cillum velit cillum enim. Nisi Lorem cupidatat ad enim velit officia eiusmod esse tempor aliquip. Deserunt pariatur tempor in duis culpa esse sit nulla irure ullamco ipsum voluptate non laboris. Occaecat officia nulla officia mollit do aliquip reprehenderit ad incididunt.";
 		for i in 0..100 {
 			let line = format!("{}: {}", i, &base_line[..rng.gen_range(0..base_line.len())]);
-			writeln!(&mut read_file, "{}", line).unwrap();
+			writeln!(&mut read_file, "{line}").unwrap();
 			written.push(line);
 		}
 		write!(&mut read_file, "partial line").unwrap();
@@ -352,11 +337,7 @@ mod tests {
 
 		assert!(rx.try_recv().is_err());
 
-		let mut append_file = OpenOptions::new()
-			.write(true)
-			.append(true)
-			.open(&file_path)
-			.unwrap();
+		let mut append_file = OpenOptions::new().append(true).open(&file_path).unwrap();
 		writeln!(append_file, " is now complete").unwrap();
 
 		let recv = rx.recv().await;

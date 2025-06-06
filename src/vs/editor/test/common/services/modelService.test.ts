@@ -3,42 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
-import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import assert from 'assert';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferFactory, ITextSnapshot } from '../../../common/model.js';
+import { createTextBuffer } from '../../../common/model/textModel.js';
+import { ModelService } from '../../../common/services/modelService.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { createModelServices, createTextModel } from '../testTextModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IModelService } from '../../../common/services/model.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const GENERATE_TESTS = false;
 
@@ -64,6 +46,8 @@ suite('ModelService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('EOL setting respected depending on root', () => {
 		const model1 = modelService.createModel('farboo', null);
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
@@ -72,6 +56,10 @@ suite('ModelService', () => {
 		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
 		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
 		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+
+		model1.dispose();
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('_computeEdits no change', function () {
@@ -85,7 +73,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -93,7 +82,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -111,7 +100,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -119,7 +109,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -139,7 +129,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -147,7 +138,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -165,7 +156,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -173,7 +165,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -200,7 +192,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -208,7 +201,7 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -408,256 +401,9 @@ suite('ModelService', () => {
 	});
 });
 
-suite('ModelSemanticColoring', () => {
-
-	const disposables = new DisposableStore();
-	let modelService: IModelService;
-	let languageService: ILanguageService;
-	let languageFeaturesService: ILanguageFeaturesService;
-
-	setup(() => {
-		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
-		const themeService = new TestThemeService();
-		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
-		const logService = new NullLogService();
-		languageFeaturesService = new LanguageFeaturesService();
-		modelService = disposables.add(new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			themeService,
-			logService,
-			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService),
-			languageFeaturesService
-		));
-		languageService = disposables.add(new LanguageService(false));
-	});
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
-		await runWithFakedTimers({}, async () => {
-
-			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-
-			const inFirstCall = new Barrier();
-			const delayFirstResult = new Barrier();
-			const secondResultProvided = new Barrier();
-			let callCount = 0;
-
-			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
-				getLegend(): SemanticTokensLegend {
-					return { tokenTypes: ['class'], tokenModifiers: [] };
-				}
-				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-					callCount++;
-					if (callCount === 1) {
-						assert.ok('called once');
-						inFirstCall.open();
-						await delayFirstResult.wait();
-						await timeout(0); // wait for the simple scheduler to fire to check that we do actually get rescheduled
-						return null;
-					}
-					if (callCount === 2) {
-						assert.ok('called twice');
-						secondResultProvided.open();
-						return null;
-					}
-					assert.fail('Unexpected call');
-				}
-				releaseDocumentSemanticTokens(resultId: string | undefined): void {
-				}
-			}));
-
-			const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
-
-			// wait for the provider to be called
-			await inFirstCall.wait();
-
-			// the provider is now in the provide call
-			// change the text buffer while the provider is running
-			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }]);
-
-			// let the provider finish its first result
-			delayFirstResult.open();
-
-			// we need to check that the provider is called again, even if it returns null
-			await secondResultProvided.wait();
-
-			// assert that it got called twice
-			assert.strictEqual(callCount, 2);
-		});
-	});
-
-	test('issue #149412: VS Code hangs when bad semantic token data is received', async () => {
-		await runWithFakedTimers({}, async () => {
-
-			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-
-			let lastResult: SemanticTokens | SemanticTokensEdits | null = null;
-
-			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
-				getLegend(): SemanticTokensLegend {
-					return { tokenTypes: ['class'], tokenModifiers: [] };
-				}
-				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-					if (!lastResultId) {
-						// this is the first call
-						lastResult = {
-							resultId: '1',
-							data: new Uint32Array([4294967293, 0, 7, 16, 0, 1, 4, 3, 11, 1])
-						};
-					} else {
-						// this is the second call
-						lastResult = {
-							resultId: '2',
-							edits: [{
-								start: 4294967276,
-								deleteCount: 0,
-								data: new Uint32Array([2, 0, 3, 11, 0])
-							}]
-						};
-					}
-					return lastResult;
-				}
-				releaseDocumentSemanticTokens(resultId: string | undefined): void {
-				}
-			}));
-
-			const textModel = disposables.add(modelService.createModel('', languageService.createById('testMode')));
-
-			// wait for the semantic tokens to be fetched
-			await Event.toPromise(textModel.onDidChangeTokens);
-			assert.strictEqual(lastResult!.resultId, '1');
-
-			// edit the text
-			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'foo' }]);
-
-			// wait for the semantic tokens to be fetched again
-			await Event.toPromise(textModel.onDidChangeTokens);
-			assert.strictEqual(lastResult!.resultId, '2');
-		});
-	});
-
-	test('issue #161573: onDidChangeSemanticTokens doesn\'t consistently trigger provideDocumentSemanticTokens', async () => {
-		await runWithFakedTimers({}, async () => {
-
-			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-
-			const emitter = new Emitter<void>();
-			let requestCount = 0;
-			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
-				onDidChange = emitter.event;
-				getLegend(): SemanticTokensLegend {
-					return { tokenTypes: ['class'], tokenModifiers: [] };
-				}
-				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-					requestCount++;
-					if (requestCount === 1) {
-						await timeout(1000);
-						// send a change event
-						emitter.fire();
-						await timeout(1000);
-						return null;
-					}
-					return null;
-				}
-				releaseDocumentSemanticTokens(resultId: string | undefined): void {
-				}
-			}));
-
-			disposables.add(modelService.createModel('', languageService.createById('testMode')));
-
-			await timeout(5000);
-			assert.deepStrictEqual(requestCount, 2);
-		});
-	});
-
-	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
-		await runWithFakedTimers({}, async () => {
-
-			let callCount = 0;
-			disposables.add(languageService.registerLanguage({ id: 'testMode2' }));
-			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode2', new class implements DocumentSemanticTokensProvider {
-				getLegend(): SemanticTokensLegend {
-					return { tokenTypes: ['class1'], tokenModifiers: [] };
-				}
-				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-					callCount++;
-					// For a secondary request return a different value
-					if (lastResultId) {
-						return {
-							data: new Uint32Array([2, 1, 1, 1, 1, 0, 2, 1, 1, 1])
-						};
-					}
-					return {
-						resultId: '1',
-						data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
-					};
-				}
-				releaseDocumentSemanticTokens(resultId: string | undefined): void {
-				}
-			}));
-			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode2', new class implements DocumentSemanticTokensProvider {
-				getLegend(): SemanticTokensLegend {
-					return { tokenTypes: ['class2'], tokenModifiers: [] };
-				}
-				async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-					callCount++;
-					return null;
-				}
-				releaseDocumentSemanticTokens(resultId: string | undefined): void {
-				}
-			}));
-
-			function toArr(arr: Uint32Array): number[] {
-				const result: number[] = [];
-				for (let i = 0; i < arr.length; i++) {
-					result[i] = arr[i];
-				}
-				return result;
-			}
-
-			const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
-			try {
-				let result = await getDocumentSemanticTokens(languageFeaturesService.documentSemanticTokensProvider, textModel, null, null, CancellationToken.None);
-				assert.ok(result, `We should have tokens (1)`);
-				assert.ok(result.tokens, `Tokens are found from multiple providers (1)`);
-				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (1)`);
-				assert.ok(result.tokens.resultId, `Token result id found from multiple providers (1)`);
-				assert.deepStrictEqual(toArr(result.tokens.data), [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (1)`);
-				assert.deepStrictEqual(callCount, 2, `Called both token providers (1)`);
-				assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (1)`);
-
-				// Make a second request. Make sure we get the secondary value
-				result = await getDocumentSemanticTokens(languageFeaturesService.documentSemanticTokensProvider, textModel, result.provider, result.tokens.resultId, CancellationToken.None);
-				assert.ok(result, `We should have tokens (2)`);
-				assert.ok(result.tokens, `Tokens are found from multiple providers (2)`);
-				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (2)`);
-				assert.ok(!result.tokens.resultId, `Token result id found from multiple providers (2)`);
-				assert.deepStrictEqual(toArr(result.tokens.data), [2, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data returned for multiple providers (2)`);
-				assert.deepStrictEqual(callCount, 4, `Called both token providers (2)`);
-				assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (2)`);
-			} finally {
-				disposables.clear();
-
-				// Wait for scheduler to finish
-				await timeout(0);
-
-				// Now dispose the text model
-				textModel.dispose();
-			}
-		});
-	});
-});
-
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
+	const { disposable, textBuffer } = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
 
 	// compute required edits
 	// let start = Date.now();
@@ -668,6 +414,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	model.pushEditOperations([], edits, null);
 
 	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	disposable.dispose();
 	model.dispose();
 }
 
@@ -716,4 +463,10 @@ assertComputeEdits(file1, file2);
 			break;
 		}
 	}
+}
+
+function createAndRegisterTextBuffer(store: DisposableStore, value: string | ITextBufferFactory | ITextSnapshot, defaultEOL: DefaultEndOfLine): ITextBuffer {
+	const { disposable, textBuffer } = createTextBuffer(value, defaultEOL);
+	store.add(disposable);
+	return textBuffer;
 }

@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Cancellation } from '@vscode/sync-api-common/lib/common/messageCancellation';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { EventName } from '../protocol.const';
-import { CallbackMap } from '../tsServer/callbackMap';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { TelemetryReporter } from '../logging/telemetry';
+import Tracer from '../logging/tracer';
+import { CallbackMap, type CallbackItem } from '../tsServer/callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 import { TypeScriptServerError } from '../tsServer/serverError';
 import { ServerResponse, ServerType, TypeScriptRequests } from '../typescriptService';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
+import { isWebAndHasSharedArrayBuffers } from '../utils/platform';
 import { OngoingRequestCanceller } from './cancellation';
+import type * as Proto from './protocol/protocol';
+import { EventName } from './protocol/protocol.const';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 export enum ExecutionTarget {
 	Semantic,
@@ -28,12 +31,16 @@ export interface TypeScriptServerExitEvent {
 	readonly signal: string | null;
 }
 
+export type TsServerLog =
+	{ readonly type: 'file'; readonly uri: vscode.Uri } |
+	{ readonly type: 'output'; readonly output: vscode.OutputChannel };
+
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
 	readonly onError: vscode.Event<any>;
 
-	readonly tsServerLogFile: string | undefined;
+	readonly tsServerLog: TsServerLog | undefined;
 
 	kill(): void;
 
@@ -64,6 +71,8 @@ export interface TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		nodeVersionManager: NodeVersionManager,
+		tsServerLog: TsServerLog | undefined,
 	): TsServerProcess;
 }
 
@@ -77,7 +86,7 @@ export interface TsServerProcess {
 	kill(): void;
 }
 
-export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
+export class SingleTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
 	private readonly _pendingResponses = new Set<number>();
@@ -86,7 +95,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		private readonly _serverId: string,
 		private readonly _serverSource: ServerType,
 		private readonly _process: TsServerProcess,
-		private readonly _tsServerLogFile: string | undefined,
+		private readonly _tsServerLog: TsServerLog | undefined,
 		private readonly _requestCanceller: OngoingRequestCanceller,
 		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
@@ -118,7 +127,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this._tsServerLogFile; }
+	public get tsServerLog() { return this._tsServerLog; }
 
 	private write(serverRequest: Proto.Request) {
 		this._process.write(serverRequest);
@@ -157,6 +166,9 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 							this._tracer.traceRequestCompleted(this._serverId, 'requestCompleted', seq, callback);
 							callback.onSuccess(undefined);
 						}
+						if ((event as Proto.RequestCompletedEvent).body.performanceData) {
+							this._onEvent.fire(event);
+						}
 					} else {
 						this._tracer.traceEvent(this._serverId, event);
 						this._onEvent.fire(event);
@@ -171,17 +183,20 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 	}
 
-	private tryCancelRequest(seq: number, command: string): boolean {
+	private tryCancelRequest(request: Proto.Request, command: string): boolean {
+		const seq = request.seq;
+		const callback = this._callbacks.peek(seq);
+		if (callback?.traceId !== undefined) {
+			this._telemetryReporter.logTraceEvent('TSServer.tryCancelRequest', callback.traceId, JSON.stringify({ command, cancelled: true }));
+		}
 		try {
 			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this.logTrace(`Canceled request with sequence number ${seq}`);
 				return true;
 			}
-
 			if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
 				return true;
 			}
-
 			this.logTrace(`Tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 			return false;
 		} finally {
@@ -195,7 +210,9 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		if (!callback) {
 			return;
 		}
-
+		if (callback.traceId !== undefined) {
+			this._telemetryReporter.logTraceEvent('TSServerRequest.dispatchResponse', callback.traceId, JSON.stringify({ command: response.command, success: response.success, performanceData: response.performanceData }));
+		}
 		this._tracer.traceResponse(this._serverId, response, callback);
 		if (response.success) {
 			callback.onSuccess(response);
@@ -207,27 +224,47 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 	}
 
-	public executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	public executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; executionTarget?: ExecutionTarget }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
-			queueingType: ProcessBasedTsServer.getQueueingType(command, executeInfo.lowPriority)
+			queueingType: SingleTsServer.getQueueingType(command, executeInfo.lowPriority)
 		};
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
-				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
-
+				const item: CallbackItem<ServerResponse.Response<Proto.Response> | undefined> = typeof request.arguments?.$traceId === 'string'
+					? {
+						onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined,
+						onError: reject,
+						queuingStartTime: Date.now(),
+						isAsync: executeInfo.isAsync,
+						command: request.command,
+						traceId: request.arguments.$traceId
+					} : {
+						onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined,
+						onError: reject,
+						queuingStartTime: Date.now(),
+						isAsync: executeInfo.isAsync,
+						command: request.command,
+					};
+				this._callbacks.add(request.seq, item, executeInfo.isAsync);
 				if (executeInfo.token) {
+
+					const cancelViaSAB = isWebAndHasSharedArrayBuffers()
+						? Cancellation.addData(request)
+						: undefined;
+
 					executeInfo.token.onCancellationRequested(() => {
-						this.tryCancelRequest(request.seq, command);
+						cancelViaSAB?.();
+						this.tryCancelRequest(request, command);
 					});
 				}
 			}).catch((err: Error) => {
 				if (err instanceof TypeScriptServerError) {
-					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
+					if (!executeInfo.token?.isCancellationRequested) {
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
 								"owner": "mjbvz",
@@ -246,9 +283,41 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 
 		this._requestQueue.enqueue(requestInfo);
+		if (args && typeof (args as any).$traceId === 'string') {
+			const queueLength = this._requestQueue.length - 1;
+			const pendingResponses = this._pendingResponses.size;
+			const data: { command: string; queueLength: number; pendingResponses: number; queuedCommands?: string[]; pendingCommands?: string[] } = {
+				command: request.command,
+				queueLength,
+				pendingResponses
+			};
+			if (queueLength > 0) {
+				data.queuedCommands = this._requestQueue.getQueuedCommands(true);
+			}
+			if (pendingResponses > 0) {
+				data.pendingCommands = this.getPendingCommands();
+			}
+
+			this._telemetryReporter.logTraceEvent('TSServer.enqueueRequest', (args as any).$traceId, JSON.stringify(data));
+		}
 		this.sendNextRequests();
 
 		return [result];
+	}
+
+	private getPendingCommands(): string[] {
+		const result: string[] = [];
+		for (const seq of this._pendingResponses) {
+			const callback = this._callbacks.peek(seq);
+			if (typeof callback?.command !== 'string') {
+				continue;
+			}
+			result.push(callback.command);
+			if (result.length >= 5) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	private sendNextRequests(): void {
@@ -270,6 +339,9 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 		try {
 			this.write(serverRequest);
+			if (typeof serverRequest.arguments?.$traceId === 'string') {
+				this._telemetryReporter.logTraceEvent('TSServer.sendRequest', serverRequest.arguments.$traceId, JSON.stringify({ command: serverRequest.command }));
+			}
 		} catch (err) {
 			const callback = this.fetchCallback(serverRequest.seq);
 			callback?.onError(err);
@@ -287,7 +359,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 	}
 
 	private logTrace(message: string) {
-		this._tracer.logTrace(this._serverId, message);
+		this._tracer.trace(this._serverId, message);
 	}
 
 	private static readonly fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
@@ -296,7 +368,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		command: string,
 		lowPriority?: boolean
 	): RequestQueueingType {
-		if (ProcessBasedTsServer.fenceCommands.has(command)) {
+		if (SingleTsServer.fenceCommands.has(command)) {
 			return RequestQueueingType.Fence;
 		}
 		return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
@@ -457,7 +529,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this.mainServer.tsServerLogFile; }
+	public get tsServerLog() { return this.mainServer.tsServerLog; }
 
 	public kill(): void {
 		this.getErrServer.kill();
@@ -483,6 +555,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'format',
 		'formatonkey',
 		'docCommentTemplate',
+		'linkedEditingRange'
 	]);
 
 	/**
@@ -597,7 +670,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this.semanticServer.tsServerLogFile; }
+	public get tsServerLog() { return this.semanticServer.tsServerLog; }
 
 	public kill(): void {
 		this.syntaxServer.kill();

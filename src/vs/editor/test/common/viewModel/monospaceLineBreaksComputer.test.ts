@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
+import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -80,6 +81,9 @@ function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, 
 }
 
 suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('MonospaceLineBreaksComputer', () => {
 
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t).');

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { DialogsModel } from 'vs/workbench/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
+import Severity from '../../../../base/common/severity.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IAsyncPromptResult, IAsyncPromptResultWithCancel, IConfirmation, IConfirmationResult, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from '../../../../platform/dialogs/common/dialogs.js';
+import { DialogsModel } from '../../../common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class DialogService extends Disposable implements IDialogService {
 
@@ -48,24 +48,44 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IConfirmationResult;
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T> | IPromptWithDefaultCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
 		if (this.skipDialogs()) {
-			throw new Error('DialogService: refused to show dialog in tests.');
+			throw new Error(`DialogService: refused to show dialog in tests. Contents: ${prompt.message}`);
 		}
 
-		const handle = this.model.show({ showArgs: { severity, message, buttons, options } });
+		const handle = this.model.show({ promptArgs: { prompt } });
 
-		return await handle.result as IShowResult;
+		const dialogResult = await handle.result as IAsyncPromptResult<T> | IAsyncPromptResultWithCancel<T>;
+
+		return {
+			result: await dialogResult.result,
+			checkboxChecked: dialogResult.checkboxChecked
+		};
 	}
 
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+	async input(input: IInput): Promise<IInputResult> {
 		if (this.skipDialogs()) {
 			throw new Error('DialogService: refused to show input dialog in tests.');
 		}
 
-		const handle = this.model.show({ inputArgs: { severity, message, buttons, inputs, options } });
+		const handle = this.model.show({ inputArgs: { input } });
 
 		return await handle.result as IInputResult;
+	}
+
+	async info(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Info, message, detail });
+	}
+
+	async warn(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Warning, message, detail });
+	}
+
+	async error(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Error, message, detail });
 	}
 
 	async about(): Promise<void> {

@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ToggleStickyScroll } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollActions';
-import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { ToggleStickyScroll, FocusStickyScroll, SelectEditor, SelectPreviousStickyScrollLine, SelectNextStickyScrollLine, GoToStickyScrollLine } from './stickyScrollActions.js';
+import { StickyScrollController } from './stickyScrollController.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 
-registerEditorContribution(StickyScrollController.ID, StickyScrollController);
+registerEditorContribution(StickyScrollController.ID, StickyScrollController, EditorContributionInstantiation.AfterFirstRender);
 registerAction2(ToggleStickyScroll);
+registerAction2(FocusStickyScroll);
+registerAction2(SelectPreviousStickyScrollLine);
+registerAction2(SelectNextStickyScrollLine);
+registerAction2(GoToStickyScrollLine);
+registerAction2(SelectEditor);

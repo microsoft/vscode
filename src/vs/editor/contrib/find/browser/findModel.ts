@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { ReplaceAllCommand } from 'vs/editor/contrib/find/browser/replaceAllCommand';
-import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
+import { RunOnceScheduler, TimeoutTimer } from '../../../../base/common/async.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from '../../../common/commands/replaceCommand.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ScrollType } from '../../../common/editorCommon.js';
+import { EndOfLinePreference, FindMatch, ITextModel } from '../../../common/model.js';
+import { SearchParams } from '../../../common/model/textModelSearch.js';
+import { FindDecorations } from './findDecorations.js';
+import { FindReplaceState, FindReplaceStateChangedEvent } from './findState.js';
+import { ReplaceAllCommand } from './replaceAllCommand.js';
+import { parseReplaceString, ReplacePattern } from './replacePattern.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindings } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -58,6 +58,7 @@ export const FIND_IDS = {
 	StartFindWithArgs: 'editor.actions.findWithArgs',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
+	GoToMatchFindAction: 'editor.action.goToMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
@@ -96,7 +97,12 @@ export class FindModelBoundToEditorModel {
 		this._decorations = new FindDecorations(editor);
 		this._toDispose.add(this._decorations);
 
-		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
+		this._updateDecorationsScheduler = new RunOnceScheduler(() => {
+			if (!this._editor.hasModel()) {
+				return;
+			}
+			return this.research(false);
+		}, 100);
 		this._toDispose.add(this._updateDecorationsScheduler);
 
 		this._toDispose.add(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
@@ -210,7 +216,7 @@ export class FindModelBoundToEditorModel {
 		if (currentMatchesPosition === 0 && findMatches.length > 0) {
 			// current selection is not on top of a match
 			// try to find its nearest result from the top of the document
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
 			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
 		}
 
@@ -447,6 +453,17 @@ export class FindModelBoundToEditorModel {
 
 	public moveToNextMatch(): void {
 		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
+	}
+
+	private _moveToMatch(index: number): void {
+		const decorationRange = this._decorations.getDecorationRangeAt(index);
+		if (decorationRange) {
+			this._setCurrentFindMatch(decorationRange);
+		}
+	}
+
+	public moveToMatch(index: number): void {
+		this._moveToMatch(index);
 	}
 
 	private _getReplacePattern(): ReplacePattern {

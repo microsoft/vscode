@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $ } from 'vs/base/browser/dom';
-import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
+import assert from 'assert';
+import { $ } from '../../../../browser/dom.js';
+import { unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
+import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
 	let i;
@@ -52,20 +54,21 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
 	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement!);
+	const titleDiv = getTitleDivFromButtonDiv(buttonElement);
 	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv!);
+	const mnem = getMnemonicFromTitleDiv(titleDiv);
 	assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
 }
 
 suite('Menubar', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
 	const menubar = new MenuBar(container, {
 		enableMnemonics: true,
 		visibility: 'visible'
-	});
+	}, unthemedMenuStyles);
 
 	test('English File menu renders mnemonics', function () {
 		validateMenuBarItem(menubar, container, '&File', 'File', 'F');

@@ -11,13 +11,14 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { ServiceConfigurationProvider } from './utils/configuration';
-import * as fileSchemes from './utils/fileSchemes';
-import { standardLanguageDescriptions } from './utils/languageDescription';
-import { lazy, Lazy } from './utils/lazy';
-import ManagedFileContextManager from './utils/managedFileContext';
-import { PluginManager } from './utils/plugins';
+import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import ManagedFileContextManager from './ui/managedFileContext';
+import { ServiceConfigurationProvider } from './configuration/configuration';
+import * as fileSchemes from './configuration/fileSchemes';
+import { standardLanguageDescriptions, isJsConfigOrTsConfigFileName } from './configuration/languageDescription';
+import { Lazy } from './utils/lazy';
+import { Logger } from './logging/logger';
+import { PluginManager } from './tsServer/plugins';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,
@@ -32,10 +33,11 @@ export function createLazyClientHost(
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 		serviceConfigurationProvider: ServiceConfigurationProvider;
 		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+		logger: Logger;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
-	return lazy(() => {
+	return new Lazy(() => {
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context,
@@ -53,6 +55,7 @@ export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
 	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+	onActivate: () => Promise<void> = () => Promise.resolve(),
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
@@ -65,12 +68,14 @@ export function lazilyActivateClient(
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
 		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
 			hasActivated = true;
-			// Force activation
-			void lazyClientHost.value;
 
-			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
-			}));
+			onActivate().then(() => {
+				// Force activation
+				void lazyClientHost.value;
+
+				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker));
+			});
+
 			return true;
 		}
 		return false;
@@ -92,6 +97,6 @@ function isSupportedDocument(
 	supportedLanguage: readonly string[],
 	document: vscode.TextDocument
 ): boolean {
-	return supportedLanguage.indexOf(document.languageId) >= 0
+	return (supportedLanguage.indexOf(document.languageId) >= 0 || isJsConfigOrTsConfigFileName(document.fileName))
 		&& !fileSchemes.disabledSchemes.has(document.uri.scheme);
 }

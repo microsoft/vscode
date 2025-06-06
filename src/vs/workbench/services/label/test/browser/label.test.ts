@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import * as assert from 'assert';
-import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { isWindows } from 'vs/base/common/platform';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import * as resources from '../../../../../base/common/resources.js';
+import assert from 'assert';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { LabelService } from '../../common/labelService.js';
+import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../../common/memento.js';
+import { ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
+import { sep } from '../../../../../base/common/path.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -22,8 +25,10 @@ suite('URI Label', () => {
 
 	setup(() => {
 		storageService = new TestStorageService();
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), storageService, new TestLifecycleService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, new TestLifecycleService());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('custom scheme', function () {
 		labelService.registerFormatter({
@@ -39,6 +44,27 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
 		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+	});
+
+	test('file scheme', function () {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
+				label: '${path}',
+				separator: sep,
+				tildify: !isWindows,
+				normalizeDriveLetter: isWindows
+			}
+		});
+
+		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true }), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'd');
+
+		const uri2 = URI.file('c:\\1/2/3');
+		assert.strictEqual(labelService.getUriLabel(uri2, { relative: false }), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri2), '3');
 	});
 
 	test('separator', function () {
@@ -203,13 +229,14 @@ suite('URI Label', () => {
 
 suite('multi-root workspace', () => {
 	let labelService: LabelService;
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		const sources = URI.file('folder1/src');
 		const tests = URI.file('folder1/test');
 		const other = URI.file('folder2');
 
-		labelService = new LabelService(
+		labelService = disposables.add(new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
@@ -219,9 +246,13 @@ suite('multi-root workspace', () => {
 				])),
 			new TestPathService(),
 			new TestRemoteAgentService(),
-			new TestStorageService(),
-			new TestLifecycleService()
-		);
+			disposables.add(new TestStorageService()),
+			disposables.add(new TestLifecycleService())
+		));
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
@@ -298,7 +329,7 @@ suite('multi-root workspace', () => {
 	test('relative label without formatter', () => {
 		const rootFolder = URI.parse('myscheme://myauthority/');
 
-		labelService = new LabelService(
+		labelService = disposables.add(new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
@@ -306,9 +337,9 @@ suite('multi-root workspace', () => {
 				])),
 			new TestPathService(undefined, rootFolder.scheme),
 			new TestRemoteAgentService(),
-			new TestStorageService(),
-			new TestLifecycleService()
-		);
+			disposables.add(new TestStorageService()),
+			disposables.add(new TestLifecycleService())
+		));
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
 		if (isWindows) {
@@ -317,6 +348,8 @@ suite('multi-root workspace', () => {
 			assert.strictEqual(generated, 'some/folder/test.txt');
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('workspace at FSP root', () => {
@@ -383,4 +416,6 @@ suite('workspace at FSP root', () => {
 		generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '\\' });
 		assert.strictEqual(generated, 'some\\folder\\test.txt');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

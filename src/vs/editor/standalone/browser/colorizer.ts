@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
+import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
+import * as strings from '../../../base/common/strings.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../common/encodedTokenAttributes.js';
+import { ILanguageIdCodec, ITokenizationSupport, TokenizationRegistry } from '../../common/languages.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { ITextModel } from '../../common/model.js';
+import { IViewLineTokens, LineTokens } from '../../common/tokens/lineTokens.js';
+import { RenderLineInput, renderViewLine2 as renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
+import { ViewLineRenderingData } from '../../common/viewModel.js';
+import { MonarchTokenizer } from '../common/monarch/monarchLexer.js';
+import { IStandaloneThemeService } from '../common/standaloneTheme.js';
 
-const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('standaloneColorizer', { createHTML: value => value });
 
 export interface IColorizerOptions {
 	tabSize?: number;

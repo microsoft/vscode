@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
+import type * as Proto from './protocol/protocol';
 import { TypeScriptVersion } from './versionProvider';
 
 
@@ -25,7 +25,11 @@ export class TypeScriptServerError extends Error {
 		public readonly serverStack: string | undefined,
 		private readonly sanitizedStack: string | undefined
 	) {
-		super(`<${serverId}> TypeScript Server Error (${version.displayName})\n${serverMessage}\n${serverStack}`);
+		super([
+			`<${serverId}> TypeScript Server Error (${version.displayName})`,
+			serverMessage,
+			serverStack
+		].filter(Boolean).join('\n'));
 	}
 
 	public get serverErrorText() { return this.response.message; }

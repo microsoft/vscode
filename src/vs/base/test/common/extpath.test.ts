@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { isWindows } from 'vs/base/common/platform';
+import assert from 'assert';
+import { CharCode } from '../../common/charCode.js';
+import * as extpath from '../../common/extpath.js';
+import { isWindows } from '../../common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Paths', () => {
 
@@ -49,9 +50,9 @@ suite('Paths', () => {
 		assert.ok(!extpath.isValidBasename(''));
 		assert.ok(extpath.isValidBasename('test.txt'));
 		assert.ok(!extpath.isValidBasename('/test.txt'));
-		assert.ok(!extpath.isValidBasename('\\test.txt'));
 
 		if (isWindows) {
+			assert.ok(!extpath.isValidBasename('\\test.txt'));
 			assert.ok(!extpath.isValidBasename('aux'));
 			assert.ok(!extpath.isValidBasename('Aux'));
 			assert.ok(!extpath.isValidBasename('LPT0'));
@@ -68,6 +69,8 @@ suite('Paths', () => {
 			assert.ok(!extpath.isValidBasename('test.txt\t'));
 			assert.ok(!extpath.isValidBasename('tes:t.txt'));
 			assert.ok(!extpath.isValidBasename('tes"t.txt'));
+		} else {
+			assert.ok(extpath.isValidBasename('\\test.txt'));
 		}
 	});
 
@@ -219,4 +222,6 @@ suite('Paths', () => {
 		const r4 = extpath.randomPath();
 		assert.ok(r4);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

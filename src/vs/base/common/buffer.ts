@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as streams from 'vs/base/common/stream';
+import { Lazy } from './lazy.js';
+import * as streams from './stream.js';
 
 declare const Buffer: any;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
+const indexOfTable = new Lazy(() => new Uint8Array(256));
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -169,6 +171,70 @@ export class VSBuffer {
 	writeUInt8(value: number, offset: number): void {
 		writeUInt8(this.buffer, value, offset);
 	}
+
+	indexOf(subarray: VSBuffer | Uint8Array, offset = 0) {
+		return binaryIndexOf(this.buffer, subarray instanceof VSBuffer ? subarray.buffer : subarray, offset);
+	}
+
+	equals(other: VSBuffer): boolean {
+		if (this === other) {
+			return true;
+		}
+
+		if (this.byteLength !== other.byteLength) {
+			return false;
+		}
+
+		return this.buffer.every((value, index) => value === other.buffer[index]);
+	}
+}
+
+/**
+ * Like String.indexOf, but works on Uint8Arrays.
+ * Uses the boyer-moore-horspool algorithm to be reasonably speedy.
+ */
+export function binaryIndexOf(haystack: Uint8Array, needle: Uint8Array, offset = 0): number {
+	const needleLen = needle.byteLength;
+	const haystackLen = haystack.byteLength;
+
+	if (needleLen === 0) {
+		return 0;
+	}
+
+	if (needleLen === 1) {
+		return haystack.indexOf(needle[0]);
+	}
+
+	if (needleLen > haystackLen - offset) {
+		return -1;
+	}
+
+	// find index of the subarray using boyer-moore-horspool algorithm
+	const table = indexOfTable.value;
+	table.fill(needle.length);
+	for (let i = 0; i < needle.length; i++) {
+		table[needle[i]] = needle.length - i - 1;
+	}
+
+	let i = offset + needle.length - 1;
+	let j = i;
+	let result = -1;
+	while (i < haystackLen) {
+		if (haystack[i] === needle[j]) {
+			if (j === 0) {
+				result = i;
+				break;
+			}
+
+			i--;
+			j--;
+		} else {
+			i += Math.max(needle.length - j, table[haystack[i]]);
+			j = needle.length - 1;
+		}
+	}
+
+	return result;
 }
 
 export function readUInt16LE(source: Uint8Array, offset: number): number {
@@ -384,4 +450,39 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 	}
 
 	return output;
+}
+
+const hexChars = '0123456789abcdef';
+export function encodeHex({ buffer }: VSBuffer): string {
+	let result = '';
+	for (let i = 0; i < buffer.length; i++) {
+		const byte = buffer[i];
+		result += hexChars[byte >>> 4];
+		result += hexChars[byte & 0x0f];
+	}
+	return result;
+}
+
+export function decodeHex(hex: string): VSBuffer {
+	if (hex.length % 2 !== 0) {
+		throw new SyntaxError('Hex string must have an even length');
+	}
+	const out = new Uint8Array(hex.length >> 1);
+	for (let i = 0; i < hex.length;) {
+		out[i >> 1] = (decodeHexChar(hex, i++) << 4) | decodeHexChar(hex, i++);
+	}
+	return VSBuffer.wrap(out);
+}
+
+function decodeHexChar(str: string, position: number) {
+	const s = str.charCodeAt(position);
+	if (s >= 48 && s <= 57) { // '0'-'9'
+		return s - 48;
+	} else if (s >= 97 && s <= 102) { // 'a'-'f'
+		return s - 87;
+	} else if (s >= 65 && s <= 70) { // 'A'-'F'
+		return s - 55;
+	} else {
+		throw new SyntaxError(`Invalid hex character at position ${position}`);
+	}
 }

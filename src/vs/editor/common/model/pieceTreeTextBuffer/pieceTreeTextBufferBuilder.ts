@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from '../../model.js';
+import { StringBuffer, createLineStarts, createLineStartsFast } from './pieceTreeBase.js';
+import { PieceTreeTextBuffer } from './pieceTreeTextBuffer.js';
 
 class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
@@ -141,16 +141,15 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		this.lf += lineStarts.lf;
 		this.crlf += lineStarts.crlf;
 
-		if (this.isBasicASCII) {
-			this.isBasicASCII = lineStarts.isBasicASCII;
-		}
-		if (!this.isBasicASCII && !this.containsRTL) {
-			// No need to check if it is basic ASCII
-			this.containsRTL = strings.containsRTL(chunk);
-		}
-		if (!this.isBasicASCII && !this.containsUnusualLineTerminators) {
-			// No need to check if it is basic ASCII
-			this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+		if (!lineStarts.isBasicASCII) {
+			// this chunk contains non basic ASCII characters
+			this.isBasicASCII = false;
+			if (!this.containsRTL) {
+				this.containsRTL = strings.containsRTL(chunk);
+			}
+			if (!this.containsUnusualLineTerminators) {
+				this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+			}
 		}
 	}
 

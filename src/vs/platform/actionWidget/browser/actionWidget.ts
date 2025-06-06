@@ -2,41 +2,43 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction } from 'vs/base/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./actionWidget';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { acceptSelectedActionCommand, ActionList, IListMenuItem, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
-import { IActionItem, IActionKeybindingResolver } from 'vs/platform/actionWidget/common/actionWidget';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as dom from '../../../base/browser/dom.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { IAction } from '../../../base/common/actions.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import './actionWidget.css';
+import { localize, localize2 } from '../../../nls.js';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, previewSelectedActionCommand } from './actionList.js';
+import { Action2, registerAction2 } from '../../actions/common/actions.js';
+import { IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js';
+import { inputActiveOptionBackground, registerColor } from '../../theme/common/colorRegistry.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 
+registerColor(
+	'actionBar.toggledBackground',
+	inputActiveOptionBackground,
+	localize('actionBar.toggledBackground', 'Background color for toggled action items in action bar.')
+);
 
 const ActionWidgetContextKeys = {
-	Visible: new RawContextKey<boolean>('actionWidgetVisible', false, localize('actionWidgetVisible', "Whether the action widget list is visible"))
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible"))
 };
-
-export interface IRenderDelegate<T extends IActionItem> {
-	onHide(didCancel?: boolean): void;
-	onSelect(action: IActionItem, preview?: boolean): Promise<any>;
-}
 
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 
 export interface IActionWidgetService {
 	readonly _serviceBrand: undefined;
 
-	show(user: string, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): Promise<void>;
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>): void;
 
-	hide(): void;
+	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
 }
@@ -48,21 +50,21 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false;
 	}
 
-	private readonly _list = this._register(new MutableDisposable<ActionList<any>>());
+	private readonly _list = this._register(new MutableDisposable<ActionList<unknown>>());
 
 	constructor(
-		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
 
-	async show(user: string, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], resolver?: IActionKeybindingResolver): Promise<void> {
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
-		const list = this._instantiationService.createInstance(ActionList, user, items, delegate, resolver);
-		this.contextViewService.showContextView({
+		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider);
+		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
@@ -70,7 +72,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
-				return this._onWidgetClosed(didCancel);
+				this._onWidgetClosed(didCancel);
 			},
 		}, container, false);
 	}
@@ -87,8 +89,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list?.value?.focusNext();
 	}
 
-	hide() {
-		this._list.value?.hide();
+	hide(didCancel?: boolean) {
+		this._list.value?.hide(didCancel);
 		this._list.clear();
 	}
 
@@ -96,7 +98,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<any>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
@@ -139,7 +141,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		widget.style.width = `${width}px`;
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
-		renderDisposables.add(focusTracker.onDidBlur(() => this.hide()));
+		renderDisposables.add(focusTracker.onDidBlur(() => this.hide(true)));
 
 		return renderDisposables;
 	}
@@ -168,10 +170,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'hideCodeActionWidget',
-			title: {
-				value: localize('hideCodeActionWidget.title', "Hide action widget"),
-				original: 'Hide action widget'
-			},
+			title: localize2('hideCodeActionWidget.title', "Hide action widget"),
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
@@ -182,7 +181,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IActionWidgetService).hide();
+		accessor.get(IActionWidgetService).hide(true);
 	}
 });
 
@@ -190,10 +189,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'selectPrevCodeAction',
-			title: {
-				value: localize('selectPrevCodeAction.title', "Select previous action"),
-				original: 'Select previous action'
-			},
+			title: localize2('selectPrevCodeAction.title', "Select previous action"),
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
@@ -216,10 +212,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'selectNextCodeAction',
-			title: {
-				value: localize('selectNextCodeAction.title', "Select next action"),
-				original: 'Select next action'
-			},
+			title: localize2('selectNextCodeAction.title', "Select next action"),
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
@@ -242,10 +235,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: acceptSelectedActionCommand,
-			title: {
-				value: localize('acceptSelected.title', "Accept selected action"),
-				original: 'Accept selected action'
-			},
+			title: localize2('acceptSelected.title', "Accept selected action"),
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,
@@ -267,10 +257,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: previewSelectedActionCommand,
-			title: {
-				value: localize('previewSelected.title', "Preview selected action"),
-				original: 'Preview selected action'
-			},
+			title: localize2('previewSelected.title', "Preview selected action"),
 			precondition: ActionWidgetContextKeys.Visible,
 			keybinding: {
 				weight,

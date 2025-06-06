@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as cp from 'child_process';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import * as processes from 'vs/base/node/processes';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { FileAccess } from '../../../common/network.js';
+import * as objects from '../../../common/objects.js';
+import * as platform from '../../../common/platform.js';
+import * as processes from '../../../node/processes.js';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
 		env: objects.mixin(objects.deepClone(process.env), {
-			VSCODE_AMD_ENTRYPOINT: id,
+			VSCODE_ESM_ENTRYPOINT: id,
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: true
 		})
 	};
 
-	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
+	return cp.fork(FileAccess.asFileUri('bootstrap-fork').fsPath, ['--type=processTests'], opts);
 }
 
 suite('Processes', () => {

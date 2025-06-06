@@ -1,0 +1,59 @@
+{
+  "name": "tunnel-forwarding",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "icon": "media/icon.png",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": [
+    "resolvers",
+    "tunnelFactory"
+  ],
+  "activationEvents": [
+    "onTunnel"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "category": "%category%",
+        "command": "tunnel-forwarding.showLog",
+        "title": "%command.showLog%",
+        "enablement": "tunnelForwardingHasLog"
+      },
+      {
+        "category": "%category%",
+        "command": "tunnel-forwarding.restart",
+        "title": "%command.restart%",
+        "enablement": "tunnelForwardingIsRunning"
+      }
+    ]
+  },
+  "main": "./out/extension",
+  "scripts": {
+    "compile": "gulp compile-extension:tunnel-forwarding",
+    "watch": "gulp watch-extension:tunnel-forwarding"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "trailingComma": "all",
+    "singleQuote": true,
+    "arrowParens": "avoid"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

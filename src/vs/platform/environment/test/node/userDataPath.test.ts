@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import product from 'vs/platform/product/common/product';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OPTIONS, parseArgs } from '../../node/argv.js';
+import { getUserDataPath } from '../../node/userDataPath.js';
+import product from '../../../product/common/product.js';
 
 suite('User data path', () => {
 
@@ -57,4 +58,6 @@ suite('User data path', () => {
 			}
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

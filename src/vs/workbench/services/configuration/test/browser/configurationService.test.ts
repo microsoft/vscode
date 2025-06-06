@@ -3,54 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, RemoteFileSystemProvider, TestEnvironmentService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath, dirname, basename } from 'vs/base/common/resources';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-import { SignService } from 'vs/platform/sign/browser/signService';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { hash } from 'vs/base/common/hash';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { NullPolicyService } from 'vs/platform/policy/common/policy';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { TasksSchemaProperties } from 'vs/workbench/contrib/tasks/common/tasks';
+import { URI } from '../../../../../base/common/uri.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { WorkspaceService } from '../../browser/configurationService.js';
+import { ConfigurationEditingErrorCode } from '../../common/configurationEditing.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { workbenchInstantiationService, RemoteFileSystemProvider, TestEnvironmentService, TestTextFileService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITextFileService } from '../../../textfile/common/textfiles.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { TextModelResolverService } from '../../../textmodelResolver/common/textModelResolverService.js';
+import { IJSONEditingService } from '../../common/jsonEditing.js';
+import { JSONEditingService } from '../../common/jsonEditingService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { joinPath, dirname, basename } from '../../../../../base/common/resources.js';
+import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { APPLY_ALL_PROFILES_SETTING, IConfigurationCache } from '../../common/configuration.js';
+import { SignService } from '../../../../../platform/sign/browser/signService.js';
+import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
+import { IKeybindingEditingService, KeybindingsEditingService } from '../../../keybinding/common/keybindingEditing.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
+import { RemoteAgentService } from '../../../remote/browser/remoteAgentService.js';
+import { RemoteAuthorityResolverService } from '../../../../../platform/remote/browser/remoteAuthorityResolverService.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { TasksSchemaProperties } from '../../../../contrib/tasks/common/tasks.js';
+import { RemoteSocketFactoryService } from '../../../../../platform/remote/common/remoteSocketFactoryService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -59,7 +60,7 @@ function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifie
 	};
 }
 
-export class ConfigurationCache implements IConfigurationCache {
+class ConfigurationCache implements IConfigurationCache {
 	needsCaching(resource: URI): boolean { return false; }
 	async read(): Promise<string> { return ''; }
 	async write(): Promise<void> { }
@@ -73,26 +74,40 @@ suite('WorkspaceContextService - Folder', () => {
 	const folderName = 'Folder A';
 	let folder: URI;
 	let testObject: WorkspaceService;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		folder = joinPath(ROOT, folderName);
 		await fileService.createFolder(folder);
 
 		const environmentService = TestEnvironmentService;
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService), userDataProfilesService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		const userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService,
+			fileService,
+			disposables.add(new RemoteAgentService(
+				new RemoteSocketFactoryService(),
+				userDataProfileService,
+				environmentService,
+				TestProductService,
+				disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)),
+				new SignService(TestProductService), new NullLogService())),
+			uriIdentityService,
+			new NullLogService(),
+			new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('getWorkspace()', () => {
 		const actual = testObject.getWorkspace();
@@ -121,16 +136,26 @@ suite('WorkspaceContextService - Folder', () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const folder = joinPath(ROOT, folderName).with({ query: 'myquery=1' });
 		await fileService.createFolder(folder);
 
 		const environmentService = TestEnvironmentService;
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService), userDataProfilesService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		const userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		const testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService,
+			fileService,
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			uriIdentityService,
+			new NullLogService(),
+			new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
@@ -143,18 +168,27 @@ suite('WorkspaceContextService - Folder', () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const folder = joinPath(ROOT, folderName);
 		await fileService.createFolder(folder);
 
 		const environmentService = TestEnvironmentService;
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService), userDataProfilesService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
-		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
-
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		const userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		const testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService,
+			fileService,
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			uriIdentityService,
+			new NullLogService(),
+			new NullPolicyService()));
+		await testObject.initialize(convertToWorkspacePayload(folder));
 
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a').with({ query: 'myquery=1' }));
 
@@ -175,13 +209,13 @@ suite('WorkspaceContextService - Folder', () => {
 suite('WorkspaceContextService - Workspace', () => {
 
 	let testObject: WorkspaceService;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const appSettingsHome = joinPath(ROOT, 'user');
 		const folderA = joinPath(ROOT, 'a');
@@ -194,14 +228,18 @@ suite('WorkspaceContextService - Workspace', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
-		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
+		const remoteAgentService = disposables.add(disposables.add(instantiationService.createInstance(RemoteAgentService)));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService), userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)),
+			userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -210,8 +248,6 @@ suite('WorkspaceContextService - Workspace', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 		testObject.acquireInstantiationService(instantiationService);
 	});
-
-	teardown(() => disposables.clear());
 
 	test('workspace folders', () => {
 		const actual = testObject.getWorkspace().folders;
@@ -235,13 +271,13 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceContextService - Workspace Editing', () => {
 
 	let testObject: WorkspaceService, fileService: IFileService;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const appSettingsHome = joinPath(ROOT, 'user');
 		const folderA = joinPath(ROOT, 'a');
@@ -254,14 +290,18 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService), userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)),
+			userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
@@ -274,8 +314,6 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		instantiationService.stub(IJSONEditingService, instantiationService.createInstance(JSONEditingService));
 		testObject.acquireInstantiationService(instantiationService);
 	});
-
-	teardown(() => disposables.clear());
 
 	test('add folders', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.addFolders([{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }]);
@@ -325,8 +363,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('add folders triggers change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		await testObject.addFolders(addedFolders);
@@ -348,8 +386,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('remove folders triggers change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const removedFolder = testObject.getWorkspace().folders[0];
 		await testObject.removeFolders([removedFolder.uri]);
 
@@ -365,14 +403,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await testObject.removeFolders([folders[0].uri]);
 
 		const promise = new Promise<void>((resolve, reject) => {
-			testObject.onDidChangeWorkspaceFolders(actual => {
+			disposables.add(testObject.onDidChangeWorkspaceFolders(actual => {
 				try {
 					assert.deepStrictEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
 					resolve();
 				} catch (error) {
 					reject(error);
 				}
-			});
+			}));
 		});
 
 		const workspace = { folders: [{ path: folders[0].uri.path }, { path: folders[1].uri.path }] };
@@ -382,8 +420,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (remove last and add to end)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
 		await testObject.updateFolders(addedFolders, removedFolders);
@@ -397,8 +435,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (rename first via add and remove)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const addedFolders = [{ uri: joinPath(ROOT, 'a'), name: 'The Folder' }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		await testObject.updateFolders(addedFolders, removedFolders, 0);
@@ -412,8 +450,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (remove first and add to end)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
@@ -428,8 +466,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('reorder folders trigger change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.path }, { path: testObject.getWorkspace().folders[0].uri.path }] };
 		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await testObject.reloadConfiguration();
@@ -443,8 +481,8 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('rename folders trigger change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.path, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.path }] };
 		fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await testObject.reloadConfiguration();
@@ -462,7 +500,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	let configResource: URI, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -487,7 +525,7 @@ suite('WorkspaceService - Initialization', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const appSettingsHome = joinPath(ROOT, 'user');
 		const folderA = joinPath(ROOT, 'a');
@@ -500,27 +538,29 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		userDataProfileService = instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
+		testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
 
 		await testObject.initialize({ id: '' });
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		testObject.acquireInstantiationService(instantiationService);
 	});
-
-	teardown(() => disposables.clear());
 
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 
@@ -528,11 +568,11 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		const folder = joinPath(ROOT, 'a');
 		await testObject.initialize(convertToWorkspacePayload(folder));
@@ -553,11 +593,11 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		const folder = joinPath(ROOT, 'a');
 		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue" }'));
@@ -565,7 +605,7 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(f => f.uri.toString()), [folder.toString()]);
@@ -580,11 +620,11 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
@@ -603,18 +643,18 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		await fileService.writeFile(joinPath(ROOT, 'a', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue1" }'));
 		await fileService.writeFile(joinPath(ROOT, 'b', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting2": "workspaceValue2" }'));
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1', 'initialization.testSetting2']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
@@ -629,11 +669,11 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
 
@@ -649,18 +689,18 @@ suite('WorkspaceService - Initialization', () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		await fileService.writeFile(joinPath(ROOT, 'b', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
 		assert.strictEqual(target.callCount, 3);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
@@ -670,17 +710,17 @@ suite('WorkspaceService - Initialization', () => {
 	(isMacintosh ? test.skip : test)('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeWorkbenchState(target));
+		disposables.add(testObject.onDidChangeWorkspaceName(target));
+		disposables.add(testObject.onWillChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
+		disposables.add(testObject.onDidChangeConfiguration(target));
 
 		await fileService.writeFile(joinPath(ROOT, 'a', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
@@ -692,9 +732,9 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -710,6 +750,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
+				},
+				'configurationService.folder.applicationMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION_MACHINE
 				},
 				'configurationService.folder.machineOverridableSetting': {
 					'type': 'string',
@@ -739,6 +784,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						minimumVersion: '1.0.0',
 					}
 				},
+				'configurationService.folder.policyObjectSetting': {
+					'type': 'object',
+					'default': {},
+					policy: {
+						name: 'configurationService.folder.policyObjectSetting',
+						minimumVersion: '1.0.0',
+					}
+				},
 			}
 		});
 
@@ -755,37 +808,52 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(folder, 'policies.json');
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
-		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		userDataProfileService = instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
+		workspaceService = testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService, userDataProfileService, userDataProfilesService,
+			fileService, remoteAgentService, uriIdentityService, new NullLogService(),
+			disposables.add(new FilePolicyService(environmentService.policyFile, fileService, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
 
 		await workspaceService.initialize(convertToWorkspacePayload(folder));
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
-	teardown(() => disposables.clear());
-
 	test('defaults', () => {
-		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet', 'policySetting': 'isSet' } });
+		assert.deepStrictEqual(testObject.getValue('configurationService'),
+			{
+				'folder': {
+					'applicationSetting': 'isSet',
+					'machineSetting': 'isSet',
+					'applicationMachineSetting': 'isSet',
+					'machineOverridableSetting': 'isSet',
+					'testSetting': 'isSet',
+					'languageSetting': 'isSet',
+					'restrictedSetting': 'isSet',
+					'policySetting': 'isSet',
+					'policyObjectSetting': {}
+				}
+			});
 	});
 
 	test('globals override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -891,7 +959,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
-	test('get application scope settings are not loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('application machine overridable settings are not read from workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "workspaceValue" }'));
+
+		await testObject.reloadConfiguration();
+
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting'), 'userValue');
+	}));
+
+	test('application machine overridable settings are not read from workspace when workspace folder uri is passed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting": "workspaceValue" }'));
+
+		await testObject.reloadConfiguration();
+
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+	}));
+
+	test('get application scope settings are loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "workspaceValue" }'));
 
@@ -939,6 +1025,56 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+	}));
+
+	test('get application machine overridable scope settings are loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-2": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-2": "workspaceValue" }'));
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.applicationMachineSetting-2': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-2'), 'userValue');
+	}));
+
+	test('get application machine overridable scope settings are loaded after defaults are registered when workspace folder uri is passed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-3": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationMachineSetting-3": "workspaceValue" }'));
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.applicationMachineSetting-3': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.applicationMachineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
 	test('get machine scope settings are not loaded after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -997,7 +1133,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
 			return promise;
 		});
-		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
+		assert.deepStrictEqual([...result.affectedKeys], ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
 	}));
@@ -1010,10 +1146,23 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, undefined);
 	}));
 
+	test('policy value override all for object type setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
+			return promise;
+		});
+
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"b": true} }'));
+		await testObject.reloadConfiguration();
+
+		assert.deepStrictEqual(testObject.getValue('configurationService.folder.policyObjectSetting'), { a: true });
+	}));
+
 	test('reload configuration emits events after global configuraiton changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.reloadConfiguration();
 		assert.ok(target.called);
 	}));
@@ -1021,7 +1170,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('reload configuration emits events after workspace configuraiton changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.reloadConfiguration();
 		assert.ok(target.called);
 	}));
@@ -1031,7 +1180,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(() => { target(); });
+		disposables.add(testObject.onDidChangeConfiguration(() => { target(); }));
 		await testObject.reloadConfiguration();
 		assert.ok(!target.called);
 	}));
@@ -1253,10 +1402,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('update language configuration for multiple languages', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['deflang', 'xyzlang'] }, ConfigurationTarget.USER);
+		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['xyzlang', 'deflang'] }, ConfigurationTarget.USER);
 		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'deflang' }), 'multiLangValue');
 		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'xyzlang' }), 'multiLangValue');
 		assert.deepStrictEqual(testObject.getValue(keyFromOverrideIdentifiers(['deflang', 'xyzlang'])), { 'configurationService.folder.languageSetting': 'multiLangValue' });
+	}));
+
+	test('update language configuration for multiple languages when already set', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "[deflang][xyzlang]": { "configurationService.folder.languageSetting": "userValue" }}'));
+		await testObject.updateValue('configurationService.folder.languageSetting', 'multiLangValue', { overrideIdentifiers: ['xyzlang', 'deflang'] }, ConfigurationTarget.USER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'deflang' }), 'multiLangValue');
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { overrideIdentifier: 'xyzlang' }), 'multiLangValue');
+		assert.deepStrictEqual(testObject.getValue(keyFromOverrideIdentifiers(['deflang', 'xyzlang'])), { 'configurationService.folder.languageSetting': 'multiLangValue' });
+		const actualContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+		assert.deepStrictEqual(JSON.parse(actualContent), { '[deflang][xyzlang]': { 'configurationService.folder.languageSetting': 'multiLangValue' } });
 	}));
 
 	test('update resource language configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1277,12 +1436,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('update application setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
+			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
+	});
+
+	test('update application machine overridable setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.folder.applicationMachineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
 			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
 	test('update machine setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.folder.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+		return testObject.updateValue('configurationService.folder.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
 			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
 	});
 
@@ -1293,14 +1457,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('update user configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		return testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER)
 			.then(() => assert.ok(target.called));
 	});
 
 	test('update workspace configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		return testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.WORKSPACE)
 			.then(() => assert.ok(target.called));
 	});
@@ -1312,7 +1476,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('update memory configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
 			.then(() => assert.ok(target.called));
 	});
@@ -1345,14 +1509,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
 			.then(() => assert.ok(target.called));
 	});
 
 	test('no change event when there are no global tasks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await timeout(5);
 		assert.ok(target.notCalled);
 	}));
@@ -1436,7 +1600,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		testObject.updateWorkspaceTrust(false);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectedKeys.has('configurationService.folder.restrictedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	}));
 
@@ -1485,7 +1649,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		testObject.updateWorkspaceTrust(true);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectedKeys.has('configurationService.folder.restrictedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	}));
 
@@ -1516,19 +1680,29 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService - Profiles', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, instantiationService: TestInstantiationService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
 			'properties': {
+				[APPLY_ALL_PROFILES_SETTING]: {
+					'type': 'array',
+					'default': [],
+					'scope': ConfigurationScope.APPLICATION,
+				},
 				'configurationService.profiles.applicationSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'configurationService.profiles.applicationMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION_MACHINE
 				},
 				'configurationService.profiles.testSetting': {
 					'type': 'string',
@@ -1551,21 +1725,25 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(folder, 'policies.json');
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = instantiationService.stub(IUserDataProfileService, new UserDataProfileService(toUserDataProfile('custom', 'custom', joinPath(environmentService.userRoamingDataHome, 'profiles', 'temp')), userDataProfilesService));
-		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new FilePolicyService(environmentService.policyFile, fileService, logService)));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		userDataProfileService = instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('custom', 'custom', joinPath(environmentService.userRoamingDataHome, 'profiles', 'temp'), joinPath(environmentService.cacheHome, 'profilesCache')))));
+		workspaceService = testObject = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService, userDataProfileService, userDataProfilesService,
+			fileService, remoteAgentService, uriIdentityService, new NullLogService(),
+			disposables.add(new FilePolicyService(environmentService.policyFile, fileService, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -1574,13 +1752,11 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting2": "applicationValue", "configurationService.profiles.testSetting2": "userValue" }'));
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting2": "profileValue", "configurationService.profiles.testSetting2": "profileValue" }'));
 		await workspaceService.initialize(convertToWorkspacePayload(folder));
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
-
-	teardown(() => disposables.clear());
 
 	test('initialize', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
@@ -1634,11 +1810,118 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 	}));
 
+	test('update application machine setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue('configurationService.profiles.applicationMachineSetting', 'applicationValue');
+
+		assert.deepStrictEqual(JSON.parse((await fileService.readFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource)).value.toString()), { 'configurationService.profiles.applicationMachineSetting': 'applicationValue', 'configurationService.profiles.applicationSetting2': 'applicationValue', 'configurationService.profiles.testSetting2': 'userValue' });
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationMachineSetting'), 'applicationValue');
+	}));
+
 	test('update normal setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue('configurationService.profiles.testSetting', 'profileValue');
 
 		assert.deepStrictEqual(JSON.parse((await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString()), { 'configurationService.profiles.testSetting': 'profileValue', 'configurationService.profiles.testSetting2': 'profileValue', 'configurationService.profiles.applicationSetting2': 'profileValue' });
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
+	}));
+
+	test('registering normal setting after init', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting3": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.testSetting3': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting3'), 'isSet');
+	}));
+
+	test('registering application scope setting after init', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting3": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.applicationSetting3': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting3'), 'defaultProfile');
+	}));
+
+	test('non registering setting should not be read from default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.nonregistered": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.profiles.nonregistered'), undefined);
+	}));
+
+	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('update all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], [APPLY_ALL_PROFILES_SETTING, 'configurationService.profiles.testSetting2']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('setting applied to all profiles is registered later', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting4": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting4": "profileValue" }'));
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting4'], ConfigurationTarget.USER_LOCAL);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting4'), 'userValue');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.testSetting4': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting4'), 'userValue');
+	}));
+
+	test('update setting that is applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await testObject.updateValue('configurationService.profiles.testSetting2', 'updatedValue', ConfigurationTarget.USER_LOCAL);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting2']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'updatedValue');
+	}));
+
+	test('test isSettingAppliedToAllProfiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.applicationSetting2'), true);
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.testSetting2'), false);
+
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		assert.strictEqual(testObject.isSettingAppliedForAllProfiles('configurationService.profiles.testSetting2'), true);
 	}));
 
 	test('switch to default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1647,10 +1930,10 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile, false);
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
 
 		const changeEvent = await promise;
-		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'userValue');
 	}));
@@ -1660,15 +1943,84 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));
 		await testObject.reloadConfiguration();
 
-		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'));
+		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
 		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue2", "configurationService.profiles.testSetting": "profileValue2" }'));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await userDataProfileService.updateCurrentProfile(profile, false);
+		await userDataProfileService.updateCurrentProfile(profile);
 
 		const changeEvent = await promise;
-		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue2');
+	}));
+
+	test('switch to non default profile using settings from default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));
+		await testObject.reloadConfiguration();
+
+		const profile = toUserDataProfile('custom3', 'custom3', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'), { useDefaultFlags: { settings: true } }, instantiationService.get(IUserDataProfilesService).defaultProfile);
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue2", "configurationService.profiles.testSetting": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.applicationSetting', 'configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue2');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue2');
+	}));
+
+	test('In non-default profile, changing application settings shall include only application scope settings in the change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{}'));
+		await testObject.reloadConfiguration();
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "applicationValue" }'));
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.applicationSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'isSet');
+	}));
+
+	test('switch to default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+	}));
+
+	test('switch to non default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+
+		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "profileValue", "configurationService.profiles.testSetting2": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
+	}));
+
+	test('switch to non default from default profile with settings applied to all profiles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
+		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile);
+
+		const profile = toUserDataProfile('custom2', 'custom2', joinPath(environmentService.userRoamingDataHome, 'profiles', 'custom2'), joinPath(environmentService.cacheHome, 'profilesCache'));
+		await fileService.writeFile(profile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting": "profileValue", "configurationService.profiles.testSetting2": "profileValue2" }'));
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await userDataProfileService.updateCurrentProfile(profile);
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting2'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting2'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
 	}));
 
 });
@@ -1677,7 +2029,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	let workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -1733,7 +2085,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const appSettingsHome = joinPath(ROOT, 'user');
 		const folderA = joinPath(ROOT, 'a');
@@ -1746,15 +2098,18 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
-		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		userDataProfileService = instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
+		const workspaceService = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService, userDataProfileService, userDataProfilesService,
+			fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -1763,9 +2118,9 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		instantiationService.stub(IEnvironmentService, environmentService);
 
 		await workspaceService.initialize(getWorkspaceIdentifier(configResource));
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IKeybindingEditingService, disposables.add(instantiationService.createInstance(KeybindingsEditingService)));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		jsonEditingServce = instantiationService.createInstance(JSONEditingService);
 		instantiationService.stub(IJSONEditingService, jsonEditingServce);
 		workspaceService.acquireInstantiationService(instantiationService);
@@ -1774,24 +2129,22 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		testObject = workspaceService;
 	});
 
-	teardown(() => disposables.clear());
-
 	test('application settings are not read from workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue');
 	}));
 
 	test('application settings are not read from workspace when folder is passed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.workspace.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
 	test('machine settings are not read from workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1949,7 +2302,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 	}));
 
-	test('application settings are not read from workspace folder after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('machine settings are not read from workspace folder after defaults are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "workspaceFolderValue" }'));
 		await testObject.reloadConfiguration();
@@ -2243,7 +2596,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('update user configuration should trigger change event before promise is resolve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER);
 		assert.ok(target.called);
 	}));
@@ -2255,18 +2608,18 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('update workspace configuration should trigger change event before promise is resolve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.updateValue('configurationService.workspace.testSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE);
 		assert.ok(target.called);
 	}));
 
 	test('update application setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.workspace.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+		return testObject.updateValue('configurationService.workspace.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
 			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
 	test('update machine setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.workspace.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+		return testObject.updateValue('configurationService.workspace.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, { donotNotifyError: true })
 			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
 	});
 
@@ -2285,7 +2638,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('update workspace folder configuration should trigger change event before promise is resolve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 		assert.ok(target.called);
 	}));
@@ -2294,7 +2647,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue2', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 		assert.ok(target.called);
 	}));
@@ -2312,7 +2665,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('update memory configuration should trigger change event before promise is resolve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+		disposables.add(testObject.onDidChangeConfiguration(target));
 		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
 		assert.ok(target.called);
 	}));
@@ -2341,14 +2694,14 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('update launch configuration in a workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
+		await testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, { donotNotifyError: true });
 		assert.deepStrictEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] });
 	}));
 
 	test('update tasks configuration in a workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
-		await testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
+		await testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, { donotNotifyError: true });
 		assert.deepStrictEqual(testObject.getValue(TasksSchemaProperties.Tasks), tasks);
 	}));
 
@@ -2359,14 +2712,14 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await fileService.writeFile(joinPath(uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }'));
 
 		return new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(() => {
+			disposables.add(testObject.onDidChangeConfiguration(() => {
 				try {
 					assert.strictEqual(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: uri }), 'workspaceFolderValue');
 					c();
 				} catch (error) {
 					e(error);
 				}
-			});
+			}));
 			workspaceService.addFolders([{ uri }]);
 		});
 	}));
@@ -2442,7 +2795,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
 	const remoteAuthority = 'configuraiton-tests';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -2458,6 +2811,11 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
+				},
+				'configurationService.remote.applicationMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION_MACHINE
 				},
 				'configurationService.remote.machineOverridableSetting': {
 					'type': 'string',
@@ -2477,7 +2835,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const appSettingsHome = joinPath(ROOT, 'user');
 		folder = joinPath(ROOT, 'a');
@@ -2486,15 +2844,15 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
 		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
 		const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve(), needsCaching: () => false };
-		const uriIdentityService = new UriIdentityService(fileService);
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
-		userDataProfileService = instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService)));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		userDataProfileService = instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
 		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, new NullLogService(), new NullPolicyService()));
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -2504,28 +2862,26 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 
 	async function initialize(): Promise<void> {
 		await testObject.initialize(convertToWorkspacePayload(folder));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
+		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(IJSONEditingService, instantiationService.createInstance(JSONEditingService));
 		testObject.acquireInstantiationService(instantiationService);
 	}
 
 	function registerRemoteFileSystemProvider(): void {
-		instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, new RemoteFileSystemProvider(fileSystemProvider, remoteAuthority));
+		disposables.add(instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, new RemoteFileSystemProvider(fileSystemProvider, remoteAuthority)));
 	}
 
 	function registerRemoteFileSystemProviderOnActivation(): void {
-		const disposable = instantiationService.get(IFileService).onWillActivateFileSystemProvider(e => {
+		const disposable = disposables.add(instantiationService.get(IFileService).onWillActivateFileSystemProvider(e => {
 			if (e.scheme === Schemas.vscodeRemote) {
 				disposable.dispose();
 				e.join(Promise.resolve().then(() => registerRemoteFileSystemProvider()));
 			}
-		});
+		}));
 	}
 
-	teardown(() => disposables.clear());
-
-	test('remote settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('remote machine settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
@@ -2533,7 +2889,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 	}));
 
-	test('remote settings override globals after remote provider is registered on activation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('remote machine settings override globals after remote provider is registered on activation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
 		resolveRemoteEnvironment();
 		registerRemoteFileSystemProviderOnActivation();
@@ -2541,21 +2897,21 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 	}));
 
-	test('remote settings override globals after remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('remote machine settings override globals after remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
 		registerRemoteFileSystemProvider();
 		await initialize();
 		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
+			disposables.add(testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
 				}
-			});
+			}));
 		});
 		resolveRemoteEnvironment();
 		return promise;
@@ -2566,16 +2922,16 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		registerRemoteFileSystemProviderOnActivation();
 		await initialize();
 		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
+			disposables.add(testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
 				}
-			});
+			}));
 		});
 		resolveRemoteEnvironment();
 		return promise;
@@ -2587,6 +2943,70 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		resolveRemoteEnvironment();
 		await initialize();
 		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	}));
+
+	test('remote application machine settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
+	}));
+
+	test('remote application machine settings override globals after remote provider is registered on activation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
+		resolveRemoteEnvironment();
+		registerRemoteFileSystemProviderOnActivation();
+		await initialize();
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
+	}));
+
+	test('remote application machine settings override globals after remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
+		registerRemoteFileSystemProvider();
+		await initialize();
+		const promise = new Promise<void>((c, e) => {
+			disposables.add(testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.strictEqual(event.source, ConfigurationTarget.USER);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineSetting']);
+					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			}));
+		});
+		resolveRemoteEnvironment();
+		return promise;
+	}));
+
+	test('remote application machine settings override globals after remote provider is registered on activation and remote environment is resolved', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "remoteValue" }'));
+		registerRemoteFileSystemProviderOnActivation();
+		await initialize();
+		const promise = new Promise<void>((c, e) => {
+			disposables.add(testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.strictEqual(event.source, ConfigurationTarget.USER);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.applicationMachineSetting']);
+					assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			}));
+		});
+		resolveRemoteEnvironment();
+		return promise;
+	}));
+
+	test('application machine settings in local user settings does not override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.applicationMachineSetting": "globalValue" }'));
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.strictEqual(testObject.getValue('configurationService.remote.applicationMachineSetting'), 'isSet');
 	}));
 
 	test('machine overridable settings in local user settings does not override defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -2613,6 +3033,16 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		await testObject.updateValue('configurationService.remote.machineSetting', 'machineValue');
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.inspect('configurationService.remote.machineSetting').userRemoteValue, 'machineValue');
+	}));
+
+	test('application machine setting is written in remote settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		await testObject.updateValue('configurationService.remote.applicationMachineSetting', 'machineValue');
+		await testObject.reloadConfiguration();
+		const actual = testObject.inspect('configurationService.remote.applicationMachineSetting');
+		assert.strictEqual(actual.userRemoteValue, 'machineValue');
 	}));
 
 	test('machine overridable setting is written in remote settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

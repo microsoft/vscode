@@ -3,28 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export {
-	IObservable,
-	IObserver,
-	IReader,
-	ISettable,
-	ISettableObservable,
-	ITransaction,
-	observableValue,
-	transaction,
-} from 'vs/base/common/observableImpl/base';
-export { derived } from 'vs/base/common/observableImpl/derived';
-export {
-	autorun,
-	autorunDelta,
-	autorunHandleChanges,
-	autorunWithStore,
-} from 'vs/base/common/observableImpl/autorun';
-export * from 'vs/base/common/observableImpl/utils';
+// This is a facade for the observable implementation. Only import from here!
 
-import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableImpl/logging';
-
-const enableLogging = false;
-if (enableLogging) {
-	setLogger(new ConsoleObservableLogger());
-}
+export * from './observableInternal/index.js';

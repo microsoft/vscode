@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { once } from 'vs/base/common/functional';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorage } from 'vs/base/parts/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from 'vs/platform/storage/electron-main/storageMain';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from '../../../base/common/uri.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IStorage } from '../../../base/parts/storage/common/storage.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../common/storage.js';
+import { ApplicationStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { Schemas } from '../../../base/common/network.js';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -62,7 +62,7 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       This is currently not supported.
 	 */
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain;
 
 	/**
 	 * Checks if the provided path is currently in use for a storage database.
@@ -90,6 +90,8 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+
+		this.applicationStorage = this._register(this.createApplicationStorage());
 
 		this.registerListeners();
 	}
@@ -130,16 +132,16 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			this.shutdownReason = e.reason;
 
 			// Application Storage
-			e.join(this.applicationStorage.close());
+			e.join('applicationStorage', this.applicationStorage.close());
 
 			// Profile Storage(s)
 			for (const [, profileStorage] of this.mapProfileToStorage) {
-				e.join(profileStorage.close());
+				e.join('profileStorage', profileStorage.close());
 			}
 
 			// Workspace Storage(s)
 			for (const [, workspaceStorage] of this.mapWorkspaceToStorage) {
-				e.join(workspaceStorage.close());
+				e.join('workspaceStorage', workspaceStorage.close());
 			}
 		}));
 
@@ -163,16 +165,16 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	//#region Application Storage
 
-	readonly applicationStorage = this.createApplicationStorage();
+	readonly applicationStorage: IStorageMain;
 
 	private createApplicationStorage(): IStorageMain {
 		this.logService.trace(`StorageMainService: creating application storage`);
 
 		const applicationStorage = new ApplicationStorageMain(this.getStorageOptions(), this.userDataProfilesService, this.logService, this.fileService);
 
-		once(applicationStorage.onDidCloseStorage)(() => {
+		this._register(Event.once(applicationStorage.onDidCloseStorage)(() => {
 			this.logService.trace(`StorageMainService: closed application storage`);
-		});
+		}));
 
 		return applicationStorage;
 	}
@@ -192,7 +194,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		if (!profileStorage) {
 			this.logService.trace(`StorageMainService: creating profile storage (${profile.name})`);
 
-			profileStorage = this.createProfileStorage(profile);
+			profileStorage = this._register(this.createProfileStorage(profile));
 			this.mapProfileToStorage.set(profile.id, profileStorage);
 
 			const listener = this._register(profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
@@ -201,12 +203,12 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 				profile
 			})));
 
-			once(profileStorage.onDidCloseStorage)(() => {
+			this._register(Event.once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
 				this.mapProfileToStorage.delete(profile.id);
 				listener.dispose();
-			});
+			}));
 		}
 
 		return profileStorage;
@@ -232,25 +234,25 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private readonly mapWorkspaceToStorage = new Map<string /* workspace ID */, IStorageMain>();
 
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
 			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
 
-			workspaceStorage = this.createWorkspaceStorage(workspace);
+			workspaceStorage = this._register(this.createWorkspaceStorage(workspace));
 			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
 
-			once(workspaceStorage.onDidCloseStorage)(() => {
+			this._register(Event.once(workspaceStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`);
 
 				this.mapWorkspaceToStorage.delete(workspace.id);
-			});
+			}));
 		}
 
 		return workspaceStorage;
 	}
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+	private createWorkspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
 		if (this.shutdownReason === ShutdownReason.KILL) {
 
 			// Workaround for native crashes that we see when
@@ -332,13 +334,15 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly whenReady = this.storageMainService.applicationStorage.whenInit;
+	readonly whenReady: Promise<void>;
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
+
+		this.whenReady = this.storageMainService.applicationStorage.whenInit;
 	}
 
 	protected doInitialize(): Promise<void> {
@@ -359,7 +363,7 @@ export class ApplicationStorageMainService extends AbstractStorageService implem
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		if (scope === StorageScope.APPLICATION) {
-			return this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath;
+			return this.userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 		}
 
 		return undefined; // any other scope is unsupported from main process

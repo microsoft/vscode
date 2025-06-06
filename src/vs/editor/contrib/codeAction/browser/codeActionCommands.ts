@@ -3,55 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { applyCodeAction, ApplyCodeActionReason, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, refactorCommandId, refactorPreviewCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { autoFixCommandId, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, quickFixCommandId, refactorCommandId, sourceActionCommandId } from './codeAction.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTriggerSource } from '../common/types.js';
+import { CodeActionController } from './codeActionController.js';
+import { SUPPORTED_CODE_ACTIONS } from './codeActionModel.js';
 
-function contextKeyForSupportedActions(kind: CodeActionKind) {
+function contextKeyForSupportedActions(kind: HierarchicalKind) {
 	return ContextKeyExpr.regex(
 		SUPPORTED_CODE_ACTIONS.keys()[0],
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
-}
-
-function refactorTrigger(editor: ICodeEditor, userArgs: any, preview: boolean, codeActionFrom: CodeActionTriggerSource) {
-	const args = CodeActionCommandArgs.fromUser(userArgs, {
-		kind: CodeActionKind.Refactor,
-		apply: CodeActionAutoApply.Never
-	});
-	return triggerCodeActionsForEditorSelection(editor,
-		typeof userArgs?.kind === 'string'
-			? args.preferred
-				? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-				: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-			: args.preferred
-				? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-				: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-		{
-			include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-			onlyIncludePreferredActions: args.preferred
-		},
-		args.apply, preview, codeActionFrom);
 }
 
 const argsSchema: IJSONSchema = {
@@ -81,108 +51,28 @@ const argsSchema: IJSONSchema = {
 	}
 };
 
-export class CodeActionController extends Disposable implements IEditorContribution {
-
-	public static readonly ID = 'editor.contrib.codeActionController';
-
-	public static get(editor: ICodeEditor): CodeActionController | null {
-		return editor.getContribution<CodeActionController>(CodeActionController.ID);
-	}
-
-	private readonly _editor: ICodeEditor;
-	private readonly _model: CodeActionModel;
-	private readonly _ui: Lazy<CodeActionUi>;
-
-	constructor(
-		editor: ICodeEditor,
-		@IMarkerService markerService: IMarkerService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorProgressService progressService: IEditorProgressService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
-	) {
-		super();
-
-		this._editor = editor;
-
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
-
-		this._register(this._model.onDidChangeState(newState => this.update(newState)));
-
-		this._ui = new Lazy(() =>
-			this._register(_instantiationService.createInstance(CodeActionUi, editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger, preview) => {
-					try {
-						await this._applyCodeAction(action, preview);
-					} finally {
-						if (retrigger) {
-							this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
-						}
-					}
-				}
-			}))
-		);
-	}
-
-	private update(newState: CodeActionsState.State): void {
-		this._ui.getValue().update(newState);
-	}
-
-	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
-	}
-
-	public manualTriggerAtCurrentPosition(
-		notAvailableMessage: string,
-		triggerAction: CodeActionTriggerSource,
-		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply,
-		preview?: boolean,
-	): void {
-		if (!this._editor.hasModel()) {
-			return;
-		}
-
-		MessageController.get(this._editor)?.closeMessage();
-		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition }, preview });
-	}
-
-	private _trigger(trigger: CodeActionTrigger) {
-		return this._model.trigger(trigger);
-	}
-
-	private _applyCodeAction(action: CodeActionItem, preview: boolean): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.FromCodeActions, { preview, editor: this._editor });
-	}
-}
-
 function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
 	filter: CodeActionFilter | undefined,
 	autoApply: CodeActionAutoApply | undefined,
-	preview: boolean = false,
 	triggerAction: CodeActionTriggerSource = CodeActionTriggerSource.Default
 ): void {
 	if (editor.hasModel()) {
 		const controller = CodeActionController.get(editor);
-		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, triggerAction, filter, autoApply, preview);
+		controller?.manualTriggerAtCurrentPosition(notAvailableMessage, triggerAction, filter, autoApply);
 	}
 }
 
 export class QuickFixAction extends EditorAction {
 
-	static readonly Id = 'editor.action.quickFix';
-
 	constructor() {
 		super({
-			id: QuickFixAction.Id,
-			label: nls.localize('quickfix.trigger.label', "Quick Fix..."),
-			alias: 'Quick Fix...',
+			id: quickFixCommandId,
+			label: nls.localize2('quickfix.trigger.label', "Quick Fix..."),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -190,7 +80,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, false, CodeActionTriggerSource.QuickFix);
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, CodeActionTriggerSource.QuickFix);
 	}
 }
 
@@ -200,7 +90,7 @@ export class CodeActionCommand extends EditorCommand {
 		super({
 			id: codeActionCommandId,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			description: {
+			metadata: {
 				description: 'Trigger a code action',
 				args: [{ name: 'args', schema: argsSchema, }]
 			}
@@ -209,7 +99,7 @@ export class CodeActionCommand extends EditorCommand {
 
 	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Empty,
+			kind: HierarchicalKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
 		});
 		return triggerCodeActionsForEditorSelection(editor,
@@ -235,11 +125,10 @@ export class RefactorAction extends EditorAction {
 	constructor() {
 		super({
 			id: refactorCommandId,
-			label: nls.localize('refactor.label', "Refactor..."),
-			alias: 'Refactor...',
+			label: nls.localize2('refactor.label', "Refactor..."),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
@@ -253,7 +142,7 @@ export class RefactorAction extends EditorAction {
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Refactor)),
 			},
-			description: {
+			metadata: {
 				description: 'Refactor...',
 				args: [{ name: 'args', schema: argsSchema }]
 			}
@@ -261,27 +150,23 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return refactorTrigger(editor, userArgs, false, CodeActionTriggerSource.Refactor);
-	}
-}
-
-export class RefactorPreview extends EditorAction {
-
-	constructor() {
-		super({
-			id: refactorPreviewCommandId,
-			label: nls.localize('refactor.preview.label', "Refactor with Preview..."),
-			alias: 'Refactor Preview...',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			description: {
-				description: 'Refactor Preview...',
-				args: [{ name: 'args', schema: argsSchema }]
-			}
+		const args = CodeActionCommandArgs.fromUser(userArgs, {
+			kind: CodeActionKind.Refactor,
+			apply: CodeActionAutoApply.Never
 		});
-	}
-
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		return refactorTrigger(editor, userArgs, true, CodeActionTriggerSource.RefactorPreview);
+		return triggerCodeActionsForEditorSelection(editor,
+			typeof userArgs?.kind === 'string'
+				? args.preferred
+					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
+					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
+				: args.preferred
+					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
+					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+			{
+				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : HierarchicalKind.None,
+				onlyIncludePreferredActions: args.preferred
+			},
+			args.apply, CodeActionTriggerSource.Refactor);
 	}
 }
 
@@ -290,8 +175,7 @@ export class SourceAction extends EditorAction {
 	constructor() {
 		super({
 			id: sourceActionCommandId,
-			label: nls.localize('source.label', "Source Action..."),
-			alias: 'Source Action...',
+			label: nls.localize2('source.label', "Source Action..."),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			contextMenuOpts: {
 				group: '1_modification',
@@ -300,7 +184,7 @@ export class SourceAction extends EditorAction {
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Source)),
 			},
-			description: {
+			metadata: {
 				description: 'Source Action...',
 				args: [{ name: 'args', schema: argsSchema }]
 			}
@@ -321,11 +205,11 @@ export class SourceAction extends EditorAction {
 					? nls.localize('editor.action.source.noneMessage.preferred', "No preferred source actions available")
 					: nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{
-				include: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
+				include: CodeActionKind.Source.contains(args.kind) ? args.kind : HierarchicalKind.None,
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
-			args.apply, undefined, CodeActionTriggerSource.SourceAction);
+			args.apply, CodeActionTriggerSource.SourceAction);
 	}
 }
 
@@ -334,16 +218,18 @@ export class OrganizeImportsAction extends EditorAction {
 	constructor() {
 		super({
 			id: organizeImportsCommandId,
-			label: nls.localize('organizeImports.label', "Organize Imports"),
-			alias: 'Organize Imports',
+			label: nls.localize2('organizeImports.label', "Organize Imports"),
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
+			metadata: {
+				description: nls.localize2('organizeImports.description', "Organize imports in the current file. Also called 'Optimize Imports' by some tools")
+			}
 		});
 	}
 
@@ -351,7 +237,7 @@ export class OrganizeImportsAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ include: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.OrganizeImports);
+			CodeActionAutoApply.IfSingle, CodeActionTriggerSource.OrganizeImports);
 	}
 }
 
@@ -360,8 +246,7 @@ export class FixAllAction extends EditorAction {
 	constructor() {
 		super({
 			id: fixAllCommandId,
-			label: nls.localize('fixAll.label', "Fix All"),
-			alias: 'Fix All',
+			label: nls.localize2('fixAll.label', "Fix All"),
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.SourceFixAll))
@@ -372,24 +257,21 @@ export class FixAllAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('fixAll.noneMessage', "No fix all action available"),
 			{ include: CodeActionKind.SourceFixAll, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.FixAll);
+			CodeActionAutoApply.IfSingle, CodeActionTriggerSource.FixAll);
 	}
 }
 
 export class AutoFixAction extends EditorAction {
 
-	static readonly Id = 'editor.action.autoFix';
-
 	constructor() {
 		super({
-			id: AutoFixAction.Id,
-			label: nls.localize('autoFix.label', "Auto Fix..."),
-			alias: 'Auto Fix...',
+			id: autoFixCommandId,
+			label: nls.localize2('autoFix.label', "Auto Fix..."),
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Period,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period
@@ -406,6 +288,6 @@ export class AutoFixAction extends EditorAction {
 				include: CodeActionKind.QuickFix,
 				onlyIncludePreferredActions: true
 			},
-			CodeActionAutoApply.IfSingle, undefined, CodeActionTriggerSource.AutoFix);
+			CodeActionAutoApply.IfSingle, CodeActionTriggerSource.AutoFix);
 	}
 }

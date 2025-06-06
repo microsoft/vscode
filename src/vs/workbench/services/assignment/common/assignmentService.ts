@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry } from 'tas-client-umd';
-import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryData } from 'vs/base/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IAssignmentService } from 'vs/platform/assignment/common/assignment';
-import { BaseAssignmentService } from 'vs/platform/assignment/common/assignmentService';
+import { MementoObject, Memento } from '../../../common/memento.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryData } from '../../../../base/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAssignmentService } from '../../../../platform/assignment/common/assignment.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { BaseAssignmentService } from '../../../../platform/assignment/common/assignmentService.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('WorkbenchAssignmentService');
 
@@ -80,16 +85,18 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 
-		super(() => {
-			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
-				return telemetryInfo.machineId;
-			});
-		}, configurationService, productService,
+		super(
+			telemetryService.machineId,
+			configurationService,
+			productService,
+			environmentService,
 			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
-			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService))
+		);
 	}
 
 	protected override get experimentsEnabled(): boolean {
@@ -132,3 +139,17 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 }
 
 registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, InstantiationType.Delayed);
+const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+registry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.enableExperiments': {
+			'type': 'boolean',
+			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
+			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'restricted': true,
+			'tags': ['usesOnlineServices']
+		}
+	}
+});

@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
 
-import { merge, through, ThroughStream, writeArray } from 'event-stream';
-import * as File from 'vinyl';
-import * as Is from 'is';
-import * as xml2js from 'xml2js';
-import * as gulp from 'gulp';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as iconv from '@vscode/iconv-lite-umd';
+import { map, merge, through, ThroughStream } from 'event-stream';
+import jsonMerge from 'gulp-merge-json';
+import File from 'vinyl';
+import xml2js from 'xml2js';
+import gulp from 'gulp';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import iconv from '@vscode/iconv-lite-umd';
 import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
+
+const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
 function log(message: any, ...rest: any[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
@@ -68,7 +70,7 @@ interface LocalizeInfo {
 module LocalizeInfo {
 	export function is(value: any): value is LocalizeInfo {
 		const candidate = value as LocalizeInfo;
-		return Is.defined(candidate) && Is.string(candidate.key) && (Is.undef(candidate.comment) || (Is.array(candidate.comment) && candidate.comment.every(element => Is.string(element))));
+		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 	}
 }
 
@@ -80,14 +82,27 @@ interface BundledFormat {
 
 module BundledFormat {
 	export function is(value: any): value is BundledFormat {
-		if (Is.undef(value)) {
+		if (value === undefined) {
 			return false;
 		}
 
 		const candidate = value as BundledFormat;
 		const length = Object.keys(value).length;
 
-		return length === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundles);
+		return length === 3 && !!candidate.keys && !!candidate.messages && !!candidate.bundles;
+	}
+}
+
+type NLSKeysFormat = [string /* module ID */, string[] /* keys */];
+
+module NLSKeysFormat {
+	export function is(value: any): value is NLSKeysFormat {
+		if (value === undefined) {
+			return false;
+		}
+
+		const candidate = value as NLSKeysFormat;
+		return Array.isArray(candidate) && Array.isArray(candidate[1]);
 	}
 }
 
@@ -182,7 +197,7 @@ export class XLF {
 			const key = keys[i];
 			let realKey: string | undefined;
 			let comment: string | undefined;
-			if (Is.string(key)) {
+			if (typeof key === 'string') {
 				realKey = key;
 				comment = undefined;
 			} else if (LocalizeInfo.is(key)) {
@@ -329,70 +344,8 @@ function stripComments(content: string): string {
 	return result;
 }
 
-function escapeCharacters(value: string): string {
-	const result: string[] = [];
-	for (let i = 0; i < value.length; i++) {
-		const ch = value.charAt(i);
-		switch (ch) {
-			case '\'':
-				result.push('\\\'');
-				break;
-			case '"':
-				result.push('\\"');
-				break;
-			case '\\':
-				result.push('\\\\');
-				break;
-			case '\n':
-				result.push('\\n');
-				break;
-			case '\r':
-				result.push('\\r');
-				break;
-			case '\t':
-				result.push('\\t');
-				break;
-			case '\b':
-				result.push('\\b');
-				break;
-			case '\f':
-				result.push('\\f');
-				break;
-			default:
-				result.push(ch);
-		}
-	}
-	return result.join('');
-}
-
-function processCoreBundleFormat(fileHeader: string, languages: Language[], json: BundledFormat, emitter: ThroughStream) {
-	const keysSection = json.keys;
-	const messageSection = json.messages;
-	const bundleSection = json.bundles;
-
-	const statistics: Record<string, number> = Object.create(null);
-
-	const defaultMessages: Record<string, Record<string, string>> = Object.create(null);
-	const modules = Object.keys(keysSection);
-	modules.forEach((module) => {
-		const keys = keysSection[module];
-		const messages = messageSection[module];
-		if (!messages || keys.length !== messages.length) {
-			emitter.emit('error', `Message for module ${module} corrupted. Mismatch in number of keys and messages.`);
-			return;
-		}
-		const messageMap: Record<string, string> = Object.create(null);
-		defaultMessages[module] = messageMap;
-		keys.map((key, i) => {
-			if (typeof key === 'string') {
-				messageMap[key] = messages[i];
-			} else {
-				messageMap[key.key] = messages[i];
-			}
-		});
-	});
-
-	const languageDirectory = path.join(__dirname, '..', '..', '..', 'vscode-loc', 'i18n');
+function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: ThroughStream) {
+	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
 	if (!fs.existsSync(languageDirectory)) {
 		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
 		log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
@@ -403,8 +356,6 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 			log(`Generating nls bundles for: ${language.id}`);
 		}
 
-		statistics[language.id] = 0;
-		const localizedModules: Record<string, string[]> = Object.create(null);
 		const languageFolderName = language.translationId || language.id;
 		const i18nFile = path.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
 		let allMessages: I18nFormat | undefined;
@@ -412,86 +363,39 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 			const content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 			allMessages = JSON.parse(content);
 		}
-		modules.forEach((module) => {
-			const order = keysSection[module];
-			let moduleMessage: { [messageKey: string]: string } | undefined;
-			if (allMessages) {
-				moduleMessage = allMessages.contents[module];
+
+		let nlsIndex = 0;
+		const nlsResult: Array<string | undefined> = [];
+		for (const [moduleId, nlsKeys] of json) {
+			const moduleTranslations = allMessages?.contents[moduleId];
+			for (const nlsKey of nlsKeys) {
+				nlsResult.push(moduleTranslations?.[nlsKey]); // pushing `undefined` is fine, as we keep english strings as fallback for monaco editor in the build
+				nlsIndex++;
 			}
-			if (!moduleMessage) {
-				if (process.env['VSCODE_BUILD_VERBOSE']) {
-					log(`No localized messages found for module ${module}. Using default messages.`);
-				}
-				moduleMessage = defaultMessages[module];
-				statistics[language.id] = statistics[language.id] + Object.keys(moduleMessage).length;
-			}
-			const localizedMessages: string[] = [];
-			order.forEach((keyInfo) => {
-				let key: string | null = null;
-				if (typeof keyInfo === 'string') {
-					key = keyInfo;
-				} else {
-					key = keyInfo.key;
-				}
-				let message: string = moduleMessage![key];
-				if (!message) {
-					if (process.env['VSCODE_BUILD_VERBOSE']) {
-						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
-					}
-					message = defaultMessages[module][key];
-					statistics[language.id] = statistics[language.id] + 1;
-				}
-				localizedMessages.push(message);
-			});
-			localizedModules[module] = localizedMessages;
-		});
-		Object.keys(bundleSection).forEach((bundle) => {
-			const modules = bundleSection[bundle];
-			const contents: string[] = [
-				fileHeader,
-				`define("${bundle}.nls.${language.id}", {`
-			];
-			modules.forEach((module, index) => {
-				contents.push(`\t"${module}": [`);
-				const messages = localizedModules[module];
-				if (!messages) {
-					emitter.emit('error', `Didn't find messages for module ${module}.`);
-					return;
-				}
-				messages.forEach((message, index) => {
-					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",' : '"'}`);
-				});
-				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
-			});
-			contents.push('});');
-			emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
-		});
-	});
-	Object.keys(statistics).forEach(key => {
-		const value = statistics[key];
-		log(`${key} has ${value} untranslated strings.`);
-	});
-	sortedLanguages.forEach(language => {
-		const stats = statistics[language.id];
-		if (Is.undef(stats)) {
-			log(`\tNo translations found for language ${language.id}. Using default language instead.`);
 		}
+
+		emitter.queue(new File({
+			contents: Buffer.from(`${fileHeader}
+globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(nlsResult)};
+globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
+			base,
+			path: `${base}/nls.messages.${language.id}.js`
+		}));
 	});
 }
 
-export function processNlsFiles(opts: { fileHeader: string; languages: Language[] }): ThroughStream {
+export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): ThroughStream {
 	return through(function (this: ThroughStream, file: File) {
 		const fileName = path.basename(file.path);
-		if (fileName === 'nls.metadata.json') {
-			let json = null;
-			if (file.isBuffer()) {
-				json = JSON.parse((<Buffer>file.contents).toString('utf8'));
-			} else {
-				this.emit('error', `Failed to read component file: ${file.relative}`);
-				return;
-			}
-			if (BundledFormat.is(json)) {
-				processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
+		if (fileName === 'nls.keys.json') {
+			try {
+				const contents = file.contents.toString('utf8');
+				const json = JSON.parse(contents);
+				if (NLSKeysFormat.is(json)) {
+					processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
+				}
+			} catch (error) {
+				this.emit('error', `Failed to read component file: ${error}`);
 			}
 		}
 		this.queue(file);
@@ -579,58 +483,75 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
-function createL10nBundleForExtension(extensionFolderName: string): ThroughStream {
-	const result = through();
-	gulp.src([
-		// For source code of extensions
-		`extensions/${extensionFolderName}/src/**/*.{ts,tsx}`,
-		// For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
-		`extensions/${extensionFolderName}/node_modules/**/*.{js,jsx}`,
-		// For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
-		`extensions/${extensionFolderName}/node_modules/**/bundle.l10n.json`,
-	]).pipe(writeArray((err, files: File[]) => {
-		if (err) {
-			result.emit('error', err);
-			return;
-		}
+function createL10nBundleForExtension(extensionFolderName: string, prefixWithBuildFolder: boolean): NodeJS.ReadWriteStream {
+	const prefix = prefixWithBuildFolder ? '.build/' : '';
+	return gulp
+		.src([
+			// For source code of extensions
+			`${prefix}extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
+			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+			`${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
+			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
+			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
+		])
+		.pipe(map(function (data, callback) {
+			const file = data as File;
+			if (!file.isBuffer()) {
+				// Not a buffer so we drop it
+				callback();
+				return;
+			}
+			const extension = path.extname(file.relative);
+			if (extension !== '.json') {
+				const contents = file.contents.toString('utf8');
+				getL10nJson([{ contents, extension }])
+					.then((json) => {
+						callback(undefined, new File({
+							path: `extensions/${extensionFolderName}/bundle.l10n.json`,
+							contents: Buffer.from(JSON.stringify(json), 'utf8')
+						}));
+					})
+					.catch((err) => {
+						callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+					});
+				// signal pause?
+				return false;
+			}
 
-		const buffers = files.filter(file => file.isBuffer());
+			// for bundle.l10n.jsons
+			let bundleJson;
+			try {
+				bundleJson = JSON.parse(file.contents.toString('utf8'));
+			} catch (err) {
+				callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+				return;
+			}
 
-		const json = getL10nJson(buffers
-			.filter(file => path.extname(file.path) !== '.json')
-			.map(file => ({
-				contents: file.contents.toString('utf8'),
-				extension: path.extname(file.path)
-			})));
-
-		buffers
-			.filter(file => path.extname(file.path) === '.json')
-			.forEach(file => {
-				const bundleJson = JSON.parse(file.contents.toString('utf8'));
-				for (const key in bundleJson) {
-					if (
-						// some validation of the bundle.l10n.json format
-						typeof bundleJson[key] !== 'string' &&
-						(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
-					) {
-						console.error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format. Skipping key...`);
-						continue;
-					}
-					json[key] = bundleJson[key];
+			// some validation of the bundle.l10n.json format
+			for (const key in bundleJson) {
+				if (
+					typeof bundleJson[key] !== 'string' &&
+					(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
+				) {
+					callback(new Error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format.`));
+					return;
 				}
-			});
+			}
 
-		if (Object.keys(json).length > 0) {
-			result.emit('data', new File({
-				path: `extensions/${extensionFolderName}/bundle.l10n.json`,
-				contents: Buffer.from(JSON.stringify(json), 'utf8')
-			}));
-		}
-		result.emit('end');
-	}));
-
-	return result;
+			callback(undefined, file);
+		}))
+		.pipe(jsonMerge({
+			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
+			jsonSpace: '',
+			concatArrays: true
+		}));
 }
+
+export const EXTERNAL_EXTENSIONS = [
+	'ms-vscode.js-debug',
+	'ms-vscode.js-debug-companion',
+	'ms-vscode.vscode-js-profile-table',
+];
 
 export function createXlfFilesForExtensions(): ThroughStream {
 	let counter: number = 0;
@@ -661,7 +582,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 		}
 		merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
-			createL10nBundleForExtension(extensionFolderName)
+			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
 		).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
@@ -825,8 +746,12 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const extensionsPacks: Record<string, I18nPack> = {};
 	const errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		const project = path.basename(path.dirname(path.dirname(xlf.relative)));
-		const resource = path.basename(xlf.relative, '.xlf');
+		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
+		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
+		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
+		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
+			project = extensionsProject;
+		}
 		const contents = xlf.contents.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);

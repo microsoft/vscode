@@ -3,33 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger, ILoggerOptions, AbstractMessageLogger, LogLevel, AbstractLoggerService } from 'vs/platform/log/common/log';
-import { MainThreadLoggerShape, MainContext, ExtHostLogLevelServiceShape as ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { isUndefined } from 'vs/base/common/types';
+import { ILogger, ILoggerOptions, AbstractMessageLogger, LogLevel, AbstractLoggerService } from '../../../platform/log/common/log.js';
+import { MainThreadLoggerShape, MainContext, ExtHostLogLevelServiceShape as ExtHostLogLevelServiceShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { revive } from '../../../base/common/marshalling.js';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
 
 	declare readonly _serviceBrand: undefined;
-	private readonly _proxy: MainThreadLoggerShape;
+	protected readonly _proxy: MainThreadLoggerShape;
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, Event.None);
+		super(initData.logLevel, initData.logsLocation, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 
-	$setLevel(level: LogLevel, resource?: UriComponents): void {
+	$setLogLevel(logLevel: LogLevel, resource?: UriComponents): void {
 		if (resource) {
-			this.setLevel(URI.revive(resource), level);
-		} else if (!isUndefined(level)) {
-			this.setLevel(level);
+			this.setLogLevel(URI.revive(resource), logLevel);
+		} else {
+			this.setLogLevel(logLevel);
 		}
+	}
+
+	override setVisibility(resource: URI, visibility: boolean): void {
+		super.setVisibility(resource, visibility);
+		this._proxy.$setVisibility(resource, visibility);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
@@ -48,7 +52,7 @@ class Logger extends AbstractMessageLogger {
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super(loggerOptions?.always);
+		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
 		this.proxy.$createLogger(file, loggerOptions)
 			.then(() => {
@@ -68,5 +72,9 @@ class Logger extends AbstractMessageLogger {
 
 	private doLog(messages: [LogLevel, string][]) {
 		this.proxy.$log(this.file, messages);
+	}
+
+	override flush(): void {
+		this.proxy.$flush(this.file);
 	}
 }

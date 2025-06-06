@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { localize } from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { debugStackframe, debugStackframeFocused } from './debugIcons.js';
+import { IDebugService, IStackFrame } from '../common/debug.js';
+import './media/callStackEditorContribution.css';
 
 export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hcDark: '#ffff0033', hcLight: '#ffff6673' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hcDark: '#7abd7a4d', hcLight: '#cee7ce73' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -28,6 +29,8 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'top-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -37,24 +40,35 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'focused-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
 		color: themeColorFromId(focusedStackFrameColor)
 	}
 };
-const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+export const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'top-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-top-stack-frame-line',
 	stickiness
 };
-const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
+export const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'focused-stack-frame-decoration',
 	isWholeLine: true,
 	className: 'debug-focused-stack-frame-line',
 	stickiness
 };
+
+export const makeStackFrameColumnDecoration = (noCharactersBefore: boolean): IModelDecorationOptions => ({
+	description: 'top-stack-frame-inline-decoration',
+	before: {
+		content: '\uEB8B',
+		inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
+		inlineClassNameAffectsLetterSpacing: true
+	},
+});
 
 export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
@@ -80,14 +94,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 		if (stackFrame.range.startColumn > 1) {
 			result.push({
-				options: {
-					description: 'top-stack-frame-inline-decoration',
-					before: {
-						content: '\uEB8B',
-						inlineClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column',
-						inlineClassNameAffectsLetterSpacing: true
-					},
-				},
+				options: makeStackFrameColumnDecoration(noCharactersBefore),
 				range: columnUntilEOLRange
 			});
 		}
@@ -108,21 +115,8 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 	return result;
 }
 
-export class LazyCallStackEditorContribution extends Disposable {
-	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super();
-
-		const listener = editor.onDidChangeModel(() => {
-			if (editor.hasModel()) {
-				listener.dispose();
-				this._register(instantiationService.createInstance(CallStackEditorContribution, editor));
-			}
-		});
-	}
-}
-
-class CallStackEditorContribution extends Disposable implements IEditorContribution {
-	private decorations = this.editor.createDecorationsCollection();
+export class CallStackEditorContribution extends Disposable implements IEditorContribution {
+	private decorations: IEditorDecorationsCollection;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -131,6 +125,7 @@ class CallStackEditorContribution extends Disposable implements IEditorContribut
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 
 		const setDecorations = () => this.decorations.set(this.createCallStackDecorations());
 		this._register(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
@@ -191,14 +186,3 @@ class CallStackEditorContribution extends Disposable implements IEditorContribut
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const topStackFrame = theme.getColor(topStackFrameColor);
-	if (topStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
-	}
-
-	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
-	if (focusedStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
-	}
-});

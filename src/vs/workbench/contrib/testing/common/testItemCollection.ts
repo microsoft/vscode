@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertNever } from 'vs/base/common/assert';
-import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { URI } from 'vs/base/common/uri';
+import { Barrier, isThenable, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { assertNever } from '../../../../base/common/assert.js';
+import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from './testTypes.js';
+import { TestId } from './testId.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * @private
@@ -115,6 +115,7 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	label: strictEqualComparator,
 	description: strictEqualComparator,
 	error: strictEqualComparator,
+	sortText: strictEqualComparator,
 	tags: (a, b) => {
 		if (a.length !== b.length) {
 			return false;
@@ -128,9 +129,11 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	},
 };
 
+const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: any, b: any) => boolean][];
+
 const diffTestItems = (a: ITestItem, b: ITestItem) => {
 	let output: Record<string, unknown> | undefined;
-	for (const [key, cmp] of Object.entries(diffableProps) as [keyof ITestItem, (a: any, b: any) => boolean][]) {
+	for (const [key, cmp] of diffableEntries) {
 		if (!cmp(a[key], b[key])) {
 			if (output) {
 				output[key] = b[key];
@@ -186,6 +189,10 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		for (const test of this.tree.values()) {
 			this.updateExpandability(test);
 		}
+	}
+
+	public get resolveHandler() {
+		return this._resolveHandler;
 	}
 
 	/**
@@ -334,7 +341,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 	}
 
-	private upsertItem(actual: T, parent: CollectionItem<T> | undefined) {
+	private upsertItem(actual: T, parent: CollectionItem<T> | undefined): void {
 		const fullId = TestId.fromExtHostTestItem(actual, this.root.id, parent?.actual);
 
 		// If this test item exists elsewhere in the tree already (exists at an
@@ -377,12 +384,19 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 
 		// Case 3: upsert of an existing item by ID, with a new instance
+		if (internal.actual.uri?.toString() !== actual.uri?.toString()) {
+			// If the item has a new URI, re-insert it; we don't support updating
+			// URIs on existing test items.
+			this.removeItem(fullId.toString());
+			return this.upsertItem(actual, parent);
+		}
 		const oldChildren = this.options.getChildren(internal.actual);
 		const oldActual = internal.actual;
 		const update = diffTestItems(this.options.toITestItem(oldActual), this.options.toITestItem(actual));
 		this.options.getApiFor(oldActual).listener = undefined;
 
 		internal.actual = actual;
+		internal.resolveBarrier = undefined;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
 
 		if (update) {
@@ -401,6 +415,19 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
+		}
+
+		// Re-expand the element if it was previous expanded (#207574)
+		const expandLevels = internal.expandLevels;
+		if (expandLevels !== undefined) {
+			// Wait until a microtask to allow the extension to finish setting up
+			// properties of the element and children before we ask it to expand.
+			queueMicrotask(() => {
+				if (internal.expand === TestItemExpandState.Expandable) {
+					internal.expandLevels = undefined;
+					this.expand(fullId.toString(), expandLevels);
+				}
+			});
 		}
 
 		// Mark ranges in the document as synced (#161320)
@@ -542,7 +569,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
 		};
 
-		let r: Thenable<void> | void;
+		let r: Thenable<void> | undefined | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
@@ -664,7 +691,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 
 			for (const item of items) {
 				if (!(item instanceof checkCtor)) {
-					throw new InvalidTestItemError(item.id);
+					throw new InvalidTestItemError((item as ITestItemLike).id);
 				}
 
 				const itemController = getApi(item).controllerId;
@@ -696,7 +723,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		/** @inheritdoc */
 		add(item: T) {
 			if (!(item instanceof checkCtor)) {
-				throw new InvalidTestItemError(item.id);
+				throw new InvalidTestItemError((item as ITestItemLike).id);
 			}
 
 			mapped.set(item.id, item);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { match } from 'minimatch';
@@ -24,7 +24,6 @@ import { match } from 'minimatch';
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-	'require', // from our AMD loader
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -59,6 +58,44 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob',
+	'crypto',
+	'File',
+	'fetch',
+	'RequestInit',
+	'Headers',
+	'Request',
+	'Response',
+	'Body',
+	'any',
+	'timeout',
+	'Performance',
+	'PerformanceMark',
+	'PerformanceObserver',
+	'ImportMeta',
+	'structuredClone',
+	'stackTraceLimit',
+	'captureStackTrace',
+
+	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
+	'Crypto',
+	'SubtleCrypto',
+	'JsonWebKey',
+	'MessageEvent',
+
+	// node web types
+	'ReadableStream',
+	'ReadableStreamReadResult',
+	'ReadableStreamGenericReader',
+	'ReadableStreamDefaultReader',
+	'value',
+	'done',
+	'DOMException',
+	'WebSocket',
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -68,7 +105,10 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService',
+	'INativeBrowserElementsService',
 ];
 
 const RULES: IRule[] = [
@@ -79,20 +119,15 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// TODO@bpasero remove me once electron utility process has landed
+	// Common: vs/base/common/async.ts
 	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
-	},
-
-	// Common: vs/base/common/platform.ts
-	{
-		target: '**/vs/base/common/platform.ts',
+		target: '**/vs/base/common/async.ts',
 		allowedTypes: [
 			...CORE_TYPES,
 
-			// Safe access to postMessage() and friends
-			'MessageEvent',
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -101,31 +136,34 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Common: vs/platform/environment/common/*
+	// Common: vs/base/common/performance.ts
 	{
-		target: '**/vs/platform/environment/common/*.ts',
-		allowedTypes: CORE_TYPES,
-		disallowedTypes: [/* Ignore native types that are defined from here */],
+		target: '**/vs/base/common/performance.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to Performance
+			'Performance',
+			'PerformanceEntry',
+			'PerformanceTiming'
+		],
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
 		]
 	},
 
-	// Common: vs/platform/window/common/window.ts
+	// Common: vs/platform services that can access native types
 	{
-		target: '**/vs/platform/window/common/window.ts',
-		allowedTypes: CORE_TYPES,
-		disallowedTypes: [/* Ignore native types that are defined from here */],
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
-	// Common: vs/platform/native/common/native.ts
-	{
-		target: '**/vs/platform/native/common/native.ts',
+		target: `**/vs/platform/{${[
+			'environment/common/*.ts',
+			'window/common/window.ts',
+			'native/common/native.ts',
+			'native/common/nativeHostService.ts',
+			'browserElements/common/browserElements.ts',
+			'browserElements/common/nativeBrowserElementsService.ts'
+		].join(',')}}`,
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [
@@ -150,6 +188,23 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
+	{
+		target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to a very small subset of node.js
+			'process',
+			'NodeJS',
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common
 	{
 		target: '**/vs/**/common/**',
@@ -164,11 +219,11 @@ const RULES: IRule[] = [
 	// Browser
 	{
 		target: '**/vs/**/browser/**',
-		allowedTypes: CORE_TYPES,
-		disallowedTypes: NATIVE_TYPES,
-		allowedDefinitions: [
-			'@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+		allowedTypes: [
+			...CORE_TYPES,
+			'localStorage'
 		],
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -202,22 +257,10 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Electron (renderer): skip
+	// Electron (main, utility)
 	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
-	},
-
-	// Electron (main)
-	{
-		target: '**/vs/**/electron-main/**',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
-			'Event',
-			'Request'
-		],
+		target: '**/vs/**/{electron-main,electron-utility}/**',
+		allowedTypes: CORE_TYPES,
 		disallowedTypes: [
 			'ipcMain' // not allowed, use validatedIpcMain instead
 		],
@@ -255,6 +298,11 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 			return;
 		}
 
+		let text = symbol.getName();
+		if (rule.allowedTypes?.some(allowed => allowed === text)) {
+			return; // override
+		}
+
 		let _parentSymbol: any = symbol;
 
 		while (_parentSymbol.parent) {
@@ -262,7 +310,7 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 		}
 
 		const parentSymbol = _parentSymbol as ts.Symbol;
-		const text = parentSymbol.getName();
+		text = parentSymbol.getName();
 
 		if (rule.allowedTypes?.some(allowed => allowed === text)) {
 			return; // override

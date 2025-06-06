@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IntervalNode, IntervalTree, NodeColor, SENTINEL, getNodeColor, intervalCompare, nodeAcceptEdit, setNodeStickiness } from 'vs/editor/common/model/intervalTree';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TrackedRangeStickiness } from '../../../common/model.js';
+import { IntervalNode, IntervalTree, NodeColor, SENTINEL, getNodeColor, intervalCompare, nodeAcceptEdit, setNodeStickiness } from '../../../common/model/intervalTree.js';
 
 const GENERATE_TESTS = false;
 const TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
@@ -17,7 +18,9 @@ const MAX_INSERTS = 30;
 const MIN_CHANGE_CNT = 10;
 const MAX_CHANGE_CNT = 20;
 
-suite('IntervalTree', () => {
+suite('IntervalTree 1', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class Interval {
 		_intervalBrand: void = undefined;
@@ -108,7 +111,7 @@ suite('IntervalTree', () => {
 				this._oracle.insert(this._oracleNodes[op.id]!);
 
 			} else {
-				const actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
+				const actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0, false);
 				const actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
 				const expected = this._oracle.search(new Interval(op.begin, op.end));
 				assert.deepStrictEqual(actual, expected);
@@ -498,7 +501,7 @@ suite('IntervalTree', () => {
 		const T = createCormenTree();
 
 		function assertIntervalSearch(start: number, end: number, expected: [number, number][]): void {
-			const actualNodes = T.intervalSearch(start, end, 0, false, 0);
+			const actualNodes = T.intervalSearch(start, end, 0, false, 0, false);
 			const actual = actualNodes.map((n) => <[number, number]>[n.cachedAbsoluteStart, n.cachedAbsoluteEnd]);
 			assert.deepStrictEqual(actual, expected);
 		}
@@ -554,7 +557,10 @@ suite('IntervalTree', () => {
 	});
 });
 
-suite('IntervalTree', () => {
+suite('IntervalTree 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function assertNodeAcceptEdit(msg: string, nodeStart: number, nodeEnd: number, nodeStickiness: TrackedRangeStickiness, start: number, end: number, textLength: number, forceMoveMarkers: boolean, expectedNodeStart: number, expectedNodeEnd: number): void {
 		const node = new IntervalNode('', nodeStart, nodeEnd);
 		setNodeStickiness(node, nodeStickiness);
@@ -906,4 +912,3 @@ function assertValidTree(T: IntervalTree): void {
 }
 
 //#endregion
-

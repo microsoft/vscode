@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
 import { ServerResponse } from '../typescriptService';
+import type * as Proto from './protocol/protocol';
 
 export interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;
 	readonly onError: (err: Error) => void;
 	readonly queuingStartTime: number;
 	readonly isAsync: boolean;
+	readonly traceId?: string | undefined;
+	readonly command?: string;
 }
 
 export class CallbackMap<R extends Proto.Response> {
@@ -41,6 +43,10 @@ export class CallbackMap<R extends Proto.Response> {
 		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
 		this.delete(seq);
 		return callback;
+	}
+
+	public peek(seq: number): CallbackItem<ServerResponse.Response<R> | undefined> | undefined {
+		return this._callbacks.get(seq) ?? this._asyncCallbacks.get(seq);
 	}
 
 	private delete(seq: number) {

@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 // mocha disables running through electron by default. Note that this must
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync } = require('fs');
@@ -20,29 +23,65 @@ const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
 
-const optimist = require('optimist')
-	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('run', 'only run tests from <file>').string('run')
-	.describe('runGlob', 'only run tests matching <file_pattern>').alias('runGlob', 'glob').alias('runGlob', 'runGrep').string('runGlob')
-	.describe('build', 'run with build output (out-build)').boolean('build')
-	.describe('coverage', 'generate coverage report').boolean('coverage')
-	.describe('dev', 'open dev tools, keep window open, reuse app data').alias('dev', ['dev-tools', 'devTools']).string('dev')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
-	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('wait-server', 'port to connect to and wait before running tests')
-	.describe('timeout', 'timeout for tests')
-	.describe('crash-reporter-directory', 'crash reporter directory').string('crash-reporter-directory')
-	.describe('tfs').string('tfs')
-	.describe('help', 'show the help').alias('help', 'h');
+const minimist = require('minimist');
 
-const argv = optimist.argv;
+/**
+ * @type {{
+ * grep: string;
+ * run: string;
+ * runGlob: string;
+ * dev: boolean;
+ * reporter: string;
+ * 'reporter-options': string;
+ * 'waitServer': string;
+ * timeout: string;
+ * 'crash-reporter-directory': string;
+ * tfs: string;
+ * build: boolean;
+ * coverage: boolean;
+ * coveragePath: string;
+ * coverageFormats: string | string[];
+ * 'per-test-coverage': boolean;
+ * help: boolean;
+ * }}
+ */
+const args = minimist(process.argv.slice(2), {
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
+	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
+	alias: {
+		'grep': ['g', 'f'],
+		'runGlob': ['glob', 'runGrep'],
+		'dev': ['dev-tools', 'devTools'],
+		'help': 'h'
+	},
+	default: {
+		'reporter': 'spec',
+		'reporter-options': ''
+	}
+});
 
-if (argv.help) {
-	optimist.showHelp();
+if (args.help) {
+	console.log(`Usage: node ${process.argv[1]} [options]
+
+Options:
+--grep, -g, -f <pattern>      only run tests matching <pattern>
+--run <file>                  only run tests from <file>
+--runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--build                       run with build output (out-build)
+--coverage                    generate coverage report
+--per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
+--dev, --dev-tools, --devTools <window> open dev tools, keep window open, reuse app data
+--reporter <reporter>         the mocha reporter (default: "spec")
+--reporter-options <options>  the mocha reporter options (default: "")
+--waitServer <port>           port to connect to and wait before running tests
+--timeout <ms>                timeout for tests
+--crash-reporter-directory <path> crash reporter directory
+--tfs <url>                   TFS server URL
+--help, -h                    show the help`);
 	process.exit(0);
 }
 
-let crashReporterDirectory = argv['crash-reporter-directory'];
+let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
 	crashReporterDirectory = path.normalize(crashReporterDirectory);
 
@@ -73,7 +112,7 @@ if (crashReporterDirectory) {
 	});
 }
 
-if (!argv.dev) {
+if (!args.dev) {
 	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
@@ -123,7 +162,7 @@ function deserializeError(err) {
 
 class IPCRunner extends events.EventEmitter {
 
-	constructor() {
+	constructor(win) {
 		super();
 
 		this.didFail = false;
@@ -146,13 +185,47 @@ class IPCRunner extends events.EventEmitter {
 			this.emit('fail', deserializeRunnable(test), deserializeError(err));
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
+
+		ipcMain.handle('startCoverage', async () => {
+			win.webContents.debugger.attach();
+			await win.webContents.debugger.sendCommand('Debugger.enable');
+			await win.webContents.debugger.sendCommand('Profiler.enable');
+			await win.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
+				detailed: true,
+				allowTriggeredUpdates: false,
+			});
+		});
+
+		const coverageScriptsReported = new Set();
+		ipcMain.handle('snapshotCoverage', async (_, test) => {
+			const coverage = await win.webContents.debugger.sendCommand('Profiler.takePreciseCoverage');
+			await Promise.all(coverage.result.map(async (r) => {
+				if (!coverageScriptsReported.has(r.scriptId)) {
+					coverageScriptsReported.add(r.scriptId);
+					const src = await win.webContents.debugger.sendCommand('Debugger.getScriptSource', { scriptId: r.scriptId });
+					r.source = src.scriptSource;
+				}
+			}));
+
+			if (!test) {
+				this.emit('coverage init', coverage);
+			} else {
+				this.emit('coverage increment', test, coverage);
+			}
+		});
 	}
 }
 
 app.on('ready', () => {
 
+	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
+	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
+		const path = new URL(request.url).pathname;
+		callback({ path });
+	});
+
 	ipcMain.on('error', (_, err) => {
-		if (!argv.dev) {
+		if (!args.dev) {
 			console.error(err);
 			app.exit(1);
 		}
@@ -182,7 +255,7 @@ app.on('ready', () => {
 		width: 800,
 		show: false,
 		webPreferences: {
-			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
@@ -192,13 +265,13 @@ app.on('ready', () => {
 	});
 
 	win.webContents.on('did-finish-load', () => {
-		if (argv.dev) {
+		if (args.dev) {
 			win.show();
 			win.webContents.openDevTools();
 		}
 
-		if (argv.waitServer) {
-			waitForServer(Number(argv.waitServer)).then(sendRun);
+		if (args.waitServer) {
+			waitForServer(Number(args.waitServer)).then(sendRun);
 		} else {
 			sendRun();
 		}
@@ -212,16 +285,16 @@ app.on('ready', () => {
 			socket = net.connect(port, '127.0.0.1');
 			socket.on('error', e => {
 				console.error('error connecting to waitServer', e);
-				resolve();
+				resolve(undefined);
 			});
 
 			socket.on('close', () => {
-				resolve();
+				resolve(undefined);
 			});
 
 			timeout = setTimeout(() => {
 				console.error('timed out waiting for before starting tests debugger');
-				resolve();
+				resolve(undefined);
 			}, 15000);
 		}).finally(() => {
 			if (socket) {
@@ -232,12 +305,14 @@ app.on('ready', () => {
 	}
 
 	function sendRun() {
-		win.webContents.send('run', argv);
+		win.webContents.send('run', args);
 	}
 
-	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
+	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	target.searchParams.set('argv', JSON.stringify(args));
+	win.loadURL(target.href);
 
-	const runner = new IPCRunner();
+	const runner = new IPCRunner(win);
 	createStatsCollector(runner);
 
 	// Handle renderer crashes, #117068
@@ -248,14 +323,18 @@ app.on('ready', () => {
 		}
 	});
 
-	if (argv.tfs) {
-		new mocha.reporters.Spec(runner);
-		new MochaJUnitReporter(runner, {
-			reporterOptions: {
-				testsuitesTitle: `${argv.tfs} ${process.platform}`,
-				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-			}
-		});
+	const reporters = [];
+
+	if (args.tfs) {
+		reporters.push(
+			new mocha.reporters.Spec(runner),
+			new MochaJUnitReporter(runner, {
+				reporterOptions: {
+					testsuitesTitle: `${args.tfs} ${process.platform}`,
+					mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+				}
+			}),
+		);
 	} else {
 		// mocha patches symbols to use windows escape codes, but it seems like
 		// Electron mangles these in its output.
@@ -267,10 +346,13 @@ app.on('ready', () => {
 			});
 		}
 
-		applyReporter(runner, argv);
+		reporters.push(applyReporter(runner, args));
 	}
 
-	if (!argv.dev) {
-		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));
+	if (!args.dev) {
+		ipcMain.on('all done', async () => {
+			await Promise.all(reporters.map(r => r.drain?.()));
+			app.exit(runner.didFail ? 1 : 0);
+		});
 	}
 });

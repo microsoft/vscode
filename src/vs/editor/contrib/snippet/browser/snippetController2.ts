@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISnippetEdit, SnippetSession } from './snippetSession';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { assertType } from '../../../../base/common/types.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { Choice } from './snippetParser.js';
+import { showSimpleSuggestions } from '../../suggest/browser/suggest.js';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
+import { localize } from '../../../../nls.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ISnippetEdit, SnippetSession } from './snippetSession.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -62,11 +62,11 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener = new DisposableStore();
+	private readonly _snippetListener = new DisposableStore();
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
-	private _choiceCompletionItemProvider?: CompletionItemProvider;
+	private _choiceCompletions?: { provider: CompletionItemProvider; enable(): void; disable(): void };
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -156,7 +156,8 @@ export class SnippetController2 implements IEditorContribution {
 
 		// regster completion item provider when there is any choice element
 		if (this._session?.hasChoice) {
-			this._choiceCompletionItemProvider = {
+			const provider: CompletionItemProvider = {
+				_debugDisplayName: 'snippetChoiceCompletions',
 				provideCompletionItems: (model: ITextModel, position: Position) => {
 					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
 						return undefined;
@@ -185,13 +186,29 @@ export class SnippetController2 implements IEditorContribution {
 				}
 			};
 
-			const registration = this._languageFeaturesService.completionProvider.register({
-				language: this._editor.getModel().getLanguageId(),
-				pattern: this._editor.getModel().uri.fsPath,
-				scheme: this._editor.getModel().uri.scheme
-			}, this._choiceCompletionItemProvider);
+			const model = this._editor.getModel();
 
-			this._snippetListener.add(registration);
+			let registration: IDisposable | undefined;
+			let isRegistered = false;
+			const disable = () => {
+				registration?.dispose();
+				isRegistered = false;
+			};
+
+			const enable = () => {
+				if (!isRegistered) {
+					registration = this._languageFeaturesService.completionProvider.register({
+						language: model.getLanguageId(),
+						pattern: model.uri.fsPath,
+						scheme: model.uri.scheme,
+						exclusive: true
+					}, provider);
+					this._snippetListener.add(registration);
+					isRegistered = true;
+				}
+			};
+
+			this._choiceCompletions = { provider, enable, disable };
 		}
 
 		this._updateState();
@@ -238,7 +255,8 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		const { activeChoice } = this._session;
-		if (!activeChoice || !this._choiceCompletionItemProvider) {
+		if (!activeChoice || !this._choiceCompletions) {
+			this._choiceCompletions?.disable();
 			this._currentChoice = undefined;
 			return;
 		}
@@ -246,9 +264,11 @@ export class SnippetController2 implements IEditorContribution {
 		if (this._currentChoice !== activeChoice.choice) {
 			this._currentChoice = activeChoice.choice;
 
+			this._choiceCompletions.enable();
+
 			// trigger suggest with the special choice completion provider
 			queueMicrotask(() => {
-				showSimpleSuggestions(this._editor, this._choiceCompletionItemProvider!);
+				showSimpleSuggestions(this._editor, this._choiceCompletions!.provider);
 			});
 		}
 	}
@@ -301,7 +321,7 @@ export class SnippetController2 implements IEditorContribution {
 }
 
 
-registerEditorContribution(SnippetController2.ID, SnippetController2);
+registerEditorContribution(SnippetController2.ID, SnippetController2, EditorContributionInstantiation.Lazy);
 
 const CommandCtor = EditorCommand.bindToContribution<SnippetController2>(SnippetController2.get);
 
@@ -311,7 +331,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -321,7 +341,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -331,7 +351,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

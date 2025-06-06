@@ -3,19 +3,55 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.create = void 0;
-const Vinyl = require("vinyl");
-const through = require("through");
-const builder = require("./builder");
-const ts = require("typescript");
+exports.create = create;
+const vinyl_1 = __importDefault(require("vinyl"));
+const through_1 = __importDefault(require("through"));
+const builder = __importStar(require("./builder"));
+const typescript_1 = __importDefault(require("typescript"));
 const stream_1 = require("stream");
 const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
-const log = require("fancy-log");
-const colors = require("ansi-colors");
+const fancy_log_1 = __importDefault(require("fancy-log"));
 const transpiler_1 = require("./transpiler");
+const colors = require("ansi-colors");
 class EmptyDuplex extends stream_1.Duplex {
     _write(_chunk, _encoding, callback) { callback(); }
     _read() { this.push(null); }
@@ -28,32 +64,35 @@ function createNullCompiler() {
 const _defaultOnError = (err) => console.log(JSON.stringify(err, null, 4));
 function create(projectPath, existingOptions, config, onError = _defaultOnError) {
     function printDiagnostic(diag) {
-        if (!diag.file || !diag.start) {
-            onError(ts.flattenDiagnosticMessageText(diag.messageText, '\n'));
+        if (diag instanceof Error) {
+            onError(diag.message);
+        }
+        else if (!diag.file || !diag.start) {
+            onError(typescript_1.default.flattenDiagnosticMessageText(diag.messageText, '\n'));
         }
         else {
             const lineAndCh = diag.file.getLineAndCharacterOfPosition(diag.start);
-            onError(utils_1.strings.format('{0}({1},{2}): {3}', diag.file.fileName, lineAndCh.line + 1, lineAndCh.character + 1, ts.flattenDiagnosticMessageText(diag.messageText, '\n')));
+            onError(utils_1.strings.format('{0}({1},{2}): {3}', diag.file.fileName, lineAndCh.line + 1, lineAndCh.character + 1, typescript_1.default.flattenDiagnosticMessageText(diag.messageText, '\n')));
         }
     }
-    const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
+    const parsed = typescript_1.default.readConfigFile(projectPath, typescript_1.default.sys.readFile);
     if (parsed.error) {
         printDiagnostic(parsed.error);
         return createNullCompiler();
     }
-    const cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, (0, path_1.dirname)(projectPath), existingOptions);
+    const cmdLine = typescript_1.default.parseJsonConfigFileContent(parsed.config, typescript_1.default.sys, (0, path_1.dirname)(projectPath), existingOptions);
     if (cmdLine.errors.length > 0) {
         cmdLine.errors.forEach(printDiagnostic);
         return createNullCompiler();
     }
     function logFn(topic, message) {
         if (config.verbose) {
-            log(colors.cyan(topic), message);
+            (0, fancy_log_1.default)(colors.cyan(topic), message);
         }
     }
     // FULL COMPILE stream doing transpile, syntax and semantic diagnostics
     function createCompileStream(builder, token) {
-        return through(function (file) {
+        return (0, through_1.default)(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
                 this.emit('error', 'no support for streams');
@@ -67,7 +106,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     // TRANSPILE ONLY stream doing just TS to JS conversion
     function createTranspileStream(transpiler) {
-        return through(function (file) {
+        return (0, through_1.default)(function (file) {
             // give the file to the compiler
             if (file.isStream()) {
                 this.emit('error', 'no support for streams');
@@ -94,7 +133,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     if (config.transpileOnly) {
         const transpiler = !config.transpileWithSwc
             ? new transpiler_1.TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
-            : new transpiler_1.SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+            : new transpiler_1.ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
         result = (() => createTranspileStream(transpiler));
     }
     else {
@@ -113,7 +152,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
                 let path;
                 for (; more && _pos < _fileNames.length; _pos++) {
                     path = _fileNames[_pos];
-                    more = this.push(new Vinyl({
+                    more = this.push(new vinyl_1.default({
                         path,
                         contents: (0, fs_1.readFileSync)(path),
                         stat: (0, fs_1.statSync)(path),
@@ -129,5 +168,4 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     };
     return result;
 }
-exports.create = create;
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJpbmRleC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiO0FBQUE7OztnR0FHZ0c7OztBQUVoRywrQkFBK0I7QUFDL0IsbUNBQW1DO0FBQ25DLHFDQUFxQztBQUNyQyxpQ0FBaUM7QUFDakMsbUNBQW9EO0FBQ3BELCtCQUErQjtBQUMvQixtQ0FBa0M7QUFDbEMsMkJBQTRDO0FBQzVDLGlDQUFpQztBQUNqQyxzQ0FBdUM7QUFDdkMsNkNBQXlFO0FBT3pFLE1BQU0sV0FBWSxTQUFRLGVBQU07SUFDL0IsTUFBTSxDQUFDLE1BQVcsRUFBRSxTQUFpQixFQUFFLFFBQStCLElBQVUsUUFBUSxFQUFFLENBQUMsQ0FBQyxDQUFDO0lBQzdGLEtBQUssS0FBSyxJQUFJLENBQUMsSUFBSSxDQUFDLElBQUksQ0FBQyxDQUFDLENBQUMsQ0FBQztDQUM1QjtBQUVELFNBQVMsa0JBQWtCO0lBQzFCLE1BQU0sTUFBTSxHQUF3QixjQUFjLE9BQU8sSUFBSSxXQUFXLEVBQUUsQ0FBQyxDQUFDLENBQUMsQ0FBQztJQUM5RSxNQUFNLENBQUMsR0FBRyxHQUFHLEdBQUcsRUFBRSxDQUFDLElBQUksV0FBVyxFQUFFLENBQUM7SUFDckMsT0FBTyxNQUFNLENBQUM7QUFDZixDQUFDO0FBRUQsTUFBTSxlQUFlLEdBQUcsQ0FBQyxHQUFXLEVBQUUsRUFBRSxDQUFDLE9BQU8sQ0FBQyxHQUFHLENBQUMsSUFBSSxDQUFDLFNBQVMsQ0FBQyxHQUFHLEVBQUUsSUFBSSxFQUFFLENBQUMsQ0FBQyxDQUFDLENBQUM7QUFFbkYsU0FBZ0IsTUFBTSxDQUNyQixXQUFtQixFQUNuQixlQUE0QyxFQUM1QyxNQUFzSCxFQUN0SCxVQUFxQyxlQUFlO0lBR3BELFNBQVMsZUFBZSxDQUFDLElBQW1CO1FBRTNDLElBQUksQ0FBQyxJQUFJLENBQUMsSUFBSSxJQUFJLENBQUMsSUFBSSxDQUFDLEtBQUssRUFBRTtZQUM5QixPQUFPLENBQUMsRUFBRSxD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
+//# sourceMappingURL=index.js.map

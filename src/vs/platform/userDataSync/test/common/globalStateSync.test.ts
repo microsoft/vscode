@@ -3,40 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { GlobalStateSynchroniser } from '../../common/globalStateSync.js';
+import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from '../../common/userDataSync.js';
+import { IUserDataProfileStorageService } from '../../../userDataProfile/common/userDataProfileStorageService.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
 suite('GlobalStateSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: GlobalStateSynchroniser;
 
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
 		testObject = testClient.getSynchronizer(SyncResource.GlobalState) as GlobalStateSynchroniser;
-		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when global state does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
@@ -96,7 +98,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -127,7 +129,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -145,7 +147,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -163,7 +165,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -180,7 +182,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2' } });
 	}));
 
@@ -199,7 +201,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -220,7 +222,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource, '1');
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { format2 } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { LANGUAGE_DEFAULT } from '../../../base/common/platform.js';
+import { format2 } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostLocalizationShape, IStringDetails, MainContext, MainThreadLocalizationShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 	readonly _serviceBrand: undefined;
@@ -40,7 +40,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 		let key = message;
 		if (comment && comment.length > 0) {
-			key += `/${Array.isArray(comment) ? comment.join() : comment}`;
+			key += `/${Array.isArray(comment) ? comment.join('') : comment}`;
 		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {
@@ -59,7 +59,6 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (this.isDefaultLanguage
-			// TODO: support builtin extensions
 			|| (!extension.l10n && !extension.isBuiltin)
 		) {
 			return;
@@ -96,7 +95,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	private async getBundleLocation(extension: IExtensionDescription): Promise<URI | undefined> {
 		if (extension.isBuiltin) {
-			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value);
+			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value, this.currentLanguage);
 			return URI.revive(uri);
 		}
 

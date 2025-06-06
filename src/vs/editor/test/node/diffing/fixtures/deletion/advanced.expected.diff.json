@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "import { Link, List, Separator, Stack } from '@fluentui/react';\nimport { View } from '../../layout/layout';\n\nexport const OtherToolsView = () => {\n\treturn (\n\t\t<View title='Other Tools'>\n\t\t\t<Stack grow={true} verticalFill={true}>\n\t\t\t\t<Stack.Item>\n\t\t\t\t\t<List\n\t\t\t\t\t\titems={[\n\t\t\t\t\t\t\t{ name: 'VS Code Standup (Redomond)', href: 'https://vscode-standup.azurewebsites.net' },\n\t\t\t\t\t\t\t{ name: 'VS Code Standup (Zurich)', href: 'http://stand.azurewebsites.net/' },\n\t\t\t\t\t\t\t{},\n\t\t\t\t\t\t\t{ name: 'VS Code Errors', href: 'https://vscode-errors.azurewebsites.net' },\n\t\t\t\t\t\t\t{ name: 'VS Code GDPR', href: 'https://github.com/microsoft/vscode-gdpr-tooling' },\n\t\t\t\t\t\t]}\n\t\t\t\t\t\tonRenderCell={(item) => {\n\t\t\t\t\t\t\tif (!item?.name) {\n\t\t\t\t\t\t\t\treturn <Separator></Separator>\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\treturn <div style={{ marginBottom: 12 }}><Link href={item!.href} target='_blank'>{item!.name}</Link></div>\n\t\t\t\t\t\t}}\n\t\t\t\t\t>\n\t\t\t\t\t</List>\n\t\t\t\t</Stack.Item>\n\t\t\t</Stack>\n\t\t</View>\n\t);\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,30)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 29,2 EOL]",
+					"modifiedRange": "[1,1 -> 1,1 EOL]"
+				}
+			]
+		}
+	]
+}

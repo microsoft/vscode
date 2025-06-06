@@ -11,10 +11,25 @@
 	font-size: 12px;
 	display: flex;
 	overflow: hidden;
-	transition: background-color 0.35s ease-out;
 }
 
-.monaco-workbench .part.statusbar.status-border-top::after {
+.monaco-workbench:not(.reduce-motion) .part.statusbar {
+	transition: background-color 0.15s ease-out;
+}
+
+.monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus {
+	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
+	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+.monaco-workbench.mac:not(.fullscreen).macos-bigsur-or-newer .part.statusbar:focus {
+	/* macOS Big Sur increased rounded corners size */
+	border-bottom-right-radius: 10px;
+	border-bottom-left-radius: 10px;
+}
+
+.monaco-workbench .part.statusbar:not(:focus).status-border-top::after {
+	/* Top border only visible unless focused to make room for focus outline */
 	content: '';
 	position: absolute;
 	top: 0;
@@ -32,7 +47,7 @@
 }
 
 .monaco-workbench .part.statusbar > .right-items {
-	flex-wrap: wrap ; /* overflow elements by wrapping */
+	flex-wrap: wrap; /* overflow elements by wrapping */
 	flex-direction: row-reverse; /* let the elements to the left wrap first */
 }
 
@@ -46,7 +61,9 @@
 	height: 100%;
 	vertical-align: top;
 	max-width: 40vw;
+	font-variant-numeric: tabular-nums;
 }
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
 	position: relative;
 }
@@ -68,27 +85,12 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > :first-child {
-	margin-right: 3px;
-	margin-left: 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > :first-child {
-	margin-right: 3px;
-	margin-left: 0;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > :first-child {
-	margin-right: 0;
-	margin-left: 3px;
-}
-
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
 	padding-left: 7px; /* Add padding to the most left status bar item */
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	margin-right: 7px; /* Add margin to the most right status bar item */
+	margin-right: 7px; /* Add margin to the most right status bar item. Margin is used to position beak properly. */
 }
 
 /* Tweak appearance for items with background to improve hover feedback */
@@ -98,27 +100,12 @@
 	padding-left: 0;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > :first-child {
-	margin-right: 0;
-	margin-left: 0;
-	padding-left: 10px;
-	padding-right: 10px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > :first-child {
-	padding-left: 3px;
-	padding-right: 10px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > :first-child {
-	padding-left: 10px;
-	padding-right: 3px;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
 	cursor: pointer;
 	display: flex;
 	height: 100%;
+	margin-right: 3px;
+	margin-left: 3px;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 	align-items: center;
@@ -127,16 +114,43 @@
 	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > a {
-	padding: 0 5px 0 3px;
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+	margin-left: 0;
+	margin-right: 5px; /* +2px because padding is smaller and we want to preserve spacing between items */
+	padding: 0 3px;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > a {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+	margin-left: 5px; /* +2px because padding is smaller and we want to preserve spacing between items */
+	margin-right: 0;
 	padding: 0 3px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.compact-right > .statusbar-item-label {
+	margin-left: 0;
+	margin-right:0;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color > .statusbar-item-label {
+	margin-left: 0;
+	margin-right: 0;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > .statusbar-item-label {
+	padding-left: 3px;
+	padding-right: 10px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > .statusbar-item-label {
+	padding-left: 10px;
+	padding-right: 3px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	text-decoration: none;
+	color: var(--vscode-statusBarItem-hoverForeground);
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
@@ -147,4 +161,84 @@
 	text-align: center;
 	font-size: 14px;
 	color: inherit;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
+	outline: 1px solid var(--vscode-contrastActiveBorder) !important;
+	outline-offset: -1px;
+}
+
+.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-activeBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-hoverBackground);
+}
+
+/** Status bar entry item kinds */
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind {
+	color: var(--vscode-statusBarItem-warningForeground);
+	background-color: var(--vscode-statusBarItem-warningBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.warning-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-warningHoverForeground);
+	background-color: var(--vscode-statusBarItem-warningHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.error-kind {
+	color: var(--vscode-statusBarItem-errorForeground);
+	background-color: var(--vscode-statusBarItem-errorBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.error-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-errorHoverForeground);
+	background-color: var(--vscode-statusBarItem-errorHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind {
+	color: var(--vscode-statusBarItem-prominentForeground);
+	background-color: var(--vscode-statusBarItem-prominentBackground);
+}
+
+/**
+ * Using :not(.compact-right):not(.compact-left) here to improve the visual appearance
+ * when a prominent item uses `compact: true` with other items. The presence of the
+ * !important directive for `background-color` otherwise blocks our special hover handling
+ * code here:
+ * https://github.com/microsoft/vscode/blob/c2037f152b2bb3119ce1d87f52987776540dd57f/src/vs/workbench/browser/parts/statusbar/statusbarPart.ts#L483-L505
+ *
+ * Note: this is currently only done for the prominent kind, but needs to be expanded if
+ * other kinds use compact feature.
+ */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.prominent-kind:not(.compact-right):not(.compact-left) a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-prominentHoverForeground);
+	background-color: var(--vscode-statusBarItem-prominentHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.remote-kind {
+	color: var(--vscode-statusBarItem-remoteForeground);
+	background-color: var(--vscode-statusBarItem-remoteBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.remote-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-remoteHoverForeground);
+	background-color: var(--vscode-statusBarItem-remoteHoverBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.offline-kind {
+	color: var(--vscode-statusBarItem-offlineForeground);
+	background-color: var(--vscode-statusBarItem-offlineBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.offline-kind a:hover:not(.disabled) {
+	color: var(--vscode-statusBarItem-offlineHoverForeground);
+	background-color: var(--vscode-statusBarItem-offlineHoverBackground) !important;
 }

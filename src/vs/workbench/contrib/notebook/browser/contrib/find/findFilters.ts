@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { INotebookFindScope, NotebookFindScopeType } from '../../../common/notebookCommon.js';
 
-export interface INotebookFindFiltersChangeEvent {
+export interface INotebookFindChangeEvent {
 	markupInput?: boolean;
 	markupPreview?: boolean;
 	codeInput?: boolean;
 	codeOutput?: boolean;
+	findScope?: boolean;
 }
 
 export class NotebookFindFilters extends Disposable {
-	private readonly _onDidChange: Emitter<INotebookFindFiltersChangeEvent> = this._register(new Emitter<INotebookFindFiltersChangeEvent>());
-	readonly onDidChange: Event<INotebookFindFiltersChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<INotebookFindChangeEvent> = this._register(new Emitter<INotebookFindChangeEvent>());
+	readonly onDidChange: Event<INotebookFindChangeEvent> = this._onDidChange.event;
 
 	private _markupInput: boolean = true;
 
@@ -26,8 +28,7 @@ export class NotebookFindFilters extends Disposable {
 	set markupInput(value: boolean) {
 		if (this._markupInput !== value) {
 			this._markupInput = value;
-			this._markupPreview = !value;
-			this._onDidChange.fire({ markupInput: value, markupPreview: this._markupPreview });
+			this._onDidChange.fire({ markupInput: value });
 		}
 	}
 
@@ -40,8 +41,7 @@ export class NotebookFindFilters extends Disposable {
 	set markupPreview(value: boolean) {
 		if (this._markupPreview !== value) {
 			this._markupPreview = value;
-			this._markupInput = !value;
-			this._onDidChange.fire({ markupPreview: value, markupInput: this._markupInput });
+			this._onDidChange.fire({ markupPreview: value });
 		}
 	}
 	private _codeInput: boolean = true;
@@ -70,11 +70,31 @@ export class NotebookFindFilters extends Disposable {
 		}
 	}
 
+	private _findScope: INotebookFindScope = { findScopeType: NotebookFindScopeType.None };
+
+	get findScope(): INotebookFindScope {
+		return this._findScope;
+	}
+
+	set findScope(value: INotebookFindScope) {
+		if (this._findScope !== value) {
+			this._findScope = value;
+			this._onDidChange.fire({ findScope: true });
+		}
+	}
+
+
+	private readonly _initialMarkupInput: boolean;
+	private readonly _initialMarkupPreview: boolean;
+	private readonly _initialCodeInput: boolean;
+	private readonly _initialCodeOutput: boolean;
+
 	constructor(
 		markupInput: boolean,
 		markupPreview: boolean,
 		codeInput: boolean,
-		codeOutput: boolean
+		codeOutput: boolean,
+		findScope: INotebookFindScope
 	) {
 		super();
 
@@ -82,6 +102,22 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = markupPreview;
 		this._codeInput = codeInput;
 		this._codeOutput = codeOutput;
+		this._findScope = findScope;
+
+		this._initialMarkupInput = markupInput;
+		this._initialMarkupPreview = markupPreview;
+		this._initialCodeInput = codeInput;
+		this._initialCodeOutput = codeOutput;
+	}
+
+	isModified(): boolean {
+		// do not include findInSelection or either selectedRanges in the check. This will incorrectly mark the filter icon as modified
+		return (
+			this._markupInput !== this._initialMarkupInput
+			|| this._markupPreview !== this._initialMarkupPreview
+			|| this._codeInput !== this._initialCodeInput
+			|| this._codeOutput !== this._initialCodeOutput
+		);
 	}
 
 	update(v: NotebookFindFilters) {
@@ -89,5 +125,6 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = v.markupPreview;
 		this._codeInput = v.codeInput;
 		this._codeOutput = v.codeOutput;
+		this._findScope = v.findScope;
 	}
 }

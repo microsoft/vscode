@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
+import type * as Proto from './protocol/protocol';
 
 export enum RequestQueueingType {
 	/**
@@ -58,6 +58,22 @@ export class RequestQueue {
 
 	public dequeue(): RequestItem | undefined {
 		return this.queue.shift();
+	}
+
+	public getQueuedCommands(skipLast: boolean = false): string[] {
+		const result: string[] = [];
+		const end = skipLast ? this.queue.length - 1 : this.queue.length;
+		if (end <= 0) {
+			return result;
+		}
+		for (let i = 0; i < end; i++) {
+			const item = this.queue[i];
+			result.push(item.request.command);
+			if (result.length >= 5) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	public tryDeletePendingRequest(seq: number): boolean {

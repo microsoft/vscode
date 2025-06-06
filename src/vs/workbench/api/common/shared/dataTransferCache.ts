@@ -3,45 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { VSDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IDataTransferFile, IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 
-export class DataTransferCache {
+export class DataTransferFileCache {
 
 	private requestIdPool = 0;
-	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<IDataTransferItem>>();
+	private readonly dataTransferFiles = new Map</* requestId */ number, ReadonlyArray<IDataTransferFile>>();
 
-	public add(dataTransfer: VSDataTransfer): { id: number; dispose: () => void } {
+	public add(dataTransfer: IReadonlyVSDataTransfer): { id: number; dispose: () => void } {
 		const requestId = this.requestIdPool++;
-		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
+		this.dataTransferFiles.set(requestId, coalesce(Array.from(dataTransfer, ([, item]) => item.asFile())));
 		return {
 			id: requestId,
 			dispose: () => {
-				this.dataTransfers.delete(requestId);
+				this.dataTransferFiles.delete(requestId);
 			}
 		};
 	}
 
-	async resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
-		const entry = this.dataTransfers.get(requestId);
-		if (!entry) {
+	async resolveFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
+		const files = this.dataTransferFiles.get(requestId);
+		if (!files) {
 			throw new Error('No data transfer found');
 		}
 
-		const item = entry.find(x => x.id === dataItemId);
-		if (!item) {
-			throw new Error('No item found in data transfer');
-		}
-
-		const file = item.asFile();
+		const file = files.find(file => file.id === dataItemId);
 		if (!file) {
-			throw new Error('Found data transfer item is not a file');
+			throw new Error('No matching file found in data transfer');
 		}
 
 		return VSBuffer.wrap(await file.data());
 	}
 
 	dispose() {
-		this.dataTransfers.clear();
+		this.dataTransferFiles.clear();
 	}
 }

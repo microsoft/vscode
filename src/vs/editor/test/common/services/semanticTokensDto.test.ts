@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { VSBuffer } from 'vs/base/common/buffer';
+import assert from 'assert';
+import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from '../../../common/services/semanticTokensDto.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('SemanticTokensDto', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function toArr(arr: Uint32Array): number[] {
 		const result: number[] = [];

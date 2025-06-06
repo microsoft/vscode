@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
+import { IViewModelLines } from './viewModelLines.js';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
+import { filterValidationDecorations } from '../config/editorOptions.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -36,7 +36,6 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
-	private _cachedOnlyMinimapDecorations: boolean | null = null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
@@ -83,7 +82,7 @@ export class ViewModelDecorations implements IDisposable {
 			const options = modelDecoration.options;
 			let viewRange: Range;
 			if (options.isWholeLine) {
-				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1), PositionAffinity.Left);
+				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1), PositionAffinity.Left, false, true);
 				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)), PositionAffinity.Right);
 				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 			} else {
@@ -97,25 +96,27 @@ export class ViewModelDecorations implements IDisposable {
 		return r;
 	}
 
-	public getDecorationsViewportData(viewRange: Range, onlyMinimapDecorations: boolean = false): IDecorationsViewportData {
+	public getMinimapDecorationsInRange(range: Range): ViewModelDecoration[] {
+		return this._getDecorationsInRange(range, true, false).decorations;
+	}
+
+	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
-		cacheIsValid = cacheIsValid && (this._cachedOnlyMinimapDecorations === onlyMinimapDecorations);
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, onlyMinimapDecorations);
+			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, false, false);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
-			this._cachedOnlyMinimapDecorations = onlyMinimapDecorations;
 		}
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false): InlineDecoration[] {
+	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		return this._getDecorationsInRange(range, onlyMinimapDecorations).inlineDecorations[0];
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
 	}
 
-	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations);
+	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 

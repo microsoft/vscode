@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { isUUID } from 'vs/base/common/uuid';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRawGalleryExtensionVersion, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import assert from 'assert';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isUUID } from '../../../../base/common/uuid.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IRawGalleryExtensionVersion, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
+import { TargetPlatform } from '../../../extensions/common/extensions.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -35,7 +35,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 }
 
 suite('Extension Gallery Service', () => {
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
 
 	setup(() => {
@@ -43,17 +43,16 @@ suite('Extension Gallery Service', () => {
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
-		storageService = new InMemoryStorageService();
+		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	teardown(() => disposables.clear());
-
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
+		assert.ok(headers['X-Market-User-Id']);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
@@ -73,51 +72,9 @@ suite('Extension Gallery Service', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
-	test('sorting single extension version with fallback target platform', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
 	test('sorting single extension version with not compatible target platform', async () => {
 		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_ARM64)];
 		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2')];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first with no fallbacks', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.DARWIN_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first and fallback at last', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [actual[0], actual[2], actual[1]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is not first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2')];
-		const expected = [actual[1], actual[0], actual[2]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is at the end', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64)];
-		const expected = [actual[2], actual[0], actual[1]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -144,8 +101,8 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('sorting multiple extension versions with target platforms - 3', async () => {
-		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_IA32), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
-		const expected = [actual[0], actual[1], actual[2], actual[5], actual[4], actual[3]];
+		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
+		const expected = [actual[0], actual[1], actual[2], actual[4], actual[3]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_ARM64);
 		assert.deepStrictEqual(actual, expected);
 	});

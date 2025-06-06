@@ -3,18 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyInitialContents, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService } from 'vs/platform/files/common/files';
-import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { ResourceMap } from 'vs/base/common/map';
+import { DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyInitialContents, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from './untitledFileWorkingCopy.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IWorkingCopyService } from './workingCopyService.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkingCopyBackupService } from './workingCopyBackup.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from './abstractFileWorkingCopyManager.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+
+export interface IUntitledFileWorkingCopySaveEvent {
+
+	/**
+	 * The source untitled file working copy that was saved. It is disposed at this point.
+	 */
+	readonly source: URI;
+
+	/**
+	 * The target file working copy the untitled was saved to. Is never untitled.
+	 */
+	readonly target: URI;
+}
 
 /**
  * The only one that should be dealing with `IUntitledFileWorkingCopy` and
@@ -22,6 +35,13 @@ import { ResourceMap } from 'vs/base/common/map';
  * backup and resolving.
  */
 export interface IUntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> {
+
+	/**
+	 * An event for when an untitled file working copy was saved.
+	 * At the point the event fires, the untitled file working copy is
+	 * disposed.
+	 */
+	readonly onDidSave: Event<IUntitledFileWorkingCopySaveEvent>;
 
 	/**
 	 * An event for when a untitled file working copy changed it's dirty state.
@@ -57,6 +77,11 @@ export interface IUntitledFileWorkingCopyManager<M extends IUntitledFileWorkingC
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
 	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
+
+	/**
+	 * Internal method: triggers the onDidSave event.
+	 */
+	notifyDidSave(source: URI, target: URI): void;
 }
 
 export interface INewUntitledFileWorkingCopyOptions {
@@ -91,6 +116,12 @@ export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitl
 	 * Note: the resource will not be used unless the scheme is `untitled`.
 	 */
 	untitledResource: URI;
+
+	/**
+	 * A flag that will prevent the working copy from appearing dirty in the UI
+	 * and not show a confirmation dialog when closed with unsaved content.
+	 */
+	isScratchpad?: boolean;
 }
 
 type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & INewOrExistingUntitledFileWorkingCopyOptions;
@@ -98,6 +129,9 @@ type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOption
 export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> implements IUntitledFileWorkingCopyManager<M> {
 
 	//#region Events
+
+	private readonly _onDidSave = this._register(new Emitter<IUntitledFileWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledFileWorkingCopy<M>>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -165,8 +199,11 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 
 		// Handle untitled resource
-		else if (options.untitledResource?.scheme === Schemas.untitled) {
-			massagedOptions.untitledResource = options.untitledResource;
+		else {
+			if (options.untitledResource?.scheme === Schemas.untitled) {
+				massagedOptions.untitledResource = options.untitledResource;
+			}
+			massagedOptions.isScratchpad = options.isScratchpad;
 		}
 
 		// Take over initial value
@@ -184,7 +221,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			do {
 				untitledResource = URI.from({
 					scheme: Schemas.untitled,
-					path: `Untitled-${counter}`,
+					path: options.isScratchpad ? `Scratchpad-${counter}` : `Untitled-${counter}`,
 					query: this.workingCopyTypeId ?
 						`typeId=${this.workingCopyTypeId}` : // distinguish untitled resources among others by encoding the `typeId` as query param
 						undefined							 // keep untitled resources for text files as they are (when `typeId === ''`)
@@ -199,6 +236,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			untitledResource,
 			this.labelService.getUriBasenameLabel(untitledResource),
 			!!options.associatedResource,
+			!!options.isScratchpad,
 			options.contents,
 			this.modelFactory,
 			this.saveDelegate,
@@ -259,4 +297,8 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	}
 
 	//#endregion
+
+	notifyDidSave(source: URI, target: URI): void {
+		this._onDidSave.fire({ source, target });
+	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IUpdateService, State, UpdateType } from '../../../../platform/update/common/update.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IHostService } from '../../host/browser/host.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IUpdate {
 	version: string;
@@ -47,8 +47,11 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		this.checkForUpdates(false);
 	}
 
-	async isLatestVersion(): Promise<boolean> {
+	async isLatestVersion(): Promise<boolean | undefined> {
 		const update = await this.doCheckForUpdates(false);
+		if (update === undefined) {
+			return undefined; // no update provider
+		}
 
 		return !!update;
 	}
@@ -57,7 +60,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		await this.doCheckForUpdates(explicit);
 	}
 
-	private async doCheckForUpdates(explicit: boolean): Promise<IUpdate | null> {
+	private async doCheckForUpdates(explicit: boolean): Promise<IUpdate | null /* no update available */ | undefined /* no update provider */> {
 		if (this.environmentService.options && this.environmentService.options.updateProvider) {
 			const updateProvider = this.environmentService.options.updateProvider;
 
@@ -76,7 +79,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 			return update;
 		}
 
-		return null; // no update provider to ask
+		return undefined; // no update provider to ask
 	}
 
 	async downloadUpdate(): Promise<void> {

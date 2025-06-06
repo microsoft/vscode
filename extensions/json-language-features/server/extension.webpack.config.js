@@ -13,7 +13,7 @@ const path = require('path');
 const config = withDefaults({
 	context: path.join(__dirname),
 	entry: {
-		extension: './src/node/jsonServerMain.ts',
+		extension: './src/node/jsonServerNodeMain.ts',
 	},
 	output: {
 		filename: 'jsonServerMain.js',

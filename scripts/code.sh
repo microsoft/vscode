@@ -42,8 +42,13 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
 
+	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+	if [[ "$@" == *"--extensionTestsPath"* ]]; then
+		DISABLE_TEST_EXTENSION=""
+	fi
+
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }
 
 function code-wsl()
@@ -58,7 +63,7 @@ function code-wsl()
 		cd $ROOT
 		export WSLENV=ELECTRON_RUN_AS_NODE/w:VSCODE_DEV/w:$WSLENV
 		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
-		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/Code - OSS.exe" "out/cli.js" --ms-enable-electron-run-as-node --locate-extension $WSL_EXT_ID)
+		local WSL_EXT_WLOC=$(echo "" | VSCODE_DEV=1 ELECTRON_RUN_AS_NODE=1 "$ROOT/.build/electron/Code - OSS.exe" "out/cli.js" --locate-extension $WSL_EXT_ID)
 		cd $CWD
 		if [ -n "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC
@@ -75,6 +80,12 @@ if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
 elif [ -f /mnt/wslg/versions.txt ]; then
 	code --disable-gpu "$@"
+elif [ -f /.dockerenv ]; then
+	# Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1263267
+	# Chromium does not release shared memory when streaming scripts
+	# which might exhaust the available resources in the container environment
+	# leading to failed script loading.
+	code --disable-dev-shm-usage "$@"
 else
 	code "$@"
 fi

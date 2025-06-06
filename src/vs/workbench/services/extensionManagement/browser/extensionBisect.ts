@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { localize, localize2 } from '../../../../nls.js';
+import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ExtensionType, IExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IHostService } from '../../host/browser/host.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IWorkbenchExtensionEnablementService } from '../common/extensionManagement.js';
 
 // --- bisect service
 
@@ -184,11 +184,11 @@ class ExtensionBisectUi {
 	private _showBisectPrompt(): void {
 
 		const goodPrompt: IPromptChoice = {
-			label: 'Good now',
+			label: localize('I cannot reproduce', "I can't reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', false)
 		};
 		const badPrompt: IPromptChoice = {
-			label: 'This is bad',
+			label: localize('This is Bad', "I can reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', true)
 		};
 		const stop: IPromptChoice = {
@@ -204,7 +204,7 @@ class ExtensionBisectUi {
 			Severity.Info,
 			message,
 			[goodPrompt, badPrompt, stop],
-			{ sticky: true }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }
@@ -218,7 +218,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.start',
-			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
+			title: localize2('title.start', 'Start Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
@@ -235,16 +235,15 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const extensionManagement = accessor.get(IExtensionManagementService);
-		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
-		const disabled = new Set(extensionEnablementService.getDisabledExtensions().map(id => id.id));
-		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => !disabled.has(ext.identifier.id));
+		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => extensionEnablementService.isEnabled(ext));
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
 			detail: localize('detail.start', "Extension Bisect will use binary search to find an extension that causes a problem. During the process the window reloads repeatedly (~{0} times). Each time you must confirm if you are still seeing problems.", 2 + Math.log2(extensions.length) | 0),
-			primaryButton: localize('msg2', "Start Extension Bisect")
+			primaryButton: localize({ key: 'msg2', comment: ['&& denotes a mnemonic'] }, "&&Start Extension Bisect")
 		});
 
 		if (res.confirmed) {
@@ -258,7 +257,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.next',
-			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
+			title: localize2('title.isBad', 'Continue Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
@@ -271,7 +270,7 @@ registerAction2(class extends Action2 {
 		const bisectService = accessor.get(IExtensionBisectService);
 		const productService = accessor.get(IProductService);
 		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
-		const issueService = accessor.get(IWorkbenchIssueService);
+		const commandService = accessor.get(ICommandService);
 
 		if (!bisectService.isActive) {
 			return;
@@ -296,25 +295,26 @@ registerAction2(class extends Action2 {
 
 		if (done.bad) {
 			// DONE but nothing found
-			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), undefined, {
-				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
-			});
+			await dialogService.info(
+				localize('done.msg', "Extension Bisect"),
+				localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
+			);
 
 		} else {
 			// DONE and identified extension
-			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
-				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
-				{
-					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
-					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
-					cancelId: 1
-				}
-			);
+			const res = await dialogService.confirm({
+				type: Severity.Info,
+				message: localize('done.msg', "Extension Bisect"),
+				primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
+				cancelButton: localize('continue', "Continue"),
+				detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
+				checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true }
+			});
 			if (res.checkboxChecked) {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
-			if (res.choice === 0) {
-				await issueService.openReporter({ extensionId: done.id });
+			if (res.confirmed) {
+				await commandService.executeCommand('workbench.action.openIssueReporter', done.id);
 			}
 		}
 		await bisectService.reset();
@@ -322,22 +322,30 @@ registerAction2(class extends Action2 {
 	}
 
 	private async _checkForBad(dialogService: IDialogService, bisectService: IExtensionBisectService): Promise<boolean | undefined | null> {
-		const options = {
-			cancelId: 3,
+		const { result } = await dialogService.prompt<boolean | undefined | null>({
+			type: Severity.Info,
+			message: localize('msg.next', "Extension Bisect"),
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
-		};
-		const res = await dialogService.show(
-			Severity.Info,
-			localize('msg.next', "Extension Bisect"),
-			[localize('next.good', "Good now"), localize('next.bad', "This is bad"), localize('next.stop', "Stop Bisect"), localize('next.cancel', "Cancel")],
-			options
-		);
-		switch (res.choice) {
-			case 0: return false; //good now
-			case 1: return true; //bad
-			case 2: return undefined; //stop
-		}
-		return null; //cancel
+			buttons: [
+				{
+					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "I ca&&n't reproduce"),
+					run: () => false // good now
+				},
+				{
+					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "I can &&reproduce"),
+					run: () => true // bad
+				},
+				{
+					label: localize({ key: 'next.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Bisect"),
+					run: () => undefined // stop
+				}
+			],
+			cancelButton: {
+				label: localize({ key: 'next.cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel Bisect"),
+				run: () => null // cancel
+			}
+		});
+		return result;
 	}
 });
 
@@ -345,7 +353,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.stop',
-			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
+			title: localize2('title.stop', 'Stop Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive

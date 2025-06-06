@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Token, IState } from 'vs/editor/common/languages';
-import { LanguageId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IFileIconTheme, IColorTheme, ITokenStyle, IProductIconTheme } from 'vs/platform/theme/common/themeService';
+import assert from 'assert';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { LanguageId, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { IState, Token } from '../../../common/languages.js';
+import { TokenTheme } from '../../../common/languages/supports/tokenization.js';
+import { LanguageService } from '../../../common/services/languageService.js';
+import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from '../../browser/standaloneLanguages.js';
+import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from '../../common/standaloneTheme.js';
+import { UnthemedProductIconTheme } from '../../../../platform/theme/browser/iconsStyleSheet.js';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, ITokenStyle } from '../../../../platform/theme/common/themeService.js';
 
 suite('TokenizationSupport2Adapter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const languageId = 'tttt';
 	// const tokenMetadata = (LanguageId.PlainText << MetadataConsts.LANGUAGEID_OFFSET);
@@ -160,8 +163,8 @@ suite('TokenizationSupport2Adapter', () => {
 				new Token(0, 'bar', languageId),
 			],
 			[
-				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				0, (1 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				0, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK
 			]
 		);
 	});
@@ -179,9 +182,9 @@ suite('TokenizationSupport2Adapter', () => {
 				new Token(5, 'foo', languageId),
 			],
 			[
-				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				5, (1 << MetadataConsts.FOREGROUND_OFFSET),
-				5, (2 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				5, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				5, (2 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK
 			]
 		);
 	});

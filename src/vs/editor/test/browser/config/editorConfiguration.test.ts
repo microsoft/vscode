@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
+import { migrateOptions } from '../../../browser/config/migrateOptions.js';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { EditorZoom } from '../../../common/config/editorZoom.js';
+import { TestConfiguration } from './testConfiguration.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 
 suite('Common Editor Config', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Zoom Level', () => {
 
 		//Zoom levels are defined to go between -5, 20 inclusive
@@ -62,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}
@@ -77,6 +82,7 @@ suite('Common Editor Config', () => {
 	test('wordWrap default', () => {
 		const config = new TestWrappingConfiguration({});
 		assertWrapping(config, false, -1);
+		config.dispose();
 	});
 
 	test('wordWrap compat false', () => {
@@ -84,6 +90,7 @@ suite('Common Editor Config', () => {
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
+		config.dispose();
 	});
 
 	test('wordWrap compat true', () => {
@@ -91,6 +98,7 @@ suite('Common Editor Config', () => {
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
+		config.dispose();
 	});
 
 	test('wordWrap on', () => {
@@ -98,6 +106,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'on'
 		});
 		assertWrapping(config, true, 80);
+		config.dispose();
 	});
 
 	test('wordWrap on without minimap', () => {
@@ -108,6 +117,7 @@ suite('Common Editor Config', () => {
 			}
 		});
 		assertWrapping(config, true, 88);
+		config.dispose();
 	});
 
 	test('wordWrap on does not use wordWrapColumn', () => {
@@ -116,6 +126,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: 10
 		});
 		assertWrapping(config, true, 80);
+		config.dispose();
 	});
 
 	test('wordWrap off', () => {
@@ -123,6 +134,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'off'
 		});
 		assertWrapping(config, false, -1);
+		config.dispose();
 	});
 
 	test('wordWrap off does not use wordWrapColumn', () => {
@@ -131,6 +143,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: 10
 		});
 		assertWrapping(config, false, -1);
+		config.dispose();
 	});
 
 	test('wordWrap wordWrapColumn uses default wordWrapColumn', () => {
@@ -138,6 +151,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'wordWrapColumn'
 		});
 		assertWrapping(config, false, 80);
+		config.dispose();
 	});
 
 	test('wordWrap wordWrapColumn uses wordWrapColumn', () => {
@@ -146,6 +160,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: 100
 		});
 		assertWrapping(config, false, 100);
+		config.dispose();
 	});
 
 	test('wordWrap wordWrapColumn validates wordWrapColumn', () => {
@@ -154,6 +169,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, false, 1);
+		config.dispose();
 	});
 
 	test('wordWrap bounded uses default wordWrapColumn', () => {
@@ -161,6 +177,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'bounded'
 		});
 		assertWrapping(config, true, 80);
+		config.dispose();
 	});
 
 	test('wordWrap bounded uses wordWrapColumn', () => {
@@ -169,6 +186,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: 40
 		});
 		assertWrapping(config, true, 40);
+		config.dispose();
 	});
 
 	test('wordWrap bounded validates wordWrapColumn', () => {
@@ -177,6 +195,7 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, true, 1);
+		config.dispose();
 	});
 
 	test('issue #53152: Cannot assign to read only property \'enabled\' of object', () => {
@@ -190,17 +209,21 @@ suite('Common Editor Config', () => {
 		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
 		config.updateOptions({ hover: { enabled: false } });
 		assert.strictEqual(config.options.get(EditorOption.hover).enabled, false);
+
+		config.dispose();
 	});
 
 	test('does not emit event when nothing changes', () => {
 		const config = new TestConfiguration({ glyphMargin: true, roundedSelection: false });
 		let event: ConfigurationChangedEvent | null = null;
-		config.onDidChange(e => event = e);
+		const disposable = config.onDidChange(e => event = e);
 		assert.strictEqual(config.options.get(EditorOption.glyphMargin), true);
 
 		config.updateOptions({ glyphMargin: true });
 		config.updateOptions({ roundedSelection: false });
 		assert.strictEqual(event, null);
+		config.dispose();
+		disposable.dispose();
 	});
 
 	test('issue #94931: Unable to open source file', () => {
@@ -211,6 +234,7 @@ suite('Common Editor Config', () => {
 			comments: 'off',
 			strings: 'off'
 		});
+		config.dispose();
 	});
 
 	test('issue #102920: Can\'t snap or split view with JSON files', () => {
@@ -222,6 +246,7 @@ suite('Common Editor Config', () => {
 			comments: 'off',
 			strings: 'on'
 		});
+		config.dispose();
 	});
 
 	test('issue #151926: Untyped editor options apply', () => {
@@ -239,10 +264,14 @@ suite('Common Editor Config', () => {
 				allowedLocales: { "_os": true, "_vscode": true }
 			}
 		);
+		config.dispose();
 	});
 });
 
 suite('migrateOptions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function migrate(options: any): any {
 		migrateOptions(options);
 		return options;

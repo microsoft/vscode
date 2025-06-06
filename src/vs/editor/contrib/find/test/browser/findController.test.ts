@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Delayer } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from 'vs/editor/contrib/find/browser/findController';
-import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/browser/findModel';
-import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import assert from 'assert';
+import { Delayer } from '../../../../../base/common/async.js';
+import * as platform from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { EditOperation } from '../../../../common/core/editOperation.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
+import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
+import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 class TestFindController extends CommonFindController {
 
@@ -33,9 +35,11 @@ class TestFindController extends CommonFindController {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService);
+		super(editor, contextKeyService, storageService, clipboardService, notificationService, hoverService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 		this.hasFocus = false;
@@ -63,27 +67,13 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 	});
 }
 
-suite('FindController', async () => {
-	const queryState: { [key: string]: any } = {};
+suite('FindController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined,
-		isNew: () => false,
-		flush: () => { return Promise.resolve(); },
-		keys: () => [],
-		log: () => { },
-		switch: () => { throw new Error(); },
-		hasScope() { return false; }
-	} as IStorageService);
+	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -493,29 +483,16 @@ suite('FindController', async () => {
 	});
 });
 
-suite('FindController query options persistence', async () => {
-	let queryState: { [key: string]: any } = {};
-	queryState['editor.isRegex'] = false;
-	queryState['editor.matchCase'] = false;
-	queryState['editor.wholeWord'] = false;
+suite('FindController query options persistence', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined,
-		isNew: () => false,
-		flush: () => { return Promise.resolve(); },
-		keys: () => [],
-		log: () => { },
-		switch: () => { throw new Error(); },
-		hasScope() { return false; }
-	} as IStorageService);
+	const storageService = new InMemoryStorageService();
+	storageService.store('editor.isRegex', false, StorageScope.WORKSPACE, StorageTarget.USER);
+	storageService.store('editor.matchCase', false, StorageScope.WORKSPACE, StorageTarget.USER);
+	storageService.store('editor.wholeWord', false, StorageScope.WORKSPACE, StorageTarget.USER);
+	serviceCollection.set(IStorageService, storageService);
 
 	test('matchCase', async () => {
 		await withAsyncTestCodeEditor([
@@ -524,7 +501,7 @@ suite('FindController query options persistence', async () => {
 			'XYZ',
 			'ABC'
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
+			storageService.store('editor.matchCase', true, StorageScope.WORKSPACE, StorageTarget.USER);
 			// The cursor is at the very top, of the file, at the first ABC
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			const findState = findController.getState();
@@ -541,7 +518,8 @@ suite('FindController query options persistence', async () => {
 		});
 	});
 
-	queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+	storageService.store('editor.matchCase', false, StorageScope.WORKSPACE, StorageTarget.USER);
+	storageService.store('editor.wholeWord', true, StorageScope.WORKSPACE, StorageTarget.USER);
 
 	test('wholeWord', async () => {
 		await withAsyncTestCodeEditor([
@@ -550,7 +528,6 @@ suite('FindController query options persistence', async () => {
 			'XYZ',
 			'ABC'
 		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			const findState = findController.getState();
@@ -574,11 +551,10 @@ suite('FindController query options persistence', async () => {
 			'XYZ',
 			'ABC'
 		], { serviceCollection: serviceCollection }, async (editor) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
 			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			findController.toggleRegex();
-			assert.strictEqual(queryState['editor.isRegex'], true);
+			assert.strictEqual(storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE), true);
 
 			findController.dispose();
 		});

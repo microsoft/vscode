@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import * as nls from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import * as nls from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SnippetEditorAction } from './abstractSnippetsActions.js';
+import { pickSnippet } from '../snippetPicker.js';
+import { ISnippetsService } from '../snippets.js';
+import { Snippet, SnippetSource } from '../snippetsFile.js';
 
 class Args {
 
@@ -49,13 +49,10 @@ export class InsertSnippetAction extends SnippetEditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertSnippet',
-			title: {
-				value: nls.localize('snippet.suggestions.label', "Insert Snippet"),
-				original: 'Insert Snippet'
-			},
+			title: nls.localize2('snippet.suggestions.label', "Insert Snippet"),
 			f1: true,
 			precondition: EditorContextKeys.writable,
-			description: {
+			metadata: {
 				description: `Insert Snippet`,
 				args: [{
 					name: 'args',
@@ -79,7 +76,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		});
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any[]) {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: any) {
 
 		const languageService = accessor.get(ILanguageService);
 		const snippetService = accessor.get(ISnippetsService);
@@ -94,7 +91,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
-			const { snippet, name, langId } = Args.fromUser(args[0]);
+			const { snippet, name, langId } = Args.fromUser(arg);
 
 			if (snippet) {
 				return resolve(new Snippet(

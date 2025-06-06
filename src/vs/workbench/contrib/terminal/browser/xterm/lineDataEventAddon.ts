@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from '@xterm/xterm';
 
 /**
  * Provides extensions to the xterm object in a modular, testable way.
@@ -19,11 +19,21 @@ export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 	private readonly _onLineData = this._register(new Emitter<string>());
 	readonly onLineData = this._onLineData.event;
 
-	activate(xterm: XTermTerminal) {
+	constructor(private readonly _initializationPromise?: Promise<void>) {
+		super();
+	}
+
+	async activate(xterm: XTermTerminal) {
 		this._xterm = xterm;
+
+		// IMPORTANT: Instantiate the buffer namespace object here before it's disposed.
+		const buffer = xterm.buffer;
+
+		// If there is an initialization promise, wait for it before registering the event
+		await this._initializationPromise;
+
 		// Fire onLineData when a line feed occurs, taking into account wrapped lines
 		this._register(xterm.onLineFeed(() => {
-			const buffer = xterm.buffer;
 			const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 			if (newLine && !newLine.isWrapped) {
 				this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
@@ -32,7 +42,6 @@ export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 
 		// Fire onLineData when disposing object to flush last line
 		this._register(toDisposable(() => {
-			const buffer = xterm.buffer;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 		}));
 	}

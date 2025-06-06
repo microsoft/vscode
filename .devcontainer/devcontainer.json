@@ -1,12 +1,25 @@
 {
 	"name": "Code - OSS",
-
-	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
-	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/rust:1": {}
+	},
+	"containerEnv": {
+		"DISPLAY": "" // Allow the Dev Containers extension to set DISPLAY, post-create.sh will add it back in ~/.bashrc and ~/.zshrc if not set.
+	},
 	"overrideCommand": false,
-	"runArgs": [ "--init", "--security-opt", "seccomp=unconfined", "--shm-size=1g"],
-
-	// VS Code extensions and settings
+	"privileged": true,
+	"mounts": [
+		{
+			"source": "vscode-dev",
+			"target": "/vscode-dev",
+			"type": "volume"
+		}
+	],
+	"postCreateCommand": "./.devcontainer/post-create.sh",
 	"customizations": {
 		"vscode": {
 			"settings": {
@@ -15,12 +28,14 @@
 			},
 			"extensions": [
 				"dbaeumer.vscode-eslint",
+				"EditorConfig.EditorConfig",
+				"GitHub.vscode-pull-request-github",
+				"ms-vscode.vscode-github-issue-notebooks",
+				"ms-vscode.vscode-selfhost-test-provider",
 				"mutantdino.resourcemonitor"
 			]
 		}
 	},
-
-	// noVNC, VNC
 	"forwardPorts": [6080, 5901],
 	"portsAttributes": {
 		"6080": {
@@ -32,12 +47,6 @@
 			"onAutoForward": "silent"
 		}
 	},
-
-	// Optionally loads a cached yarn install for the repo
-	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
-
-	"remoteUser": "node",
-
 	"hostRequirements": {
 		"memory": "9gb"
 	}

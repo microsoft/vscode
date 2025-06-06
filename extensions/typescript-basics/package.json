@@ -12,6 +12,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.mjs"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -31,6 +32,7 @@
       {
         "id": "typescriptreact",
         "aliases": [
+          "TypeScript JSX",
           "TypeScript React",
           "tsx"
         ],
@@ -54,8 +56,8 @@
       },
       {
         "id": "json",
-        "filenames": [
-          "tsconfig.tsbuildinfo"
+        "extensions": [
+          ".tsbuildinfo"
         ]
       }
     ],
@@ -69,12 +71,11 @@
           "storage.type.function.arrow",
           "keyword.operator.bitwise.shift",
           "meta.brace.angle",
-          "punctuation.definition.tag"
+          "punctuation.definition.tag",
+          "keyword.operator.assignment.compound.bitwise.ts"
         ],
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -89,7 +90,8 @@
           "keyword.operator.relational",
           "storage.type.function.arrow",
           "keyword.operator.bitwise.shift",
-          "punctuation.definition.tag"
+          "punctuation.definition.tag",
+          "keyword.operator.assignment.compound.bitwise.ts"
         ],
         "embeddedLanguages": {
           "meta.tag.tsx": "jsx-tags",
@@ -98,9 +100,7 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { normalize, isAbsolute } from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import { DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
-import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { normalize, isAbsolute } from '../../../../base/common/path.js';
+import * as resources from '../../../../base/common/resources.js';
+import { DEBUG_SCHEME } from './debug.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isUri } from './debugUtils.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -37,7 +38,7 @@ export class Source {
 	available: boolean;
 	raw: DebugProtocol.Source;
 
-	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string, uriIdentityService: IUriIdentityService) {
+	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string, uriIdentityService: IUriIdentityService, logService: ILogService) {
 		let path: string;
 		if (raw_) {
 			this.raw = raw_;
@@ -49,7 +50,7 @@ export class Source {
 			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
 		}
 
-		this.uri = getUriFromSource(this.raw, path, sessionId, uriIdentityService);
+		this.uri = getUriFromSource(this.raw, path, sessionId, uriIdentityService, logService);
 	}
 
 	get name() {
@@ -81,7 +82,7 @@ export class Source {
 				selection,
 				revealIfOpened: true,
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-				pinned: pinned || (!preserveFocus && !this.inMemory)
+				pinned
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
@@ -128,27 +129,37 @@ export class Source {
 	}
 }
 
-export function getUriFromSource(raw: DebugProtocol.Source, path: string | undefined, sessionId: string, uriIdentityService: IUriIdentityService): URI {
-	if (typeof raw.sourceReference === 'number' && raw.sourceReference > 0) {
-		return URI.from({
+export function getUriFromSource(raw: DebugProtocol.Source, path: string | undefined, sessionId: string, uriIdentityService: IUriIdentityService, logService: ILogService): URI {
+	const _getUriFromSource = (path: string | undefined) => {
+		if (typeof raw.sourceReference === 'number' && raw.sourceReference > 0) {
+			return URI.from({
+				scheme: DEBUG_SCHEME,
+				path: path?.replace(/^\/+/g, '/'), // #174054
+				query: `session=${sessionId}&ref=${raw.sourceReference}`
+			});
+		}
+
+		if (path && isUri(path)) {	// path looks like a uri
+			return uriIdentityService.asCanonicalUri(URI.parse(path));
+		}
+		// assume a filesystem path
+		if (path && isAbsolute(path)) {
+			return uriIdentityService.asCanonicalUri(URI.file(path));
+		}
+		// path is relative: since VS Code cannot deal with this by itself
+		// create a debug url that will result in a DAP 'source' request when the url is resolved.
+		return uriIdentityService.asCanonicalUri(URI.from({
 			scheme: DEBUG_SCHEME,
 			path,
-			query: `session=${sessionId}&ref=${raw.sourceReference}`
-		});
-	}
+			query: `session=${sessionId}`
+		}));
+	};
 
-	if (path && isUri(path)) {	// path looks like a uri
-		return uriIdentityService.asCanonicalUri(URI.parse(path));
+
+	try {
+		return _getUriFromSource(path);
+	} catch (err) {
+		logService.error('Invalid path from debug adapter: ' + path);
+		return _getUriFromSource('/invalidDebugSource');
 	}
-	// assume a filesystem path
-	if (path && isAbsolute(path)) {
-		return uriIdentityService.asCanonicalUri(URI.file(path));
-	}
-	// path is relative: since VS Code cannot deal with this by itself
-	// create a debug url that will result in a DAP 'source' request when the url is resolved.
-	return uriIdentityService.asCanonicalUri(URI.from({
-		scheme: DEBUG_SCHEME,
-		path,
-		query: `session=${sessionId}`
-	}));
 }

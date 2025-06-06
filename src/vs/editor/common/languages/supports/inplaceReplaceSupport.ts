@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { IRange } from '../../core/range.js';
+import { IInplaceReplaceSupportResult } from '../../languages.js';
 
 export class BasicInplaceReplace {
 

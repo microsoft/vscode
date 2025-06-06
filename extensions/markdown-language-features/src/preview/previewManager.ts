@@ -147,6 +147,15 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		return this._activePreview?.resourceColumn;
 	}
 
+	public findPreview(resource: vscode.Uri): IManagedMarkdownPreview | undefined {
+		for (const preview of [...this._dynamicPreviews, ...this._staticPreviews]) {
+			if (preview.resource.fsPath === resource.fsPath) {
+				return preview;
+			}
+		}
+		return undefined;
+	}
+
 	public toggleLock() {
 		const preview = this._activePreview;
 		if (preview instanceof DynamicMarkdownPreview) {
@@ -159,6 +168,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 				}
 			}
 		}
+	}
+
+	public openDocumentLink(linkText: string, fromResource: vscode.Uri) {
+		const viewColumn = this.findPreview(fromResource)?.resourceColumn;
+		return this._opener.openDocumentLink(linkText, fromResource, viewColumn);
 	}
 
 	public async deserializeWebviewPanel(
@@ -236,6 +250,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			lineNumber
 		);
 		this._registerStaticPreview(preview);
+		this._activePreview = preview;
 	}
 
 	private _createNewDynamicPreview(

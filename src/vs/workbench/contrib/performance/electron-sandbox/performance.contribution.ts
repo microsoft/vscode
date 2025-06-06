@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { StartupProfiler } from './startupProfiler';
-import { StartupTimings } from './startupTimings';
-import { RendererProfiling } from 'vs/workbench/contrib/performance/electron-sandbox/rendererAutoProfiler';
-import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { StartupProfiler } from './startupProfiler.js';
+import { NativeStartupTimings } from './startupTimings.js';
+import { RendererProfiling } from './rendererAutoProfiler.js';
+import { IConfigurationRegistry, Extensions as ConfigExt } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { localize } from '../../../../nls.js';
+import { applicationConfigurationNodeBase } from '../../../common/configuration.js';
 
+// -- auto profiler
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	RendererProfiling,
@@ -28,19 +30,18 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 // -- startup timings
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupTimings,
+	NativeStartupTimings,
 	LifecyclePhase.Eventually
 );
 
 Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
-	id: 'application',
-	order: 100,
-	type: 'object',
+	...applicationConfigurationNodeBase,
 	'properties': {
 		'application.experimental.rendererProfiling': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('experimental.rendererProfiling', "When enabled slow renderers are automatically profiled")
+			tags: ['experimental', 'onExP'],
+			markdownDescription: localize('experimental.rendererProfiling', "When enabled, slow renderers are automatically profiled.")
 		}
 	}
 });

@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, Event as IpcEvent } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from 'vs/platform/diagnostics/common/diagnostics';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ILogService } from 'vs/platform/log/common/log';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { URI } from '../../../base/common/uri.js';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IMainProcessDiagnostics, IProcessDiagnostics, IRemoteDiagnosticError, IRemoteDiagnosticInfo, IWindowDiagnostics } from '../common/diagnostics.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { ILogService } from '../../log/common/log.js';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 
 export const ID = 'diagnosticsMainService';
 export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);
@@ -79,7 +80,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowDiagnostics[] = [];
-		for (const window of BrowserWindow.getAllWindows()) {
+		for (const window of getAllWindowsExcludingOffscreen()) {
 			const codeWindow = this.windowsMainService.getWindowById(window.id);
 			if (codeWindow) {
 				windows.push(await this.codeWindowToInfo(codeWindow));
@@ -88,10 +89,16 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 			}
 		}
 
+		const pidToNames: IProcessDiagnostics[] = [];
+		for (const { pid, name } of UtilityProcess.getAll()) {
+			pidToNames.push({ pid, name });
+		}
+
 		return {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
+			pidToNames,
 			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		};
@@ -106,6 +113,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowDiagnostics {
 		return {
+			id: window.id,
 			pid: window.webContents.getOSProcessId(),
 			title: window.getTitle(),
 			folderURIs,

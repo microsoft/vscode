@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as types from '../../../base/common/types.js';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { MoveOperations } from './cursorMoveOperations.js';
+import { WordOperations } from './cursorWordOperations.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
+import { IViewModel } from '../viewModel.js';
 
 export class CursorMoveCommands {
 
@@ -138,7 +138,7 @@ export class CursorMoveCommands {
 			}
 
 			result[i] = CursorState.fromModelState(new SingleCursorState(
-				new Range(startLineNumber, 1, startLineNumber, 1), 0,
+				new Range(startLineNumber, 1, startLineNumber, 1), SelectionStartKind.Simple, 0,
 				new Position(endLineNumber, endColumn), 0
 			));
 		}
@@ -168,7 +168,7 @@ export class CursorMoveCommands {
 		const maxColumn = viewModel.model.getLineMaxColumn(lineCount);
 
 		return CursorState.fromModelState(new SingleCursorState(
-			new Range(1, 1, 1, 1), 0,
+			new Range(1, 1, 1, 1), SelectionStartKind.Simple, 0,
 			new Position(lineCount, maxColumn), 0
 		));
 	}
@@ -181,7 +181,7 @@ export class CursorMoveCommands {
 				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
 
-		if (!inSelectionMode || !cursor.modelState.hasSelection()) {
+		if (!inSelectionMode) {
 			// Entering line selection for the first time
 			const lineCount = viewModel.model.getLineCount();
 
@@ -193,7 +193,7 @@ export class CursorMoveCommands {
 			}
 
 			return CursorState.fromModelState(new SingleCursorState(
-				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), 0,
+				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
 				new Position(selectToLineNumber, selectToColumn), 0
 			));
 		}
@@ -204,7 +204,7 @@ export class CursorMoveCommands {
 		if (position.lineNumber < enteringLineNumber) {
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), viewPosition.lineNumber, 1, 0
+				true, viewPosition.lineNumber, 1, 0
 			));
 
 		} else if (position.lineNumber > enteringLineNumber) {
@@ -219,14 +219,14 @@ export class CursorMoveCommands {
 			}
 
 			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0
+				true, selectToViewLineNumber, selectToViewColumn, 0
 			));
 
 		} else {
 
 			const endPositionOfSelectionStart = cursor.modelState.selectionStart.getEndPosition();
 			return CursorState.fromModelState(cursor.modelState.move(
-				cursor.modelState.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
+				true, endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
 			));
 
 		}
@@ -246,12 +246,20 @@ export class CursorMoveCommands {
 		const column = cursor.viewState.position.column;
 
 		return CursorState.fromViewState(new SingleCursorState(
-			new Range(lineNumber, column, lineNumber, column), 0,
+			new Range(lineNumber, column, lineNumber, column), SelectionStartKind.Simple, 0,
 			new Position(lineNumber, column), 0
 		));
 	}
 
 	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition | undefined): PartialCursorState {
+		if (inSelectionMode) {
+			if (cursor.modelState.selectionStartKind === SelectionStartKind.Word) {
+				return this.word(viewModel, cursor, inSelectionMode, _position);
+			}
+			if (cursor.modelState.selectionStartKind === SelectionStartKind.Line) {
+				return this.line(viewModel, cursor, inSelectionMode, _position, _viewPosition);
+			}
+		}
 		const position = viewModel.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -435,7 +443,7 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
@@ -454,7 +462,7 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
@@ -588,7 +596,7 @@ export namespace CursorMove {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata: ICommandMetadata = {
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{

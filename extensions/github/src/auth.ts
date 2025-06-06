@@ -5,9 +5,12 @@
 
 import { AuthenticationSession, authentication, window } from 'vscode';
 import { Agent, globalAgent } from 'https';
+import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
+
+export class AuthenticationError extends Error { }
 
 function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 	if (!url) {
@@ -52,4 +55,37 @@ export function getOctokit(): Promise<Octokit> {
 	}
 
 	return _octokit;
+}
+
+let _octokitGraphql: graphql | undefined;
+
+export async function getOctokitGraphql(): Promise<graphql> {
+	if (!_octokitGraphql) {
+		try {
+			const session = await authentication.getSession('github', scopes, { silent: true });
+
+			if (!session) {
+				throw new AuthenticationError('No GitHub authentication session available.');
+			}
+
+			const token = session.accessToken;
+			const { graphql } = await import('@octokit/graphql');
+
+			_octokitGraphql = graphql.defaults({
+				headers: {
+					authorization: `token ${token}`
+				},
+				request: {
+					agent: getAgent()
+				}
+			});
+
+			return _octokitGraphql;
+		} catch (err) {
+			_octokitGraphql = undefined;
+			throw new AuthenticationError(err.message);
+		}
+	}
+
+	return _octokitGraphql;
 }

@@ -11,7 +11,8 @@ export class QuickInput {
 	private static QUICK_INPUT_INPUT = `${QuickInput.QUICK_INPUT} .quick-input-box input`;
 	private static QUICK_INPUT_ROW = `${QuickInput.QUICK_INPUT} .quick-input-list .monaco-list-row`;
 	private static QUICK_INPUT_FOCUSED_ELEMENT = `${QuickInput.QUICK_INPUT_ROW}.focused .monaco-highlighted-label`;
-	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .label-name`;
+	// Note: this only grabs the label and not the description or detail
+	private static QUICK_INPUT_ENTRY_LABEL = `${QuickInput.QUICK_INPUT_ROW} .quick-input-list-row > .monaco-icon-label .label-name`;
 	private static QUICK_INPUT_ENTRY_LABEL_SPAN = `${QuickInput.QUICK_INPUT_ROW} .monaco-highlighted-label`;
 
 	constructor(private code: Code) { }
@@ -33,8 +34,7 @@ export class QuickInput {
 	}
 
 	async closeQuickInput(): Promise<void> {
-		await this.code.dispatchKeybinding('escape');
-		await this.waitForQuickInputClosed();
+		await this.code.sendKeybinding('escape', () => this.waitForQuickInputClosed());
 	}
 
 	async waitForQuickInputElements(accept: (names: string[]) => boolean): Promise<void> {
@@ -48,11 +48,12 @@ export class QuickInput {
 	async selectQuickInputElement(index: number, keepOpen?: boolean): Promise<void> {
 		await this.waitForQuickInputOpened();
 		for (let from = 0; from < index; from++) {
-			await this.code.dispatchKeybinding('down');
+			await this.code.sendKeybinding('down');
 		}
-		await this.code.dispatchKeybinding('enter');
-		if (!keepOpen) {
-			await this.waitForQuickInputClosed();
-		}
+		await this.code.sendKeybinding('enter', async () => {
+			if (!keepOpen) {
+				await this.waitForQuickInputClosed();
+			}
+		});
 	}
 }

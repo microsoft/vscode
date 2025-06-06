@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import type { IShellLaunchConfig } from './terminal.js';
 
+/**
+ * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
+ * escaping inaccurately to be careful about possible script injection via the file path. For
+ * example, we're trying to prevent this sort of attack: `/foo/file$(echo evil)`.
+ */
 export function escapeNonWindowsPath(path: string): string {
 	let newPath = path;
-	if (newPath.indexOf('\\') !== 0) {
+	if (newPath.includes('\\')) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
@@ -53,4 +59,12 @@ export function sanitizeCwd(cwd: string): string {
 		return cwd[0].toUpperCase() + cwd.substring(1);
 	}
 	return cwd;
+}
+
+/**
+ * Determines whether the given shell launch config should use the environment variable collection.
+ * @param slc The shell launch config to check.
+ */
+export function shouldUseEnvironmentVariableCollection(slc: IShellLaunchConfig): boolean {
+	return !slc.strictEnv;
 }

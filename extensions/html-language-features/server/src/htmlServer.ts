@@ -7,11 +7,12 @@ import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit,
+	TextDocumentContentRequest
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData, FILE_PROTOCOL
 } from './modes/languageModes';
 
 import { format } from './modes/formatting';
@@ -120,8 +121,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
 				const scopeUri = textDocument.uri;
-				const configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
+				const sections = ['css', 'html', 'javascript', 'js/ts'];
+				const configRequestParam: ConfigurationParams = { items: sections.map(section => ({ scopeUri, section })) };
+				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2], 'js/ts': s[3] }));
 				documentSettings[textDocument.uri] = promise;
 			}
 			return promise;
@@ -212,6 +214,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				documentSelector: null,
 				interFileDependencies: false,
 				workspaceDiagnostics: false
+			},
+			workspace: {
+				textDocumentContent: { schemes: [FILE_PROTOCOL] }
 			}
 		};
 		return { capabilities };
@@ -581,6 +586,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
+	});
+
+	connection.onRequest(TextDocumentContentRequest.type, (params, token) => {
+		return runSafe(runtime, async () => {
+			for (const languageMode of languageModes.getAllModes()) {
+				const content = await languageMode.getTextDocumentContent?.(params.uri);
+				if (content) {
+					return { text: content };
+				}
+			}
+			return null;
+		}, null, `Error while computing text document content for ${params.uri}`, token);
 	});
 
 	// Listen on the connection

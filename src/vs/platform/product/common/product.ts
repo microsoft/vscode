@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { env } from '../../../base/common/process.js';
+import { IProductConfiguration } from '../../../base/common/product.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 
 /**
- * @deprecated You MUST use `IProductService` if possible.
+ * @deprecated It is preferred that you use `IProductService` if you can. This
+ * allows web embedders to override our defaults. But for things like `product.quality`,
+ * the use is fine because that property is not overridable.
  */
 let product: IProductConfiguration;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== 'undefined') {
-	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
+const vscodeGlobal = (globalThis as any).vscode;
+if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.context !== 'undefined') {
+	const configuration: ISandboxConfiguration | undefined = vscodeGlobal.context.configuration();
 	if (configuration) {
 		product = configuration.product;
 	} else {
@@ -25,7 +27,7 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== '
 // _VSCODE environment
 else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 	// Obtain values from product.json and package.json-data
-	product = globalThis._VSCODE_PRODUCT_JSON as IProductConfiguration;
+	product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
@@ -53,12 +55,12 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 else {
 
 	// Built time configuration (do NOT modify)
-	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
+	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as any;
 
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.72.0-dev',
+			version: '1.95.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -66,12 +68,10 @@ else {
 			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
 		});
 	}
 }
 
-/**
- * @deprecated You MUST use `IProductService` if possible.
- */
 export default product;

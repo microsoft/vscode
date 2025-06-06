@@ -36,7 +36,6 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
-		"activityBarItem.profilesBackground": "#003271",
 		"progressBar.background": "#bbdaffcc",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
@@ -70,7 +69,8 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"meta.jsx.children",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				//"background": "#002451",
@@ -117,7 +117,7 @@
 		},
 		{
 			"name": "String, Symbols, Inherited Class, Markup Heading, GitGutter inserted",
-			"scope": "string, constant.other.symbol, entity.other.inherited-class, markup.heading, markup.inserted.git_gutter",
+			"scope": "string, constant.other.symbol, entity.other.inherited-class, punctuation.separator.namespace.ruby, markup.heading, markup.inserted.git_gutter",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#D1F1A9"
@@ -140,7 +140,7 @@
 		},
 		{
 			"name": "Keyword, Storage",
-			"scope": "keyword, storage, storage.type, entity.name.tag.css",
+			"scope": "keyword, storage, storage.type, entity.name.tag.css, entity.name.tag.less",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#EBBBFF"

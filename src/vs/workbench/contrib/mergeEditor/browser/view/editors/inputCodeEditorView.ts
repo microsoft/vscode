@@ -3,34 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, h, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { noBreakWhitespace } from 'vs/base/common/strings';
-import { isDefined } from 'vs/base/common/types';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
-import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
+import { addDisposableListener, EventType, h, reset } from '../../../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Toggle } from '../../../../../../base/browser/ui/toggle/toggle.js';
+import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
+import { autorun, autorunOpts, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { noBreakWhitespace } from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../../base/common/types.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { defaultToggleStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from '../../model/modifiedBaseRange.js';
+import { applyObservableDecorations, setFields } from '../../utils.js';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors.js';
+import { MergeEditorViewModel } from '../viewModel.js';
+import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter.js';
+import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView.js';
 
 export class InputCodeEditorView extends CodeEditorView {
-	public readonly otherInputNumber = this.inputNumber === 1 ? 2 : 1;
+	public readonly otherInputNumber;
 
 	constructor(
 		public readonly inputNumber: 1 | 2,
@@ -40,22 +39,133 @@ export class InputCodeEditorView extends CodeEditorView {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(instantiationService, viewModel, configurationService);
+		this.otherInputNumber = this.inputNumber === 1 ? 2 : 1;
+		this.modifiedBaseRangeGutterItemInfos = derivedOpts({ debugName: `input${this.inputNumber}.modifiedBaseRangeGutterItemInfos` }, reader => {
+			const viewModel = this.viewModel.read(reader);
+			if (!viewModel) { return []; }
+			const model = viewModel.model;
+			const inputNumber = this.inputNumber;
+
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+
+			return model.modifiedBaseRanges.read(reader)
+				.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
+				.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
+		});
+		this.decorations = derivedOpts({ debugName: `input${this.inputNumber}.decorations` }, reader => {
+			const viewModel = this.viewModel.read(reader);
+			if (!viewModel) {
+				return [];
+			}
+			const model = viewModel.model;
+			const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
+
+			const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
+
+			const result = new Array<IModelDeltaDecoration>();
+
+			const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+			const showDeletionMarkers = this.showDeletionMarkers.read(reader);
+			const diffWithThis = viewModel.baseCodeEditorView.read(reader) !== undefined && viewModel.baseShowDiffAgainst.read(reader) === this.inputNumber;
+			const useSimplifiedDecorations = !diffWithThis && this.useSimplifiedDecorations.read(reader);
+
+			for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
+				const range = modifiedBaseRange.getInputRange(this.inputNumber);
+				if (!range) {
+					continue;
+				}
+
+				const blockClassNames = ['merge-editor-block'];
+				let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
+				const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
+				if (isHandled) {
+					blockClassNames.push('handled');
+				}
+				if (modifiedBaseRange === activeModifiedBaseRange) {
+					blockClassNames.push('focused');
+					blockPadding = [0, 2, 0, 2];
+				}
+				if (modifiedBaseRange.isConflicting) {
+					blockClassNames.push('conflicting');
+				}
+				const inputClassName = this.inputNumber === 1 ? 'input i1' : 'input i2';
+				blockClassNames.push(inputClassName);
+
+				if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
+					continue;
+				}
+
+				if (useSimplifiedDecorations && !isHandled) {
+					blockClassNames.push('use-simplified-decorations');
+				}
+
+				result.push({
+					range: range.toInclusiveRangeOrEmpty(),
+					options: {
+						showIfCollapsed: true,
+						blockClassName: blockClassNames.join(' '),
+						blockPadding,
+						blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
+						description: 'Merge Editor',
+						minimap: {
+							position: MinimapPosition.Gutter,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						},
+						overviewRuler: modifiedBaseRange.isConflicting ? {
+							position: OverviewRulerLane.Center,
+							color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
+						} : undefined
+					}
+				});
+
+				if (!useSimplifiedDecorations && (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader))) {
+					const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
+					for (const diff of inputDiffs) {
+						const range = diff.outputRange.toInclusiveRange();
+						if (range) {
+							result.push({
+								range,
+								options: {
+									className: `merge-editor-diff ${inputClassName}`,
+									description: 'Merge Editor',
+									isWholeLine: true,
+								}
+							});
+						}
+
+						if (diff.rangeMappings) {
+							for (const d of diff.rangeMappings) {
+								if (showDeletionMarkers || !d.outputRange.isEmpty()) {
+									result.push({
+										range: d.outputRange,
+										options: {
+											className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
+											description: 'Merge Editor',
+											showIfCollapsed: true,
+										}
+									});
+								}
+							}
+						}
+					}
+				}
+			}
+			return result;
+		});
 
 		this.htmlElements.root.classList.add(`input`);
 
 		this._register(
-			autorunWithStore((reader, store) => {
-				if (this.checkboxesVisible.read(reader)) {
-					store.add(
-						new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-							getIntersectingGutterItems: (range, reader) => {
-								return this.modifiedBaseRangeGutterItemInfos.read(reader);
-							},
-							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
-						})
-					);
-				}
-			}, 'update checkboxes')
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => {
+					if (this.checkboxesVisible.read(reader)) {
+						return this.modifiedBaseRangeGutterItemInfos.read(reader);
+					} else {
+						return [];
+					}
+				},
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
+			})
 		);
 
 		this._register(
@@ -72,7 +182,7 @@ export class InputCodeEditorView extends CodeEditorView {
 			)
 		);
 
-		this._register(autorun('input${this.inputNumber}: update labels & text model', reader => {
+		this._register(autorunOpts({ debugName: `input${this.inputNumber}: update labels & text model` }, reader => {
 			const vm = this.viewModel.read(reader);
 			if (!vm) {
 				return;
@@ -101,125 +211,14 @@ export class InputCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly modifiedBaseRangeGutterItemInfos = derived(`input${this.inputNumber}.modifiedBaseRangeGutterItemInfos`, reader => {
-		const viewModel = this.viewModel.read(reader);
-		if (!viewModel) { return []; }
-		const model = viewModel.model;
-		const inputNumber = this.inputNumber;
+	private readonly modifiedBaseRangeGutterItemInfos;
 
-		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-
-		return model.modifiedBaseRanges.read(reader)
-			.filter((r) => r.getInputDiffs(this.inputNumber).length > 0 && (showNonConflictingChanges || r.isConflicting || !model.isHandled(r).read(reader)))
-			.map((baseRange, idx) => new ModifiedBaseRangeGutterItemModel(idx.toString(), baseRange, inputNumber, viewModel));
-	});
-
-	private readonly decorations = derived(`input${this.inputNumber}.decorations`, reader => {
-		const viewModel = this.viewModel.read(reader);
-		if (!viewModel) {
-			return [];
-		}
-		const model = viewModel.model;
-		const textModel = (this.inputNumber === 1 ? model.input1 : model.input2).textModel;
-
-		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
-
-		const result = new Array<IModelDeltaDecoration>();
-
-		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
-		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
-		const diffWithThis = viewModel.baseCodeEditorView.read(reader) !== undefined && viewModel.baseShowDiffAgainst.read(reader) === this.inputNumber;
-		const useSimplifiedDecorations = !diffWithThis && this.useSimplifiedDecorations.read(reader);
-
-		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
-			const range = modifiedBaseRange.getInputRange(this.inputNumber);
-			if (!range) {
-				continue;
-			}
-
-			const blockClassNames = ['merge-editor-block'];
-			const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
-			if (isHandled) {
-				blockClassNames.push('handled');
-			}
-			if (modifiedBaseRange === activeModifiedBaseRange) {
-				blockClassNames.push('focused');
-			}
-			if (modifiedBaseRange.isConflicting) {
-				blockClassNames.push('conflicting');
-			}
-			const inputClassName = this.inputNumber === 1 ? 'input i1' : 'input i2';
-			blockClassNames.push(inputClassName);
-
-			if (!modifiedBaseRange.isConflicting && !showNonConflictingChanges && isHandled) {
-				continue;
-			}
-
-			if (useSimplifiedDecorations && !isHandled) {
-				blockClassNames.push('use-simplified-decorations');
-			}
-
-			result.push({
-				range: range.toInclusiveRangeOrEmpty(),
-				options: {
-					showIfCollapsed: true,
-					blockClassName: blockClassNames.join(' '),
-					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
-					description: 'Merge Editor',
-					minimap: {
-						position: MinimapPosition.Gutter,
-						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-					},
-					overviewRuler: modifiedBaseRange.isConflicting ? {
-						position: OverviewRulerLane.Center,
-						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
-					} : undefined
-				}
-			});
-
-			if (!useSimplifiedDecorations && (modifiedBaseRange.isConflicting || !model.isHandled(modifiedBaseRange).read(reader))) {
-				const inputDiffs = modifiedBaseRange.getInputDiffs(this.inputNumber);
-				for (const diff of inputDiffs) {
-					const range = diff.outputRange.toInclusiveRange();
-					if (range) {
-						result.push({
-							range,
-							options: {
-								className: `merge-editor-diff ${inputClassName}`,
-								description: 'Merge Editor',
-								isWholeLine: true,
-							}
-						});
-					}
-
-					if (diff.rangeMappings) {
-						for (const d of diff.rangeMappings) {
-							if (showDeletionMarkers || !d.outputRange.isEmpty()) {
-								result.push({
-									range: d.outputRange,
-									options: {
-										className: d.outputRange.isEmpty() ? `merge-editor-diff-empty-word ${inputClassName}` : `merge-editor-diff-word ${inputClassName}`,
-										description: 'Merge Editor',
-										showIfCollapsed: true,
-									}
-								});
-							}
-						}
-					}
-				}
-			}
-		}
-		return result;
-	});
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
+	private readonly decorations;
 }
 
 export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
-	private readonly model = this.viewModel.model;
-	public readonly range = this.baseRange.getInputRange(this.inputNumber);
+	private readonly model;
+	public readonly range;
 
 	constructor(
 		public readonly id: string,
@@ -227,30 +226,35 @@ export class ModifiedBaseRangeGutterItemModel implements IGutterItemInfo {
 		private readonly inputNumber: 1 | 2,
 		private readonly viewModel: MergeEditorViewModel
 	) {
+		this.model = this.viewModel.model;
+		this.range = this.baseRange.getInputRange(this.inputNumber);
+		this.enabled = this.model.isUpToDate;
+		this.toggleState = derived(this, reader => {
+			const input = this.model
+				.getState(this.baseRange)
+				.read(reader)
+				.getInput(this.inputNumber);
+			return input === InputState.second && !this.baseRange.isOrderRelevant
+				? InputState.first
+				: input;
+		});
+		this.state = derived(this, reader => {
+			const active = this.viewModel.activeModifiedBaseRange.read(reader);
+			if (!this.model.hasBaseRange(this.baseRange)) {
+				return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
+			}
+			return {
+				handled: this.model.isHandled(this.baseRange).read(reader),
+				focused: this.baseRange === active,
+			};
+		});
 	}
 
-	public readonly enabled = this.model.isUpToDate;
+	public readonly enabled;
 
-	public readonly toggleState: IObservable<InputState> = derived('checkbox is checked', (reader) => {
-		const input = this.model
-			.getState(this.baseRange)
-			.read(reader)
-			.getInput(this.inputNumber);
-		return input === InputState.second && !this.baseRange.isOrderRelevant
-			? InputState.first
-			: input;
-	});
+	public readonly toggleState: IObservable<InputState>;
 
-	public readonly state: IObservable<{ handled: boolean; focused: boolean }> = derived('checkbox state', (reader) => {
-		const active = this.viewModel.activeModifiedBaseRange.read(reader);
-		if (!this.model.hasBaseRange(this.baseRange)) {
-			return { handled: false, focused: false }; // Invalid state, should only be observed temporarily
-		}
-		return {
-			handled: this.model.isHandled(this.baseRange).read(reader),
-			focused: this.baseRange === active,
-		};
-	});
+	public readonly state: IObservable<{ handled: boolean; focused: boolean }>;
 
 	public setState(value: boolean, tx: ITransaction): void {
 		this.viewModel.setState(
@@ -367,7 +371,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	private readonly item: ISettableObservable<ModifiedBaseRangeGutterItemModel>;
 
 	private readonly checkboxDiv: HTMLDivElement;
-	private readonly isMultiLine = observableValue('isMultiLine', false);
+	private readonly isMultiLine = observableValue(this, false);
 
 	constructor(
 		item: ModifiedBaseRangeGutterItemModel,
@@ -376,7 +380,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 	) {
 		super();
 
-		this.item = observableValue('item', item);
+		this.item = observableValue(this, item);
 
 		const checkBox = new Toggle({
 			isChecked: false,
@@ -412,10 +416,11 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 		);
 
 		this._register(
-			autorun('Update Checkbox', (reader) => {
+			autorun(reader => {
+				/** @description Update Checkbox */
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
+				const iconMap: Record<InputState, { icon: ThemeIcon | undefined; checked: boolean; title: string }> = {
 					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
 					[InputState.unrecognized]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
 					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },
@@ -434,7 +439,8 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			})
 		);
 
-		this._register(autorun('Update Checkbox CSS ClassNames', (reader) => {
+		this._register(autorun(reader => {
+			/** @description Update Checkbox CSS ClassNames */
 			const state = this.item.read(reader).state.read(reader);
 			const classNames = [
 				'merge-accept-gutter-marker',

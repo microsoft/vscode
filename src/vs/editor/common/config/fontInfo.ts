@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { EditorFontVariations, EditorOptions, EditorOption, FindComputedEditorOptionValueById, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import * as platform from '../../../base/common/platform.js';
+import { EditorFontVariations, EditorOptions, EditorOption, FindComputedEditorOptionValueById, EDITOR_FONT_DEFAULTS } from './editorOptions.js';
+import { EditorZoom } from './editorZoom.js';
 
 /**
  * Determined from empirical observations.
  * @internal
  */
-const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
+export const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 /**
  * @internal
  */
-const MINIMUM_LINE_HEIGHT = 8;
+export const MINIMUM_LINE_HEIGHT = 8;
 
 /**
  * @internal
@@ -45,7 +45,7 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public static createFromRawSettings(opts: { fontFamily?: string | string[]; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; fontVariations?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
+	public static createFromRawSettings(opts: { fontFamily?: string; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; fontVariations?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
 		const fontFamily = EditorOptions.fontFamily.validate(opts.fontFamily);
 		const fontWeight = EditorOptions.fontWeight.validate(opts.fontWeight);
 		const fontSize = EditorOptions.fontSize.validate(opts.fontSize);

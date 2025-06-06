@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { Emitter, Event } from './event.js';
+import { Disposable, IDisposable } from './lifecycle.js';
+import * as nls from '../../nls.js';
 
 export interface ITelemetryData {
 	readonly from?: string;
@@ -14,15 +14,17 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	owner: 'bpasero';
-	comment: 'TODO @bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
+	owner: 'isidorn';
+	comment: 'Provides insight into actions that are executed within the workbench.';
 };
 
 export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
+	detail?: string;
 };
 
 export interface IAction {
@@ -32,7 +34,7 @@ export interface IAction {
 	class: string | undefined;
 	enabled: boolean;
 	checked?: boolean;
-	run(event?: unknown): unknown;
+	run(...args: unknown[]): unknown;
 }
 
 export interface IActionRunner extends IDisposable {
@@ -256,14 +258,14 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
+export function toAction(props: { id: string; label: string; tooltip?: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,
-		class: undefined,
+		tooltip: props.tooltip ?? props.label,
+		class: props.class,
 		enabled: props.enabled ?? true,
-		checked: props.checked ?? false,
-		run: async () => props.run(),
-		tooltip: props.label
+		checked: props.checked,
+		run: async (...args: unknown[]) => props.run(...args),
 	};
 }

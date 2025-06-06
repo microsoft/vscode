@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { applyObservableDecorations } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
+import { h, reset } from '../../../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { IObservable, autorun, autorunWithStore, derived } from '../../../../../../base/common/observable.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { applyObservableDecorations } from '../../utils.js';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors.js';
+import { EditorGutter } from '../editorGutter.js';
+import { MergeEditorViewModel } from '../viewModel.js';
+import { CodeEditorView, TitleMenu, createSelectionsAutorun } from './codeEditorView.js';
 
 export class BaseCodeEditorView extends CodeEditorView {
 	constructor(
@@ -38,17 +36,19 @@ export class BaseCodeEditorView extends CodeEditorView {
 
 		this._register(
 			autorunWithStore((reader, store) => {
+				/** @description update checkboxes */
 				if (this.checkboxesVisible.read(reader)) {
 					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 						getIntersectingGutterItems: (range, reader) => [],
 						createView: (item, target) => { throw new BugIndicatingError(); },
 					}));
 				}
-			}, 'update checkboxes')
+			})
 		);
 
 		this._register(
-			autorun('update labels & text model', (reader) => {
+			autorun(reader => {
+				/** @description update labels & text model */
 				const vm = this.viewModel.read(reader);
 				if (!vm) {
 					return;
@@ -71,7 +71,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly decorations = derived(`base.decorations`, reader => {
+	private readonly decorations = derived(this, reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -97,11 +97,13 @@ export class BaseCodeEditorView extends CodeEditorView {
 			}
 
 			const blockClassNames = ['merge-editor-block'];
+			let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
 			if (modifiedBaseRange === activeModifiedBaseRange) {
 				blockClassNames.push('focused');
+				blockPadding = [0, 2, 0, 2];
 			}
 			blockClassNames.push('base');
 
@@ -141,6 +143,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockPadding,
 					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
@@ -156,8 +159,4 @@ export class BaseCodeEditorView extends CodeEditorView {
 		}
 		return result;
 	});
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
 }

@@ -52,7 +52,7 @@
 	display: flex;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .label {
 	margin-right: 4px;
 }
 
@@ -60,9 +60,10 @@
 	margin-right: 4px;
 }
 
-/* Allow the badge to be a bit shorter so it does not look cut off */
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper .monaco-count-badge {
+	/* Allow the badge to be a bit shorter so it does not look cut off */
 	min-height: 16px;
+	word-break: keep-all;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
@@ -70,7 +71,8 @@
 	left: 2px;
 }
 
-.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source,
+.monaco-workbench .repl .repl-tree .group .source {
 	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;

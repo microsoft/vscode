@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { equals } from 'vs/base/common/arrays';
-import { Queue } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
-import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
-import { Language } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import { equals } from '../../../base/common/arrays.js';
+import { Queue } from '../../../base/common/async.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from '../../extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../extensionManagement/common/extensionManagementUtil.js';
+import { ILogService } from '../../log/common/log.js';
+import { ILocalizationContribution } from '../../extensions/common/extensions.js';
+import { ILanguagePackItem, LanguagePackBaseService } from '../common/languagePacks.js';
+import { URI } from '../../../base/common/uri.js';
 
 interface ILanguagePack {
 	hash: string;
@@ -50,11 +50,11 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 		});
 	}
 
-	async getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined> {
+	async getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined> {
 		const packs = await this.cache.getLanguagePacks();
-		const pack = packs[Language.value()];
+		const pack = packs[language];
 		if (!pack) {
-			this.logService.warn(`No language pack found for ${Language.value()}`);
+			this.logService.warn(`No language pack found for ${language}`);
 			return undefined;
 		}
 
@@ -64,7 +64,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 
 	async getInstalledLanguages(): Promise<Array<ILanguagePackItem>> {
 		const languagePacks = await this.cache.getLanguagePacks();
-		const languages = Object.keys(languagePacks).map(locale => {
+		const languages: ILanguagePackItem[] = Object.keys(languagePacks).map(locale => {
 			const languagePack = languagePacks[locale];
 			const baseQuickPick = this.createQuickPickItem(locale, languagePack.label);
 			return {
@@ -72,10 +72,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 				extensionId: languagePack.extensions[0].extensionIdentifier.id,
 			};
 		});
-		languages.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		languages.push(this.createQuickPickItem('en', 'English'));
 		languages.sort((a, b) => a.label.localeCompare(b.label));
 		return languages;
 	}
@@ -173,9 +170,9 @@ class LanguagePacksCache extends Disposable {
 
 	private updateHash(languagePack: ILanguagePack): void {
 		if (languagePack) {
-			const md5 = createHash('md5');
+			const md5 = createHash('md5'); // CodeQL [SM04514] Used to create an hash for language pack extension version, which is not a security issue
 			for (const extension of languagePack.extensions) {
-				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version);
+				md5.update(extension.extensionIdentifier.uuid || extension.extensionIdentifier.id).update(extension.version); // CodeQL [SM01510] The extension UUID is not sensitive info and is not manually created by a user
 			}
 			languagePack.hash = md5.digest('hex');
 		}
@@ -184,7 +181,7 @@ class LanguagePacksCache extends Disposable {
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
-			return Promises.readFile(this.languagePacksFilePath, 'utf8')
+			return fs.promises.readFile(this.languagePacksFilePath, 'utf8')
 				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })

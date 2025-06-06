@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
+import { IRange } from './core/range.js';
+import { Selection } from './core/selection.js';
+import { IModelDecoration, InjectedTextOptions } from './model.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -34,7 +34,7 @@ export interface IModelLanguageConfigurationChangedEvent {
 
 export interface IModelContentChange {
 	/**
-	 * The range that got replaced.
+	 * The old range that got replaced.
 	 */
 	readonly range: IRange;
 	/**
@@ -55,6 +55,9 @@ export interface IModelContentChange {
  * An event describing a change in the text of a model.
  */
 export interface IModelContentChangedEvent {
+	/**
+	 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
+	 */
 	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
@@ -77,6 +80,11 @@ export interface IModelContentChangedEvent {
 	 * The model has been reset to a new value.
 	 */
 	readonly isFlush: boolean;
+
+	/**
+	 * Flag that indicates that this event describes an eol change.
+	 */
+	readonly isEolChange: boolean;
 }
 
 /**
@@ -85,6 +93,8 @@ export interface IModelContentChangedEvent {
 export interface IModelDecorationsChangedEvent {
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
+	readonly affectsGlyphMargin: boolean;
+	readonly affectsLineNumber: boolean;
 }
 
 /**
@@ -92,7 +102,6 @@ export interface IModelDecorationsChangedEvent {
  * @internal
  */
 export interface IModelTokensChangedEvent {
-	readonly tokenizationSupportChanged: boolean;
 	readonly semanticTokensApplied: boolean;
 	readonly ranges: {
 		/**
@@ -225,6 +234,37 @@ export class ModelRawLineChanged {
 	}
 }
 
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelLineHeightChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The decoration ID that has changed.
+	 */
+	public readonly decorationId: string;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
+	 * The line height on the line.
+	 */
+	public readonly lineHeight: number | null;
+
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+		this.ownerId = ownerId;
+		this.decorationId = decorationId;
+		this.lineNumber = lineNumber;
+		this.lineHeight = lineHeight;
+	}
+}
+
 /**
  * An event describing that line(s) have been deleted in a model.
  * @internal
@@ -353,6 +393,19 @@ export class ModelInjectedTextChangedEvent {
 }
 
 /**
+ * An event describing a change of a line height.
+ * @internal
+ */
+export class ModelLineHeightChangedEvent {
+
+	public readonly changes: ModelLineHeightChanged[];
+
+	constructor(changes: ModelLineHeightChanged[]) {
+		this.changes = changes;
+	}
+}
+
+/**
  * @internal
  */
 export class InternalModelContentChangeEvent {
@@ -374,13 +427,15 @@ export class InternalModelContentChangeEvent {
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
 		const isFlush = (a.isFlush || b.isFlush);
+		const isEolChange = a.isEolChange && b.isEolChange; // both must be true to not confuse listeners who skip such edits
 		return {
 			changes: changes,
 			eol: eol,
+			isEolChange: isEolChange,
 			versionId: versionId,
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
-			isFlush: isFlush
+			isFlush: isFlush,
 		};
 	}
 }

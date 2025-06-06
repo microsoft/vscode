@@ -37,10 +37,22 @@ export class MdLinkOpener {
 				return vscode.commands.executeCommand('revealInExplorer', uri);
 
 			case 'file': {
-				return vscode.commands.executeCommand('vscode.open', uri, <vscode.TextDocumentShowOptions>{
+				// If no explicit viewColumn is given, check if the editor is already open in a tab
+				if (typeof viewColumn === 'undefined') {
+					for (const tab of vscode.window.tabGroups.all.flatMap(x => x.tabs)) {
+						if (tab.input instanceof vscode.TabInputText) {
+							if (tab.input.uri.fsPath === uri.fsPath) {
+								viewColumn = tab.group.viewColumn;
+								break;
+							}
+						}
+					}
+				}
+
+				return vscode.commands.executeCommand('vscode.open', uri, {
 					selection: resolved.position ? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character) : undefined,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
-				});
+				} satisfies vscode.TextDocumentShowOptions);
 			}
 		}
 	}

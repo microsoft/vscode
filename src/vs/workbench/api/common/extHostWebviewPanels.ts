@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from 'vs/workbench/api/common/extHostWebview';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+/* eslint-disable local/code-no-native-private */
+
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import { serializeWebviewOptions, ExtHostWebview, ExtHostWebviews, toExtensionData, shouldSerializeBuffersForPostMessage } from './extHostWebview.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import type * as vscode from 'vscode';
-import * as extHostProtocol from './extHost.protocol';
-import * as extHostTypes from './extHostTypes';
+import * as extHostProtocol from './extHost.protocol.js';
+import * as extHostTypes from './extHostTypes.js';
 
 
 type IconPath = URI | { readonly light: URI; readonly dark: URI };
@@ -167,7 +169,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	}
 }
 
-export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanelsShape {
+export class ExtHostWebviewPanels extends Disposable implements extHostProtocol.ExtHostWebviewPanelsShape {
 
 	private static newHandle(): extHostProtocol.WebviewHandle {
 		return generateUuid();
@@ -187,7 +189,15 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		private readonly webviews: ExtHostWebviews,
 		private readonly workspace: IExtHostWorkspace | undefined,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewPanels);
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this._webviewPanels.forEach(value => value.dispose());
+		this._webviewPanels.clear();
 	}
 
 	public createWebviewPanel(

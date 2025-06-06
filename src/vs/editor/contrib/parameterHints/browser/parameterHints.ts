@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ParameterHintsWidget } from './parameterHintsWidget';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import * as languages from '../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { ParameterHintsModel, TriggerContext } from './parameterHintsModel.js';
+import { Context } from './provideSignatureHelp.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ParameterHintsWidget } from './parameterHintsWidget.js';
 
-class ParameterHintsController extends Disposable implements IEditorContribution {
+export class ParameterHintsController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.controller.parameterHints';
 
@@ -45,8 +45,8 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
-				this.widget.getValue().show();
-				this.widget.getValue().render(newParameterHints);
+				this.widget.value.show();
+				this.widget.value.render(newParameterHints);
 			} else {
 				this.widget.rawValue?.hide();
 			}
@@ -77,8 +77,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.triggerParameterHints',
-			label: nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
-			alias: 'Trigger Parameter Hints',
+			label: nls.localize2('parameterHints.trigger.label', "Trigger Parameter Hints"),
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -96,7 +95,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.Idle);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;

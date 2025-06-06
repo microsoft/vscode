@@ -114,7 +114,7 @@
 	},
 	"autoCloseBefore": ";:.,={}])>\\` \n\t$",
 	"wordPattern": {
-		"pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}){2,}",
+		"pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}){1,}",
 		"flags": "u"
 	}
 }

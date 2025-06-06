@@ -5,9 +5,11 @@
 
 import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { mixin } from 'vs/base/common/objects';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { importAMDNodeModule } from '../../../amdX.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { mixin } from '../../../base/common/objects.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { ITelemetryAppender, validateTelemetryData } from './telemetryUtils.js';
 
 // Interface type which is a subset of @microsoft/1ds-core-js AppInsightsCore.
 // Allows us to more easily build mock objects for testing as the interface is quite large and we only need a few properties.
@@ -18,10 +20,14 @@ export interface IAppInsightsCore {
 }
 
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
+const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
-	const oneDs = await import('@microsoft/1ds-core-js');
-	const postPlugin = await import('@microsoft/1ds-post-js');
+	// eslint-disable-next-line local/code-amd-node-module
+	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
+	// eslint-disable-next-line local/code-amd-node-module
+	const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js') : await import('@microsoft/1ds-post-js');
+
 	const appInsightsCore = new oneDs.AppInsightsCore();
 	const collectorChannelPlugin: PostChannel = new postPlugin.PostChannel();
 	// Configure the app insights core to send to collector++ and disable logging of debug info
@@ -43,6 +49,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 		// Configure the channel to use a XHR Request override since it's not available in node
 		const channelConfig: IChannelConfiguration = {
 			alwaysUseXhrOverride: true,
+			ignoreMc1Ms0CookieProcessing: true,
 			httpXHROverride: xhrOverride
 		};
 		coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
@@ -50,9 +57,13 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	appInsightsCore.addTelemetryInitializer((envelope) => {
+	appInsightsCore.addTelemetryInitializer((envelope: any) => {
+		// Opt the user out of 1DS data sharing
+		envelope['ext'] = envelope['ext'] ?? {};
+		envelope['ext']['web'] = envelope['ext']['web'] ?? {};
+		envelope['ext']['web']['consentDetails'] = '{"GPC_DataSharingOptIn":false}';
+
 		if (addInternalFlag) {
-			envelope['ext'] = envelope['ext'] ?? {};
 			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
 			// Sets it to be internal only based on Windows UTC flagging
 			envelope['ext']['utc']['flags'] = 0x0000811ECD;
@@ -68,6 +79,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	protected _aiCoreOrKey: IAppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
 	protected readonly endPointUrl = endpointUrl;
+	protected readonly endPointHealthUrl = endpointHealthUrl;
 
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
@@ -132,7 +144,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		} catch { }
 	}
 
-	flush(): Promise<any> {
+	flush(): Promise<void> {
 		if (this._aiCoreOrKey) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {

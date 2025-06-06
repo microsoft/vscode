@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
-import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/languages/linkComputer';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import * as files from '../../../platform/files/common/files.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileChangeType } from './extHostTypes.js';
+import * as typeConverter from './extHostTypeConverters.js';
+import { ExtHostLanguageFeatures } from './extHostLanguageFeatures.js';
+import { State, StateMachine, LinkComputer, Edge } from '../../../editor/common/languages/linkComputer.js';
+import { commonPrefixLength } from '../../../base/common/strings.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
 
 class FsLinkProvider {
 
@@ -128,8 +129,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean | vscode.MarkdownString } = {}) {
 
-	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean } = {}) {
+		// validate the given provider is complete
+		ExtHostFileSystem._validateFileSystemProvider(provider);
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -162,7 +165,19 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
+		let readOnlyMessage: IMarkdownString | undefined;
+		if (options.isReadonly && isMarkdownString(options.isReadonly) && options.isReadonly.value !== '') {
+			readOnlyMessage = {
+				value: options.isReadonly.value,
+				isTrusted: options.isReadonly.isTrusted,
+				supportThemeIcons: options.isReadonly.supportThemeIcons,
+				supportHtml: options.isReadonly.supportHtml,
+				baseUri: options.isReadonly.baseUri,
+				uris: options.isReadonly.uris
+			};
+		}
+
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities, readOnlyMessage).catch(err => {
 			console.error(`FAILED to register filesystem provider of ${extension.identifier.value}-extension for the scheme ${scheme}`);
 			console.error(err);
 		});
@@ -201,6 +216,36 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
+	}
+
+	private static _validateFileSystemProvider(provider: vscode.FileSystemProvider) {
+		if (!provider) {
+			throw new Error('MISSING provider');
+		}
+		if (typeof provider.watch !== 'function') {
+			throw new Error('Provider does NOT implement watch');
+		}
+		if (typeof provider.stat !== 'function') {
+			throw new Error('Provider does NOT implement stat');
+		}
+		if (typeof provider.readDirectory !== 'function') {
+			throw new Error('Provider does NOT implement readDirectory');
+		}
+		if (typeof provider.createDirectory !== 'function') {
+			throw new Error('Provider does NOT implement createDirectory');
+		}
+		if (typeof provider.readFile !== 'function') {
+			throw new Error('Provider does NOT implement readFile');
+		}
+		if (typeof provider.writeFile !== 'function') {
+			throw new Error('Provider does NOT implement writeFile');
+		}
+		if (typeof provider.delete !== 'function') {
+			throw new Error('Provider does NOT implement delete');
+		}
+		if (typeof provider.rename !== 'function') {
+			throw new Error('Provider does NOT implement rename');
+		}
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostAuthentication, IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { ExtHostLogService } from '../common/extHostLogService.js';
+import { ExtensionStoragePaths, IExtensionStoragePaths } from '../common/extHostStoragePaths.js';
+import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
+import { ExtHostExtensionService } from './extHostExtensionService.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -14,5 +19,8 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 // ###                                                                   ###
 // #########################################################################
 
+registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [true], true));
+registerSingleton(IExtHostAuthentication, ExtHostAuthentication, InstantiationType.Eager);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [true], true));

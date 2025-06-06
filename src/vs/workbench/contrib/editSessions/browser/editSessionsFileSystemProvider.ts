@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { NotSupportedError } from 'vs/base/common/errors';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../../../../platform/files/common/files.js';
+import { ChangeType, decodeEditSessionFileContent, EDIT_SESSIONS_SCHEME, EditSession, IEditSessionsStorageService } from '../common/editSessions.js';
+import { NotSupportedError } from '../../../../base/common/errors.js';
 
 export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -26,15 +26,16 @@ export class EditSessionsFileSystemProvider implements IFileSystemProviderWithFi
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
 		const { ref, folderName, filePath } = match.groups;
-		const data = await this.editSessionsStorageService.read(ref);
+		const data = await this.editSessionsStorageService.read('editSessions', ref);
 		if (!data) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
-		const change = data?.editSession.folders.find((f) => f.name === folderName)?.workingChanges.find((change) => change.relativeFilePath === filePath);
+		const content: EditSession = JSON.parse(data.content);
+		const change = content.folders.find((f) => f.name === folderName)?.workingChanges.find((change) => change.relativeFilePath === filePath);
 		if (!change || change.type === ChangeType.Deletion) {
 			throw FileSystemProviderErrorCode.FileNotFound;
 		}
-		return decodeEditSessionFileContent(data.editSession.version, change.contents).buffer;
+		return decodeEditSessionFileContent(content.version, change.contents).buffer;
 	}
 
 	async stat(resource: URI): Promise<IStat> {

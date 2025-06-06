@@ -3,25 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
-import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
-import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
-import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostTunnelService } from 'vs/workbench/api/node/extHostTunnelService';
-import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { ExtHostLoggerService } from 'vs/workbench/api/node/extHostLoggerService';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { NodeExtHostVariableResolverProviderService } from 'vs/workbench/api/node/extHostVariableResolverService';
-import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { ExtHostTerminalService } from './extHostTerminalService.js';
+import { ExtHostTask } from './extHostTask.js';
+import { ExtHostDebugService } from './extHostDebugService.js';
+import { NativeExtHostSearch } from './extHostSearch.js';
+import { ExtHostExtensionService } from './extHostExtensionService.js';
+import { NodeExtHostTunnelService } from './extHostTunnelService.js';
+import { IExtHostDebugService } from '../common/extHostDebugService.js';
+import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { IExtHostSearch } from '../common/extHostSearch.js';
+import { IExtHostTask } from '../common/extHostTask.js';
+import { IExtHostTerminalService } from '../common/extHostTerminalService.js';
+import { IExtHostTunnelService } from '../common/extHostTunnelService.js';
+import { IExtensionStoragePaths } from '../common/extHostStoragePaths.js';
+import { ExtensionStoragePaths } from './extHostStoragePaths.js';
+import { ExtHostLoggerService } from './extHostLoggerService.js';
+import { ILogService, ILoggerService } from '../../../platform/log/common/log.js';
+import { NodeExtHostVariableResolverProviderService } from './extHostVariableResolverService.js';
+import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
+import { ExtHostLogService } from '../common/extHostLogService.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { SignService } from '../../../platform/sign/node/signService.js';
+import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
+import { IExtHostMpcService } from '../common/extHostMcp.js';
+import { NodeExtHostMpcService } from './extHostMcpNode.js';
+import { IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { NodeExtHostAuthentication } from './extHostAuthentication.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -31,11 +40,16 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
+registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [false], true));
+registerSingleton(ISignService, SignService, InstantiationType.Delayed);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [false], true));
 
+registerSingleton(IExtHostAuthentication, NodeExtHostAuthentication, InstantiationType.Eager);
 registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);
 registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
+registerSingleton(IExtHostTunnelService, NodeExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);
+registerSingleton(IExtHostMpcService, NodeExtHostMpcService, InstantiationType.Eager);

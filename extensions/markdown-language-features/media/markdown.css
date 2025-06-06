@@ -21,9 +21,11 @@ p, ol, ul, pre {
 	margin-top: 0;
 }
 
-h2, h3, h4, h5, h6 {
-	font-weight: normal;
-	margin-bottom: 0.2em;
+h1, h2, h3, h4, h5, h6 {
+	font-weight: 600;
+	margin-top: 24px;
+	margin-bottom: 16px;
+	line-height: 1.25;
 }
 
 #code-csp-warning {
@@ -98,11 +100,16 @@ body.showEditorSelection li.code-line:hover:before {
 	border-left: 3px solid rgba(255, 160, 0, 1);
 }
 
+/* Prevent `sub` and `sup` elements from affecting line height */
+sub,
+sup {
+	line-height: 0;
+}
 
-ul ul,
-ul ol,
-ol ul,
-ol ol {
+ul ul:first-child,
+ul ol:first-child,
+ol ul:first-child,
+ol ol:first-child {
 	margin-bottom: 0;
 }
 
@@ -128,6 +135,10 @@ textarea:focus {
 }
 
 p {
+	margin-bottom: 16px;
+}
+
+li p {
 	margin-bottom: 0.7em;
 }
 
@@ -138,16 +149,39 @@ ol {
 
 hr {
 	border: 0;
-	height: 2px;
-	border-bottom: 2px solid;
+	height: 1px;
+	border-bottom: 1px solid;
 }
 
 h1 {
+	font-size: 2em;
+	margin-top: 0;
 	padding-bottom: 0.3em;
-	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
-	font-weight: normal;
+}
+
+h2 {
+	font-size: 1.5em;
+	padding-bottom: 0.3em;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h3 {
+	font-size: 1.25em;
+}
+
+h4 {
+	font-size: 1em;
+}
+
+h5 {
+	font-size: 0.875em;
+}
+
+h6 {
+	font-size: 0.85em;
 }
 
 table {
@@ -170,10 +204,11 @@ table > tbody > tr + tr > td {
 }
 
 blockquote {
-	margin: 0 7px 0 5px;
-	padding: 0 16px 0 10px;
+	margin: 0;
+	padding: 0px 16px 0 10px;
 	border-left-width: 5px;
 	border-left-style: solid;
+	border-radius: 2px;
 }
 
 code {
@@ -194,22 +229,17 @@ pre.hljs code > div {
 }
 
 pre code {
+	display: inline-block;
 	color: var(--vscode-editor-foreground);
 	tab-size: 4;
+	background: none;
 }
 
 /** Theming */
 
-.vscode-light pre {
-	background-color: rgba(220, 220, 220, 0.4);
-}
-
-.vscode-dark pre {
-	background-color: rgba(10, 10, 10, 0.4);
-}
-
-.vscode-high-contrast pre {
+pre {
 	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-widget-border);
 }
 
 .vscode-high-contrast h1 {
@@ -225,12 +255,14 @@ pre code {
 }
 
 .vscode-light h1,
+.vscode-light h2,
 .vscode-light hr,
 .vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .vscode-dark h1,
+.vscode-dark h2,
 .vscode-dark hr,
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);

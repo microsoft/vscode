@@ -3,53 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/common/searchModel';
-import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import * as DOM from '../../../../base/browser/dom.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import * as nls from '../../../../nls.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { SearchView } from './searchView.js';
+import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
+import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from './searchCompare.js';
 
-export const category = { value: nls.localize('search', "Search"), original: 'Search' };
+export const category = nls.localize2('search', "Search");
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
-	const activeElement = document.activeElement;
-	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
+	return !!(searchView && DOM.isAncestorOfActiveElement(searchView.getContainer()));
 }
 
-export function appendKeyBindingLabel(label: string, inputKeyBinding: number | ResolvedKeybinding | undefined, keyBindingService2: IKeybindingService): string {
-	if (typeof inputKeyBinding === 'number') {
-		const keybinding = createKeybinding(inputKeyBinding, OS);
-		if (keybinding) {
-			const resolvedKeybindings = keyBindingService2.resolveKeybinding(keybinding);
-			return doAppendKeyBindingLabel(label, resolvedKeybindings.length > 0 ? resolvedKeybindings[0] : undefined);
-		}
-		return doAppendKeyBindingLabel(label, undefined);
-	} else {
-		return doAppendKeyBindingLabel(label, inputKeyBinding);
-	}
+export function appendKeyBindingLabel(label: string, inputKeyBinding: ResolvedKeybinding | undefined): string {
+	return doAppendKeyBindingLabel(label, inputKeyBinding);
 }
 
 export function getSearchView(viewsService: IViewsService): SearchView | undefined {
 	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 }
 
-export function getElementsToOperateOnInfo(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): { elements: RenderableMatch[]; mustReselect: boolean } {
+export function getElementsToOperateOn(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
-
-	const mustReselect = !currElement || elements.includes(currElement); // this indicates whether we need to re-focus/re-select on a remove.
 
 	// if selection doesn't include multiple elements, just return current focus element.
 	if (currElement && !(elements.length > 1 && elements.includes(currElement))) {
 		elements = [currElement];
 	}
 
-	return { elements, mustReselect };
+	return elements;
+}
+
+/**
+ * @param elements elements that are going to be removed
+ * @param focusElement element that is focused
+ * @returns whether we need to re-focus on a remove
+ */
+export function shouldRefocus(elements: RenderableMatch[], focusElement: RenderableMatch | undefined) {
+	if (!focusElement) {
+		return false;
+	}
+	return !focusElement || elements.includes(focusElement) || hasDownstreamMatch(elements, focusElement);
+}
+
+function hasDownstreamMatch(elements: RenderableMatch[], focusElement: RenderableMatch) {
+	for (const elem of elements) {
+		if ((isSearchTreeFileMatch(elem) && isSearchTreeMatch(focusElement) && elem.matches().includes(focusElement)) ||
+			(isSearchTreeFolderMatch(elem) && (
+				(isSearchTreeFileMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.resource)) ||
+				(isSearchTreeMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.parent().resource))
+			))) {
+			return true;
+		}
+	}
+	return false;
+
 }
 
 export function openSearchView(viewsService: IViewsService, focus?: boolean): Promise<SearchView | undefined> {

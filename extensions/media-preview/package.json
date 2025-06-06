@@ -2,9 +2,6 @@
   "name": "media-preview",
   "displayName": "%displayName%",
   "description": "%description%",
-  "enabledApiProposals": [
-    "telemetryLogger"
-  ],
   "extensionKind": [
     "ui",
     "workspace"
@@ -22,13 +19,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCustomEditor:imagePreview.previewEditor",
-    "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut",
-    "onCustomEditor:vscode.audioPreview",
-    "onCustomEditor:vscode.videoPreview"
-  ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -36,6 +27,22 @@
     }
   },
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Media Previewer",
+      "properties": {
+        "mediaPreview.video.autoPlay": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerAutoPlay%"
+        },
+        "mediaPreview.video.loop": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerLoop%"
+        }
+      }
+    },
     "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
@@ -43,7 +50,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,svg}"
           }
         ]
       },
@@ -53,7 +60,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{mp3,wav,ogg}"
+            "filenamePattern": "*.{mp3,wav,ogg,oga}"
           }
         ]
       },
@@ -78,6 +85,23 @@
         "command": "imagePreview.zoomOut",
         "title": "%command.zoomOut%",
         "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.copyImage",
+        "title": "%command.copyImage%",
+        "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.reopenAsPreview",
+        "title": "%command.reopenAsPreview%",
+        "category": "Image Preview",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "imagePreview.reopenAsText",
+        "title": "%command.reopenAsText%",
+        "category": "Image Preview",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -91,6 +115,38 @@
           "command": "imagePreview.zoomOut",
           "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
+        },
+        {
+          "command": "imagePreview.copyImage",
+          "when": "false"
+        },
+        {
+          "command": "imagePreview.reopenAsPreview",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceExtname == '.svg'",
+          "group": "navigation"
+        },
+        {
+          "command": "imagePreview.reopenAsText",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor' && resourceExtname == '.svg'",
+          "group": "navigation"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "imagePreview.copyImage",
+          "when": "webviewId == 'imagePreview.previewEditor'"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "imagePreview.reopenAsPreview",
+          "when": "editorFocus && resourceExtname == '.svg'",
+          "group": "navigation"
+        },
+        {
+          "command": "imagePreview.reopenAsText",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor' && resourceExtname == '.svg'",
+          "group": "navigation"
         }
       ]
     }
@@ -104,7 +160,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.1-preview"
+    "@vscode/extension-telemetry": "^0.9.8",
+    "vscode-uri": "^3.0.6"
   },
   "repository": {
     "type": "git",

@@ -8,6 +8,10 @@
 	user-select: text;
 	-webkit-user-select: text;
 	padding: 10px;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+}
+.hc-black .tokens-inspect-widget, .hc-light .tokens-inspect-widget {
+	border-width: 2px;
 }
 
 .monaco-editor .token-inspect-widget {

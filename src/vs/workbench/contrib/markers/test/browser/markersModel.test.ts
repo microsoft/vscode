@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { groupBy } from 'vs/base/common/collections';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { IMarker, MarkerSeverity, IRelatedInformation } from '../../../../../platform/markers/common/markers.js';
+import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from '../../browser/markersModel.js';
+import { groupBy } from '../../../../../base/common/collections.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 class TestMarkersModel extends MarkersModel {
 
@@ -26,6 +27,8 @@ class TestMarkersModel extends MarkersModel {
 }
 
 suite('MarkersModel Test', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marker ids are unique', function () {
 		const marker1 = anErrorWithRange(3);

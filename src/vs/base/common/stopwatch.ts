@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals } from 'vs/base/common/platform';
+// fake definition so that the valid layers check won't trip on this
+declare const globalThis: { performance: { now(): number } };
 
-const hasPerformanceNow = (globals.performance && typeof globals.performance.now === 'function');
+const performanceNow = globalThis.performance.now.bind(globalThis.performance);
 
 export class StopWatch {
 
-	private _highResolution: boolean;
 	private _startTime: number;
 	private _stopTime: number;
 
-	public static create(highResolution: boolean = true): StopWatch {
+	private readonly _now: () => number;
+
+	public static create(highResolution?: boolean): StopWatch {
 		return new StopWatch(highResolution);
 	}
 
-	constructor(highResolution: boolean) {
-		this._highResolution = hasPerformanceNow && highResolution;
+	constructor(highResolution?: boolean) {
+		this._now = highResolution === false ? Date.now : performanceNow;
 		this._startTime = this._now();
 		this._stopTime = -1;
 	}
@@ -37,9 +39,5 @@ export class StopWatch {
 			return this._stopTime - this._startTime;
 		}
 		return this._now() - this._startTime;
-	}
-
-	private _now(): number {
-		return this._highResolution ? globals.performance.now() : Date.now();
 	}
 }

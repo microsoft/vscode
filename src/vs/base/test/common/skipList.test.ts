@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { binarySearch } from 'vs/base/common/arrays';
-import { SkipList } from 'vs/base/common/skipList';
-import { StopWatch } from 'vs/base/common/stopwatch';
+import assert from 'assert';
+import { binarySearch } from '../../common/arrays.js';
+import { SkipList } from '../../common/skipList.js';
+import { StopWatch } from '../../common/stopwatch.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('SkipList', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertValues<V>(list: SkipList<any, V>, expected: V[]) {
 		assert.strictEqual(list.size, expected.length);
@@ -91,6 +94,19 @@ suite('SkipList', function () {
 		assertKeys(list, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
 	});
 
+	test('clear ( CPU pegged after some builds #194853)', function () {
+		const list = new SkipList<number, boolean>((a, b) => a - b);
+		list.set(1, true);
+		list.set(2, true);
+		list.set(3, true);
+		assert.strictEqual(list.size, 3);
+		list.clear();
+		assert.strictEqual(list.size, 0);
+		assert.strictEqual(list.get(1), undefined);
+		assert.strictEqual(list.get(2), undefined);
+		assert.strictEqual(list.get(3), undefined);
+	});
+
 	test('capacity max', function () {
 		const list = new SkipList<number, boolean>((a, b) => a - b, 10);
 		list.set(1, true);
@@ -154,18 +170,18 @@ suite('SkipList', function () {
 
 		// init
 		const list = new SkipList<number, boolean>(cmp, max);
-		let sw = new StopWatch(true);
+		let sw = new StopWatch();
 		values.forEach(value => list.set(value, true));
 		sw.stop();
 		console.log(`[LIST] ${list.size} elements after ${sw.elapsed()}ms`);
 		let array: number[] = [];
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		values.forEach(value => array = insertArraySorted(array, value));
 		sw.stop();
 		console.log(`[ARRAY] ${array.length} elements after ${sw.elapsed()}ms`);
 
 		// get
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		const someValues = [...values].slice(0, values.size / 4);
 		someValues.forEach(key => {
 			const value = list.get(key); // find
@@ -174,7 +190,7 @@ suite('SkipList', function () {
 		});
 		sw.stop();
 		console.log(`[LIST] retrieve ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			const idx = binarySearch(array, key, cmp); // find
 			console.assert(idx >= 0, '[ARRAY] must have ' + key);
@@ -185,13 +201,13 @@ suite('SkipList', function () {
 
 
 		// insert
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			list.set(-key, false);
 		});
 		sw.stop();
 		console.log(`[LIST] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			array = insertArraySorted(array, -key);
 		});
@@ -199,14 +215,14 @@ suite('SkipList', function () {
 		console.log(`[ARRAY] insert ${sw.elapsed()}ms (${(sw.elapsed() / someValues.length).toPrecision(4)}ms/op)`);
 
 		// delete
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			list.delete(key); // find
 			list.delete(-key); // miss
 		});
 		sw.stop();
 		console.log(`[LIST] delete ${sw.elapsed()}ms (${(sw.elapsed() / (someValues.length * 2)).toPrecision(4)}ms/op)`);
-		sw = new StopWatch(true);
+		sw = new StopWatch();
 		someValues.forEach(key => {
 			array = delArraySorted(array, key); // find
 			array = delArraySorted(array, -key); // miss

@@ -12,41 +12,41 @@ const path = require('path');
 const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 const { DefinePlugin, optimize } = require('webpack');
 
-function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
-	/** @type WebpackConfig */
+const tsLoaderOptions = {
+	compilerOptions: {
+		'sourceMap': true,
+	},
+	onlyCompileBundledFiles: true,
+};
+
+function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfig) {
 	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
 		node: {
 			__dirname: false // leave the __dirname-behaviour intact
 		},
+
 		resolve: {
+			conditionNames: ['import', 'require', 'node-addons', 'node'],
 			mainFields: ['module', 'main'],
-			extensions: ['.ts', '.js'] // support ts-files and js-files
+			extensions: ['.ts', '.js'], // support ts-files and js-files
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			}
 		},
 		module: {
 			rules: [{
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [{
-					// vscode-nls-dev loader:
-					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader',
-					options: {
-						base: path.join(extConfig.context, 'src')
-					}
-				}, {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
-					options: {
-						compilerOptions: {
-							'sourceMap': true,
-						}
-					}
+					options: tsLoaderOptions
 				}, {
 					loader: path.resolve(__dirname, 'mangle-loader.js'),
 					options: {
@@ -56,8 +56,10 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 			}]
 		},
 		externals: {
+			'electron': 'commonjs electron', // ignored to avoid bundling from node_modules
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
@@ -92,8 +94,7 @@ function nodePlugins(context) {
 			patterns: [
 				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
 			]
-		}),
-		new NLSBundlePlugin(id)
+		})
 	];
 }
 /**
@@ -102,7 +103,7 @@ function nodePlugins(context) {
  * }} AdditionalBrowserConfig
  */
 
-function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
+function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
 	/** @type WebpackConfig */
 	const defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
@@ -112,8 +113,13 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
 				'path': require.resolve('path-browserify'),
+				'os': require.resolve('os-browserify'),
 				'util': require.resolve('util')
-			}
+			},
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			},
 		},
 		module: {
 			rules: [{
@@ -125,11 +131,8 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 						// * enable sources maps for end-to-end source maps
 						loader: 'ts-loader',
 						options: {
-							compilerOptions: {
-								'sourceMap': true,
-							},
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
-							onlyCompileBundledFiles: true,
+							...tsLoaderOptions,
+							//							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
 						}
 					},
 					{
@@ -139,11 +142,15 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 						},
 					},
 				]
+			}, {
+				test: /\.wasm$/,
+				type: 'asset/inline'
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
@@ -189,9 +196,7 @@ function browserPlugins(context) {
 			'process.platform': JSON.stringify('web'),
 			'process.env': JSON.stringify({}),
 			'process.env.BROWSER_ENV': JSON.stringify('true')
-		}),
-		// TODO: bring this back once vscode-nls-dev supports browser
-		// new NLSBundlePlugin(id)
+		})
 	];
 }
 
@@ -200,4 +205,3 @@ module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
 module.exports.nodePlugins = nodePlugins;
 module.exports.browserPlugins = browserPlugins;
-

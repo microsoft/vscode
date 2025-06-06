@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/browser/copyLinesCommand';
-import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { CopyLinesCommand } from '../../browser/copyLinesCommand.js';
+import { DuplicateSelectionAction } from '../../browser/linesOperations.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
 
 function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
@@ -19,6 +20,8 @@ function testCopyLinesUpCommand(lines: string[], selection: Selection, expectedL
 }
 
 suite('Editor Contrib - Copy Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('copy first line down', function () {
 		testCopyLinesDownCommand(
@@ -200,6 +203,8 @@ suite('Editor Contrib - Copy Lines Command', () => {
 });
 
 suite('Editor Contrib - Duplicate Selection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const duplicateSelectionAction = new DuplicateSelectionAction();
 

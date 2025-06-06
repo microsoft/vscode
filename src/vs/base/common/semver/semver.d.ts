@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export as namespace semver;
-
-export = semver;
+export * from 'semver'
 
 declare namespace semver {
 

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../nls.js';
+import { Lazy } from './lazy.js';
+import { LANGUAGE_DEFAULT } from './platform.js';
 
 const minute = 60;
 const hour = minute * 60;
@@ -12,7 +14,16 @@ const week = day * 7;
 const month = day * 30;
 const year = day * 365;
 
-export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
+/**
+ * Create a localized difference of the time between now and the specified date.
+ * @param date The date to generate the difference from.
+ * @param appendAgoLabel Whether to append the " ago" to the end.
+ * @param useFullTimeWords Whether to use full words (eg. seconds) instead of
+ * shortened (eg. secs).
+ * @param disallowNow Whether to disallow the string "now" when the difference
+ * is less than 30 seconds.
+ */
+export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
@@ -22,7 +33,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false));
 	}
 
-	if (seconds < 30) {
+	if (!disallowNow && seconds < 30) {
 		return localize('date.fromNow.now', 'now');
 	}
 
@@ -190,6 +201,58 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 }
 
+export function fromNowByDay(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
+	if (typeof date !== 'number') {
+		date = date.getTime();
+	}
+
+	const todayMidnightTime = new Date();
+	todayMidnightTime.setHours(0, 0, 0, 0);
+	const yesterdayMidnightTime = new Date(todayMidnightTime.getTime());
+	yesterdayMidnightTime.setDate(yesterdayMidnightTime.getDate() - 1);
+
+	if (date > todayMidnightTime.getTime()) {
+		return localize('today', 'Today');
+	}
+
+	if (date > yesterdayMidnightTime.getTime()) {
+		return localize('yesterday', 'Yesterday');
+	}
+
+	return fromNow(date, appendAgoLabel, useFullTimeWords);
+}
+
+/**
+ * Gets a readable duration with intelligent/lossy precision. For example "40ms" or "3.040s")
+ * @param ms The duration to get in milliseconds.
+ * @param useFullTimeWords Whether to use full words (eg. seconds) instead of
+ * shortened (eg. secs).
+ */
+export function getDurationString(ms: number, useFullTimeWords?: boolean) {
+	const seconds = Math.abs(ms / 1000);
+	if (seconds < 1) {
+		return useFullTimeWords
+			? localize('duration.ms.full', '{0} milliseconds', ms)
+			: localize('duration.ms', '{0}ms', ms);
+	}
+	if (seconds < minute) {
+		return useFullTimeWords
+			? localize('duration.s.full', '{0} seconds', Math.round(ms) / 1000)
+			: localize('duration.s', '{0}s', Math.round(ms) / 1000);
+	}
+	if (seconds < hour) {
+		return useFullTimeWords
+			? localize('duration.m.full', '{0} minutes', Math.round(ms / (1000 * minute)))
+			: localize('duration.m', '{0} mins', Math.round(ms / (1000 * minute)));
+	}
+	if (seconds < day) {
+		return useFullTimeWords
+			? localize('duration.h.full', '{0} hours', Math.round(ms / (1000 * hour)))
+			: localize('duration.h', '{0} hrs', Math.round(ms / (1000 * hour)));
+	}
+	return localize('duration.d', '{0} days', Math.round(ms / (1000 * day)));
+}
+
 export function toLocalISOString(date: Date): string {
 	return date.getFullYear() +
 		'-' + String(date.getMonth() + 1).padStart(2, '0') +
@@ -200,3 +263,51 @@ export function toLocalISOString(date: Date): string {
 		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
 		'Z';
 }
+
+export const safeIntl = {
+	DateTimeFormat(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): Lazy<Intl.DateTimeFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.DateTimeFormat(locales, options);
+			} catch {
+				return new Intl.DateTimeFormat(undefined, options);
+			}
+		});
+	},
+	Collator(locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): Lazy<Intl.Collator> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Collator(locales, options);
+			} catch {
+				return new Intl.Collator(undefined, options);
+			}
+		});
+	},
+	Segmenter(locales?: Intl.LocalesArgument, options?: Intl.SegmenterOptions): Lazy<Intl.Segmenter> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Segmenter(locales, options);
+			} catch {
+				return new Intl.Segmenter(undefined, options);
+			}
+		});
+	},
+	Locale(tag: Intl.Locale | string, options?: Intl.LocaleOptions): Lazy<Intl.Locale> {
+		return new Lazy(() => {
+			try {
+				return new Intl.Locale(tag, options);
+			} catch {
+				return new Intl.Locale(LANGUAGE_DEFAULT, options);
+			}
+		});
+	},
+	NumberFormat(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions): Lazy<Intl.NumberFormat> {
+		return new Lazy(() => {
+			try {
+				return new Intl.NumberFormat(locales, options);
+			} catch {
+				return new Intl.NumberFormat(undefined, options);
+			}
+		});
+	}
+};

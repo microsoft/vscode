@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { isString } from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
 import type * as vscode from 'vscode';
-import { ExtHostProfileContentHandlersShape, IMainContext, MainContext, MainThreadProfileContentHandlersShape } from './extHost.protocol';
+import { ExtHostProfileContentHandlersShape, IMainContext, MainContext, MainThreadProfileContentHandlersShape } from './extHost.protocol.js';
 
 
 export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandlersShape {
@@ -24,7 +26,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		this.proxy = mainContext.getProxy(MainContext.MainThreadProfileContentHandlers);
 	}
 
-	registrProfileContentHandler(
+	registerProfileContentHandler(
 		extension: IExtensionDescription,
 		id: string,
 		handler: vscode.ProfileContentHandler,
@@ -35,7 +37,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		}
 
 		this.handlers.set(id, handler);
-		this.proxy.$registerProfileContentHandler(id, handler.name, extension.identifier.value);
+		this.proxy.$registerProfileContentHandler(id, handler.name, handler.description, extension.identifier.value);
 
 		return toDisposable(() => {
 			this.handlers.delete(id);
@@ -43,7 +45,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		});
 	}
 
-	async $saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriComponents | null> {
+	async $saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null> {
 		const handler = this.handlers.get(id);
 		if (!handler) {
 			throw new Error(`Unknown handler with id: ${id}`);
@@ -52,12 +54,12 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		return handler.saveProfile(name, content, token);
 	}
 
-	async $readProfile(id: string, uri: UriComponents, token: CancellationToken): Promise<string | null> {
+	async $readProfile(id: string, idOrUri: string | UriComponents, token: CancellationToken): Promise<string | null> {
 		const handler = this.handlers.get(id);
 		if (!handler) {
 			throw new Error(`Unknown handler with id: ${id}`);
 		}
 
-		return handler.readProfile(URI.revive(uri), token);
+		return handler.readProfile(isString(idOrUri) ? idOrUri : URI.revive(idOrUri), token);
 	}
 }

@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Replace "loading" with "microphone" icon.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+	content: var(--vscode-icon-mic-filled-content);
+	font-family: var(--vscode-icon-mic-filled-font-family);
+}
+
+/*
+ * Replace "sync" with "pulse" icon.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before {
+	content: var(--vscode-icon-pulse-content);
+	font-family: var(--vscode-icon-pulse-font-family);
+}
+
+/*
+ * Clear animation styles when reduced motion is enabled.
+ */
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled),
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+	animation: none;
+}
+
+/*
+ * Replace with "stop" icon when reduced motion is enabled.
+ */
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-sync.codicon-modifier-spin:not(.disabled)::before,
+.monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+	content: var(--vscode-icon-debug-stop-content);
+	font-family: var(--vscode-icon-debug-stop-font-family);
+}

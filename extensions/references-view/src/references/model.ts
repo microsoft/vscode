@@ -20,7 +20,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		this.contextValue = _command;
 	}
 
-	async resolve() {
+	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
 		if (this._result) {
@@ -35,8 +35,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		}
 
 		const provider = new ReferencesTreeDataProvider(model);
-
-		return <SymbolTreeModel<FileItem | ReferenceItem>>{
+		return {
 			provider,
 			get message() { return model.message; },
 			navigation: model,
@@ -126,7 +125,9 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 
 	location(item: FileItem | ReferenceItem) {
-		return item instanceof ReferenceItem ? item.location : undefined;
+		return item instanceof ReferenceItem
+			? item.location
+			: new vscode.Location(item.uri, item.references[0]?.location.range ?? new vscode.Position(0, 0));
 	}
 
 	nearest(uri: vscode.Uri, position: vscode.Position): FileItem | ReferenceItem | undefined {
@@ -255,7 +256,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 }
 
-class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem>{
+class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem> {
 
 	private readonly _listener: vscode.Disposable;
 	private readonly _onDidChange = new vscode.EventEmitter<FileItem | ReferenceItem | undefined>();
@@ -300,7 +301,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 				title: vscode.l10n.t('Open Reference'),
 				arguments: [
 					element.location.uri,
-					<vscode.TextDocumentShowOptions>{ selection: range.with({ end: range.start }) }
+					{ selection: range.with({ end: range.start }) } satisfies vscode.TextDocumentShowOptions
 				]
 			};
 			return result;

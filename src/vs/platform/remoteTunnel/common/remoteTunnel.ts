@@ -3,28 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
 
-export interface IRemoteTunnelAccount {
-	readonly authenticationProviderId: string;
-	readonly token: string;
+export interface IRemoteTunnelSession {
+	readonly providerId: string;
+	readonly sessionId: string;
+	readonly accountLabel: string;
+	readonly token?: string;
 }
 
 export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemoteTunnelService');
 export interface IRemoteTunnelService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidTokenFailed: Event<boolean>;
-
 	readonly onDidChangeTunnelStatus: Event<TunnelStatus>;
 	getTunnelStatus(): Promise<TunnelStatus>;
 
-	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
-	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
-	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<void>;
+	getMode(): Promise<TunnelMode>;
+	readonly onDidChangeMode: Event<TunnelMode>;
+
+	readonly onDidTokenFailed: Event<IRemoteTunnelSession | undefined>;
+	initialize(mode: TunnelMode): Promise<TunnelStatus>;
+
+	startTunnel(mode: ActiveTunnelMode): Promise<TunnelStatus>;
+	stopTunnel(): Promise<void>;
+	getTunnelName(): Promise<string | undefined>;
 
 }
+
+export interface ActiveTunnelMode {
+	readonly active: true;
+	readonly session: IRemoteTunnelSession;
+	readonly asService: boolean;
+}
+
+export interface InactiveTunnelMode {
+	readonly active: false;
+}
+
+export const INACTIVE_TUNNEL_MODE: InactiveTunnelMode = { active: false };
+
+/** Saved mode for the tunnel. */
+export type TunnelMode = ActiveTunnelMode | InactiveTunnelMode;
 
 export type TunnelStatus = TunnelStates.Connected | TunnelStates.Disconnected | TunnelStates.Connecting | TunnelStates.Uninitialized;
 
@@ -39,28 +61,29 @@ export namespace TunnelStates {
 	export interface Connected {
 		readonly type: 'connected';
 		readonly info: ConnectionInfo;
+		readonly serviceInstallFailed: boolean;
 	}
 	export interface Disconnected {
 		readonly type: 'disconnected';
+		readonly onTokenFailed?: IRemoteTunnelSession;
 	}
-
-	export const disconnected: Disconnected = { type: 'disconnected' };
-	export const uninitialized: Uninitialized = { type: 'uninitialized' };
-	export const connected = (info: ConnectionInfo): Connected => ({ type: 'connected', info });
+	export const disconnected = (onTokenFailed?: IRemoteTunnelSession): Disconnected => ({ type: 'disconnected', onTokenFailed });
+	export const connected = (info: ConnectionInfo, serviceInstallFailed: boolean): Connected => ({ type: 'connected', info, serviceInstallFailed });
 	export const connecting = (progress?: string): Connecting => ({ type: 'connecting', progress });
+	export const uninitialized: Uninitialized = { type: 'uninitialized' };
 
 }
 
 export interface ConnectionInfo {
 	link: string;
 	domain: string;
-	hostName: string;
-	extensionId: string;
+	tunnelName: string;
+	isAttached: boolean;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
 export const CONFIGURATION_KEY_HOST_NAME = CONFIGURATION_KEY_PREFIX + '.hostNameOverride';
+export const CONFIGURATION_KEY_PREVENT_SLEEP = CONFIGURATION_KEY_PREFIX + '.preventSleep';
 
-export const LOG_FILE_NAME = 'remoteTunnelService.log';
-export const LOGGER_NAME = 'remoteTunnelService';
-export const LOG_CHANNEL_ID = 'remoteTunnelServiceLog';
+export const LOG_ID = 'remoteTunnelService';
+export const LOGGER_NAME = localize('remoteTunnelLog', "Remote Tunnel Service");

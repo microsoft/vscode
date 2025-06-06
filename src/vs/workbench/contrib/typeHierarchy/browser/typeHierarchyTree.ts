@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { TypeHierarchyDirection, TypeHierarchyItem, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
-import { compare } from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
+import { TypeHierarchyDirection, TypeHierarchyItem, TypeHierarchyModel } from '../common/typeHierarchy.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { SymbolKinds, SymbolTag } from '../../../../editor/common/languages.js';
+import { compare } from '../../../../base/common/strings.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { localize } from '../../../../nls.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class Type {
 	constructor(
@@ -115,7 +115,7 @@ export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderi
 	renderElement(node: ITreeNode<Type, FuzzyScore>, _index: number, template: TypeRenderingTemplate): void {
 		const { element, filterData } = node;
 		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.classList.add('inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
+		template.icon.classList.add('inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
 		template.label.setLabel(
 			element.item.name,
 			element.item.detail,

@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isObject } from 'vs/base/common/types';
-import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../../../nls.js';
+import { isObject } from '../../../../base/common/types.js';
+import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata, DebugConfigurationProviderTriggerKind } from './debug.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import * as ConfigurationResolverUtils from '../../../services/configurationResolver/common/configurationResolverUtils.js';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isDebuggerMainContribution } from './debugUtils.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ITelemetryEndpoint } from '../../../../platform/telemetry/common/telemetry.js';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { filter } from '../../../../base/common/objects.js';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 
@@ -28,6 +29,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	private debuggerWhen: ContextKeyExpression | undefined;
+	private debuggerHiddenWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -44,6 +46,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		this.merge(dbgContribution, extensionDescription);
 
 		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
+		this.debuggerHiddenWhen = typeof this.debuggerContribution.hiddenWhen === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.hiddenWhen) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -146,8 +149,19 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return this.debuggerWhen;
 	}
 
+	get hiddenWhen(): ContextKeyExpression | undefined {
+		return this.debuggerHiddenWhen;
+	}
+
 	get enabled() {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
+	}
+
+	get isHiddenFromDropdown() {
+		if (!this.debuggerHiddenWhen) {
+			return false;
+		}
+		return this.contextKeyService.contextMatchesRules(this.debuggerHiddenWhen);
 	}
 
 	get strings() {
@@ -160,6 +174,10 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
+	}
+
+	hasDynamicConfigurationProviders(): boolean {
+		return this.debugService.getConfigurationManager().hasDebugConfigurationProvider(this.type, DebugConfigurationProviderTriggerKind.Dynamic);
 	}
 
 	hasConfigurationProvider(): boolean {
@@ -225,6 +243,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		// fill in the default configuration attributes shared by all adapters.
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const definitionId = `${this.type}:${request}`;
+			const platformSpecificDefinitionId = `${this.type}:${request}:platform`;
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
@@ -259,6 +278,11 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 			});
 
 			definitions[definitionId] = { ...attributes };
+			definitions[platformSpecificDefinitionId] = {
+				type: 'object',
+				additionalProperties: false,
+				properties: filter(properties, key => key !== 'type' && key !== 'request' && key !== 'name')
+			};
 
 			// Don't add the OS props to the real attributes object so they don't show up in 'definitions'
 			const attributesCopy = { ...attributes };
@@ -266,19 +290,16 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 				...properties,
 				...{
 					windows: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-						required: [],
 					},
 					osx: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-						required: [],
 					},
 					linux: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-						required: [],
 					}
 				}
 			};

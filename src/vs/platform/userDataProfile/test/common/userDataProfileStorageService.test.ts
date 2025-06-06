@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage.js';
+import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from '../../common/userDataProfileStorageService.js';
+import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from '../../../storage/common/storage.js';
+import { IUserDataProfile, toUserDataProfile } from '../../common/userDataProfile.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 class TestStorageDatabase extends InMemoryStorageDatabase {
 
@@ -31,7 +31,7 @@ export class TestUserDataProfileStorageService extends AbstractUserDataProfileSt
 	readonly onDidChange = Event.None;
 	private databases = new Map<string, InMemoryStorageDatabase>();
 
-	async createStorageDatabase(profile: IUserDataProfile): Promise<InMemoryStorageDatabase> {
+	protected async createStorageDatabase(profile: IUserDataProfile): Promise<InMemoryStorageDatabase> {
 		let database = this.databases.get(profile.id);
 		if (!database) {
 			this.databases.set(profile.id, database = new TestStorageDatabase());
@@ -39,23 +39,25 @@ export class TestUserDataProfileStorageService extends AbstractUserDataProfileSt
 		return database;
 	}
 
-	protected override async closeAndDispose(): Promise<void> { }
+	setupStorageDatabase(profile: IUserDataProfile): Promise<InMemoryStorageDatabase> {
+		return this.createStorageDatabase(profile);
+	}
+
 }
 
 suite('ProfileStorageService', () => {
 
-	const disposables = new DisposableStore();
-	const profile = toUserDataProfile('test', 'test', URI.file('foo'));
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const profile = toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache'));
 	let testObject: TestUserDataProfileStorageService;
 	let storage: Storage;
 
 	setup(async () => {
-		testObject = disposables.add(new TestUserDataProfileStorageService(new InMemoryStorageService()));
-		storage = new Storage(await testObject.createStorageDatabase(profile));
+		testObject = disposables.add(new TestUserDataProfileStorageService(false, disposables.add(new InMemoryStorageService())));
+		storage = disposables.add(new Storage(await testObject.setupStorageDatabase(profile)));
 		await storage.init();
 	});
 
-	teardown(() => disposables.clear());
 
 	test('read empty storage', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const actual = await testObject.readStorageData(profile);

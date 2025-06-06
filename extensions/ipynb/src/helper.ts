@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from 'vscode';
+
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
@@ -77,61 +79,184 @@ export function objectEquals(one: any, other: any) {
 	return true;
 }
 
-interface Options<T> {
-	callback: (value: T) => void;
+/**
+ * A helper to delay/debounce execution of a task, includes cancellation/disposal support.
+ * Pulled from https://github.com/microsoft/vscode/blob/3059063b805ed0ac10a6d9539e213386bfcfb852/extensions/markdown-language-features/src/util/async.ts
+ */
+export class Delayer<T> {
 
-	merge?: (input: T[]) => T;
-	delay?: number;
+	public defaultDelay: number;
+	private _timeout: any; // Timer
+	private _cancelTimeout: Promise<T | null> | null;
+	private _onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
+	private _task: ITask<T> | null;
+
+	constructor(defaultDelay: number) {
+		this.defaultDelay = defaultDelay;
+		this._timeout = null;
+		this._cancelTimeout = null;
+		this._onSuccess = null;
+		this._task = null;
+	}
+
+	dispose() {
+		this._doCancelTimeout();
+	}
+
+	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
+		this._task = task;
+		if (delay >= 0) {
+			this._doCancelTimeout();
+		}
+
+		if (!this._cancelTimeout) {
+			this._cancelTimeout = new Promise<T | undefined>((resolve) => {
+				this._onSuccess = resolve;
+			}).then(() => {
+				this._cancelTimeout = null;
+				this._onSuccess = null;
+				const result = this._task && this._task?.();
+				this._task = null;
+				return result;
+			});
+		}
+
+		if (delay >= 0 || this._timeout === null) {
+			this._timeout = setTimeout(() => {
+				this._timeout = null;
+				this._onSuccess?.(undefined);
+			}, delay >= 0 ? delay : this.defaultDelay);
+		}
+
+		return this._cancelTimeout;
+	}
+
+	private _doCancelTimeout(): void {
+		if (this._timeout !== null) {
+			clearTimeout(this._timeout);
+			this._timeout = null;
+		}
+	}
+}
+
+export interface ITask<T> {
+	(): T;
 }
 
 
-export class DebounceTrigger<T> {
+/**
+ * Copied from src/vs/base/common/uuid.ts
+ */
+export function generateUuid(): string {
+	// use `randomUUID` if possible
+	if (typeof crypto.randomUUID === 'function') {
+		// see https://developer.mozilla.org/en-US/docs/Web/API/Window/crypto
+		// > Although crypto is available on all windows, the returned Crypto object only has one
+		// > usable feature in insecure contexts: the getRandomValues() method.
+		// > In general, you should use this API only in secure contexts.
 
-	private _isPaused = 0;
-	protected _queue: T[] = [];
-	private _callbackFn: (value: T) => void;
-	private _mergeFn?: (input: T[]) => T;
-	private readonly _delay: number;
-	private _handle: any | undefined;
-
-	constructor(options: Options<T>) {
-		this._callbackFn = options.callback;
-		this._mergeFn = options.merge;
-		this._delay = options.delay ?? 100;
+		return crypto.randomUUID.bind(crypto)();
 	}
 
-	private pause(): void {
-		this._isPaused++;
+	// prep-work
+	const _data = new Uint8Array(16);
+	const _hex: string[] = [];
+	for (let i = 0; i < 256; i++) {
+		_hex.push(i.toString(16).padStart(2, '0'));
 	}
 
-	private resume(): void {
-		if (this._isPaused !== 0 && --this._isPaused === 0) {
-			if (this._mergeFn) {
-				const items = Array.from(this._queue);
-				this._queue = [];
-				this._callbackFn(this._mergeFn(items));
+	// get data
+	crypto.getRandomValues(_data);
 
-			} else {
-				while (!this._isPaused && this._queue.length !== 0) {
-					this._callbackFn(this._queue.shift()!);
-				}
-			}
-		}
+	// set version bits
+	_data[6] = (_data[6] & 0x0f) | 0x40;
+	_data[8] = (_data[8] & 0x3f) | 0x80;
+
+	// print as string
+	let i = 0;
+	let result = '';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	return result;
+}
+
+export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
+
+const enum DeferredOutcome {
+	Resolved,
+	Rejected
+}
+
+
+/**
+ * Creates a promise whose resolution or rejection can be controlled imperatively.
+ */
+export class DeferredPromise<T> {
+
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: unknown) => void;
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
+
+	public get isRejected() {
+		return this.outcome?.outcome === DeferredOutcome.Rejected;
 	}
 
-	trigger(item: T): void {
-		if (!this._handle) {
-			this.pause();
-			this._handle = setTimeout(() => {
-				this._handle = undefined;
-				this.resume();
-			}, this._delay);
-		}
+	public get isResolved() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved;
+	}
 
-		if (this._isPaused !== 0) {
-			this._queue.push(item);
-		} else {
-			this._callbackFn(item);
-		}
+	public get isSettled() {
+		return !!this.outcome;
+	}
+
+	public get value() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved ? this.outcome?.value : undefined;
+	}
+
+	public readonly p: Promise<T>;
+
+	constructor() {
+		this.p = new Promise<T>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
+		});
+	}
+
+	public complete(value: T) {
+		return new Promise<void>(resolve => {
+			this.completeCallback(value);
+			this.outcome = { outcome: DeferredOutcome.Resolved, value };
+			resolve();
+		});
+	}
+
+	public error(err: unknown) {
+		return new Promise<void>(resolve => {
+			this.errorCallback(err);
+			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
+			resolve();
+		});
+	}
+
+	public cancel() {
+		return this.error(new CancellationError());
 	}
 }

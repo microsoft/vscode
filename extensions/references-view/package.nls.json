@@ -5,7 +5,7 @@
 	"config.references.preferredLocation.peek": "Show references in peek editor.",
 	"config.references.preferredLocation.view": "Show references in separate view.",
 	"container.title": "References",
-	"view.title": "Results",
+	"view.title": "Reference Search Results",
 	"cmd.category.references": "References",
 	"cmd.references-view.findReferences": "Find All References",
 	"cmd.references-view.findImplementations": "Find All Implementations",

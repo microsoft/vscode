@@ -3,90 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { URI } from 'vs/base/common/uri';
-import { IGalleryExtension, ILocalExtension, InstallOptions, InstallVSIXOptions, Metadata, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { delta } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { joinPath } from 'vs/base/common/resources';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IFileService } from 'vs/platform/files/common/files';
-import { generateUuid } from 'vs/base/common/uuid';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from '../common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IAllowedExtensionsService, ILocalExtension, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ProfileAwareExtensionManagementChannelClient } from '../common/extensionManagementChannelClient.js';
+import { ExtensionIdentifier, ExtensionType, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
-export class NativeExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
-
-	private readonly disposables = this._register(new DisposableStore());
-
-	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
-	override get onInstallExtension() { return Event.filter(this.onProfileAwareInstallExtension, e => this.filterEvent(e), this.disposables); }
-
-	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
-	override get onDidInstallExtensions() {
-		return Event.filter(
-			Event.map(this.onProfileAwareDidInstallExtensions, results => results.filter(e => this.filterEvent(e)), this.disposables),
-			results => results.length > 0, this.disposables);
-	}
-
-	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
-	override get onUninstallExtension() { return Event.filter(this.onProfileAwareUninstallExtension, e => this.filterEvent(e), this.disposables); }
-
-	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
-	override get onDidUninstallExtension() { return Event.filter(this.onProfileAwareDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
-
-	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
-	readonly onDidChangeProfile = this._onDidChangeProfile.event;
+export class NativeExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
 		@IDownloadService private readonly downloadService: IDownloadService,
-		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(channel);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		super(channel, productService, allowedExtensionsService, userDataProfileService, uriIdentityService);
 	}
 
-	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
-		return applicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
+	protected filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean {
+		return isApplicationScoped || this.uriIdentityService.extUri.isEqual(this.userDataProfileService.currentProfile.extensionsResource, profileLocation);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		try {
-			options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
 			return await super.install(location, options);
 		} finally {
 			await cleanup();
 		}
-	}
-
-	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		installOptions = installOptions?.profileLocation ? installOptions : { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
-		return super.installFromGallery(extension, installOptions);
-	}
-
-	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
-		return super.uninstall(extension, options);
-	}
-
-	override getInstalled(type: ExtensionType | null = null, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, profileLocation);
 	}
 
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
@@ -107,20 +67,17 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 		return { location, cleanup };
 	}
 
-	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
-		const oldExtensions = await super.getInstalled(ExtensionType.User, e.previous.extensionsResource);
-		if (e.preserveData) {
-			const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(oldExtensions
-				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
-				.map(async e => ([e, await this.getMetadata(e)])));
-			await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, e.profile.extensionsResource!);
-		} else {
-			const newExtensions = await this.getInstalled(ExtensionType.User);
-			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added, removed });
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		if (this.nativeEnvironmentService.remoteAuthority) {
+			const previousInstalledExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
+			const resolverExtension = previousInstalledExtensions.find(e => isResolverExtension(e.manifest, this.nativeEnvironmentService.remoteAuthority));
+			if (resolverExtension) {
+				if (!preserveExtensions) {
+					preserveExtensions = [];
+				}
+				preserveExtensions.push(new ExtensionIdentifier(resolverExtension.identifier.id));
 			}
 		}
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveExtensions);
 	}
-
 }

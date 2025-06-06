@@ -5,12 +5,22 @@
 
 import * as assert from 'assert';
 import { basename } from 'path';
-import { commands, debug, Disposable, window, workspace } from 'vscode';
-import { assertNoRpc, disposeAll } from '../utils';
+import { commands, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
+import { assertNoRpc, createRandomFile, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
 
 	teardown(assertNoRpc);
+
+	test('breakpoints are available before accessing debug extension API', async () => {
+		const file = await createRandomFile(undefined, undefined, '.js');
+		const doc = await workspace.openTextDocument(file);
+		await window.showTextDocument(doc);
+		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
+
+		assert.strictEqual(debug.breakpoints.length, 1);
+		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
+	});
 
 	test('breakpoints', async function () {
 		assert.strictEqual(debug.breakpoints.length, 0);
@@ -39,7 +49,18 @@ suite('vscode API - debug', function () {
 		disposeAll(toDispose);
 	});
 
-	test.skip('start debugging', async function () {
+	test('function breakpoint', async function () {
+		assert.strictEqual(debug.breakpoints.length, 0);
+		debug.addBreakpoints([new FunctionBreakpoint('func', false, 'condition', 'hitCondition', 'logMessage')]);
+		const functionBreakpoint = debug.breakpoints[0] as FunctionBreakpoint;
+		assert.strictEqual(functionBreakpoint.condition, 'condition');
+		assert.strictEqual(functionBreakpoint.hitCondition, 'hitCondition');
+		assert.strictEqual(functionBreakpoint.logMessage, 'logMessage');
+		assert.strictEqual(functionBreakpoint.enabled, false);
+		assert.strictEqual(functionBreakpoint.functionName, 'func');
+	});
+
+	test('start debugging', async function () {
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
 		let initializedReceived: () => void;

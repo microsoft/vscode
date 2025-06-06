@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { ITextModel } from 'vs/editor/common/model';
-import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { OpeningBracketId } from './tokenizer';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { CursorColumns } from '../../../core/cursorColumns.js';
+import { BracketKind } from '../../../languages/supports/languageBracketsConfiguration.js';
+import { ITextModel } from '../../../model.js';
+import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
+import { OpeningBracketId } from './tokenizer.js';
 
 export const enum AstNodeKind {
 	Text = 0,
@@ -388,7 +388,7 @@ class TwoThreeListAstNode extends ListAstNode {
 		}
 		throw new Error('Invalid child index');
 	}
-	public setChild(idx: number, node: AstNode): void {
+	protected setChild(idx: number, node: AstNode): void {
 		switch (idx) {
 			case 0: this._item1 = node; return;
 			case 1: this._item2 = node; return;
@@ -506,7 +506,7 @@ class ArrayListAstNode extends ListAstNode {
 	getChild(idx: number): AstNode | null {
 		return this._children[idx];
 	}
-	setChild(idx: number, child: AstNode): void {
+	protected setChild(idx: number, child: AstNode): void {
 		this._children[idx] = child;
 	}
 	get children(): readonly AstNode[] {

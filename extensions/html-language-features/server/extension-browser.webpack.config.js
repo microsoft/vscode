@@ -13,7 +13,13 @@ const path = require('path');
 const serverConfig = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/browser/htmlServerMain.ts',
+		extension: './src/browser/htmlServerWorkerMain.ts',
+	},
+	resolve: {
+		extensionAlias: {
+			// this is needed to resolve dynamic imports that now require the .js extension
+			'.js': ['.js', '.ts'],
+		},
 	},
 	output: {
 		filename: 'htmlServerMain.js',

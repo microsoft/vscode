@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotebookCellExecutionState, NotebookExecutionState } from './notebookCommon.js';
+import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from './notebookExecutionService.js';
 
 export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate;
 
@@ -20,16 +21,50 @@ export interface ICellExecutionStateUpdate {
 	isPaused?: boolean;
 }
 
+export interface ICellErrorStackFrame {
+	/**
+	 * The location of this stack frame. This should be provided as a URI if the
+	 * location of the call frame can be accessed by the editor.
+	 */
+	readonly uri?: UriComponents;
+
+	readonly location?: IRange;
+
+	/**
+	 * The name of the stack frame, typically a method or function name.
+	 */
+	readonly label: string;
+}
+
+export interface ICellExecutionError {
+	name: string;
+	message: string;
+	stack: string | ICellErrorStackFrame[] | undefined;
+	uri: UriComponents;
+	location: IRange | undefined;
+}
+
 export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
+	error?: ICellExecutionError;
 }
-
+export enum NotebookExecutionType {
+	cell,
+	notebook
+}
 export interface ICellExecutionStateChangedEvent {
+	type: NotebookExecutionType.cell;
 	notebook: URI;
 	cellHandle: number;
 	changed?: INotebookCellExecution; // undefined -> execution was completed
 	affectsCell(cell: URI): boolean;
+	affectsNotebook(notebook: URI): boolean;
+}
+export interface IExecutionStateChangedEvent {
+	type: NotebookExecutionType.notebook;
+	notebook: URI;
+	changed?: INotebookExecution; // undefined -> execution was completed
 	affectsNotebook(notebook: URI): boolean;
 }
 export interface INotebookFailStateChangedEvent {
@@ -48,7 +83,7 @@ export const INotebookExecutionStateService = createDecorator<INotebookExecution
 export interface INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
-	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
+	onDidChangeExecution: Event<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>;
 	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void;
@@ -56,7 +91,10 @@ export interface INotebookExecutionStateService {
 	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined;
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
 	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
+	getExecution(notebook: URI): INotebookExecution | undefined;
+	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined;
 }
 
 export interface INotebookCellExecution {
@@ -69,4 +107,12 @@ export interface INotebookCellExecution {
 	confirm(): void;
 	update(updates: ICellExecuteUpdate[]): void;
 	complete(complete: ICellExecutionComplete): void;
+}
+export interface INotebookExecution {
+	readonly notebook: URI;
+	readonly state: NotebookExecutionState;
+
+	confirm(): void;
+	begin(): void;
+	complete(): void;
 }

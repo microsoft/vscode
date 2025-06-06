@@ -3,78 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { RequestsSession, UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-
-suite('UserDataSyncStoreManagementService', () => {
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
-
-	test('test sync store is read from settings', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer()));
-		await client.setUp();
-
-		client.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
-				'configurationSync.store': undefined
-			}
-		});
-
-		const configuredStore: ConfigurationSyncStore = {
-			url: 'http://configureHost:3000',
-			stableUrl: 'http://configureHost:3000',
-			insidersUrl: 'http://configureHost:3000',
-			canSwitch: false,
-			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
-		};
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({
-			'configurationSync.store': configuredStore
-		})));
-		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
-
-		const expected: IUserDataSyncStore = {
-			url: URI.parse('http://configureHost:3000'),
-			type: 'stable',
-			defaultUrl: URI.parse('http://configureHost:3000'),
-			stableUrl: URI.parse('http://configureHost:3000'),
-			insidersUrl: URI.parse('http://configureHost:3000'),
-			canSwitch: false,
-			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
-		};
-
-		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
-
-		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
-		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
-	});
-
-});
+import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
+import { newWriteableBufferStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { IRequestService } from '../../../request/common/request.js';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync.js';
+import { RequestsSession, UserDataSyncStoreService } from '../../common/userDataSyncStoreService.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 suite('UserDataSyncStoreService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test read manifest for the first time', async () => {
 		// Setup the client
@@ -467,8 +413,14 @@ suite('UserDataSyncRequestsSession', () => {
 	const requestService: IRequestService = {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
-		async resolveProxy() { return undefined; }
+		async resolveProxy() { return undefined; },
+		async lookupAuthorization() { return undefined; },
+		async lookupKerberosAuthorization() { return undefined; },
+		async loadCertificates() { return []; }
 	};
+
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());

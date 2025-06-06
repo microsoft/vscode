@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition, RenderLineOutput2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
+import assert from 'assert';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
@@ -49,6 +51,8 @@ function inflateRenderLineOutput(renderLineOutput: RenderLineOutput2) {
 }
 
 suite('viewLineRenderer.renderLine', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[]): void {
 		const _actual = renderViewLine(new RenderLineInput(
@@ -966,7 +970,9 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null) {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: OffsetRange[] | null) {
 		const actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -1455,7 +1461,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 14)]
+				[new OffsetRange(0, 14)]
 			),
 			{
 				html: [
@@ -1490,7 +1496,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5)]
+				[new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1521,7 +1527,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5), new LineRange(9, 14)]
+				[new OffsetRange(0, 5), new OffsetRange(9, 14)]
 			),
 			{
 				html: [
@@ -1554,7 +1560,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(9, 14), new LineRange(0, 5)]
+				[new OffsetRange(9, 14), new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1585,7 +1591,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)]
+				[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
 			),
 			{
 				html: [
@@ -2517,7 +2523,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'selection',
 			false,
 			false,
-			[new LineRange(0, 47)]
+			[new OffsetRange(0, 47)]
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {

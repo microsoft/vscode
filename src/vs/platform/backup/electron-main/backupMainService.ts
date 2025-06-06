@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { isEqual } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo, ILegacySerializedBackupWorkspaces } from 'vs/platform/backup/node/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { createEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import { isEqual } from '../../../base/common/extpath.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { Promises, RimRafMode } from '../../../base/node/pfs.js';
+import { IBackupMainService } from './backup.js';
+import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo } from '../node/backup.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IStateService } from '../../state/node/state.js';
+import { HotExitConfiguration, IFilesConfiguration } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from '../common/backup.js';
+import { isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { createEmptyWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -27,7 +27,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private static readonly backupWorkspacesMetadataStorageKey = 'backupWorkspaces';
 
-	protected backupHome = this.environmentMainService.backupHome;
+	protected backupHome: string;
 
 	private workspaces: IWorkspaceBackupInfo[] = [];
 	private folders: IFolderBackupInfo[] = [];
@@ -40,17 +40,18 @@ export class BackupMainService implements IBackupMainService {
 	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !isLinux) };
 
 	constructor(
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateService private readonly stateService: IStateService
 	) {
+		this.backupHome = environmentMainService.backupHome;
 	}
 
 	async initialize(): Promise<void> {
 
 		// read backup workspaces
-		const serializedBackupWorkspaces = await this.initializeAndMigrateBackupWorkspacesMetadata();
+		const serializedBackupWorkspaces = this.stateService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey) ?? { workspaces: [], folders: [], emptyWindows: [] };
 
 		// validate empty workspaces backups first
 		this.emptyWindows = await this.validateEmptyWorkspaces(serializedBackupWorkspaces.emptyWindows);
@@ -63,36 +64,6 @@ export class BackupMainService implements IBackupMainService {
 
 		// store metadata in case some workspaces or folders have been removed
 		this.storeWorkspacesMetadata();
-	}
-
-	private async initializeAndMigrateBackupWorkspacesMetadata(): Promise<ISerializedBackupWorkspaces> {
-		let serializedBackupWorkspaces = this.stateMainService.getItem<ISerializedBackupWorkspaces>(BackupMainService.backupWorkspacesMetadataStorageKey);
-		if (!serializedBackupWorkspaces) {
-			try {
-				//TODO@bpasero remove after a while
-				const legacyBackupWorkspacesPath = join(this.backupHome, 'workspaces.json');
-				const legacyBackupWorkspaces = await Promises.readFile(legacyBackupWorkspacesPath, 'utf8');
-
-				try {
-					await Promises.unlink(legacyBackupWorkspacesPath);
-				} catch (error) {
-					// ignore
-				}
-
-				const legacySerializedBackupWorkspaces = JSON.parse(legacyBackupWorkspaces) as ILegacySerializedBackupWorkspaces;
-				serializedBackupWorkspaces = {
-					workspaces: Array.isArray(legacySerializedBackupWorkspaces.rootURIWorkspaces) ? legacySerializedBackupWorkspaces.rootURIWorkspaces : [],
-					folders: Array.isArray(legacySerializedBackupWorkspaces.folderWorkspaceInfos) ? legacySerializedBackupWorkspaces.folderWorkspaceInfos : [],
-					emptyWindows: Array.isArray(legacySerializedBackupWorkspaces.emptyWorkspaceInfos) ? legacySerializedBackupWorkspaces.emptyWorkspaceInfos : [],
-				};
-			} catch (error) {
-				if (error.code !== 'ENOENT') {
-					this.logService.error(`Backup: Could not migrate legacy backup workspaces metadata: ${error.toString()}`);
-				}
-			}
-		}
-
-		return serializedBackupWorkspaces ?? { workspaces: [], folders: [], emptyWindows: [] };
 	}
 
 	protected getWorkspaceBackups(): IWorkspaceBackupInfo[] {
@@ -160,7 +131,7 @@ export class BackupMainService implements IBackupMainService {
 		// When we have data to migrate from, move it over to the target location
 		if (await Promises.exists(moveFromPath)) {
 			try {
-				await Promises.rename(moveFromPath, backupPath);
+				await Promises.rename(moveFromPath, backupPath, false /* no retry */);
 			} catch (error) {
 				this.logService.error(`Backup: Could not move backup folder to new location: ${error.toString()}`);
 			}
@@ -315,7 +286,7 @@ export class BackupMainService implements IBackupMainService {
 		// Rename backupPath to new empty window backup path
 		const newEmptyWindowBackupPath = join(this.backupHome, newEmptyWindowBackupInfo.backupFolder);
 		try {
-			await Promises.rename(backupPath, newEmptyWindowBackupPath);
+			await Promises.rename(backupPath, newEmptyWindowBackupPath, false /* no retry */);
 		} catch (error) {
 			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
@@ -427,7 +398,7 @@ export class BackupMainService implements IBackupMainService {
 			})
 		};
 
-		this.stateMainService.setItem(BackupMainService.backupWorkspacesMetadataStorageKey, serializedBackupWorkspaces);
+		this.stateService.setItem(BackupMainService.backupWorkspacesMetadataStorageKey, serializedBackupWorkspaces);
 	}
 
 	protected getFolderHash(folder: IFolderBackupInfo): string {
@@ -440,6 +411,6 @@ export class BackupMainService implements IBackupMainService {
 			key = folderUri.toString().toLowerCase();
 		}
 
-		return createHash('md5').update(key).digest('hex');
+		return createHash('md5').update(key).digest('hex'); // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 	}
 }

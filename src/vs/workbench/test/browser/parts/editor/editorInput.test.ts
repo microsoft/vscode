@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DEFAULT_EDITOR_ASSOCIATION, IResourceDiffEditorInput, IResourceMergeEditorInput, IResourceSideBySideEditorInput, isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { TestEditorInput, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IResourceEditorInput, ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IResourceDiffEditorInput, IResourceMergeEditorInput, IResourceSideBySideEditorInput, isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput.js';
+import { MergeEditorInput, MergeEditorInputData } from '../../../../contrib/mergeEditor/browser/mergeEditorInput.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { TestEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 suite('EditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 
 	const testResource: URI = URI.from({ scheme: 'random', path: '/path' });
 	const untypedResourceEditorInput: IResourceEditorInput = { resource: testResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
@@ -52,7 +53,6 @@ suite('EditorInput', () => {
 	};
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -74,7 +74,7 @@ suite('EditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	class MyEditorInput extends EditorInput {
@@ -86,8 +86,8 @@ suite('EditorInput', () => {
 
 	test('basics', () => {
 		let counter = 0;
-		const input = new MyEditorInput();
-		const otherInput = new MyEditorInput();
+		const input = disposables.add(new MyEditorInput());
+		const otherInput = disposables.add(new MyEditorInput());
 
 		assert.ok(isEditorInput(input));
 		assert.ok(!isEditorInput(undefined));
@@ -95,7 +95,7 @@ suite('EditorInput', () => {
 		assert.ok(!isEditorInput({}));
 
 		assert.ok(!isResourceEditorInput(input));
-		assert.ok(!isUntitledResourceEditorInput(input));
+		assert.ok(!isUntitledResourceEditorInput(input as any));
 		assert.ok(!isResourceDiffEditorInput(input));
 		assert.ok(!isResourceMergeEditorInput(input));
 		assert.ok(!isResourceSideBySideEditorInput(input));
@@ -104,10 +104,10 @@ suite('EditorInput', () => {
 		assert(!input.matches(otherInput));
 		assert(input.getName());
 
-		input.onWillDispose(() => {
+		disposables.add(input.onWillDispose(() => {
 			assert(true);
 			counter++;
-		});
+		}));
 
 		input.dispose();
 		assert.strictEqual(counter, 1);
@@ -116,7 +116,7 @@ suite('EditorInput', () => {
 	test('untyped matches', () => {
 		const testInputID = 'untypedMatches';
 		const testInputResource = URI.file('/fake');
-		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testInput = disposables.add(new TestEditorInput(testInputResource, testInputID));
 		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
 		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
 		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
@@ -126,7 +126,6 @@ suite('EditorInput', () => {
 		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
 		assert.ok(!testInput.matches(testUntypedInputWrongId));
 		assert.ok(!testInput.matches(testUntypedInputWrong));
-
 	});
 
 	test('Untpyed inputs properly match TextResourceEditorInput', () => {
@@ -236,4 +235,6 @@ suite('EditorInput', () => {
 		fileEditorInput1.dispose();
 		fileEditorInput2.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

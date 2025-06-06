@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/languages';
-import { FoldingLimitReporter, RangeProvider } from './folding';
-import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../common/model.js';
+import { FoldingContext, FoldingRange, FoldingRangeProvider } from '../../../common/languages.js';
+import { FoldingLimitReporter, RangeProvider } from './folding.js';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
 
 export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
@@ -24,19 +24,22 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	readonly disposables: DisposableStore | undefined;
+	readonly disposables: DisposableStore;
 
 	constructor(
 		private readonly editorModel: ITextModel,
 		private readonly providers: FoldingRangeProvider[],
 		readonly handleFoldingRangesChange: () => void,
-		private readonly foldingRangesLimit: FoldingLimitReporter
+		private readonly foldingRangesLimit: FoldingLimitReporter,
+		private readonly fallbackRangeProvider: RangeProvider | undefined // used when all providers return null
 	) {
+		this.disposables = new DisposableStore();
+		if (fallbackRangeProvider) {
+			this.disposables.add(fallbackRangeProvider);
+		}
+
 		for (const provider of providers) {
 			if (typeof provider.onDidChange === 'function') {
-				if (!this.disposables) {
-					this.disposables = new DisposableStore();
-				}
 				this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
 			}
 		}
@@ -44,16 +47,19 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
 		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
+			if (this.editorModel.isDisposed()) {
+				return null;
+			}
 			if (ranges) {
 				const res = sanitizeRanges(ranges, this.foldingRangesLimit);
 				return res;
 			}
-			return null;
+			return this.fallbackRangeProvider?.compute(cancellationToken) ?? null;
 		});
 	}
 
 	dispose() {
-		this.disposables?.dispose();
+		this.disposables.dispose();
 	}
 }
 
@@ -119,7 +125,7 @@ class RangesCollector {
 	public toIndentRanges() {
 		const limit = this._foldingRangesLimit.limit;
 		if (this._length <= limit) {
-			this._foldingRangesLimit.report({ limited: false, computed: this._length });
+			this._foldingRangesLimit.update(this._length, false);
 
 			const startIndexes = new Uint32Array(this._length);
 			const endIndexes = new Uint32Array(this._length);
@@ -129,7 +135,7 @@ class RangesCollector {
 			}
 			return new FoldingRegions(startIndexes, endIndexes, this._types);
 		} else {
-			this._foldingRangesLimit.report({ limited: limit, computed: this._length });
+			this._foldingRangesLimit.update(this._length, limit);
 
 			let entries = 0;
 			let maxLevel = this._nestingLevelCounts.length;

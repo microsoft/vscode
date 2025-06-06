@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, tryFindRootPorts } from 'vs/workbench/api/node/extHostTunnelService';
+import assert from 'assert';
+import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -225,6 +226,7 @@ const psStdOut =
 0 S node      1058  1056  0  80   0 -   770 pipe_w   888   9 14:43 ?        00:00:00 grep root`;
 
 suite('ExtHostTunnelService', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('getSockets', function () {
 		const result = getSockets(procSockets);
 		assert.strictEqual(Object.keys(result).length, 75);
@@ -277,5 +279,10 @@ suite('ExtHostTunnelService', () => {
 		assert.strictEqual(result[0].host, '0.0.0.0');
 		assert.strictEqual(result[0].port, 3002);
 		assert.strictEqual(result[0].detail, 'http-server');
+	});
+
+	test('parseIpAddress', function () {
+		assert.strictEqual(parseIpAddress('00000000000000000000000001000000'), '0:0:0:0:0:0:0:1');
+		assert.strictEqual(parseIpAddress('0000000000000000FFFF0000040510AC'), '0:0:0:0:0:ffff:ac10:504');
 	});
 });

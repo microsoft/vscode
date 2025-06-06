@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import * as nls from '../../../../nls.js';
+import { IConfirmationResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 
@@ -57,6 +57,8 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 			}
 			this._checkForUnusualLineTerminators();
 		}));
+
+		this._checkForUnusualLineTerminators();
 	}
 
 	private async _checkForUnusualLineTerminators(): Promise<void> {
@@ -99,8 +101,8 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 				title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
 				message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
 				detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
-				primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
-				secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
+				primaryButton: nls.localize({ key: 'unusualLineTerminators.fix', comment: ['&& denotes a mnemonic'] }, "&&Remove Unusual Line Terminators"),
+				cancelButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
 			});
 		} finally {
 			this._isPresentingDialog = false;
@@ -116,4 +118,4 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 	}
 }
 
-registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector);
+registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector, EditorContributionInstantiation.AfterFirstRender);

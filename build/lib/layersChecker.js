@@ -3,8 +3,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const ts = require("typescript");
+const typescript_1 = __importDefault(require("typescript"));
 const fs_1 = require("fs");
 const path_1 = require("path");
 const minimatch_1 = require("minimatch");
@@ -23,7 +26,6 @@ const minimatch_1 = require("minimatch");
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-    'require',
     'setTimeout',
     'clearTimeout',
     'setInterval',
@@ -58,6 +60,42 @@ const CORE_TYPES = [
     'URL',
     'URLSearchParams',
     'ReadonlyArray',
+    'Event',
+    'EventTarget',
+    'BroadcastChannel',
+    'performance',
+    'Blob',
+    'crypto',
+    'File',
+    'fetch',
+    'RequestInit',
+    'Headers',
+    'Request',
+    'Response',
+    'Body',
+    'any',
+    'timeout',
+    'Performance',
+    'PerformanceMark',
+    'PerformanceObserver',
+    'ImportMeta',
+    'structuredClone',
+    'stackTraceLimit',
+    'captureStackTrace',
+    // webcrypto has been available since Node.js 19, but still live in dom.d.ts
+    'Crypto',
+    'SubtleCrypto',
+    'JsonWebKey',
+    'MessageEvent',
+    // node web types
+    'ReadableStream',
+    'ReadableStreamReadResult',
+    'ReadableStreamGenericReader',
+    'ReadableStreamDefaultReader',
+    'value',
+    'done',
+    'DOMException',
+    'WebSocket',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -66,7 +104,10 @@ const NATIVE_TYPES = [
     'INativeEnvironmentService',
     'AbstractNativeEnvironmentService',
     'INativeWindowConfiguration',
-    'ICommonNativeHostService'
+    'ICommonNativeHostService',
+    'INativeHostService',
+    'IMainProcessService',
+    'INativeBrowserElementsService',
 ];
 const RULES = [
     // Tests: skip
@@ -74,52 +115,51 @@ const RULES = [
         target: '**/vs/**/test/**',
         skip: true // -> skip all test files
     },
-    // TODO@bpasero remove me once electron utility process has landed
+    // Common: vs/base/common/async.ts
     {
-        target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-        skip: true
-    },
-    // Common: vs/base/common/platform.ts
-    {
-        target: '**/vs/base/common/platform.ts',
+        target: '**/vs/base/common/async.ts',
         allowedTypes: [
             ...CORE_TYPES,
-            // Safe access to postMessage() and friends
-            'MessageEvent',
+            // Safe access to requestIdleCallback & cancelIdleCallback
+            'requestIdleCallback',
+            'cancelIdleCallback'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/environment/common/*
+    // Common: vs/base/common/performance.ts
     {
-        target: '**/vs/platform/environment/common/*.ts',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        target: '**/vs/base/common/performance.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to Performance
+            'Performance',
+            'PerformanceEntry',
+            'PerformanceTiming'
+        ],
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/window/common/window.ts
+    // Common: vs/platform services that can access native types
     {
-        target: '**/vs/platform/window/common/window.ts',
+        target: `**/vs/platform/{${[
+            'environment/common/*.ts',
+            'window/common/window.ts',
+            'native/common/native.ts',
+            'native/common/nativeHostService.ts',
+            'browserElements/common/browserElements.ts',
+            'browserElements/common/nativeBrowserElementsService.ts'
+        ].join(',')}}`,
         allowedTypes: CORE_TYPES,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
-            'lib.dom.d.ts',
-            '@types/node' // no node.js
-        ]
-    },
-    // Common: vs/platform/native/common/native.ts
-    {
-        target: '**/vs/platform/native/common/native.ts',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -133,7 +173,22 @@ const RULES = [
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
+    {
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to a very small subset of node.js
+            'process',
+            'NodeJS',
+            '__global'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
             '@types/node' // no node.js
         ]
     },
@@ -143,18 +198,18 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts',
+            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
     // Browser
     {
         target: '**/vs/**/browser/**',
-        allowedTypes: CORE_TYPES,
-        disallowedTypes: NATIVE_TYPES,
-        allowedDefinitions: [
-            '@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+        allowedTypes: [
+            ...CORE_TYPES,
+            'localStorage'
         ],
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]
@@ -184,20 +239,10 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Electron (renderer): skip
+    // Electron (main, utility)
     {
-        target: '**/vs/**/electron-browser/**',
-        skip: true // -> supports all types
-    },
-    // Electron (main)
-    {
-        target: '**/vs/**/electron-main/**',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
-            'Event',
-            'Request'
-        ],
+        target: '**/vs/**/{electron-main,electron-utility}/**',
+        allowedTypes: CORE_TYPES,
         disallowedTypes: [
             'ipcMain' // not allowed, use validatedIpcMain instead
         ],
@@ -211,20 +256,24 @@ let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
     checkNode(sourceFile);
     function checkNode(node) {
-        if (node.kind !== ts.SyntaxKind.Identifier) {
-            return ts.forEachChild(node, checkNode); // recurse down
+        if (node.kind !== typescript_1.default.SyntaxKind.Identifier) {
+            return typescript_1.default.forEachChild(node, checkNode); // recurse down
         }
         const checker = program.getTypeChecker();
         const symbol = checker.getSymbolAtLocation(node);
         if (!symbol) {
             return;
         }
+        let text = symbol.getName();
+        if (rule.allowedTypes?.some(allowed => allowed === text)) {
+            return; // override
+        }
         let _parentSymbol = symbol;
         while (_parentSymbol.parent) {
             _parentSymbol = _parentSymbol.parent;
         }
         const parentSymbol = _parentSymbol;
-        const text = parentSymbol.getName();
+        text = parentSymbol.getName();
         if (rule.allowedTypes?.some(allowed => allowed === text)) {
             return; // override
         }
@@ -268,11 +317,11 @@ function checkFile(program, sourceFile, rule) {
     }
 }
 function createProgram(tsconfigPath) {
-    const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
-    const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
-    return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
+    const tsConfig = typescript_1.default.readConfigFile(tsconfigPath, typescript_1.default.sys.readFile);
+    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: typescript_1.default.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
+    const tsConfigParsed = typescript_1.default.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
+    const compilerHost = typescript_1.default.createCompilerHost(tsConfigParsed.options, true);
+    return typescript_1.default.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
 }
 //
 // Create program and start checking
@@ -291,4 +340,4 @@ for (const sourceFile of program.getSourceFiles()) {
 if (hasErrors) {
     process.exit(1);
 }
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibGF5ZXJzQ2hlY2tlci5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImxheWVyc0NoZWNrZXIudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IjtBQUFBOzs7Z0dBR2dHOztBQUVoRyxpQ0FBaUM7QUFDakMsMkJBQThDO0FBQzlDLCtCQUE4QztBQUM5Qyx5Q0FBa0M7QUFFbEMsRUFBRTtBQUNGLGdHQUFnRztBQUNoRyxFQUFFO0FBQ0YsK0ZBQStGO0FBQy9GLG1EQUFtRDtBQUNuRCw0RUFBNEU7QUFDNUUsaUVBQWlFO0FBQ2pFLEVBQUU7QUFDRixnR0FBZ0c7QUFDaEcsRUFBRTtBQUNGLGdHQUFnRztBQUNoRyxFQUFFO0FBRUYsbUZBQW1GO0FBQ25GLHdGQUF3RjtBQUN4RixNQUFNLFVBQVUsR0FBRztJQUNsQixTQUFTO0lBQ1QsWUFBWTtJQUNaLGNBQWM7SUFDZCxhQUFhO0lBQ2IsZUFBZTtJQUNmLFNBQVM7SUFDVCxTQUFTO0lBQ1QsT0FBTztJQUNQLGtCQUFrQjtJQUNsQixRQUFRO0lBQ1IsYUFBYTtJQUNiLGFBQWE7SUFDYixNQUFNO0lBQ04sZ0JBQWdCO0lBQ2hCLE9BQU87SUFDUCxZQUFZO0lBQ1osYUFBYTtJQUNiLGFBQWE7SUFDYixXQUFXO0lBQ1gsWUFBWTtJQUNaLFlBQVk7SUFDWixjQUFjO0lBQ2QsY0FBYztJQUNkLG1CQUFtQjtJQUNuQixnQkFBZ0I7SUFDaEIsZUFBZTtJQUNmLE1BQU07SUFDTixNQUFNO0lBQ04saUJBQWlCO0lBQ2pCLGFBQWE7SUFDYixnQkFBZ0I7SUFDaEIsYUFBYTtJQUNiLEtBQUs7SUFDTCxpQkFBaUI7SUFDakIsZUFBZTtDQUNmLENBQUM7QUFFRixvRUFBb0U7QUFDcEUsb0VBQW9FO0FBQ3BFLE1BQU0sWUFBWSxHQUFHO0lBQ3BCLGtCQUFrQjtJQUNsQiwyQkFBMkI7SUFDM0Isa0NBQWtDO0lBQ2xDLDRCQUE0QjtJQUM1QiwwQkFBMEI7Q0FDMUIsQ0FBQztBQUVGLE1BQU0sS0FBSyxHQUFZO0lBRXRCLGNBQWM7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
+//# sourceMappingURL=layersChecker.js.map

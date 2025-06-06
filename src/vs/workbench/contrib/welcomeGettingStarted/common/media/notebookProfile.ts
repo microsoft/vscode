@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
+import { escape } from '../../../../../base/common/strings.js';
+import { localize } from '../../../../../nls.js';
 
 const profileArg = (profile: string) => encodeURIComponent(JSON.stringify({ profile }));
 const imageSize = 400;
