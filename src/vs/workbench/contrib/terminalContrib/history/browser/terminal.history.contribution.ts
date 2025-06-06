@@ -147,7 +147,10 @@ registerTerminalAction({
 		}
 	],
 	run: async (c, accessor) => {
+		// If there are no active instances, then create a new terminal instance
 		const activeInstance = await c.service.getActiveOrCreateInstance();
+		// Newly created instances will not have a shell type set yet
+		// This will result in the command picker not showing up, so wait for it to be set
 		if (!activeInstance.shellType) {
 			await c.service.revealActiveTerminal();
 			const wasDisposedPrematurely = await new Promise<boolean>(resolve => {
@@ -158,6 +161,7 @@ registerTerminalAction({
 					resolve(true);
 				});
 			});
+			// If the instance was disposed before the shell type was set, then exit
 			if (wasDisposedPrematurely) {
 				return;
 			}
