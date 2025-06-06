@@ -11,8 +11,8 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ContextKeyExpr, type ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingsRegistry, type IKeybindings, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService, type QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { KeybindingsRegistry, KeybindingWeight, type IKeybindings } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { GeneralShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
@@ -20,7 +20,10 @@ import { IHistoryService } from '../../../../services/history/common/history.js'
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextKeys, TerminalContextKeyStrings } from '../../../terminal/common/terminalContextKey.js';
-import { TerminalSendCommandsCommandId } from '../common/terminal.sendCommands.js';
+
+export const enum TerminalSendSequenceCommandId {
+	SendSequence = 'workbench.action.terminal.sendSequence',
+}
 
 function toOptionalString(obj: unknown): string | undefined {
 	return isString(obj) ? obj : undefined;
@@ -73,7 +76,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 const sendSequenceString = localize2('sendSequence', "Send Sequence");
 registerTerminalAction({
-	id: TerminalSendCommandsCommandId.SendSequence,
+	id: TerminalSendSequenceCommandId.SendSequence,
 	title: sendSequenceString,
 	f1: true,
 	metadata: {
@@ -95,81 +98,9 @@ registerTerminalAction({
 	run: (c, accessor, args) => terminalSendSequenceCommand(accessor, args)
 });
 
-const sendSignalString = localize2('sendSignal', "Send Signal");
-registerTerminalAction({
-	id: TerminalSendCommandsCommandId.SendSignal,
-	title: sendSignalString,
-	f1: !isWindows,
-	metadata: {
-		description: sendSignalString.value,
-		args: [{
-			name: 'args',
-			schema: {
-				type: 'object',
-				required: ['signal'],
-				properties: {
-					signal: {
-						description: localize('sendSignal.signal.desc', "The signal to send to the terminal process (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL')"),
-						type: 'string'
-					}
-				},
-			}
-		}]
-	},
-	run: async (c, accessor, args) => {
-		const quickInputService = accessor.get(IQuickInputService);
-		const instance = c.service.activeInstance;
-		if (!instance) {
-			return;
-		}
-
-		let signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
-
-		if (!signal) {
-			const signalOptions: QuickPickItem[] = [
-				{ label: 'SIGINT', description: localize('SIGINT', 'Interrupt process (Ctrl+C)') },
-				{ label: 'SIGTERM', description: localize('SIGTERM', 'Terminate process gracefully') },
-				{ label: 'SIGKILL', description: localize('SIGKILL', 'Force kill process') },
-				{ label: 'SIGSTOP', description: localize('SIGSTOP', 'Stop process') },
-				{ label: 'SIGCONT', description: localize('SIGCONT', 'Continue process') },
-				{ label: 'SIGHUP', description: localize('SIGHUP', 'Hangup') },
-				{ label: 'SIGQUIT', description: localize('SIGQUIT', 'Quit process') },
-				{ label: 'SIGUSR1', description: localize('SIGUSR1', 'User-defined signal 1') },
-				{ label: 'SIGUSR2', description: localize('SIGUSR2', 'User-defined signal 2') },
-				{ type: 'separator' },
-				{ label: localize('manualSignal', 'Manually enter signal') }
-			];
-
-			const selected = await quickInputService.pick(signalOptions, {
-				placeHolder: localize('selectSignal', 'Select signal to send to terminal process')
-			});
-
-			if (!selected) {
-				return;
-			}
-
-			if (selected.label === localize('manualSignal', 'Manually enter signal')) {
-				const inputSignal = await quickInputService.input({
-					prompt: localize('enterSignal', 'Enter signal name (e.g., SIGTERM, SIGKILL)'),
-				});
-
-				if (!inputSignal) {
-					return;
-				}
-
-				signal = inputSignal;
-			} else {
-				signal = selected.label;
-			}
-		}
-
-		await instance.sendSignal(signal);
-	}
-});
-
 export function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TerminalSendCommandsCommandId.SendSequence,
+		id: TerminalSendSequenceCommandId.SendSequence,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: rule.when || TerminalContextKeys.focus,
 		primary: rule.primary,
