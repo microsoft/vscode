@@ -1036,3 +1036,33 @@ export function shouldShowClearEditingSessionConfirmation(editingSession: IChatE
 
 	return false;
 }
+
+// --- Chat Submenus in various Components
+
+const menuContext = ContextKeyExpr.and(
+	ChatContextKeys.Setup.hidden.negate(),
+	ChatContextKeys.Setup.disabled.negate()
+);
+
+const title = localize('copilot', "Copilot");
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	submenu: MenuId.ChatTextEditorMenu,
+	group: '1_copilot',
+	title,
+	when: menuContext
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	submenu: MenuId.ChatExplorerMenu,
+	group: '5_copilot',
+	title,
+	when: menuContext
+});
+
+MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
+	submenu: MenuId.ChatTerminalMenu,
+	group: '2_copilot',
+	title,
+	when: menuContext
+});
