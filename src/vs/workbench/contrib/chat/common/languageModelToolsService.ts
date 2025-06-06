@@ -125,7 +125,17 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string; uri?: URI } | { type: 'resource'; uri: URI })[];
+	readonly output: ({
+		value: string;
+		/** If true, value is text. If false or not given, value is base64 */
+		isText?: boolean;
+		/** Mimetype of the value, optional */
+		mimeType?: string;
+		/** URI of the resource on the MCP server. */
+		uri?: URI;
+		/** If true, this part came in as a resource reference rather than direct data. */
+		asResource?: boolean;
+	})[];
 	readonly isError?: boolean;
 }
 
@@ -169,6 +179,7 @@ export interface IToolResultDataPart {
 export interface IToolConfirmationMessages {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }
 
@@ -200,10 +211,9 @@ export class ToolSet {
 
 	constructor(
 		readonly id: string,
-		readonly displayName: string,
+		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly toolReferenceName: string,
 		readonly description?: string,
 	) {
 
@@ -259,7 +269,7 @@ export interface ILanguageModelToolsService {
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

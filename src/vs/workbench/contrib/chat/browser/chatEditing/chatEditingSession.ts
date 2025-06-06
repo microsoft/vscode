@@ -12,7 +12,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { asyncTransaction, autorun, derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -224,9 +224,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
 			}
-			await asyncTransaction(async tx => {
-				this._pendingSnapshot = restoredSessionState.pendingSnapshot;
-				await this._restoreSnapshot(restoredSessionState.recentSnapshot, tx, false);
+			this._pendingSnapshot = restoredSessionState.pendingSnapshot;
+			await this._restoreSnapshot(restoredSessionState.recentSnapshot, false);
+			transaction(async tx => {
 				this._linearHistory.set(restoredSessionState.linearHistory, tx);
 				this._linearHistoryIndex.set(restoredSessionState.linearHistoryIndex, tx);
 				this._state.set(ChatEditingSessionState.Idle, tx);
@@ -491,10 +491,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const stopRef = this._findEditStop(requestId, stopId);
 			if (stopRef) {
 				this._ensurePendingSnapshot();
-				await asyncTransaction(async tx => {
-					this._linearHistoryIndex.set(stopRef.historyIndex, tx);
-					await this._restoreSnapshot(stopRef.stop, tx);
-				});
+				this._linearHistoryIndex.set(stopRef.historyIndex, undefined);
+				await this._restoreSnapshot(stopRef.stop);
 				this._updateRequestHiddenState();
 			}
 		} else {
@@ -507,7 +505,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreResolvedToDisk = true): Promise<void> {
+	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -528,7 +526,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			entriesArr.push(entry);
 		}
 
-		this._entriesObs.set(entriesArr, tx);
+		this._entriesObs.set(entriesArr, undefined);
 	}
 
 	remove(...uris: URI[]): void {
@@ -562,37 +560,32 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	async accept(...uris: URI[]): Promise<void> {
 		this._assertNotDisposed();
 
-		await asyncTransaction(async tx => {
+		if (uris.length === 0) {
+			await Promise.all(this._entriesObs.get().map(entry => entry.accept()));
+		}
 
-			if (uris.length === 0) {
-				await Promise.all(this._entriesObs.get().map(entry => entry.accept(tx)));
+		for (const uri of uris) {
+			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+			if (entry) {
+				await entry.accept();
 			}
-
-			for (const uri of uris) {
-				const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-				if (entry) {
-					await entry.accept(tx);
-				}
-			}
-		});
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
 		this._assertNotDisposed();
 
-		await asyncTransaction(async tx => {
-			if (uris.length === 0) {
-				await Promise.all(this._entriesObs.get().map(entry => entry.reject(tx)));
-			}
+		if (uris.length === 0) {
+			await Promise.all(this._entriesObs.get().map(entry => entry.reject()));
+		}
 
-			for (const uri of uris) {
-				const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-				if (entry) {
-					await entry.reject(tx);
-				}
+		for (const uri of uris) {
+			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+			if (entry) {
+				await entry.reject();
 			}
-		});
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 	}
 
@@ -738,10 +731,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._ensurePendingSnapshot();
-		await asyncTransaction(async tx => {
-			await this._restoreSnapshot(previousSnapshot.stop, tx);
-			this._linearHistoryIndex.set(newIndex, tx);
-		});
+		await this._restoreSnapshot(previousSnapshot.stop);
+		this._linearHistoryIndex.set(newIndex, undefined);
 		this._updateRequestHiddenState();
 	}
 
@@ -756,10 +747,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (!nextSnapshot) {
 			return;
 		}
-		await asyncTransaction(async tx => {
-			await this._restoreSnapshot(nextSnapshot, tx);
-			this._linearHistoryIndex.set(newIndex, tx);
-		});
+		await this._restoreSnapshot(nextSnapshot);
+		this._linearHistoryIndex.set(newIndex, undefined);
 		this._updateRequestHiddenState();
 	}
 
@@ -809,7 +798,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	 *
 	 * @param next If true, this will edit the snapshot _after_ the undo stop
 	 */
-	private ensureEditInUndoStopMatches(requestId: string, undoStop: string | undefined, entry: AbstractChatEditingModifiedFileEntry, next: boolean, tx: ITransaction) {
+	private ensureEditInUndoStopMatches(requestId: string, undoStop: string | undefined, entry: AbstractChatEditingModifiedFileEntry, next: boolean, tx: ITransaction | undefined) {
 		const history = this._linearHistory.get();
 		const snapIndex = history.findIndex(s => s.requestId === requestId);
 		if (snapIndex === -1) {
@@ -871,20 +860,19 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {
-		await asyncTransaction(async (tx) => {
-			const hasOtherTasks = Iterable.some(this._streamingEditLocks.keys(), k => k !== resource.toString());
-			if (!hasOtherTasks) {
-				this._state.set(ChatEditingSessionState.Idle, tx);
-			}
 
-			const entry = this._getEntry(resource);
-			if (!entry) {
-				return;
-			}
+		const hasOtherTasks = Iterable.some(this._streamingEditLocks.keys(), k => k !== resource.toString());
+		if (!hasOtherTasks) {
+			this._state.set(ChatEditingSessionState.Idle, undefined);
+		}
 
-			this.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, tx);
-			return entry.acceptStreamingEditsEnd(tx);
-		});
+		const entry = this._getEntry(resource);
+		if (!entry) {
+			return;
+		}
+
+		this.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, undefined);
+		return entry.acceptStreamingEditsEnd();
 
 	}
 

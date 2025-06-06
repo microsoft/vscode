@@ -240,7 +240,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		// Refs https://github.com/microsoft/vscode/issues/189805
-		opts.execArgv.unshift('--dns-result-order=ipv4first');
+		//
+		// Enable experimental network inspection
+		// inspector agent is always setup hence add this flag
+		// unconditionally.
+		opts.execArgv.unshift('--dns-result-order=ipv4first', '--experimental-network-inspection');
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };

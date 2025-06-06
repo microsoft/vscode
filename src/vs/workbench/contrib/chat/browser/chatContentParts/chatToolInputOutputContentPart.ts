@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
-import { applyDragImage } from '../../../../../base/browser/ui/dnd/dnd.js';
-import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../base/common/mime.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -34,9 +30,8 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
-import { getAttachableImageExtension, IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { getAttachableImageExtension, IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
@@ -57,16 +52,11 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value: Uint8Array;
-	mimeType: string;
-	uri?: URI;
-}
-
-export interface IChatCollapsibleIOResourcePart {
-	kind: 'resource';
+	mimeType: string | undefined;
 	uri: URI;
 }
 
-export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart;
+export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibleIODataPart;
 
 export interface IChatCollapsibleInputData extends IChatCollapsibleIOCodePart { }
 export interface IChatCollapsibleOutputData {
@@ -192,11 +182,11 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					continue;
 				}
 
-				const group: (IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart)[] = [];
+				const group: IChatCollapsibleIODataPart[] = [];
 				for (let k = i; k < output.parts.length; k++) {
 					const part = output.parts[k];
-					if (!(part.kind === 'data' || part.kind === 'resource')) {
-						continue;
+					if (part.kind !== 'data') {
+						break;
 					}
 					group.push(part);
 				}
@@ -209,21 +199,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		return contents.root;
 	}
 
-	private addResourceGroup(parts: (IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart)[], container: HTMLElement) {
+	private addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
 		const el = dom.h('.chat-collapsible-io-resource-group', [
 			dom.h('.chat-collapsible-io-resource-items@items'),
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
 		const entries = parts.map((part): IChatRequestVariableEntry => {
-			if (part.kind === 'data' && getAttachableImageExtension(part.mimeType)) {
-				return { kind: 'image', id: generateUuid(), name: part.uri ? basename(part.uri) : `image.${getAttachableImageExtension(part.mimeType)}`, value: part.value, mimeType: part.mimeType, isURL: false };
-			} else if (part.kind === 'resource') {
-				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
-			} else if (part.kind === 'data') {
-				return { kind: 'generic', id: generateUuid(), name: localize('chat.unknownData', "Unknown Data"), value: part.value, fullName: localize('chat.unknownData.full', "Unknown Data with MIME type {0}", part.mimeType), omittedState: OmittedState.Full };
+			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
+				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
-				assertNever(part);
+				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}
 		});
 
@@ -248,23 +234,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					getActionsContext: () => ({ parts: [part] } satisfies IChatToolOutputResourceToolbarContext),
 				});
 			}
-		};
-
-		attachments.dragStartHandler = (attachment, event, element) => {
-			if (!event.dataTransfer) {
-				return;
-			}
-
-			const index = entries.indexOf(attachment);
-			const part = parts[index];
-			if (!part.uri) {
-				return;
-			}
-
-			applyDragImage(event, element, attachment.name);
-			event.dataTransfer.effectAllowed = 'copy';
-			event.dataTransfer.setData(DataTransfers.TEXT, part.uri.toString());
-			this._instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [part.uri!], event));
 		};
 
 		el.items.appendChild(attachments.domNode!);
@@ -309,7 +278,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 }
 
 interface IChatToolOutputResourceToolbarContext {
-	parts: (IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart)[];
+	parts: IChatCollapsibleIODataPart[];
 }
 
 class SaveResourcesAction extends Action2 {
@@ -339,11 +308,8 @@ class SaveResourcesAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const defaultFilepath = await fileDialog.defaultFilePath();
 
-		const partBasename = (part: IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart) =>
-			(part.kind === 'resource' || part.uri) ? basename(part.uri!) : ('file' + (getExtensionForMimeType(part.mimeType) || ''));
-
-		const savePart = async (part: IChatCollapsibleIODataPart | IChatCollapsibleIOResourcePart, isFolder: boolean, uri: URI) => {
-			const target = isFolder ? joinPath(uri, partBasename(part)) : uri;
+		const savePart = async (part: IChatCollapsibleIODataPart, isFolder: boolean, uri: URI) => {
+			const target = isFolder ? joinPath(uri, basename(part.uri)) : uri;
 			try {
 				if (part.kind === 'data') {
 					await fileService.writeFile(target, VSBuffer.wrap(part.value));
@@ -353,7 +319,7 @@ class SaveResourcesAction extends Action2 {
 					await fileService.writeFile(target, contents.value);
 				}
 			} catch (e) {
-				notificationService.error(localize('chat.saveResources.error', "Failed to save {0}: {1}", partBasename(part), e));
+				notificationService.error(localize('chat.saveResources.error', "Failed to save {0}: {1}", basename(part.uri), e));
 			}
 		};
 
@@ -378,7 +344,7 @@ class SaveResourcesAction extends Action2 {
 
 		if (context.parts.length === 1) {
 			const part = context.parts[0];
-			const uri = await fileDialog.pickFileToSave(joinPath(defaultFilepath, partBasename(part)));
+			const uri = await fileDialog.pickFileToSave(joinPath(defaultFilepath, basename(part.uri)));
 			if (!uri) {
 				return;
 			}

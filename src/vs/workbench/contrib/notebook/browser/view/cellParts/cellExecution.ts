@@ -15,6 +15,7 @@ import { NotebookCellInternalMetadata } from '../../../common/notebookCommon.js'
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { executingStateIcon } from '../../notebookIcons.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
 
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
@@ -65,6 +66,12 @@ export class CellExecutionPart extends CellContentPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		this.updateExecutionOrder(element.internalMetadata, true);
+	}
+
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		if (e.internalMetadataChanged) {
+			this.updateExecutionOrder(element.internalMetadata);
+		}
 	}
 
 	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, forceClear = false): void {
@@ -139,19 +146,19 @@ export class CellExecutionPart extends CellContentPart {
 			const statusBarVisible = this.currentCell.layoutInfo.statusBarHeight > 0;
 
 			// Sticky mode: cell is running and editor is not fully visible
-			if (scrollBottom <= editorBottom && cellIsRunning) {
-				const offset = editorBottom - scrollBottom;
-				top -= offset;
-				top = clamp(
-					top,
-					lineHeight + 12, // line height + padding for single line
-					this.currentCell.layoutInfo.editorHeight - lineHeight + this.currentCell.layoutInfo.statusBarHeight
-				);
+			const offset = editorBottom - scrollBottom;
+			top -= offset;
+			top = clamp(
+				top,
+				lineHeight + 12, // line height + padding for single line
+				this.currentCell.layoutInfo.editorHeight - lineHeight + this.currentCell.layoutInfo.statusBarHeight
+			);
 
-				const isAlreadySticky = this._executionOrderLabel.classList.contains('sticky');
+			if (scrollBottom <= editorBottom && cellIsRunning) {
+				const isAlreadyIcon = this._executionOrderContent.classList.contains('sticky-spinner');
 				// Add a class when it's in sticky mode for special styling
-				if (!isAlreadySticky) {
-					this._executionOrderLabel.classList.add('sticky');
+				if (!isAlreadyIcon) {
+					this._executionOrderLabel.classList.add('sticky-spinner');
 					// Only recreate the content if we're newly becoming sticky
 					DOM.clearNode(this._executionOrderContent);
 					const icon = ThemeIcon.modify(executingStateIcon, 'spin');

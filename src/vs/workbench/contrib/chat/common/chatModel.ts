@@ -33,19 +33,19 @@ import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 
 interface IBaseChatRequestVariableEntry {
-	id: string;
-	fullName?: string;
-	icon?: ThemeIcon;
-	name: string;
-	modelDescription?: string;
+	readonly id: string;
+	readonly fullName?: string;
+	readonly icon?: ThemeIcon;
+	readonly name: string;
+	readonly modelDescription?: string;
 
 	/**
 	 * The offset-range in the prompt. This means this entry has been explicitly typed out
 	 * by the user.
 	 */
-	range?: IOffsetRange;
-	value: IChatRequestVariableValue;
-	references?: IChatContentReference[];
+	readonly range?: IOffsetRange;
+	readonly value: IChatRequestVariableValue;
+	readonly references?: IChatContentReference[];
 
 	omittedState?: OmittedState;
 }
@@ -74,7 +74,7 @@ export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 
 export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'toolset';
-	readonly value: undefined;
+	readonly value: IChatRequestToolEntry[];
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -83,20 +83,20 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
 	readonly isPromptFile: boolean;
-	enabled: boolean;
+	readonly enabled: boolean;
 }
 
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
-	code: string;
-	language: string;
-	pastedLines: string;
+	readonly code: string;
+	readonly language: string;
+	readonly pastedLines: string;
 
 	// This is only used for old serialized data and should be removed once we no longer support it
-	fileName: string;
+	readonly fileName: string;
 
 	// This is only undefined on old serialized data
-	copiedFrom: {
+	readonly copiedFrom: {
 		readonly uri: URI;
 		readonly range: IRange;
 	} | undefined;
@@ -119,7 +119,7 @@ export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly mimeType?: string;
 }
 
-export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+export interface INotebookOutputVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'notebookOutput';
 	readonly outputIndex?: number;
 	readonly mimeType?: string;
@@ -1945,4 +1945,40 @@ export enum ChatRequestEditedFileEventKind {
 export interface IChatAgentEditedFileEvent {
 	readonly uri: URI;
 	readonly eventKind: ChatRequestEditedFileEventKind;
+}
+
+/** URI for a resource embedded in a chat request/response */
+export namespace ChatResponseResource {
+	export const scheme = 'vscode-chat-response-resource';
+
+	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+		return URI.from({
+			scheme: ChatResponseResource.scheme,
+			authority: sessionId,
+			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+		});
+	}
+
+	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+		if (uri.scheme !== ChatResponseResource.scheme) {
+			return undefined;
+		}
+
+		const parts = uri.path.split('/');
+		if (parts.length < 5) {
+			return undefined;
+		}
+
+		const [, kind, requestId, toolCallId, index] = parts;
+		if (kind !== 'tool') {
+			return undefined;
+		}
+
+		return {
+			sessionId: uri.authority,
+			requestId: requestId,
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
 }

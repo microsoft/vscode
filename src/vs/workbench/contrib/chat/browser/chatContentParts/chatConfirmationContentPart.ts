@@ -10,8 +10,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -28,7 +26,6 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -59,14 +56,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				options.mode = widget?.input.currentMode;
-				if (widget?.input.currentMode2.customTools) {
-					options.userSelectedTools = this.toolsService.toEnablementMap(widget.input.currentMode2.customTools);
-				} else if (widget?.input.currentMode === ChatMode.Agent) {
-					options.userSelectedTools = {};
-					for (const [tool, enablement] of widget.input.selectedToolsModel.asEnablementMap()) {
-						options.userSelectedTools[tool.id] = enablement;
-					}
-				}
+				options.userSelectedTools = widget?.getUserSelectedTools();
 
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
 					confirmation.isUsed = true;

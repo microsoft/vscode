@@ -35,8 +35,8 @@ const createMock = <T>(value: T): IConfigurationService => {
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• enabled', () => {
-		test('• true', () => {
+	suite('enabled', () => {
+		test('true', () => {
 			const configService = createMock(true);
 
 			assert.strictEqual(
@@ -46,7 +46,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• false', () => {
+		test('false', () => {
 			const configService = createMock(false);
 
 			assert.strictEqual(
@@ -56,7 +56,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• null', () => {
+		test('null', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
@@ -66,7 +66,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• string', () => {
+		test('string', () => {
 			const configService = createMock('');
 
 			assert.strictEqual(
@@ -76,7 +76,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• true string', () => {
+		test('true string', () => {
 			const configService = createMock('TRUE');
 
 			assert.strictEqual(
@@ -86,7 +86,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• false string', () => {
+		test('false string', () => {
 			const configService = createMock('FaLsE');
 
 			assert.strictEqual(
@@ -96,7 +96,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• number', () => {
+		test('number', () => {
 			const configService = createMock(randomInt(100));
 
 			assert.strictEqual(
@@ -106,7 +106,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• NaN', () => {
+		test('NaN', () => {
 			const configService = createMock(NaN);
 
 			assert.strictEqual(
@@ -116,7 +116,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• bigint', () => {
+		test('bigint', () => {
 			const configService = createMock(BigInt(randomInt(100)));
 
 			assert.strictEqual(
@@ -126,7 +126,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• symbol', () => {
+		test('symbol', () => {
 			const configService = createMock(Symbol('test'));
 
 			assert.strictEqual(
@@ -136,7 +136,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• object', () => {
+		test('object', () => {
 			const configService = createMock({
 				'.github/prompts': false,
 			});
@@ -148,7 +148,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• array', () => {
+		test('array', () => {
 			const configService = createMock(['.github/prompts']);
 
 			assert.strictEqual(
@@ -160,8 +160,8 @@ suite('PromptsConfig', () => {
 	});
 
 
-	suite('• getLocationsValue', () => {
-		test('• undefined', () => {
+	suite('getLocationsValue', () => {
+		test('undefined', () => {
 			const configService = createMock(undefined);
 
 			assert.strictEqual(
@@ -171,7 +171,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• null', () => {
+		test('null', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
@@ -181,8 +181,8 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		suite('• object', () => {
-			test('• empty', () => {
+		suite('object', () => {
+			test('empty', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.getLocationsValue(createMock({}), PromptsType.prompt),
 					{},
@@ -190,7 +190,7 @@ suite('PromptsConfig', () => {
 				);
 			});
 
-			test('• only valid strings', () => {
+			test('only valid strings', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.getLocationsValue(createMock({
 						'/root/.bashrc': true,
@@ -224,7 +224,7 @@ suite('PromptsConfig', () => {
 				);
 			});
 
-			test('• filters out non valid entries', () => {
+			test('filters out non valid entries', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.getLocationsValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -263,7 +263,7 @@ suite('PromptsConfig', () => {
 				);
 			});
 
-			test('• only invalid or false values', () => {
+			test('only invalid or false values', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.getLocationsValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -286,8 +286,8 @@ suite('PromptsConfig', () => {
 		});
 	});
 
-	suite('• sourceLocations', () => {
-		test('• undefined', () => {
+	suite('sourceLocations', () => {
+		test('undefined', () => {
 			const configService = createMock(undefined);
 
 			assert.deepStrictEqual(
@@ -297,7 +297,7 @@ suite('PromptsConfig', () => {
 			);
 		});
 
-		test('• null', () => {
+		test('null', () => {
 			const configService = createMock(null);
 
 			assert.deepStrictEqual(

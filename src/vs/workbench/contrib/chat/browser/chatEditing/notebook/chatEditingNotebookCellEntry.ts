@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITransaction, IObservable, observableValue, autorun, transaction } from '../../../../../../base/common/observable.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../../editor/common/core/editOperation.js';
@@ -37,7 +36,7 @@ import { pendingRewriteMinimap } from '../chatEditingModifiedFileEntry.js';
  * Most of the code has been borrowed from there, as a cell is effectively a document.
  * Hence most of the same functionality applies.
  */
-export class ChatEditingNotebookCellEntry extends ObservableDisposable {
+export class ChatEditingNotebookCellEntry extends Disposable {
 	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
 		description: 'chat-last-edit',
@@ -59,6 +58,10 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		}
 	});
 
+
+	public get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
 
 	private _edit: StringEdit = StringEdit.empty;
 	private _isEditFromUs: boolean = false;

@@ -23,7 +23,7 @@ import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { OS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/gettingStarted.css';
@@ -276,7 +276,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertReturnsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
 						badgeelement.setAttribute('aria-checked', 'true');
@@ -490,7 +490,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private toggleStepCompletion(argument: string) {
-		const stepToggle = assertIsDefined(this.currentWalkthrough?.steps.find(step => step.id === argument));
+		const stepToggle = assertReturnsDefined(this.currentWalkthrough?.steps.find(step => step.id === argument));
 		if (stepToggle.done) {
 			this.gettingStartedService.deprogressStep(argument);
 		} else {
@@ -530,7 +530,7 @@ export class GettingStartedPage extends EditorPane {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
-		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
+		const stepToExpand = assertReturnsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
 		if (!forceRebuild && this.currentMediaComponent === stepId) { return; }
 		this.currentMediaComponent = stepId;
@@ -774,7 +774,7 @@ export class GettingStartedPage extends EditorPane {
 					// No steps around... just ignore.
 					return;
 				}
-				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
+				id = assertReturnsDefined(stepElement.getAttribute('data-step-id'));
 			}
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				if (node.getAttribute('data-step-id') !== id) {
@@ -1215,7 +1215,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const stats = this.getWalkthroughCompletionStats(category);
 
-			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			const bar = assertReturnsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + stats.stepsComplete);
 			bar.setAttribute('aria-valuemax', '' + stats.stepsTotal);
@@ -1272,7 +1272,7 @@ export class GettingStartedPage extends EditorPane {
 			const gettingStartedSize = Math.floor(fullSize.width / 2);
 
 			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-			this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
 		}
 
 		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
@@ -2079,7 +2079,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private setSlide(toEnable: 'details' | 'categories', firstLaunch: boolean = false) {
-		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
+		const slideManager = assertReturnsDefined(this.container.querySelector('.gettingStarted'));
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
 			slideManager.classList.add('showCategories');

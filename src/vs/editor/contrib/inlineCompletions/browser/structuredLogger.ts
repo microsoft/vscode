@@ -79,7 +79,10 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		if (!commandId) {
 			return false;
 		}
-		this._commandService.executeCommand(commandId, data);
+		try {
+			this._commandService.executeCommand(commandId, data).catch(() => { });
+		} catch (e) {
+		}
 		return true;
 	}
 }

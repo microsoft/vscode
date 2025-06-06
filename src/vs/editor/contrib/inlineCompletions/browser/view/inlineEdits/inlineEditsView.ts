@@ -363,13 +363,14 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit
 			&& this._useCodeShifting.read(reader) !== 'never'
+			&& isSingleLineInsertion(diff)
 		) {
 			if (isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)) {
 				return 'insertionInline';
 			}
 
 			// If we have a single line insertion before the cursor position, we do not want to move the cursor by inserting
-			// the suggestion inline. Use a line replacement view instead
+			// the suggestion inline. Use a line replacement view instead. Do not use word replacement view.
 			return 'lineReplacement';
 		}
 
@@ -486,15 +487,10 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
-function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
-	if (!position) {
-		return false;
-	}
-	const pos = position;
+function isSingleLineInsertion(diff: DetailedLineRangeMapping[]) {
+	return diff.every(m => m.innerChanges!.every(r => isWordInsertion(r)));
 
-	return diff.every(m => m.innerChanges!.every(r => isStableWordInsertion(r)));
-
-	function isStableWordInsertion(r: RangeMapping) {
+	function isWordInsertion(r: RangeMapping) {
 		if (!r.originalRange.isEmpty()) {
 			return false;
 		}
@@ -502,6 +498,24 @@ function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], po
 		if (!isInsertionWithinLine) {
 			return false;
 		}
+		return true;
+	}
+}
+
+function isSingleLineInsertionAfterPosition(diff: DetailedLineRangeMapping[], position: Position | null) {
+	if (!position) {
+		return false;
+	}
+
+	if (!isSingleLineInsertion(diff)) {
+		return false;
+	}
+
+	const pos = position;
+
+	return diff.every(m => m.innerChanges!.every(r => isStableWordInsertion(r)));
+
+	function isStableWordInsertion(r: RangeMapping) {
 		const insertPosition = r.originalRange.getStartPosition();
 		if (pos.isBeforeOrEqual(insertPosition)) {
 			return true;

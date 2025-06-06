@@ -24,7 +24,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -489,8 +488,7 @@ export class McpAddConfigurationCommand {
 		}
 
 		const pick = await this._quickInputService.pick(items, { placeHolder, ignoreFocusLost: true });
-		const getEditors = () => this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)
-			.filter(e => e.editor.resource?.toString() === resource.toString());
+		const getEditors = () => this._editorService.findEditors(resource);
 
 		switch (pick?.id) {
 			case 'show':

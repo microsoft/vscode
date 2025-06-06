@@ -42,7 +42,9 @@ export enum GettingStartedExperimentGroup {
 
 const STABLE_EXPERIMENT_GROUPS: ExperimentGroupDefinition[] = [
 	// Bump the iteration each time we change group allocations
-	{ name: GettingStartedExperimentGroup.Default, min: 0, max: 1, iteration: 1, walkthroughId: 'Setup' }
+	{ name: GettingStartedExperimentGroup.New, min: 0.0, max: 0.2, iteration: 1, walkthroughId: 'NewWelcomeExperience' },
+	{ name: GettingStartedExperimentGroup.Control, min: 0.2, max: 0.4, iteration: 1, walkthroughId: 'Setup' },
+	{ name: GettingStartedExperimentGroup.Default, min: 0.4, max: 1, iteration: 1, walkthroughId: 'Setup' }
 ];
 
 const INSIDERS_EXPERIMENT_GROUPS: ExperimentGroupDefinition[] = [
