@@ -5,6 +5,7 @@
 
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { ILocalizedString } from '../../../../../../platform/action/common/action.js';
@@ -101,6 +102,12 @@ export class NotebookVariablesView extends ViewPane {
 		if (this.activeNotebook) {
 			this.tree.setInput({ kind: 'root', notebook: this.activeNotebook });
 		}
+
+		// Set up autorun to watch the widget aria label observable and update the tree's aria label
+		this._register(autorun(reader => {
+			const ariaLabel = reader.readObservable(this.accessibilityProvider.widgetAriaLabel);
+			this.tree!.ariaLabel = ariaLabel;
+		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 	}
