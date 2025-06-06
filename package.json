@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.101.0",
-  "distro": "5de5e121db5bba9b994f18f1fb31c1becec94793",
+  "version": "1.102.0",
+  "distro": "0110618df4664082ca0cb597c5f9bf66aeed2e35",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,7 +78,7 @@
     "@vscode/policy-watcher": "^1.3.2",
     "@vscode/proxy-agent": "^0.32.0",
     "@vscode/ripgrep": "^1.15.11",
-    "@vscode/spdlog": "^0.15.0",
+    "@vscode/spdlog": "^0.15.2",
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.1.4",
@@ -154,7 +154,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.4",
-    "electron": "35.5.0",
+    "electron": "35.5.1",
     "eslint": "^9.11.1",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
