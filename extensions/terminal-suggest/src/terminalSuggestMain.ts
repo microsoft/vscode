@@ -127,7 +127,8 @@ export async function activate(context: vscode.ExtensionContext) {
 					getEnvAsRecord(currentTerminalEnv),
 					terminal.name,
 					token,
-					undefined
+					undefined,
+					terminalShellType
 				),
 				createTimeoutPromise(300, undefined)
 			]);
@@ -248,7 +249,8 @@ export async function getCompletionItemsFromSpecs(
 	env: Record<string, string>,
 	name: string,
 	token?: vscode.CancellationToken,
-	executeExternals?: IFigExecuteExternals
+	executeExternals?: IFigExecuteExternals,
+	shellType?: TerminalShellType
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
@@ -259,8 +261,8 @@ export async function getCompletionItemsFromSpecs(
 	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 
 	// Make precedingText shell-aware by extracting text after the last command separator
-	// Use default shell type (Bash) if not specified
-	const commandResetChars = defaultShellTypeResetChars;
+	// Use shell-specific reset chars or fallback to default if shell type not specified
+	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
 	let lastSeparatorIndex = -1;
 	for (const separator of commandResetChars) {
 		const index = precedingText.lastIndexOf(separator);
