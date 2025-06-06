@@ -77,7 +77,7 @@ function _formatPinnedItems(storageKey: string, quickPick: IQuickPick<IQuickPick
 }
 
 function getItemIdentifier(item: QuickPickItem): string {
-	return item.type === 'separator' ? '' : item.id || `${item.label}${item.description}${item.detail}}`;
+	return item.type === 'separator' ? '' : item.id || `${item.label}${item.description}${item.detail}`;
 }
 
 function updateButtons(item: QuickPickItem, removePin: boolean): void {
