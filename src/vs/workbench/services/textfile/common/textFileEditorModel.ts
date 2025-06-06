@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mark } from '../../../../base/common/performance.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, TextFileResolveReason, ITextFileEditorModelSaveEvent, ITextFileSaveAsOptions } from './textfiles.js';
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from '../../../common/editor.js';
 import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
@@ -929,7 +929,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {

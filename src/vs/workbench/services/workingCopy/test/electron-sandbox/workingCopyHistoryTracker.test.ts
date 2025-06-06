@@ -23,7 +23,7 @@ import { TestDialogService } from '../../../../../platform/dialogs/test/common/t
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from '../../common/workingCopyHistory.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -63,7 +63,7 @@ suite('WorkingCopyHistoryTracker', () => {
 			timestamp: increasingTimestampCounter++ // very important to get tests to not be flaky with stable sort order
 		}, token);
 
-		return assertIsDefined(entry);
+		return assertReturnsDefined(entry);
 	}
 
 	setup(async () => {
