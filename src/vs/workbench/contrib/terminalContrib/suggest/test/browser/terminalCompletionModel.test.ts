@@ -354,5 +354,26 @@ suite('TerminalCompletionModel', function () {
 				{ label: "feature-branch", description: "Feature branch" },
 			]);
 		});
+
+		test('should not prioritize branches with similar names', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'mainline' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'masterpiece' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
+			assertItems(model, ['main', 'master', 'mainline', 'masterpiece']);
+		});
+
+		test('should prioritize for git branch -d', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'main' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'master' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'dev' })
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('git branch -d ', 0));
+			assertItems(model, ['main', 'master', 'dev']);
+		});
 	});
 });
