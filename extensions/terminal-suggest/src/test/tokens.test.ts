@@ -36,11 +36,11 @@ suite('Terminal Suggest', () => {
 		});
 	});
 	suite('multi-command scenarios', () => {
-		test('command after pipe without space', () => {
-			strictEqual(getTokenType({ commandLine: 'ls && git |', cursorPosition: 'ls && git |'.length }, TerminalShellType.Bash), TokenType.Command);
+		test('cursor immediately after pipe (no suggestions)', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git |', cursorPosition: 'ls && git |'.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
-		test('command after simple pipe', () => {
-			strictEqual(getTokenType({ commandLine: 'git |', cursorPosition: 'git |'.length }, TerminalShellType.Bash), TokenType.Command);
+		test('cursor immediately after simple pipe (no suggestions)', () => {
+			strictEqual(getTokenType({ commandLine: 'git |', cursorPosition: 'git |'.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
 		test('partial command after separator', () => {
 			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.Bash), TokenType.Command);
