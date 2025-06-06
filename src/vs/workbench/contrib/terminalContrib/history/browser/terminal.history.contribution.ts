@@ -129,7 +129,7 @@ registerActiveInstanceAction({
 	}
 });
 
-registerActiveInstanceAction({
+registerTerminalAction({
 	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
@@ -146,7 +146,22 @@ registerActiveInstanceAction({
 			weight: KeybindingWeight.WorkbenchContrib
 		}
 	],
-	run: async (activeInstance, c) => {
+	run: async (c, accessor) => {
+		const activeInstance = await c.service.getActiveOrCreateInstance();
+		if (!activeInstance.shellType) {
+			await c.service.revealActiveTerminal();
+			const wasDisposedPrematurely = await new Promise<boolean>(resolve => {
+				activeInstance.onDidChangeShellType(() => {
+					resolve(false);
+				});
+				activeInstance.onDisposed(() => {
+					resolve(true);
+				});
+			});
+			if (wasDisposedPrematurely) {
+				return;
+			}
+		}
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
 			return;
