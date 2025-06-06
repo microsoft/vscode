@@ -16,9 +16,9 @@ import { FileService } from '../../../../../../../platform/files/common/fileServ
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { NullPolicyService } from '../../../../../../../platform/policy/common/policy.js';
-import { Line } from '../../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
+import { Line } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { LinesDecoder } from '../../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
+import { LinesDecoder } from '../../../../common/promptSyntax/codecs/base/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../../../../../platform/configuration/common/configurationService.js';

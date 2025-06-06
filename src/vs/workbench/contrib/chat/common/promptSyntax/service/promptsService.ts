@@ -17,7 +17,7 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { ObjectCache } from '../utils/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';

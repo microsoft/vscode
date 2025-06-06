@@ -21,7 +21,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/prompts.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
+import { ObservableDisposable } from '../../../common/promptSyntax/utils/observableDisposable.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';

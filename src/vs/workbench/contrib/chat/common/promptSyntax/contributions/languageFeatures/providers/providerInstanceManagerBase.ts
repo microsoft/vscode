@@ -8,7 +8,7 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { ObjectCache } from '../../../../../../../../base/common/objectCache.js';
+import { ObjectCache } from '../../../utils/objectCache.js';
 import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../constants.js';
 import { IModelService } from '../../../../../../../../editor/common/services/model.js';
 import { PromptsConfig } from '../../../../../../../../platform/prompts/common/config.js';

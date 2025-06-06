@@ -6,7 +6,7 @@
 import { PromptApplyToMetadata } from './metadata/applyTo.js';
 import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
 import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
-import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Metadata utility object for instruction files.

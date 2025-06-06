@@ -26,7 +26,7 @@ import { getPromptFileType, PromptsType } from '../../../../../../platform/promp
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { MarkdownLink } from '../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IPromptParserOptions, type TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { randomInt } from '../../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
-import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../../../../../common/promptSyntax/codecs/base/baseToken.js';
 import { PromptToken } from '../../../../../common/promptSyntax/codecs/tokens/promptToken.js';
 import { FileReference } from '../../../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
