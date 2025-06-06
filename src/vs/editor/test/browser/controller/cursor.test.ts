@@ -4675,6 +4675,7 @@ suite('Editor Controller', () => {
 				'}'
 			],
 			languageId: languageId,
+			editorOpts: { considerOnEnterRulesForInheritedIndentAfterBlankLine: true },
 		}, (editor, model, viewModel) => {
 
 			// Use indent
