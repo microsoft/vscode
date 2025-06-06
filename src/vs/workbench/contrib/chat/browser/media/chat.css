@@ -1182,7 +1182,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 
-.chat-attached-context-attachment .label-suffix {
+.chat-attached-context-attachment .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
 	color: var(--vscode-peekViewTitleDescription-foreground);
 	opacity: 1;
 }
