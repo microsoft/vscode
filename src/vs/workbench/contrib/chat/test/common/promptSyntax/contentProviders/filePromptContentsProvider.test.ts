@@ -13,7 +13,8 @@ import { ReadableStream } from '../../../../../../../base/common/stream.js';
 import { NotPromptFile } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { randomBoolean, wait } from '../../../../../../../base/test/common/testUtils.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { NullPolicyService } from '../../../../../../../platform/policy/common/policy.js';
 import { Line } from '../../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -64,7 +65,7 @@ suite('FilePromptContentsProvider', () => {
 			await fileService.del(fileUri);
 		}
 		await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-		await wait(5);
+		await timeout(5);
 
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
 			FilePromptContentProvider,
@@ -78,7 +79,7 @@ suite('FilePromptContentsProvider', () => {
 		}));
 		contentsProvider.start();
 
-		await wait(CONTENT_CHANGED_TIMEOUT);
+		await timeout(CONTENT_CHANGED_TIMEOUT);
 
 		assertDefined(
 			streamOrError,
@@ -122,7 +123,7 @@ suite('FilePromptContentsProvider', () => {
 					await fileService.del(fileUri);
 				}
 				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
+				await timeout(5);
 
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
@@ -136,7 +137,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(CONTENT_CHANGED_TIMEOUT);
+				await timeout(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
@@ -178,7 +179,7 @@ suite('FilePromptContentsProvider', () => {
 					await fileService.del(fileUri);
 				}
 				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
+				await timeout(5);
 
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
@@ -192,7 +193,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(CONTENT_CHANGED_TIMEOUT);
+				await timeout(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
@@ -218,7 +219,7 @@ suite('FilePromptContentsProvider', () => {
 					await fileService.del(fileUri);
 				}
 				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
+				await timeout(5);
 
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
@@ -232,7 +233,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(CONTENT_CHANGED_TIMEOUT);
+				await timeout(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
