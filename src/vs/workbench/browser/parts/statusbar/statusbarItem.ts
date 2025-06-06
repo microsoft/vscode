@@ -15,7 +15,7 @@ import { ThemeColor } from '../../../../base/common/themables.js';
 import { isThemeColor } from '../../../../editor/common/editorCommon.js';
 import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '../../../../base/browser/dom.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -46,7 +46,7 @@ export class StatusbarEntryItem extends Disposable {
 	readonly beakContainer: HTMLElement;
 
 	get name(): string {
-		return assertIsDefined(this.entry).name;
+		return assertReturnsDefined(this.entry).name;
 	}
 
 	get hasCommand(): boolean {
