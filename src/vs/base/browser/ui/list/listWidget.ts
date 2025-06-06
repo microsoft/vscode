@@ -1849,7 +1849,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	private findNextIndex(index: number, loop = false, filter?: (element: T) => boolean): number {
+	findNextIndex(index: number, loop = false, filter?: (element: T) => boolean): number {
 		for (let i = 0; i < this.length; i++) {
 			if (index >= this.length && !loop) {
 				return -1;
