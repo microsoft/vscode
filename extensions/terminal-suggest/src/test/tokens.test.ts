@@ -35,6 +35,20 @@ suite('Terminal Suggest', () => {
 			strictEqual(getTokenType({ commandLine: 'echo hello || ', cursorPosition: 'echo hello || '.length }, undefined), TokenType.Command);
 		});
 	});
+	suite('multi-command scenarios', () => {
+		test('command after pipe without space', () => {
+			strictEqual(getTokenType({ commandLine: 'ls && git |', cursorPosition: 'ls && git |'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('command after simple pipe', () => {
+			strictEqual(getTokenType({ commandLine: 'git |', cursorPosition: 'git |'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('partial command after separator', () => {
+			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('cursor right after separator', () => {
+			strictEqual(getTokenType({ commandLine: 'echo a ; ', cursorPosition: 'echo a ; '.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+	});
 	suite('pwsh', () => {
 		test('simple command', () => {
 			strictEqual(getTokenType({ commandLine: 'Write-Host', cursorPosition: 'Write-Host'.length }, TerminalShellType.PowerShell), TokenType.Command);
@@ -47,6 +61,12 @@ suite('Terminal Suggest', () => {
 		});
 		test('arguments after reset char', () => {
 			strictEqual(getTokenType({ commandLine: `Write-Host hello -and $true `, cursorPosition: `Write-Host hello -and $true `.length }, TerminalShellType.PowerShell), TokenType.Argument);
+		});
+		test('semicolon separator', () => {
+			strictEqual(getTokenType({ commandLine: 'echo a ; ', cursorPosition: 'echo a ; '.length }, TerminalShellType.PowerShell), TokenType.Command);
+		});
+		test('command after semicolon', () => {
+			strictEqual(getTokenType({ commandLine: 'echo a ; echo', cursorPosition: 'echo a ; echo'.length }, TerminalShellType.PowerShell), TokenType.Argument);
 		});
 	});
 });
