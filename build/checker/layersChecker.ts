@@ -172,22 +172,6 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Common: vs/workbench/api/common/extHostExtensionService.ts
-	{
-		target: '**/vs/workbench/api/common/extHostExtensionService.ts',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// Safe access to global
-			'global'
-		],
-		disallowedTypes: NATIVE_TYPES,
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
 	// Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
 	{
 		target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
@@ -223,16 +207,6 @@ const RULES: IRule[] = [
 			...CORE_TYPES,
 			'localStorage'
 		],
-		disallowedTypes: NATIVE_TYPES,
-		disallowedDefinitions: [
-			'@types/node'	// no node.js
-		]
-	},
-
-	// Browser (editor contrib)
-	{
-		target: '**/src/vs/editor/contrib/**',
-		allowedTypes: CORE_TYPES,
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
