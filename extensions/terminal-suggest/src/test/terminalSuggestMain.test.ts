@@ -21,6 +21,7 @@ import { touchTestSuiteSpec } from './completions/upstream/touch.test';
 import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
+import codeTunnelCompletionSpec from '../completions/code-tunnel';
 import { figGenericTestSuites } from './fig.test';
 import { IFigExecuteExternals } from '../fig/execute';
 
@@ -72,6 +73,21 @@ if (osIsWindows()) {
 			{ input: 'code.cmd |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 			{ input: 'code.exe |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 			{ input: 'code.anything |', expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	});
+
+	// Get the expected completions for code-tunnel from the test suite
+	const codeTunnelTestSpecs = codeTunnelTestSuite.testSpecs;
+	const expectedCodeTunnelCompletions = codeTunnelTestSpecs.find(spec => spec.input === 'code-tunnel |')?.expectedCompletions || [];
+
+	testSpecs2.push({
+		name: 'Handle code-tunnel.exe extension on Windows',
+		completionSpecs: [codeTunnelCompletionSpec],
+		availableCommands: [
+			'code-tunnel.exe',
+		],
+		testSpecs: [
+			{ input: 'code-tunnel.exe |', expectedCompletions: expectedCodeTunnelCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		]
 	});
 }

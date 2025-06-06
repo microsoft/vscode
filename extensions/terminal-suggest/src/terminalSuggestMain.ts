@@ -246,7 +246,7 @@ export async function getCompletionItemsFromSpecs(
 		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
 		const lastDotIndex = precedingText.lastIndexOf('.', commandEndIndex);
 		if (lastDotIndex > 0) { // Don't treat dotfiles as extensions
-			precedingText = precedingText.substring(0, lastDotIndex) + precedingText.substring(spaceIndex);
+			precedingText = precedingText.substring(0, lastDotIndex) + (spaceIndex === -1 ? '' : precedingText.substring(spaceIndex));
 		}
 	}
 
