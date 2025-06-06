@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { NotificationAccessibilityProvider } from '../../browser/parts/notifications/notificationsList.js';
-import { NotificationViewItem, INotificationsFilter } from '../../common/notifications.js';
+import { NotificationViewItem, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
 import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -19,7 +19,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 	let configurationService: IConfigurationService;
 	let keybindingService: IKeybindingService;
 	let accessibilityProvider: NotificationAccessibilityProvider;
-	const createdNotifications: NotificationViewItem[] = [];
+	const createdNotifications: INotificationViewItem[] = [];
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
@@ -87,7 +87,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 		const errorNotification = NotificationViewItem.create({ severity: Severity.Error, message: 'Error message' }, noFilter)!;
 		const warningNotification = NotificationViewItem.create({ severity: Severity.Warning, message: 'Warning message' }, noFilter)!;
 		const infoNotification = NotificationViewItem.create({ severity: Severity.Info, message: 'Info message' }, noFilter)!;
-		
+
 		createdNotifications.push(errorNotification, warningNotification, infoNotification);
 
 		const errorLabel = accessibilityProvider.getAriaLabel(errorNotification);
