@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -874,7 +873,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -1055,7 +1054,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

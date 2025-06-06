@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { pick } from '../../../../../base/common/arrays.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
@@ -51,7 +50,7 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 		// otherwise return `URI` for the main reference and
 		// all valid child `URI` references it may contain
 		return [
-			...reference.allValidReferences.map(pick('uri')),
+			...reference.allValidReferences.map(ref => ref.uri),
 			reference.uri,
 		];
 	}

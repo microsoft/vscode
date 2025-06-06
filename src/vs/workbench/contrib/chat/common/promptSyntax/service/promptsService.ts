@@ -8,7 +8,6 @@ import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
-import { pick } from '../../../../../../base/common/arrays.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { type IPromptFileReference } from '../parsers/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -252,7 +251,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const instructions = await this.getAllMetadata(
-			instructionFiles.map(pick('uri')),
+			instructionFiles.map(file => file.uri),
 		);
 
 		const foundFiles = new ResourceSet();

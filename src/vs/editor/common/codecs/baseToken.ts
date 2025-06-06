@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pick } from '../../../base/common/arrays.js';
 import { assert } from '../../../base/common/assert.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 
@@ -90,7 +89,7 @@ export abstract class BaseToken<TText extends string = string> {
 		tokens: readonly BaseToken[],
 		delimiter: string = '',
 	): string {
-		return tokens.map(pick('text')).join(delimiter);
+		return tokens.map(token => token.text).join(delimiter);
 	}
 
 	/**
