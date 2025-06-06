@@ -477,7 +477,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.continueLaterIndicator': { // TODO@bpasero remove me eventually
 			type: 'boolean',
-			description: nls.localize('chat.continueLaterIndicator', "Enable continue later indicator in the status bar."),
+			description: nls.localize('chat.continueLaterIndicator', "Enable indicator in the status bar to finish chat setup."),
 			default: false,
 			tags: ['onExp', 'experimental'],
 		},

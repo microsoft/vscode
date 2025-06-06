@@ -58,12 +58,9 @@ export class CachedExtensionScanner {
 				this._environmentService.remoteAuthority ? [] : this._extensionManagementService.getInstalledWorkspaceExtensions(false)
 			]);
 
-			let scannedSystemExtensions: IScannedExtension[] = [],
-				scannedUserExtensions: IScannedExtension[] = [],
-				workspaceExtensions: IExtension[] = [],
-				scannedDevelopedExtensions: IScannedExtension[] = [],
-				hasErrors = false;
+			let hasErrors = false;
 
+			let scannedSystemExtensions: IScannedExtension[] = [];
 			if (result[0].status === 'fulfilled') {
 				scannedSystemExtensions = result[0].value;
 			} else {
@@ -71,6 +68,7 @@ export class CachedExtensionScanner {
 				this._logService.error(`Error scanning system extensions:`, getErrorMessage(result[0].reason));
 			}
 
+			let scannedUserExtensions: IScannedExtension[] = [];
 			if (result[1].status === 'fulfilled') {
 				scannedUserExtensions = result[1].value;
 			} else {
@@ -78,6 +76,7 @@ export class CachedExtensionScanner {
 				this._logService.error(`Error scanning user extensions:`, getErrorMessage(result[1].reason));
 			}
 
+			let workspaceExtensions: IExtension[] = [];
 			if (result[2].status === 'fulfilled') {
 				workspaceExtensions = result[2].value;
 			} else {
@@ -85,8 +84,26 @@ export class CachedExtensionScanner {
 				this._logService.error(`Error scanning workspace extensions:`, getErrorMessage(result[2].reason));
 			}
 
+			const scannedDevelopedExtensions: IScannedExtension[] = [];
 			try {
-				scannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment([...scannedSystemExtensions, ...scannedUserExtensions], { language });
+				const allScannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment([...scannedSystemExtensions, ...scannedUserExtensions], { language, includeInvalid: true });
+				const invalidExtensions: IScannedExtension[] = [];
+				for (const extensionUnderDevelopment of allScannedDevelopedExtensions) {
+					if (extensionUnderDevelopment.isValid) {
+						scannedDevelopedExtensions.push(extensionUnderDevelopment);
+					} else {
+						invalidExtensions.push(extensionUnderDevelopment);
+					}
+				}
+				if (invalidExtensions.length > 0) {
+					this._notificationService.prompt(
+						Severity.Warning,
+						invalidExtensions.length === 1
+							? localize('extensionUnderDevelopment.invalid', "Failed loading extension '{0}' under development because it is invalid: {1}", invalidExtensions[0].location.fsPath, invalidExtensions[0].validations[0][1])
+							: localize('extensionsUnderDevelopment.invalid', "Failed loading extensions {0} under development because they are invalid: {1}", invalidExtensions.map(ext => `'${ext.location.fsPath}'`).join(', '), invalidExtensions.map(ext => `${ext.validations[0][1]}`).join(', ')),
+						[]
+					);
+				}
 			} catch (error) {
 				this._logService.error(error);
 			}

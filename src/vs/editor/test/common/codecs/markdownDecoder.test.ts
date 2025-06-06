@@ -61,8 +61,8 @@ export class TestMarkdownDecoder extends TestDecoder<TMarkdownToken, MarkdownDec
 suite('MarkdownDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• general', () => {
-		test('• base cases', async () => {
+	suite('general', () => {
+		test('base cases', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
@@ -127,7 +127,7 @@ suite('MarkdownDecoder', () => {
 			);
 		});
 
-		test('• nuanced', async () => {
+		test('nuanced', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
@@ -174,9 +174,9 @@ suite('MarkdownDecoder', () => {
 		});
 	});
 
-	suite('• links', () => {
-		suite('• broken', () => {
-			test('• invalid', async () => {
+	suite('links', () => {
+		suite('broken', () => {
+			test('invalid', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -226,7 +226,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			suite('• stop characters inside caption/reference (new lines)', () => {
+			suite('stop characters inside caption/reference (new lines)', () => {
 				for (const StopCharacter of [CarriageReturn, NewLine]) {
 					let characterName = '';
 
@@ -318,7 +318,7 @@ suite('MarkdownDecoder', () => {
 			/**
 			 * Same as above but these stop characters do not move the caret to the next line.
 			 */
-			suite('• stop characters inside caption/reference (same line)', () => {
+			suite('stop characters inside caption/reference (same line)', () => {
 				for (const StopCharacter of [VerticalTab, FormFeed]) {
 					let characterName = '';
 
@@ -410,9 +410,9 @@ suite('MarkdownDecoder', () => {
 	});
 
 
-	suite('• images', () => {
-		suite('• general', () => {
-			test('• base cases', async () => {
+	suite('images', () => {
+		suite('general', () => {
+			test('base cases', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -456,7 +456,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			test('• nuanced', async () => {
+			test('nuanced', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -494,8 +494,8 @@ suite('MarkdownDecoder', () => {
 			});
 		});
 
-		suite('• broken', () => {
-			test('• invalid', async () => {
+		suite('broken', () => {
+			test('invalid', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -567,7 +567,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			suite('• stop characters inside caption/reference (new lines)', () => {
+			suite('stop characters inside caption/reference (new lines)', () => {
 				for (const StopCharacter of [CarriageReturn, NewLine]) {
 					let characterName = '';
 
@@ -662,7 +662,7 @@ suite('MarkdownDecoder', () => {
 			/**
 			 * Same as above but these stop characters do not move the caret to the next line.
 			 */
-			suite('• stop characters inside caption/reference (same line)', () => {
+			suite('stop characters inside caption/reference (same line)', () => {
 				for (const stopCharacter of [VerticalTab, FormFeed]) {
 					let characterName = '';
 
@@ -756,9 +756,9 @@ suite('MarkdownDecoder', () => {
 		});
 	});
 
-	suite('• comments', () => {
-		suite('• general', () => {
-			test('• base cases', async () => {
+	suite('comments', () => {
+		suite('general', () => {
+			test('base cases', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -818,7 +818,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			test('• nuanced', async () => {
+			test('nuanced', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -866,7 +866,7 @@ suite('MarkdownDecoder', () => {
 			});
 		});
 
-		test('• invalid', async () => {
+		test('invalid', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);

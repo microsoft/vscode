@@ -6,9 +6,7 @@
 import { Disposable, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 /**
- * Disposable object that tracks its {@linkcode isDisposed} state
- * as a public attribute and provides the {@linkcode onDispose}
- * event to subscribe to.
+* @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 export abstract class ObservableDisposable extends Disposable {
 	/**
@@ -68,16 +66,12 @@ export abstract class ObservableDisposable extends Disposable {
 }
 
 /**
- * Type for a non-disposed object `TObject`.
+ * @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 type TNotDisposed<TObject extends { isDisposed: boolean }> = TObject & { isDisposed: false };
 
 /**
- * Asserts that a provided `object` is not `disposed` yet,
- * e.g., its `disposed` property is `false`.
- *
- * @throws if the provided `object.disposed` equal to `false`.
- * @param error Error message or error object to throw if assertion fails.
+ * @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 export function assertNotDisposed<TObject extends { isDisposed: boolean }>(
 	object: TObject,

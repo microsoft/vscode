@@ -13,8 +13,8 @@ import { FrontMatterArray, FrontMatterBoolean, FrontMatterRecord, FrontMatterRec
 suite('FrontMatterBoolean', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• trimValueEnd()', () => {
-		test('• trims space tokens at the end of record\'s value', () => {
+	suite('trimValueEnd()', () => {
+		test('trims space tokens at the end of record\'s value', () => {
 			const recordName = new FrontMatterRecordName([
 				new Word(
 					new Range(4, 10, 4, 10 + 3),
@@ -59,8 +59,8 @@ suite('FrontMatterBoolean', () => {
 			);
 		});
 
-		suite('• does not trim non-sequence value tokens', () => {
-			test('• boolean', () => {
+		suite('does not trim non-sequence value tokens', () => {
+			test('boolean', () => {
 				const recordName = new FrontMatterRecordName([
 					new Word(
 						new Range(4, 10, 4, 10 + 3),
@@ -96,7 +96,7 @@ suite('FrontMatterBoolean', () => {
 				);
 			});
 
-			test('• quoted string', () => {
+			test('quoted string', () => {
 				const recordName = new FrontMatterRecordName([
 					new Word(
 						new Range(4, 10, 4, 10 + 3),
@@ -134,7 +134,7 @@ suite('FrontMatterBoolean', () => {
 				);
 			});
 
-			test('• array', () => {
+			test('array', () => {
 				const recordName = new FrontMatterRecordName([
 					new Word(
 						new Range(4, 10, 4, 10 + 3),
