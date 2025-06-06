@@ -193,6 +193,29 @@ suite('Terminal Suggest', () => {
 			strictEqual(getTokenType({ commandLine: 'git ', cursorPosition: 'git '.length }, TerminalShellType.Bash), TokenType.Argument);
 		});
 	});
+	suite('basic integration test cases', () => {
+		test('empty input → command (should show available commands)', () => {
+			strictEqual(getTokenType({ commandLine: '', cursorPosition: 0 }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('git with space → argument (should show git options)', () => {
+			strictEqual(getTokenType({ commandLine: 'git ', cursorPosition: 'git '.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('rmdir with space → argument (should show rmdir options)', () => {
+			strictEqual(getTokenType({ commandLine: 'rmdir ', cursorPosition: 'rmdir '.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('touch with space → argument (should show touch options)', () => {
+			strictEqual(getTokenType({ commandLine: 'touch ', cursorPosition: 'touch '.length }, TerminalShellType.Bash), TokenType.Argument);
+		});
+		test('git without space → command (command completion)', () => {
+			strictEqual(getTokenType({ commandLine: 'git', cursorPosition: 'git'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('partial git without space → command', () => {
+			strictEqual(getTokenType({ commandLine: 'g', cursorPosition: 'g'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+		test('partial git without space → command', () => {
+			strictEqual(getTokenType({ commandLine: 'gi', cursorPosition: 'gi'.length }, TerminalShellType.Bash), TokenType.Command);
+		});
+	});
 	suite('edge cases and fallbacks', () => {
 		test('undefined shell type uses default', () => {
 			strictEqual(getTokenType({ commandLine: 'ls && ', cursorPosition: 'ls && '.length }, undefined), TokenType.Command);

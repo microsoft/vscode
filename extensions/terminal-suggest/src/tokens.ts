@@ -38,12 +38,14 @@ export { shellTypeResetChars, defaultShellTypeResetChars, shellTypeCommandSepara
  * @returns TokenType.Command for command context, TokenType.Argument for argument context
  *
  * Examples:
- * - "git |" → Command (cursor after space following separator)
- * - "git;" → Argument (cursor immediately after separator, no space)
- * - "ls && git |" → Command (git is new command after &&)
- * - "git status |" → Argument (cursor is in arguments of git command)
- * - "git s|" → Command (partial command name)
- * - "git status --all |" → Argument (cursor in arguments area)
+ * - "|" → Command (empty input shows available commands)
+ * - "git|" → Command (typing command name)
+ * - "git |" → Argument (cursor after command with space)
+ * - "git status|" → Argument (cursor in arguments)
+ * - "ls && |" → Command (new command after separator with space)
+ * - "ls &&|" → Argument (cursor immediately after separator, no space)
+ * - "git commit ; |" → Command (new command after semicolon with space)
+ * - "git commit ;|" → Argument (cursor immediately after semicolon, no space)
  */
 export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
 	const beforeCursor = ctx.commandLine.substring(0, ctx.cursorPosition);
@@ -82,57 +84,29 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	const afterSeparator = lastSeparatorIndex >= 0 ? beforeCursor.slice(lastSeparatorIndex + 1) : beforeCursor;
 
 	// If there's no content after separator (empty or only whitespace),
-	// check if there's at least one space for command mode
-	// Examples: "ls && |" → Command, "ls &&|" → Argument
+	// this indicates we're at the start of a new command context
+	// Examples: "ls && |" → Command, "|" → Command, "ls &&|" → Argument (no space)
 	if (afterSeparator.trim() === '') {
-		// If there's at least one space after separator, it's command mode
-		// If there's no space (cursor immediately after separator), it's argument mode
-		return afterSeparator.length > 0 ? TokenType.Command : TokenType.Argument;
+		// For empty input or separator with trailing space, show commands
+		// For cursor immediately after separator with no space, don't show suggestions
+		return afterSeparator.length > 0 || lastSeparatorIndex === -1 ? TokenType.Command : TokenType.Argument;
 	}
-
-	// For the remaining cases, use a simpler heuristic:
-	// Look at the trimmed content after separator and see if it looks like we're still
-	// in the process of typing a command (vs clearly in arguments)
 
 	const trimmedAfterSeparator = afterSeparator.trim();
-
-	// If no spaces at all, definitely command
-	// Examples: "ls && git|" → Command, "ls && g|" → Command
-	// BUT: check the original afterSeparator, not trimmed, to detect trailing spaces
-	if (afterSeparator.indexOf(' ') === -1) {
-		return TokenType.Command;
-	}
-
-	// If there are spaces, we need to be smarter
-	// Heuristic: if the text after separator looks like it has just one word and some
-	// partial typing, consider it command mode. Otherwise, argument mode.
-	const words = trimmedAfterSeparator.split(/\s+/).filter(w => w.length > 0);
-
-	// Single complete word followed by more text usually means arguments
-	// Examples: "git status --all|" → Argument, "git s|" → Argument
-	if (words.length >= 2) {
-		// After a command separator, the first word is the command,
-		// anything after that should be arguments regardless of length
-		// Examples: "git s|" → Argument, "git status|" → Argument
+	
+	// If the trimmed text contains a space, we're clearly in argument mode
+	// Examples: "git status --all|" → Argument, "ls && git status|" → Argument
+	if (trimmedAfterSeparator.includes(' ')) {
 		return TokenType.Argument;
 	}
 
-	// Single word - check if cursor is clearly past it with trailing space
-	// Examples: "git |" → Argument, "gi|" → Command
-	if (words.length === 1) {
-		const separatorEndPos = lastSeparatorIndex + 1;
-		const leadingWhitespace = afterSeparator.length - trimmedAfterSeparator.length;
-		const trimmedStartPos = separatorEndPos + leadingWhitespace;
-		const wordEndPos = trimmedStartPos + words[0].length;
-
-		// If cursor is past the word with trailing space, it's argument mode
-		// Examples: "git |" → Argument, "gi|" → Command
-		if (ctx.cursorPosition > wordEndPos) {
-			return TokenType.Argument;
-		}
-		return TokenType.Command;
+	// If there's a trailing space after the command name, we're in argument mode
+	// Examples: "git |" → Argument, "ls && git |" → Argument
+	if (afterSeparator.endsWith(' ')) {
+		return TokenType.Argument;
 	}
 
-	// Default to command mode for edge cases
+	// No spaces and no trailing space means we're still typing the command name
+	// Examples: "git|" → Command, "ls && git|" → Command
 	return TokenType.Command;
 }
