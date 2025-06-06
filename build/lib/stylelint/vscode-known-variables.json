@@ -59,6 +59,8 @@
 		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-linesAddedForeground",
+		"--vscode-chat-linesRemovedForeground",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-disabled-background",

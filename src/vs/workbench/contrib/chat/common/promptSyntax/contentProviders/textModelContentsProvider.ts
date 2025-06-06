@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { objectStreamFromTextModel } from '../../../../../../editor/common/codecs/utils/objectStreamFromTextModel.js';
+import { objectStreamFromTextModel } from '../codecs/base/utils/objectStreamFromTextModel.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.

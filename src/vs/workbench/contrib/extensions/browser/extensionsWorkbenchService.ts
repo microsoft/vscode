@@ -680,20 +680,56 @@ class Extensions extends Disposable {
 			}
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
-		// This indicates that it was likely removed from the gallery
 		if (flagExtensionsMissingFromGallery) {
+			const extensionsToQuery = [];
 			for (const extension of this.local) {
+				// Extension is already paired with a gallery object
+				if (extension.gallery) {
+					continue;
+				}
+				// Already flagged as missing from gallery
+				if (extension.missingFromGallery) {
+					continue;
+				}
+				// A UUID indicates extension originated from gallery
 				if (!extension.identifier.uuid) {
 					continue;
 				}
+				// Extension is not present in the set we are concerned about
 				if (!flagExtensionsMissingFromGallery.some(f => areSameExtensions(f, extension.identifier))) {
 					continue;
 				}
-				const gallery = galleryExtensions.find(g => areSameExtensions(g.identifier, extension.identifier));
-				if (!gallery) {
-					extension.missingFromGallery = true;
+				extensionsToQuery.push(extension);
+			}
+			if (extensionsToQuery.length) {
+				const queryResult = await this.galleryService.getExtensions(extensionsToQuery.map(e => ({ ...e.identifier, version: e.version })), CancellationToken.None);
+				const queriedIds: string[] = [];
+				const missingIds: string[] = [];
+				for (const extension of extensionsToQuery) {
+					queriedIds.push(extension.identifier.id);
+					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
+					if (gallery) {
+						extension.gallery = gallery;
+					} else {
+						extension.missingFromGallery = true;
+						missingIds.push(extension.identifier.id);
+					}
 					this._onChange.fire({ extension });
 				}
+				type MissingFromGalleryClassification = {
+					owner: 'joshspicer';
+					comment: 'Report when installed extensions are no longer available in the gallery';
+					queriedIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions queried as potentially missing from gallery' };
+					missingIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extensions determined missing from gallery' };
+				};
+				type MissingFromGalleryEvent = {
+					readonly queriedIds: TelemetryTrustedValue<string>;
+					readonly missingIds: TelemetryTrustedValue<string>;
+				};
+				this.telemetryService.publicLog2<MissingFromGalleryEvent, MissingFromGalleryClassification>('extensions:missingFromGallery', {
+					queriedIds: new TelemetryTrustedValue(queriedIds.join(';')),
+					missingIds: new TelemetryTrustedValue(missingIds.join(';'))
+				});
 			}
 		}
 	}

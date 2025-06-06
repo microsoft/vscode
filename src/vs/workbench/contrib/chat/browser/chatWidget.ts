@@ -59,7 +59,7 @@ import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { isPromptFileChatVariable, toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { addPromptFileChatVariable, isPromptFileChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -1219,12 +1219,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (agentSlashPromptPart) {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
 			if (metadata) {
-				const uri = metadata.uri;
-				if (!requestInput.attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(IChatRequestVariableEntry.toUri(variable), uri))) {
-					// not yet attached, so attach it
-					const variable = toChatVariable({ uri: metadata.uri, isPromptFile: true }, true);
-					requestInput.attachedContext.push(variable);
-				}
+				// add the prompt file to the context, but not sticky
+				addPromptFileChatVariable(requestInput.attachedContext, metadata.uri);
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
 			}
@@ -1631,11 +1627,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			.findInstructionFilesFor(variableUris);
 
 		// add instructions to the final context list
-		attachedContext.push(
-			...automaticInstructions.map((uri) => {
-				return toChatVariable({ uri, isPromptFile: true }, true);
-			}),
-		);
+		automaticInstructions.forEach(instruction => addPromptFileChatVariable(attachedContext, instruction));
 
 		// add to attached list to make the instructions sticky
 		this.inputPart
