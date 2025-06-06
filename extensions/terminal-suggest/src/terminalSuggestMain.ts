@@ -20,7 +20,7 @@ import { getBashGlobals } from './shell/bash';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
-import { getTokenType, TokenType } from './tokens';
+import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars } from './tokens';
 import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
-			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
+			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
@@ -195,7 +195,9 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	return undefined;
 }
 
-function getPrefix(commandLine: string, cursorPosition: number): string {
+function getPrefix(commandLine: string, cursorPosition: number, shellType: TerminalShellType | undefined): string {
+	// Use resetChars imported from tokens.ts
+
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
 		return '';
@@ -209,11 +211,21 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 	// Extract the part of the line up to the cursor position
 	const beforeCursor = commandLine.slice(0, cursorPosition);
 
-	// Find the last sequence of non-whitespace characters before the cursor
-	const match = beforeCursor.match(/(\S+)\s*$/);
+	const resetChars = shellType ? shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars : defaultShellTypeResetChars;
+	// Find the last reset character before the cursor
+	let lastResetIndex = -1;
+	for (const char of resetChars) {
+		const idx = beforeCursor.lastIndexOf(char);
+		if (idx > lastResetIndex) {
+			lastResetIndex = idx;
+		}
+	}
 
-	// Return the match if found, otherwise undefined
-	return match ? match[0] : '';
+	// The start of the prefix is after the last reset char (plus one for the char itself)
+	const prefixStart = lastResetIndex + 1;
+	const prefix = beforeCursor.slice(prefixStart).replace(/^\s+/, '');
+
+	return prefix;
 }
 
 export function asArray<T>(x: T | T[]): T[];
@@ -240,17 +252,17 @@ export async function getCompletionItemsFromSpecs(
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
-	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	// let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 	if (isWindows) {
-		const spaceIndex = precedingText.indexOf(' ');
-		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
-		const lastDotIndex = precedingText.lastIndexOf('.', commandEndIndex);
+		const spaceIndex = prefix.indexOf(' ');
+		const commandEndIndex = spaceIndex === -1 ? prefix.length : spaceIndex;
+		const lastDotIndex = prefix.lastIndexOf('.', commandEndIndex);
 		if (lastDotIndex > 0) { // Don't treat dotfiles as extensions
-			precedingText = precedingText.substring(0, lastDotIndex) + precedingText.substring(spaceIndex);
+			prefix = prefix.substring(0, lastDotIndex) + prefix.substring(spaceIndex);
 		}
 	}
 
-	const result = await getFigSuggestions(specs, terminalContext, availableCommands, prefix, tokenType, shellIntegrationCwd, env, name, precedingText, executeExternals ?? { executeCommand, executeCommandTimeout }, token);
+	const result = await getFigSuggestions(specs, terminalContext, availableCommands, prefix, tokenType, shellIntegrationCwd, env, name, executeExternals ?? { executeCommand, executeCommandTimeout }, token);
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
 		filesRequested ||= result.filesRequested;
@@ -361,3 +373,4 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 			}
 		});
 }
+

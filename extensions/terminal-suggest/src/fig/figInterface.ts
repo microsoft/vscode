@@ -36,7 +36,6 @@ export async function getFigSuggestions(
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
 	name: string,
-	precedingText: string,
 	executeExternals: IFigExecuteExternals,
 	token?: vscode.CancellationToken,
 ): Promise<IFigSpecSuggestionsResult> {
@@ -83,8 +82,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
+					? commandAndAliases.some(e => prefix.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
+					: commandAndAliases.some(e => prefix.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
 			) {
 				continue;
 			}

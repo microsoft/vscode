@@ -11,13 +11,13 @@ export const enum TokenType {
 	Argument,
 }
 
-const shellTypeResetChars = new Map<TerminalShellType, string[]>([
+export const shellTypeResetChars = new Map<TerminalShellType, string[]>([
 	[TerminalShellType.Bash, ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<']],
 	[TerminalShellType.Zsh, ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '<>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<', '<<<', '<(']],
 	[TerminalShellType.PowerShell, ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', ';', '-and', '-or', '-not', '!', '&', '-eq', '-ne', '-gt', '-lt', '-ge', '-le', '-like', '-notlike', '-match', '-notmatch', '-contains', '-notcontains', '-in', '-notin']]
 ]);
 
-const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
+export const defaultShellTypeResetChars = shellTypeResetChars.get(TerminalShellType.Bash)!;
 
 export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
 	const commandLine = ctx.commandLine;
