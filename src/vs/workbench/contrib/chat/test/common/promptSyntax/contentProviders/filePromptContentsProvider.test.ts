@@ -55,7 +55,7 @@ suite('FilePromptContentsProvider', () => {
 		instantiationService.stub(IConfigurationService, nullConfigService);
 	});
 
-	test('• provides contents of a file', async () => {
+	test('provides contents of a file', async () => {
 		const fileService = instantiationService.get(IFileService);
 
 		const fileName = `file-${randomInt(10000)}.prompt.md`;
@@ -108,9 +108,9 @@ suite('FilePromptContentsProvider', () => {
 		);
 	});
 
-	suite('• options', () => {
-		suite('• allowNonPromptFiles', () => {
-			test('• true', async () => {
+	suite('options', () => {
+		suite('allowNonPromptFiles', () => {
+			test('true', async () => {
 				const fileService = instantiationService.get(IFileService);
 
 				const fileName = (randomBoolean() === true)
@@ -166,7 +166,7 @@ suite('FilePromptContentsProvider', () => {
 				);
 			});
 
-			test('• false', async () => {
+			test('false', async () => {
 				const fileService = instantiationService.get(IFileService);
 
 				const fileName = (randomBoolean() === true)
@@ -206,7 +206,7 @@ suite('FilePromptContentsProvider', () => {
 				);
 			});
 
-			test('• undefined', async () => {
+			test('undefined', async () => {
 				const fileService = instantiationService.get(IFileService);
 
 				const fileName = (randomBoolean() === true)

@@ -242,7 +242,7 @@ suite('PromptFileReference', function () {
 		});
 	});
 
-	test('• resolves nested file references', async function () {
+	test('resolves nested file references', async function () {
 		const rootFolderName = 'resolves-nested-file-references';
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
@@ -392,7 +392,7 @@ suite('PromptFileReference', function () {
 		await test.run();
 	});
 
-	test('• does not fall into infinite reference recursion', async function () {
+	test('does not fall into infinite reference recursion', async function () {
 		const rootFolderName = 'infinite-recursion';
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
@@ -541,8 +541,8 @@ suite('PromptFileReference', function () {
 		await test.run();
 	});
 
-	suite('• options', () => {
-		test('• allowNonPromptFiles', async function () {
+	suite('options', () => {
+		test('allowNonPromptFiles', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
@@ -693,8 +693,8 @@ suite('PromptFileReference', function () {
 		});
 	});
 
-	suite('• metadata', () => {
-		test('• tools', async function () {
+	suite('metadata', () => {
+		test('tools', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 			const rootUri = URI.file(rootFolder);
@@ -905,8 +905,8 @@ suite('PromptFileReference', function () {
 			);
 		});
 
-		suite('• applyTo', () => {
-			test('• prompt language', async function () {
+		suite('applyTo', () => {
+			test('prompt language', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1024,7 +1024,7 @@ suite('PromptFileReference', function () {
 			});
 
 
-			test('• instructions language', async function () {
+			test('instructions language', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1136,8 +1136,8 @@ suite('PromptFileReference', function () {
 			});
 		});
 
-		suite('• tools and mode compatibility', () => {
-			test('• tools are ignored if root prompt is in the ask mode', async function () {
+		suite('tools and mode compatibility', () => {
+			test('tools are ignored if root prompt is in the ask mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1248,7 +1248,7 @@ suite('PromptFileReference', function () {
 				);
 			});
 
-			test('• tools are ignored if root prompt is in the edit mode', async function () {
+			test('tools are ignored if root prompt is in the edit mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1358,7 +1358,7 @@ suite('PromptFileReference', function () {
 				);
 			});
 
-			test('• tools are not ignored if root prompt is in the agent mode', async function () {
+			test('tools are not ignored if root prompt is in the agent mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);
@@ -1472,7 +1472,7 @@ suite('PromptFileReference', function () {
 				);
 			});
 
-			test('• tools are not ignored if root prompt implicitly in the agent mode', async function () {
+			test('tools are not ignored if root prompt implicitly in the agent mode', async function () {
 				const rootFolderName = 'resolves-nested-file-references';
 				const rootFolder = `/${rootFolderName}`;
 				const rootUri = URI.file(rootFolder);

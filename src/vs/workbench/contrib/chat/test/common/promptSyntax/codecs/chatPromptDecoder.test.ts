@@ -52,7 +52,7 @@ export class TestChatPromptDecoder extends TestDecoder<TChatPromptToken, ChatPro
 suite('ChatPromptDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• produces expected tokens', async () => {
+	test('produces expected tokens', async () => {
 		const test = testDisposables.add(
 			new TestChatPromptDecoder(),
 		);
@@ -205,8 +205,8 @@ suite('ChatPromptDecoder', () => {
 		);
 	});
 
-	suite('• variables', () => {
-		test('• produces expected tokens', async () => {
+	suite('variables', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);
@@ -263,8 +263,8 @@ suite('ChatPromptDecoder', () => {
 		});
 	});
 
-	suite('• commands', () => {
-		test('• produces expected tokens', async () => {
+	suite('commands', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);
@@ -350,8 +350,8 @@ suite('ChatPromptDecoder', () => {
 		});
 	});
 
-	suite('• template variables', () => {
-		test('• produces expected tokens', async () => {
+	suite('template variables', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);

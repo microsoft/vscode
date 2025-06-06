@@ -34,8 +34,8 @@ suite('logTime', () => {
 			.replaceAll(/\s\d+.\d{2}\sms$/gi, ' 100.50 ms');
 	};
 
-	suite('• decorator', () => {
-		test('• async method', async () => {
+	suite('decorator', () => {
+		test('async method', async () => {
 			const logSpy = sinon.spy();
 			class TestClass {
 				public logTime = logSpy;
@@ -89,7 +89,7 @@ suite('logTime', () => {
 		});
 	});
 
-	test('• sync method', async () => {
+	test('sync method', async () => {
 		const logSpy = sinon.spy();
 
 		class TestClass {
@@ -134,7 +134,7 @@ suite('logTime', () => {
 		);
 	});
 
-	test('• uses \'trace\' level by default', async () => {
+	test('uses \'trace\' level by default', async () => {
 		const logSpy = sinon.spy();
 
 		class TestClass {
@@ -188,8 +188,8 @@ suite('logTime', () => {
 		);
 	});
 
-	suite('• logExecutionTime helper', () => {
-		test('• async function', async () => {
+	suite('logExecutionTime helper', () => {
+		test('async function', async () => {
 			const logSpy = sinon.spy();
 
 			const expectedReturnValue = randomInt(1000);
@@ -234,7 +234,7 @@ suite('logTime', () => {
 			);
 		});
 
-		test('• sync function', () => {
+		test('sync function', () => {
 			const logSpy = sinon.spy();
 
 			const expectedReturnValue = randomInt(1000);
