@@ -61,47 +61,6 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, process
 }
 
 /**
- * Get indentation for line from reference line
- */
-function getIndentationForLineFromReferenceLine(
-	autoIndent: EditorAutoIndentStrategy,
-	model: IVirtualModel,
-	languageConfigurationService: ILanguageConfigurationService,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean,
-	indentConverter: IIndentConverter | undefined,
-	referencePrevLineNum: number,
-	currentLineNumber: number
-): string {
-	let indentation = strings.getLeadingWhitespace(model.getLineContent(referencePrevLineNum));
-	// Check for onEnter rules that should decrease the indent
-	if (indentConverter && considerOnEnterRulesForInheritedIndentAfterBlankLine) {
-		const richEditSupport = languageConfigurationService.getLanguageConfiguration(model.tokenization.getLanguageId());
-		if (richEditSupport) {
-			const previousLineText = referencePrevLineNum < 1 ? '' : model.getLineContent(referencePrevLineNum - 1);
-			let afterEnterText = "";
-			try {
-				afterEnterText = model.getLineContent(currentLineNumber);
-			} catch (e) {
-				// Probably after the end of file
-			}
-			const referencePrevLineNumContent = model.getLineContent(referencePrevLineNum);
-			const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, referencePrevLineNumContent, afterEnterText);
-			if (enterResult) {
-				if (enterResult.indentAction === IndentAction.Outdent) {
-					indentation = indentConverter.unshiftIndent(indentation);
-				} else if (enterResult.indentAction === IndentAction.Indent) {
-					indentation = indentConverter.shiftIndent(indentation);
-				} else if (enterResult.removeText && indentation.length >= enterResult.removeText) {
-					indentation = indentation.substring(0, indentation.length - enterResult.removeText - 1);
-				}
-			}
-		}
-	}
-
-	return indentation;
-}
-
-/**
  * Get inherited indentation from above lines.
  * 1. Find the nearest preceding line which doesn't match unIndentedLinePattern.
  * 2. If this line matches indentNextLinePattern or increaseIndentPattern, it means that the indent level of `lineNumber` should be 1 greater than this line.
@@ -115,12 +74,11 @@ function getIndentationForLineFromReferenceLine(
  */
 export function getInheritIndentForLine(
 	autoIndent: EditorAutoIndentStrategy,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean,
+	useOnEnterRulesForInheritedIndent: boolean,
 	model: IVirtualModel,
 	lineNumber: number,
 	honorIntentialIndent: boolean = true,
-	languageConfigurationService: ILanguageConfigurationService,
-	indentConverter: IIndentConverter | undefined
+	languageConfigurationService: ILanguageConfigurationService
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
@@ -130,7 +88,7 @@ export function getInheritIndentForLine(
 	if (!indentRulesSupport) {
 		return null;
 	}
-	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentRulesSupport, languageConfigurationService);
+	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, autoIndent, useOnEnterRulesForInheritedIndent, indentRulesSupport, languageConfigurationService);
 
 	if (lineNumber <= 1) {
 		return {
@@ -192,7 +150,7 @@ export function getInheritIndentForLine(
 
 		const previousLine = precedingUnIgnoredLine - 1;
 
-		const previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
+		const previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(autoIndent, useOnEnterRulesForInheritedIndent, model.getLineContent(previousLine));
 		if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
 			(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
 			let stopLine = 0;
@@ -213,7 +171,7 @@ export function getInheritIndentForLine(
 
 		if (honorIntentialIndent) {
 			return {
-				indentation: getIndentationForLineFromReferenceLine(autoIndent, model, languageConfigurationService, considerOnEnterRulesForInheritedIndentAfterBlankLine, indentConverter, precedingUnIgnoredLine, lineNumber),
+				indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
 				action: null,
 				line: precedingUnIgnoredLine
 			};
@@ -261,7 +219,7 @@ export function getInheritIndentForLine(
 
 export function getGoodIndentForLine(
 	autoIndent: EditorAutoIndentStrategy,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean,
+	useOnEnterRulesForInheritedIndent: boolean,
 	virtualModel: IVirtualModel,
 	languageId: string,
 	lineNumber: number,
@@ -282,8 +240,8 @@ export function getGoodIndentForLine(
 		return null;
 	}
 
-	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(virtualModel, indentRulesSupport, languageConfigurationService);
-	const indent = getInheritIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, virtualModel, lineNumber, undefined, languageConfigurationService, indentConverter);
+	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(virtualModel, autoIndent, useOnEnterRulesForInheritedIndent, indentRulesSupport, languageConfigurationService);
+	const indent = getInheritIndentForLine(autoIndent, useOnEnterRulesForInheritedIndent, virtualModel, lineNumber, undefined, languageConfigurationService);
 
 	if (indent) {
 		const inheritLine = indent.line;
@@ -346,13 +304,13 @@ export function getGoodIndentForLine(
 }
 
 export function getIndentForEnter(
-	autoIndent: EditorAutoIndentStrategy,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean,
+	cursorConfig: CursorConfiguration,
 	model: ITextModel,
 	range: Range,
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): { beforeEnter: string; afterEnter: string } | null {
+	const autoIndent = cursorConfig.autoIndent;
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -373,7 +331,7 @@ export function getIndentForEnter(
 	const languageIsDifferentFromLineStart = isLanguageDifferentFromLineStart(model, range.getStartPosition());
 	const currentLine = model.getLineContent(range.startLineNumber);
 	const currentLineIndent = strings.getLeadingWhitespace(currentLine);
-	const afterEnterAction = getInheritIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService, indentConverter);
+	const afterEnterAction = getInheritIndentForLine(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, virtualModel, range.startLineNumber + 1, undefined, languageConfigurationService);
 	if (!afterEnterAction) {
 		const beforeEnter = languageIsDifferentFromLineStart ? currentLineIndent : beforeEnterIndent;
 		return {
@@ -388,7 +346,7 @@ export function getIndentForEnter(
 		afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
 	}
 
-	if (indentRulesSupport.shouldDecrease(afterEnterProcessedTokens.getLineContent())) {
+	if (indentRulesSupport.shouldDecrease(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, afterEnterProcessedTokens.getLineContent())) {
 		afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
 	}
 
@@ -414,7 +372,6 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
-	const considerOnEnterRulesForInheritedIndentAfterBlankLine = cursorConfig.considerOnEnterRulesForInheritedIndentAfterBlankLine;
 	const languageIsDifferentFromLineStart = isLanguageDifferentFromLineStart(model, range.getStartPosition());
 	if (languageIsDifferentFromLineStart) {
 		// this line has mixed languages and indentation rules will not work
@@ -436,10 +393,10 @@ export function getIndentActionForType(
 
 	// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
 	// Users might change the indentation by purpose and we should honor that instead of readjusting.
-	if (!indentRulesSupport.shouldDecrease(textAroundRange) && indentRulesSupport.shouldDecrease(textAroundRangeWithCharacter)) {
+	if (!indentRulesSupport.shouldDecrease(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, textAroundRange) && indentRulesSupport.shouldDecrease(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, textAroundRangeWithCharacter)) {
 		// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 		// 1. Get inherited indent action
-		const r = getInheritIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, model, range.startLineNumber, false, languageConfigurationService, indentConverter);
+		const r = getInheritIndentForLine(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, model, range.startLineNumber, false, languageConfigurationService);
 		if (!r) {
 			return null;
 		}
@@ -455,8 +412,8 @@ export function getIndentActionForType(
 	const previousLineNumber = range.startLineNumber - 1;
 	if (previousLineNumber > 0) {
 		const previousLine = model.getLineContent(previousLineNumber);
-		if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
-			const inheritedIndentationData = getInheritIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, model, range.startLineNumber, false, languageConfigurationService, undefined);
+		if (indentRulesSupport.shouldIndentNextLine(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, previousLine) && indentRulesSupport.shouldIncrease(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, textAroundRangeWithCharacter)) {
+			const inheritedIndentationData = getInheritIndentForLine(cursorConfig.autoIndent, cursorConfig.useOnEnterRulesForInheritedIndent, model, range.startLineNumber, false, languageConfigurationService);
 			const inheritedIndentation = inheritedIndentationData?.indentation;
 			if (inheritedIndentation !== undefined) {
 				const currentLine = model.getLineContent(range.startLineNumber);
@@ -480,6 +437,8 @@ export function getIndentActionForType(
 
 export function getIndentMetadata(
 	model: ITextModel,
+	autoIndent: EditorAutoIndentStrategy,
+	useOnEnterRulesForInheritedIndent: boolean,
 	lineNumber: number,
 	languageConfigurationService: ILanguageConfigurationService
 ): number | null {
@@ -490,7 +449,7 @@ export function getIndentMetadata(
 	if (lineNumber < 1 || lineNumber > model.getLineCount()) {
 		return null;
 	}
-	return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+	return indentRulesSupport.getIndentMetadata(autoIndent, useOnEnterRulesForInheritedIndent, model.getLineContent(lineNumber));
 }
 
 function createVirtualModelWithModifiedTokensAtLine(model: ITextModel, modifiedLineNumber: number, modifiedTokens: IViewLineTokens): IVirtualModel {

@@ -13,6 +13,7 @@ import { IViewLineTokens, LineTokens } from '../../tokens/lineTokens.js';
 import { IndentRulesSupport } from './indentRules.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { Position } from '../../core/position.js';
+import { EditorAutoIndentStrategy } from '../../config/editorOptions.js';
 
 /**
  * This class is a wrapper class around {@link IndentRulesSupport}.
@@ -22,14 +23,20 @@ import { Position } from '../../core/position.js';
 export class ProcessedIndentRulesSupport {
 
 	private readonly _indentRulesSupport: IndentRulesSupport;
+	private readonly _autoIndent: EditorAutoIndentStrategy;
+	private readonly _useOnEnterRulesForInheritedIndent: boolean;
 	private readonly _indentationLineProcessor: IndentationLineProcessor;
 
 	constructor(
 		model: IVirtualModel,
+		autoIndent: EditorAutoIndentStrategy,
+		useOnEnterRulesForInheritedIndent: boolean,
 		indentRulesSupport: IndentRulesSupport,
 		languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._indentRulesSupport = indentRulesSupport;
+		this._autoIndent = autoIndent;
+		this._useOnEnterRulesForInheritedIndent = useOnEnterRulesForInheritedIndent;
 		this._indentationLineProcessor = new IndentationLineProcessor(model, languageConfigurationService);
 	}
 
@@ -38,7 +45,7 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIncrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldIncrease(processedLine);
+		return this._indentRulesSupport.shouldIncrease(this._autoIndent, this._useOnEnterRulesForInheritedIndent, processedLine);
 	}
 
 	/**
@@ -46,7 +53,7 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldDecrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldDecrease(processedLine);
+		return this._indentRulesSupport.shouldDecrease(this._autoIndent, this._useOnEnterRulesForInheritedIndent, processedLine);
 	}
 
 	/**
@@ -54,7 +61,7 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIgnore(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldIgnore(processedLine);
+		return this._indentRulesSupport.shouldIgnore(this._autoIndent, this._useOnEnterRulesForInheritedIndent, processedLine);
 	}
 
 	/**
@@ -62,7 +69,7 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIndentNextLine(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
+		return this._indentRulesSupport.shouldIndentNextLine(this._autoIndent, this._useOnEnterRulesForInheritedIndent, processedLine);
 	}
 
 }

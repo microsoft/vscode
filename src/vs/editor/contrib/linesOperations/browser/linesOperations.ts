@@ -176,10 +176,10 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		const commands: ICommand[] = [];
 		const selections = editor.getSelections() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
-		const considerOnEnterRulesForInheritedIndentAfterBlankLine = editor.getOption(EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine);
+		const useOnEnterRulesForInheritedIndent = editor.getOption(EditorOption.useOnEnterRulesForInheritedIndent);
 
 		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, languageConfigurationService));
+			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, useOnEnterRulesForInheritedIndent, languageConfigurationService));
 		}
 
 		editor.pushUndoStop();

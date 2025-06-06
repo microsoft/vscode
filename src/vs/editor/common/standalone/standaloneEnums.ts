@@ -332,7 +332,7 @@ export enum EditorOption {
 	colorDecoratorsActivatedOn = 155,
 	inlineCompletionsAccessibilityVerbose = 156,
 	effectiveExperimentalEditContextEnabled = 157,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine = 158
+	useOnEnterRulesForInheritedIndent = 158
 }
 
 /**

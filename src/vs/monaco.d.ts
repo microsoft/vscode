@@ -3841,7 +3841,7 @@ declare namespace monaco.editor {
 		/**
 		 * When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.
 		 */
-		considerOnEnterRulesForInheritedIndentAfterBlankLine?: boolean;
+		useOnEnterRulesForInheritedIndent?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5073,7 +5073,7 @@ declare namespace monaco.editor {
 		colorDecoratorsActivatedOn = 155,
 		inlineCompletionsAccessibilityVerbose = 156,
 		effectiveExperimentalEditContextEnabled = 157,
-		considerOnEnterRulesForInheritedIndentAfterBlankLine = 158
+		useOnEnterRulesForInheritedIndent = 158
 	}
 
 	export const EditorOptions: {
@@ -5235,7 +5235,7 @@ declare namespace monaco.editor {
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
-		considerOnEnterRulesForInheritedIndentAfterBlankLine: IEditorOption<EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine, boolean>;
+		useOnEnterRulesForInheritedIndent: IEditorOption<EditorOption.useOnEnterRulesForInheritedIndent, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

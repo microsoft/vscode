@@ -790,7 +790,7 @@ export interface IEditorOptions {
 	/**
 	 * When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.
 	 */
-	considerOnEnterRulesForInheritedIndentAfterBlankLine?: boolean;
+	useOnEnterRulesForInheritedIndent?: boolean;
 }
 
 /**
@@ -5653,7 +5653,7 @@ export const enum EditorOption {
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
 	effectiveExperimentalEditContextEnabled,
-	considerOnEnterRulesForInheritedIndentAfterBlankLine,
+	useOnEnterRulesForInheritedIndent,
 }
 
 export const EditorOptions = {
@@ -6487,9 +6487,9 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled()),
-	considerOnEnterRulesForInheritedIndentAfterBlankLine: register(new EditorBooleanOption(
-		EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine, 'considerOnEnterRulesForInheritedIndentAfterBlankLine', false,
-		{ description: nls.localize('considerOnEnterRulesForInheritedIndentAfterBlankLine', "When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.") }
+	useOnEnterRulesForInheritedIndent: register(new EditorBooleanOption(
+		EditorOption.useOnEnterRulesForInheritedIndent, 'useOnEnterRulesForInheritedIndent', false,
+		{ description: nls.localize('useOnEnterRulesForInheritedIndent', "When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.") }
 	)),
 };
 

@@ -22,7 +22,7 @@ export class MoveLinesCommand implements ICommand {
 	private readonly _selection: Selection;
 	private readonly _isMovingDown: boolean;
 	private readonly _autoIndent: EditorAutoIndentStrategy;
-	private readonly _considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean;
+	private readonly _useOnEnterRulesForInheritedIndent: boolean;
 
 	private _selectionId: string | null;
 	private _moveEndPositionDown?: boolean;
@@ -32,13 +32,13 @@ export class MoveLinesCommand implements ICommand {
 		selection: Selection,
 		isMovingDown: boolean,
 		autoIndent: EditorAutoIndentStrategy,
-		considerOnEnterRulesForInheritedIndentAfterBlankLine: boolean,
+		useOnEnterRulesForInheritedIndent: boolean,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
-		this._considerOnEnterRulesForInheritedIndentAfterBlankLine = considerOnEnterRulesForInheritedIndentAfterBlankLine;
+		this._useOnEnterRulesForInheritedIndent = useOnEnterRulesForInheritedIndent;
 		this._selectionId = null;
 		this._moveEndLineSelectionShrink = false;
 	}
@@ -138,7 +138,7 @@ export class MoveLinesCommand implements ICommand {
 						};
 						const indentOfMovingLine = getGoodIndentForLine(
 							this._autoIndent,
-							this._considerOnEnterRulesForInheritedIndentAfterBlankLine,
+							this._useOnEnterRulesForInheritedIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
 							s.startLineNumber,
@@ -197,7 +197,7 @@ export class MoveLinesCommand implements ICommand {
 
 						const newIndentatOfMovingBlock = getGoodIndentForLine(
 							this._autoIndent,
-							this._considerOnEnterRulesForInheritedIndentAfterBlankLine,
+							this._useOnEnterRulesForInheritedIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(movingLineNumber, 1),
 							s.startLineNumber + 1,
@@ -262,7 +262,7 @@ export class MoveLinesCommand implements ICommand {
 						// it doesn't match any onEnter rule, let's check indentation rules then.
 						const indentOfFirstLine = getGoodIndentForLine(
 							this._autoIndent,
-							this._considerOnEnterRulesForInheritedIndentAfterBlankLine,
+							this._useOnEnterRulesForInheritedIndent,
 							virtualModel,
 							model.getLanguageIdAtPosition(s.startLineNumber, 1),
 							movingLineNumber,
@@ -316,7 +316,7 @@ export class MoveLinesCommand implements ICommand {
 			if (this.trimStart(movingLineText).indexOf(this.trimStart(enterPrefix)) >= 0) {
 				const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
-				const indentMetadataOfMovelingLine = getIndentMetadata(model, line, this._languageConfigurationService);
+				const indentMetadataOfMovelingLine = getIndentMetadata(model, this._autoIndent, this._useOnEnterRulesForInheritedIndent, line, this._languageConfigurationService);
 				if (indentMetadataOfMovelingLine !== null && indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
 					newIndentation = indentConverter.unshiftIndent(newIndentation);
 				}

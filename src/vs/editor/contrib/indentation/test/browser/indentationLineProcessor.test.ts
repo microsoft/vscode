@@ -16,6 +16,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { LanguageService } from '../../../../common/services/languageService.js';
 import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
+import { EditorAutoIndentStrategy } from '../../../../common/config/editorOptions.js';
 
 suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 
@@ -183,7 +184,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 			if (!indentationRulesSupport) {
 				assert.fail('indentationRulesSupport should be defined');
 			}
-			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentationRulesSupport, languageConfigurationService);
+			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, EditorAutoIndentStrategy.Full, false, indentationRulesSupport, languageConfigurationService);
 			assert.strictEqual(processedIndentRulesSupport.shouldIncrease(1), true);
 			assert.strictEqual(processedIndentRulesSupport.shouldIncrease(2), false);
 			assert.strictEqual(processedIndentRulesSupport.shouldIncrease(3), false);
@@ -211,7 +212,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 			if (!indentationRulesSupport) {
 				assert.fail('indentationRulesSupport should be defined');
 			}
-			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentationRulesSupport, languageConfigurationService);
+			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, EditorAutoIndentStrategy.Full, false, indentationRulesSupport, languageConfigurationService);
 			assert.strictEqual(processedIndentRulesSupport.shouldDecrease(1), true);
 			assert.strictEqual(processedIndentRulesSupport.shouldDecrease(2), false);
 			assert.strictEqual(processedIndentRulesSupport.shouldDecrease(3), false);
@@ -247,7 +248,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 			if (!indentationRulesSupport) {
 				assert.fail('indentationRulesSupport should be defined');
 			}
-			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, indentationRulesSupport, languageConfigurationService);
+			const processedIndentRulesSupport = new ProcessedIndentRulesSupport(model, EditorAutoIndentStrategy.Full, false, indentationRulesSupport, languageConfigurationService);
 			assert.strictEqual(processedIndentRulesSupport.shouldIndentNextLine(1), true);
 			assert.strictEqual(processedIndentRulesSupport.shouldIndentNextLine(2), false);
 			assert.strictEqual(processedIndentRulesSupport.shouldIndentNextLine(3), false);
