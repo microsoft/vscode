@@ -11,6 +11,7 @@ import { ILanguageService } from '../languages/language.js';
 import { IModelService } from './model.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { extname, basename } from '../../../base/common/path.js';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
@@ -24,51 +25,44 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 	}
 
 	// we always set these base classes even if we do not have a path
-	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
+	const kindClass = fileKind === FileKind.ROOT_FOLDER ? 'rootfolder-icon' : fileKind === FileKind.FOLDER ? 'folder-icon' : 'file-icon';
+	const classes = [kindClass];
 	if (resource) {
+		const { filename, dirname } = getResourceName(resource);
 
-		// Get the path and name of the resource. For data-URIs, we need to parse specially
-		let name: string | undefined;
-		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			name = metadata.get(DataUri.META_DATA_LABEL);
-		} else {
-			const match = resource.path.match(fileIconDirectoryRegex);
-			if (match) {
-				name = fileIconSelectorEscape(match[2].toLowerCase());
-				if (match[1]) {
-					classes.push(`${fileIconSelectorEscape(match[1].toLowerCase())}-name-dir-icon`); // parent directory
-				}
+		if (dirname) {
+			classes.push(`${dirname}-dirname-${kindClass}`); // parent directory
+		}
 
-			} else {
-				name = fileIconSelectorEscape(resource.authority.toLowerCase());
-			}
+		// Get dot segments for filename, and avoid doing an explosive combination of segments
+		// (from a filename with lots of `.` characters; most file systems do not allow files > 255 length)
+		// https://github.com/microsoft/vscode/issues/116199
+		let segments: string[] | undefined;
+		if (typeof filename === 'string' && filename.length <= 255) {
+			segments = filename.replace(/\.\.\.+/g, '').split('.');
 		}
 
 		// Root Folders
 		if (fileKind === FileKind.ROOT_FOLDER) {
-			classes.push(`${name}-root-name-folder-icon`);
+			classes.push(`${filename}-root-name-folder-icon`);
 		}
 
 		// Folders
-		else if (fileKind === FileKind.FOLDER) {
-			classes.push(`${name}-name-folder-icon`);
+		if (typeof filename === 'string' && fileKind === FileKind.FOLDER) {
+			classes.push(`${filename}-name-folder-icon`);
+			classes.push(`name-folder-icon`); // extra segment to increase folder-name score
 		}
 
 		// Files
 		else {
 
 			// Name & Extension(s)
-			if (name) {
-				classes.push(`${name}-name-file-icon`);
+			if (typeof filename === 'string') {
+				classes.push(`${filename}-name-file-icon`);
 				classes.push(`name-file-icon`); // extra segment to increase file-name score
-				// Avoid doing an explosive combination of extensions for very long filenames
-				// (most file systems do not allow files > 255 length) with lots of `.` characters
-				// https://github.com/microsoft/vscode/issues/116199
-				if (name.length <= 255) {
-					const dotSegments = name.split('.');
-					for (let i = 1; i < dotSegments.length; i++) {
-						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				if (filename.length <= 255 && segments) {
+					for (let i = 1; i < segments.length; i++) {
+						classes.push(`${segments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
@@ -86,6 +80,23 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 
 export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${fileIconSelectorEscape(languageId)}-lang-file-icon`];
+}
+
+export function getIconAttributes(resource: uri | undefined) {
+	const attributes: Record<string, string> = {};
+
+	if (resource) {
+		const { filename } = getResourceName(resource);
+
+		if (filename) {
+			const fileExtname = extname(filename);
+			const fileBasename = basename(filename, fileExtname);
+			attributes.fileIconExtname = fileExtname.substring(1);
+			attributes.fileIconBasename = fileBasename;
+		}
+	}
+
+	return attributes;
 }
 
 function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
@@ -120,6 +131,30 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 
 	// otherwise fallback to path based detection
 	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
+}
+
+function getResourceName(resource: uri) {
+	// Get the path and name of the resource. For data-URIs, we need to parse specially
+	let filename: string | undefined;
+	let dirname: string | undefined;
+
+	if (resource.scheme === Schemas.data) {
+		const metadata = DataUri.parseMetaData(resource);
+		filename = metadata.get(DataUri.META_DATA_LABEL);
+
+	} else {
+		const match = resource.path.match(fileIconDirectoryRegex);
+		if (match) {
+			filename = fileIconSelectorEscape(match[2].toLowerCase());
+			if (match[1]) {
+				dirname = fileIconSelectorEscape(match[1].toLowerCase());
+			}
+		} else {
+			filename = fileIconSelectorEscape(resource.authority.toLowerCase());
+		}
+	}
+
+	return { filename, dirname };
 }
 
 export function fileIconSelectorEscape(str: string): string {

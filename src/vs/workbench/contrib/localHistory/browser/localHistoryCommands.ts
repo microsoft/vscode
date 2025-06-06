@@ -24,7 +24,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -372,7 +372,8 @@ registerAction2(class extends Action2 {
 			resource,
 			label: basenameOrAuthority(resource),
 			description: labelService.getUriLabel(dirname(resource), { relative: true }),
-			iconClasses: getIconClasses(modelService, languageService, resource)
+			iconClasses: getIconClasses(modelService, languageService, resource),
+			iconAttributes: getIconAttributes(resource)
 		}));
 
 		await Event.toPromise(resourcePicker.onDidAccept);

@@ -14,7 +14,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { DefinitionAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../nls.js';
@@ -112,6 +112,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		let iconText: string;
 		let iconClasses: string[];
+		let iconAttributes: Record<string, string>;
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 
@@ -121,7 +122,9 @@ export class InlineAnchorWidget extends Disposable {
 
 			location = this.data.symbol.location;
 			iconText = this.data.symbol.name;
+
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
+			iconAttributes = getIconAttributes(undefined);
 
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
@@ -135,9 +138,17 @@ export class InlineAnchorWidget extends Disposable {
 					label;
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			const recomputeIconAttributes = () => getIconAttributes(location.uri);
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
 
+			iconAttributes = recomputeIconAttributes();
 			iconClasses = recomputeIconClasses();
+
+			const refreshIconAttributes = () => {
+				Object.keys(iconAttributes).forEach(key => delete iconEl.dataset[key]);
+				iconAttributes = recomputeIconAttributes();
+				Object.assign(iconEl.dataset, iconAttributes);
+			};
 
 			const refreshIconClasses = () => {
 				iconEl.classList.remove(...iconClasses);
@@ -146,6 +157,7 @@ export class InlineAnchorWidget extends Disposable {
 			};
 
 			this._register(themeService.onDidFileIconThemeChange(() => {
+				refreshIconAttributes();
 				refreshIconClasses();
 			}));
 
@@ -192,6 +204,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
+		Object.assign(iconEl.dataset, iconAttributes);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';

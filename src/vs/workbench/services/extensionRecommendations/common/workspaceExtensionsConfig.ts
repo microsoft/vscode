@@ -7,7 +7,7 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { JSONPath, parse } from '../../../../base/common/json.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconClasses, getIconAttributes } from '../../../../editor/common/services/getIconClasses.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -259,6 +259,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 				label: workspaceFolder.name,
 				description: localize('workspace folder', "Workspace Folder"),
 				workspaceOrFolder: workspaceFolder,
+				iconAttributes: getIconAttributes(workspaceFolder.uri),
 				iconClasses: getIconClasses(this.modelService, this.languageService, workspaceFolder.uri, FileKind.ROOT_FOLDER)
 			};
 		});
