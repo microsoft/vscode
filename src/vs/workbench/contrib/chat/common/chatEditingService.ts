@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -217,8 +217,8 @@ export interface IModifiedFileEntry {
 
 	readonly waitsForLastEdits: IObservable<boolean>;
 
-	accept(transaction: ITransaction | undefined): Promise<void>;
-	reject(transaction: ITransaction | undefined): Promise<void>;
+	accept(): Promise<void>;
+	reject(): Promise<void>;
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;

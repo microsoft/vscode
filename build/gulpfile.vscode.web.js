@@ -152,7 +152,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 
 		const sources = es.merge(src, extensions, loader)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }))
 			// TODO@esm remove me once we stop supporting our web-esm-bridge
 			.pipe(es.through(function (file) {
 				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {
