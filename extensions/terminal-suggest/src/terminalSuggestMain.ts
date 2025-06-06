@@ -256,6 +256,22 @@ export async function getCompletionItemsFromSpecs(
 	let fileExtensions: string[] | undefined;
 
 	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	
+	// Make precedingText shell-aware by extracting text after the last command separator
+	const commandResetChars = terminalShellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(terminalShellType) ?? defaultShellTypeResetChars;
+	let lastSeparatorIndex = -1;
+	for (const separator of commandResetChars) {
+		const index = precedingText.lastIndexOf(separator);
+		if (index > lastSeparatorIndex) {
+			lastSeparatorIndex = index + separator.length - 1;
+		}
+	}
+	
+	// Get the text after the last separator (or keep original if no separator found)
+	if (lastSeparatorIndex >= 0) {
+		precedingText = precedingText.slice(lastSeparatorIndex + 1).trimStart();
+	}
+	
 	if (isWindows) {
 		const spaceIndex = precedingText.indexOf(' ');
 		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
