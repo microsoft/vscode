@@ -786,6 +786,11 @@ export interface IEditorOptions {
 	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 	 */
 	inlineCompletionsAccessibilityVerbose?: boolean;
+
+	/**
+	 * When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.
+	 */
+	considerOnEnterRulesForInheritedIndentAfterBlankLine?: boolean;
 }
 
 /**
@@ -5647,7 +5652,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveExperimentalEditContextEnabled,
+	considerOnEnterRulesForInheritedIndentAfterBlankLine,
 }
 
 export const EditorOptions = {
@@ -6480,7 +6486,11 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled()),
+	considerOnEnterRulesForInheritedIndentAfterBlankLine: register(new EditorBooleanOption(
+		EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine, 'considerOnEnterRulesForInheritedIndentAfterBlankLine', false,
+		{ description: nls.localize('considerOnEnterRulesForInheritedIndentAfterBlankLine', "When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.") }
+	)),
 };
 
 type EditorOptionsType = typeof EditorOptions;
