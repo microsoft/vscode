@@ -211,7 +211,7 @@ function getPrefix(commandLine: string, cursorPosition: number, shellType?: Term
 
 	// Get the appropriate reset characters for the shell type
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
-	
+
 	// Find the last command separator
 	let lastSeparatorIndex = -1;
 	for (const separator of commandResetChars) {
