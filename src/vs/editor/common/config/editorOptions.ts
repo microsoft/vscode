@@ -508,6 +508,10 @@ export interface IEditorOptions {
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
+	 * Boolean which controls whether to autoindent on paste
+	 */
+	autoIndentOnPaste?: boolean;
+	/**
 	 * Emulate selection behaviour of tab characters when using spaces for indentation.
 	 * This means selection will stick to tab stops.
 	 */
@@ -5503,6 +5507,7 @@ export const enum EditorOption {
 	autoClosingOvertype,
 	autoClosingQuotes,
 	autoIndent,
+	autoIndentOnPaste,
 	automaticLayout,
 	autoSurround,
 	bracketPairColorization,
@@ -5773,6 +5778,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.")
 		}
+	)),
+	autoIndentOnPaste: register(new EditorBooleanOption(
+		EditorOption.autoIndentOnPaste, 'autoIndentOnPaste', false,
+		{ description: nls.localize('autoIndentOnPaste', "Controls whether the editor should automatically auto-indent the pasted content.") }
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,
