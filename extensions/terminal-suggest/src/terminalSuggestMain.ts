@@ -20,7 +20,7 @@ import { getBashGlobals } from './shell/bash';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
-import { getTokenType, TokenType } from './tokens';
+import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars } from './tokens';
 import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
-			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
+			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
@@ -195,7 +195,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	return undefined;
 }
 
-function getPrefix(commandLine: string, cursorPosition: number): string {
+function getPrefix(commandLine: string, cursorPosition: number, shellType?: TerminalShellType): string {
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
 		return '';
@@ -209,11 +209,26 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 	// Extract the part of the line up to the cursor position
 	const beforeCursor = commandLine.slice(0, cursorPosition);
 
-	// Find the last sequence of non-whitespace characters before the cursor
-	const match = beforeCursor.match(/(\S+)\s*$/);
+	// Get the appropriate reset characters for the shell type
+	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
+	
+	// Find the last command separator
+	let lastSeparatorIndex = -1;
+	for (const separator of commandResetChars) {
+		const index = beforeCursor.lastIndexOf(separator);
+		if (index > lastSeparatorIndex) {
+			lastSeparatorIndex = index + separator.length - 1;
+		}
+	}
 
-	// Return the match if found, otherwise undefined
-	return match ? match[0] : '';
+	// Get the text after the last separator (or from the beginning if no separator found)
+	const afterSeparator = lastSeparatorIndex >= 0 ? beforeCursor.slice(lastSeparatorIndex + 1) : beforeCursor;
+
+	// Find the last sequence of non-whitespace characters
+	const match = afterSeparator.match(/(\S+)\s*$/);
+
+	// Return the match if found, otherwise empty string
+	return match ? match[1] : '';
 }
 
 export function asArray<T>(x: T | T[]): T[];
