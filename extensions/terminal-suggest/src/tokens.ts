@@ -98,7 +98,8 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 
 	// If no spaces at all, definitely command
 	// Examples: "ls && git|" → Command, "ls && g|" → Command
-	if (trimmedAfterSeparator.indexOf(' ') === -1) {
+	// BUT: check the original afterSeparator, not trimmed, to detect trailing spaces
+	if (afterSeparator.indexOf(' ') === -1) {
 		return TokenType.Command;
 	}
 

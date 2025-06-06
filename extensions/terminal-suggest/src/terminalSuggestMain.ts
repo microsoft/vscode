@@ -258,7 +258,7 @@ export async function getCompletionItemsFromSpecs(
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
-	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
 
 	// Make precedingText shell-aware by extracting text after the last command separator
 	// Use shell-specific reset chars or fallback to default if shell type not specified
