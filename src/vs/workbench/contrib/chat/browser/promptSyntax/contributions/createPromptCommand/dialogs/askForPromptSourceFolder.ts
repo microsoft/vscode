@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { basename, extUri, isEqual } from '../../../../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
@@ -164,7 +163,7 @@ async function showNoFoldersDialog(accessor: ServicesAccessor, type: PromptsType
 	const quickInputService = accessor.get(IQuickInputService);
 	const openerService = accessor.get(IOpenerService);
 
-	const docsQuickPick: WithUriValue<IQuickPickItem> = {
+	const docsQuickPick: IQuickPickItem & { value: URI } = {
 		type: 'item',
 		label: getLearnLabel(type),
 		description: PROMPT_DOCUMENTATION_URL,

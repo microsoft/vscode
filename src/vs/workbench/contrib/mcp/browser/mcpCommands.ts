@@ -5,6 +5,7 @@
 
 import { h } from '../../../../base/browser/dom.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
@@ -33,9 +34,9 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../common/context
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ChatMode } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -206,7 +207,15 @@ export class McpServerOptionsCommand extends Action2 {
 			action: 'showOutput'
 		});
 
-		items.push({ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') });
+		items.push(
+			{ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') },
+			{
+				label: localize('mcp.configAccess', 'Configure Model Access'),
+				description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+				action: 'configSampling'
+			},
+		);
+
 
 		if (samplingService.hasLogs(server)) {
 			items.push({
@@ -226,8 +235,7 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		const pick = await quickInputService.pick(items, {
-			title: server.definition.label,
-			placeHolder: localize('mcp.selectAction', 'Select Server Action')
+			placeHolder: localize('mcp.selectAction', 'Select action for \'{0}\'', server.definition.label),
 		});
 
 		if (!pick) {
@@ -680,7 +688,15 @@ export class McpConfigureSamplingModels extends Action2 {
 		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
 		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
 			const model = lmService.lookupLanguageModel(id)!;
-			return model.isUserSelectable ? ({ label: model.name, description: model.description, id, picked: existingIds.has(id) }) : undefined;
+			if (!model.isUserSelectable) {
+				return undefined;
+			}
+			return {
+				label: model.name,
+				description: model.description,
+				id,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+			};
 		}).filter(isDefined);
 
 		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
@@ -710,10 +726,7 @@ export class McpStartPromptingServerCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
-		const chatWidget = accessor.get(IChatWidgetService);
-		await accessor.get(IViewsService).openView(ChatViewId, true);
-
-		const widget = chatWidget.lastFocusedWidget || chatWidget.getAllWidgets()[0];
+		const widget = await openPanelChatAndGetWidget(accessor.get(IViewsService), accessor.get(IChatWidgetService));
 		if (!widget) {
 			return;
 		}
@@ -732,4 +745,20 @@ export class McpStartPromptingServerCommand extends Action2 {
 		widget.focusInput();
 		SuggestController.get(editor)?.triggerSuggest();
 	}
+}
+
+export async function openPanelChatAndGetWidget(viewsService: IViewsService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
+	await viewsService.openView(ChatViewId, true);
+	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Panel);
+	if (widgets.length) {
+		return widgets[0];
+	}
+
+	const eventPromise = Event.toPromise(Event.filter(chatService.onDidAddWidget, e => e.location === ChatAgentLocation.Panel));
+
+	return await raceTimeout(
+		eventPromise,
+		10_000, // should be enough time for chat to initialize...
+		() => eventPromise.cancel(),
+	);
 }

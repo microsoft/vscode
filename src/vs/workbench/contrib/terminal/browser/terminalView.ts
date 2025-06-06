@@ -51,6 +51,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { InstanceContext, TerminalContextActionRunner } from './terminalContextMenu.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -361,9 +362,10 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IContextViewService contextViewService: IContextViewService,
-		@ITerminalProfileService terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));

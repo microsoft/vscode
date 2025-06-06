@@ -87,6 +87,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -286,6 +287,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -683,15 +685,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const customMessage = message === errorMessage
 							? `\`${message}\``
 							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
-						actions.push({
-							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
-							run: async () => {
-								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
-									mode: ChatMode.Agent,
-									query: `Fix this task configuration error: ${customMessage}`
-								});
-							}
-						});
+
+
+						const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+						const providerName = defaultAgent?.fullName;
+						if (providerName) {
+							actions.push({
+								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
+								run: async () => {
+									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
+										mode: ChatMode.Agent,
+										query: `Fix this task configuration error: ${customMessage}`
+									});
+								}
+							});
+						}
 					}
 				}
 				actions.push({

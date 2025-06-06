@@ -412,12 +412,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
-		this.updateCellDiffInfo([], tx);
+	protected override async _doAccept(): Promise<void> {
+		this.updateCellDiffInfo([], undefined);
 		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		restoreSnapshot(this.originalModel, snapshot);
 		this.initializeModelsFromDiff();
-		await this._collapse(tx);
+		await this._collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
 		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
@@ -436,8 +436,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
-		this.updateCellDiffInfo([], tx);
+	protected override async _doReject(): Promise<void> {
+		this.updateCellDiffInfo([], undefined);
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			await this._applyEdits(async () => {
 				await this.modifiedResourceRef.object.revert({ soft: true });
@@ -455,7 +455,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 			});
 			this.initializeModelsFromDiff();
-			await this._collapse(tx);
+			await this._collapse(undefined);
 		}
 	}
 
@@ -606,12 +606,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		transaction((tx) => {
+			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
+			this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 			if (!isLastEdits) {
-				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
-				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
-
 			} else {
 				finishPreviousCells();
 				this.editedCells.clear();

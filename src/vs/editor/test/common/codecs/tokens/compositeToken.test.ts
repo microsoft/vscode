@@ -32,9 +32,9 @@ suite('CompositeToken', () => {
 		}
 	}
 
-	suite('• constructor', () => {
-		suite('• infers range from the list of tokens', () => {
-			test('• one token', () => {
+	suite('constructor', () => {
+		suite('infers range from the list of tokens', () => {
+			test('one token', () => {
 				const range = randomRange();
 				const token = new TestCompositeToken([
 					new Word(
@@ -49,7 +49,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• multiple tokens', () => {
+			test('multiple tokens', () => {
 				const tokens = randomTokens();
 				const token = new TestCompositeToken(tokens);
 
@@ -64,21 +64,21 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• throws if no tokens provided', () => {
+			test('throws if no tokens provided', () => {
 				assert.throws(() => {
 					new TestCompositeToken([]);
 				});
 			});
 		});
 
-		test('• throws if no tokens provided', () => {
+		test('throws if no tokens provided', () => {
 			assert.throws(() => {
 				new TestCompositeToken([]);
 			});
 		});
 	});
 
-	test('• text', () => {
+	test('text', () => {
 		const tokens = randomTokens();
 		const token = new TestCompositeToken(tokens);
 
@@ -89,7 +89,7 @@ suite('CompositeToken', () => {
 		);
 	});
 
-	test('• tokens', () => {
+	test('tokens', () => {
 		const tokens = randomTokens();
 		const token = new TestCompositeToken(tokens);
 
@@ -101,9 +101,9 @@ suite('CompositeToken', () => {
 		}
 	});
 
-	suite('• equals', () => {
-		suite('• true', () => {
-			test('• same child tokens', () => {
+	suite('equals', () => {
+		suite('true', () => {
+			test('same child tokens', () => {
 				const tokens = randomTokens();
 				const token1 = new TestCompositeToken(tokens);
 				const token2 = new TestCompositeToken(tokens);
@@ -114,7 +114,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• copied child tokens', () => {
+			test('copied child tokens', () => {
 				const tokens = randomTokens();
 				const token1 = new TestCompositeToken([...tokens]);
 				const token2 = new TestCompositeToken([...tokens]);
@@ -125,7 +125,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• cloned child tokens', () => {
+			test('cloned child tokens', () => {
 				const tokens = randomTokens();
 
 				const tokens1 = cloneTokens(tokens);
@@ -140,7 +140,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• composite tokens', () => {
+			test('composite tokens', () => {
 				const tokens = randomTokens();
 
 				// ensure there is at least one composite token
@@ -162,8 +162,8 @@ suite('CompositeToken', () => {
 			});
 		});
 
-		suite('• false', () => {
-			test('• unknown children number', () => {
+		suite('false', () => {
+			test('unknown children number', () => {
 				const token1 = new TestCompositeToken(randomTokens());
 				const token2 = new TestCompositeToken(randomTokens());
 
@@ -173,7 +173,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• different number of children', () => {
+			test('different number of children', () => {
 				const tokens1 = randomTokens();
 				const tokens2 = randomTokens();
 
@@ -192,7 +192,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• same number of children', () => {
+			test('same number of children', () => {
 				const tokensCount = randomInt(20, 10);
 
 				const tokens1 = randomTokens(tokensCount);
@@ -213,7 +213,7 @@ suite('CompositeToken', () => {
 				);
 			});
 
-			test('• unequal composite tokens', () => {
+			test('unequal composite tokens', () => {
 				const tokens = randomTokens();
 
 				// ensure there is at least one composite token

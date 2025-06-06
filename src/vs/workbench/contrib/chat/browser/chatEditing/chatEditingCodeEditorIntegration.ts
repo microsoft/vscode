@@ -552,7 +552,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		const targetRange = decorations[newIndex];
 		const targetPosition = next ? targetRange.getStartPosition() : targetRange.getEndPosition();
 		this._editor.setPosition(targetPosition);
-		this._editor.revealPositionInCenter(targetPosition);
+		this._editor.revealPositionInCenter(targetRange.getStartPosition().delta(-1));
 		this._editor.focus();
 
 		return true;

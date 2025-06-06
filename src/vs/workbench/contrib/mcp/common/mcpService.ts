@@ -115,7 +115,7 @@ export class McpService extends Disposable implements IMcpService {
 					source,
 					icon: Codicon.tools,
 					displayName: tool.definition.annotations?.title || tool.definition.name,
-					toolReferenceName: tool.id,
+					toolReferenceName: tool.referenceName,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
