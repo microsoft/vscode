@@ -685,8 +685,8 @@ class McpHTTPHandle extends Disposable {
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<Response> {
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
-			const traceObj = { ...init, headers: { ...init.headers } };
-			if (traceObj.body instanceof Uint8Array) {
+			const traceObj: any = { ...init, headers: { ...init.headers } };
+			if (traceObj.body) {
 				traceObj.body = new TextDecoder().decode(traceObj.body);
 			}
 			if (traceObj.headers?.Authorization) {
@@ -713,7 +713,7 @@ class McpHTTPHandle extends Disposable {
 interface MinimalRequestInit {
 	method: string;
 	headers: Record<string, string>;
-	body?: string | Uint8Array;
+	body?: Uint8Array<ArrayBuffer>;
 }
 
 function isJSON(str: string): boolean {
