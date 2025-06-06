@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAttachPromptActions } from './chatAttachInstructionsAction.js';
+import { registerAttachPromptActions } from './attachInstructionsAction.js';
 import { registerChatModeActions } from './chatModeActions.js';
-import { registerRunPromptActions } from './chatRunPromptAction.js';
-import { registerSaveToPromptActions } from './chatSaveToPromptAction.js';
+import { registerRunPromptActions } from './runPromptAction.js';
+import { registerSaveToPromptActions } from './saveToPromptAction.js';
 import { registerNewPromptFileActions } from './newPromptFileActions.js';
 
 
