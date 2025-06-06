@@ -190,7 +190,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return completionItems;
 			}
 			if (completions.resourceRequestConfig) {
-				console.log('resource', completions.resourceRequestConfig.pathSeparator);
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities);
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
