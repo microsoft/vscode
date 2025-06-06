@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NotificationAccessibilityProvider } from '../notificationsList.js';
-import { NotificationViewItem, INotificationsFilter } from '../../../../common/notifications.js';
-import { Severity, NotificationsFilter } from '../../../../../platform/notification/common/notification.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestKeybindingService } from '../../../../../platform/keybinding/test/common/testKeybindingService.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NotificationAccessibilityProvider } from '../../browser/parts/notifications/notificationsList.js';
+import { NotificationViewItem, INotificationsFilter } from '../../common/notifications.js';
+import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('NotificationsList AccessibilityProvider', () => {
 
@@ -22,7 +22,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
-		keybindingService = new TestKeybindingService();
+		keybindingService = new MockKeybindingService();
 		accessibilityProvider = new NotificationAccessibilityProvider({}, keybindingService, configurationService);
 	});
 
