@@ -33,7 +33,7 @@
       {
         "label": "Microsoft",
         "id": "microsoft",
-        "issuerGlobs": [
+        "authorizationServerGlobs": [
           "https://login.microsoftonline.com/*/v2.0"
         ]
       },

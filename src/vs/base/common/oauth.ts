@@ -26,7 +26,7 @@ export interface IAuthorizationProtectedResourceMetadata {
 	resource_name?: string;
 
 	/**
-	 * OPTIONAL. JSON array containing a list of OAuth authorization server issuer identifiers.
+	 * OPTIONAL. JSON array containing a list of OAuth authorization server identifiers.
 	 */
 	authorization_servers?: string[];
 
@@ -228,9 +228,9 @@ export interface IAuthorizationDynamicClientRegistrationResponse {
 	client_secret_expires_at?: number;
 
 	/**
-	 * REQUIRED. Client name as provided during registration.
+	 * OPTIONAL. Client name as provided during registration.
 	 */
-	client_name: string;
+	client_name?: string;
 
 	/**
 	 * OPTIONAL. Client URI as provided during registration.
@@ -579,7 +579,7 @@ export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): 
 		return false;
 	}
 	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
+	return response.client_id !== undefined;
 }
 
 export function isAuthorizationAuthorizeResponse(obj: unknown): obj is IAuthorizationAuthorizeResponse {
@@ -596,14 +596,6 @@ export function isAuthorizationTokenResponse(obj: unknown): obj is IAuthorizatio
 	}
 	const response = obj as IAuthorizationTokenResponse;
 	return response.access_token !== undefined && response.token_type !== undefined;
-}
-
-export function isDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
-	if (typeof obj !== 'object' || obj === null) {
-		return false;
-	}
-	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
 }
 
 export function isAuthorizationDeviceResponse(obj: unknown): obj is IAuthorizationDeviceResponse {
@@ -624,12 +616,12 @@ export function isAuthorizationDeviceTokenErrorResponse(obj: unknown): obj is IA
 
 //#endregion
 
-export function getDefaultMetadataForUrl(issuer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
+export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
 	return {
-		issuer: issuer.toString(),
-		authorization_endpoint: new URL('/authorize', issuer).toString(),
-		token_endpoint: new URL('/token', issuer).toString(),
-		registration_endpoint: new URL('/register', issuer).toString(),
+		issuer: authorizationServer.toString(),
+		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
+		token_endpoint: new URL('/token', authorizationServer).toString(),
+		registration_endpoint: new URL('/register', authorizationServer).toString(),
 		// Default values for Dynamic OpenID Providers
 		// https://openid.net/specs/openid-connect-discovery-1_0.html
 		response_types_supported: ['code', 'id_token', 'id_token token'],

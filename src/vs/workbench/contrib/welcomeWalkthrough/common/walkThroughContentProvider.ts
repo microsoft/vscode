@@ -13,7 +13,7 @@ import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { createTextBufferFactory } from '../../../../editor/common/model/textModel.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 interface IWalkThroughContentProvider {
@@ -100,6 +100,6 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 			marked.marked(markdown, { renderer });
 		}
-		return assertIsDefined(codeEditorModel);
+		return assertReturnsDefined(codeEditorModel);
 	}
 }

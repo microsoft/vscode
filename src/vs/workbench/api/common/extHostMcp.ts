@@ -189,8 +189,9 @@ class McpHTTPHandle extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: {
-		server: IAuthorizationServerMetadata;
-		resource?: IAuthorizationProtectedResourceMetadata;
+		authorizationServer: URI;
+		serverMetadata: IAuthorizationServerMetadata;
+		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 	};
 
 	constructor(
@@ -241,26 +242,16 @@ class McpHTTPHandle extends Disposable {
 		}
 		await this._addAuthHeader(headers);
 
-		const doFetch = () => fetch(
+		const res = await this._fetchWithAuthRetry(
 			this._launch.uri.toString(true),
 			{
 				method: 'POST',
 				signal: this._abortCtrl.signal,
 				headers,
 				body: asBytes,
-			}
+			},
+			headers
 		);
-
-		let res = await doFetch();
-		if (res.status === 401) {
-			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
-				await this._addAuthHeader(headers);
-				if (headers['Authorization']) {
-					res = await doFetch();
-				}
-			}
-		}
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
 
@@ -354,17 +345,9 @@ class McpHTTPHandle extends Disposable {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
 			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
-				server: {
-					...serverMetadataWithDefaults,
-					// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
-					// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
-					// literally... it contains `{tenant}`... instead of `organizations`. This may change our
-					// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
-					// as the isser.
-					issuer: serverMetadataUrl,
-					scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
-				},
-				resource
+				authorizationServer: URI.parse(serverMetadataUrl),
+				serverMetadata: serverMetadataWithDefaults,
+				resourceMetadata: resource
 			};
 			return;
 		} catch (e) {
@@ -375,8 +358,9 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			server: defaultMetadata,
-			resource
+			authorizationServer: URI.parse(serverMetadataUrl),
+			serverMetadata: defaultMetadata,
+			resourceMetadata: resource
 		};
 	}
 
@@ -414,8 +398,8 @@ class McpHTTPHandle extends Disposable {
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
 		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-		const issuer = new URL(authorizationServer);
-		const extraPath = issuer.pathname === '/' ? '' : issuer.pathname;
+		const authorizationServerUrl = new URL(authorizationServer);
+		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 		let authServerMetadataResponse = await fetch(pathToFetch, {
 			method: 'GET',
@@ -517,11 +501,15 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(true), {
-					method: 'GET',
-					signal: this._abortCtrl.signal,
-					headers,
-				});
+				res = await this._fetchWithAuthRetry(
+					this._launch.uri.toString(true),
+					{
+						method: 'GET',
+						signal: this._abortCtrl.signal,
+						headers,
+					},
+					headers
+				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
 				continue;
@@ -565,11 +553,15 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(true), {
-				method: 'GET',
-				signal: this._abortCtrl.signal,
-				headers,
-			});
+			res = await this._fetchWithAuthRetry(
+				this._launch.uri.toString(true),
+				{
+					method: 'GET',
+					signal: this._abortCtrl.signal,
+					headers,
+				},
+				headers
+			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
 				return;
@@ -648,7 +640,7 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.server, this._authMetadata.resource);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
@@ -671,6 +663,29 @@ class McpHTTPHandle extends Disposable {
 		} catch {
 			return res.statusText;
 		}
+	}
+
+	/**
+	 * Helper method to perform fetch with 401 authentication retry logic.
+	 * If the initial request returns 401 and we don't have auth metadata,
+	 * it will populate the auth metadata and retry once.
+	 */
+	private async _fetchWithAuthRetry(url: string, init: RequestInit, headers: Record<string, string>): Promise<Response> {
+		const doFetch = () => fetch(url, init);
+
+		let res = await doFetch();
+		if (res.status === 401) {
+			if (!this._authMetadata) {
+				await this._populateAuthMetadata(res);
+				await this._addAuthHeader(headers);
+				if (headers['Authorization']) {
+					// Update the headers in the init object
+					init.headers = headers;
+					res = await doFetch();
+				}
+			}
+		}
+		return res;
 	}
 }
 

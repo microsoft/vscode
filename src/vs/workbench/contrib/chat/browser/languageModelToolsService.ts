@@ -340,7 +340,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'text', value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -380,9 +380,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (autoApproved) {
 			return;
 		}
-		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (!setting) {
+			return;
+		}
+		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow));
+		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
+		if (soundEnabled || announcementEnabled) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true, modality: !soundEnabled ? 'announcement' : undefined });
 		}
 	}
 
@@ -402,11 +407,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { type: 'text', value: part.value };
+				return { isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { type: 'text', value: stringifyPromptTsxPart(part) };
+				return { isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { type: 'data', value64: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}
@@ -467,8 +472,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.toolReferenceName)) {
-				result[toolSet.toolReferenceName] = true;
+			if (toolOrToolset.has(toolSet.referenceName)) {
+				result[toolSet.referenceName] = true;
 			}
 			for (const tool of toolSet.getTools()) {
 				if (toolOrToolset.has(tool.id)) {
@@ -486,14 +491,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
-			if (toolSet.toolReferenceName === name) {
+			if (toolSet.referenceName === name) {
 				return toolSet;
 			}
 		}
 		return undefined;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -505,7 +510,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, displayName, options?.icon ?? Codicon.tools, source, options?.toolReferenceName ?? displayName, options?.description);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description);
 
 		this._toolSets.add(result);
 		return result;

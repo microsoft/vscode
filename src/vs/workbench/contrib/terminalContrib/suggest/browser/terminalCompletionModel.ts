@@ -81,6 +81,23 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
+	// Boost main and master branches for git commands
+	// HACK: Currently this just matches leading line content, it should eventually check the
+	//       completion type is a branch
+	if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind === TerminalCompletionItemKind.Argument && /^\s*git\b/.test(leadingLineContent)) {
+		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
+		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
+		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
+		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
+
+		if (aIsMainOrMaster && !bIsMainOrMaster) {
+			return -1;
+		}
+		if (bIsMainOrMaster && !aIsMainOrMaster) {
+			return 1;
+		}
+	}
+
 	// Sort by more detailed completions
 	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
 		if (typeof a.completion.label !== 'string' && a.completion.label.description && typeof b.completion.label !== 'string' && b.completion.label.description) {

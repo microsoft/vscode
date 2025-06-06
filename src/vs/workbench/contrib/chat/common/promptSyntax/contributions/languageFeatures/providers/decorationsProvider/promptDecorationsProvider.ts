@@ -9,11 +9,11 @@ import { ITextModel } from '../../../../../../../../../editor/common/model.js';
 import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { toDisposable } from '../../../../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../../../../editor/common/core/position.js';
-import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../../../../codecs/base/baseToken.js';
 import { ProviderInstanceManagerBase, TProviderClass } from '../providerInstanceManagerBase.js';
 import { registerThemingParticipant } from '../../../../../../../../../platform/theme/common/themeService.js';
 import { DecorationBase, ReactiveDecorationBase, type TDecorationClass, type TChangedDecorator } from './decorations/utils/index.js';
-import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { FrontMatterHeader } from '../../../../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
  * Prompt tokens that are decorated by this provider.
