@@ -148,9 +148,9 @@ suite('MarkdownExtensionsDecoder', () => {
 		return new Array(dashCount).fill('-').join('');
 	};
 
-	suite('• Front Matter header', () => {
-		suite('• successful cases', () => {
-			test('• produces expected tokens', async () => {
+	suite('Front Matter header', () => {
+		suite('successful cases', () => {
+			test('produces expected tokens', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -206,7 +206,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• can contain dashes in the header contents', async () => {
+			test('can contain dashes in the header contents', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -276,7 +276,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• can be at the end of the file', async () => {
+			test('can be at the end of the file', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -326,8 +326,8 @@ suite('MarkdownExtensionsDecoder', () => {
 			});
 		});
 
-		suite('• failure cases', () => {
-			test('• fails if header starts not on the first line', async () => {
+		suite('failure cases', () => {
+			test('fails if header starts not on the first line', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -366,7 +366,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• fails if header markers do not match (start marker is longer)', async () => {
+			test('fails if header markers do not match (start marker is longer)', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -404,7 +404,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• fails if header markers do not match (end marker is longer)', async () => {
+			test('fails if header markers do not match (end marker is longer)', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);

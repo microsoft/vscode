@@ -45,12 +45,12 @@ const randomSimpleToken = (): TSimpleToken => {
 suite('BaseToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• render()', () => {
+	suite('render()', () => {
 		/**
 		 * Note! Range of tokens is ignored by the render method, that's
 		 *       why we generate random ranges for each token in this test.
 		 */
-		test('• a list of tokens', () => {
+		test('a list of tokens', () => {
 			const tests: readonly [string, BaseToken[]][] = [
 				['/textoftheword$#', [
 					new Slash(randomRange()),
@@ -95,7 +95,7 @@ suite('BaseToken', () => {
 			}
 		});
 
-		test('• accepts tokens delimiter', () => {
+		test('accepts tokens delimiter', () => {
 			// couple of different delimiters to try
 			const delimiter = (randomBoolean())
 				? ', '
@@ -128,7 +128,7 @@ suite('BaseToken', () => {
 			}
 		});
 
-		test('• an empty list of tokens', () => {
+		test('an empty list of tokens', () => {
 			assert.strictEqual(
 				'',
 				BaseToken.render([]),
@@ -137,15 +137,15 @@ suite('BaseToken', () => {
 		});
 	});
 
-	suite('• fullRange()', () => {
-		suite('• throws', () => {
-			test('• if empty list provided', () => {
+	suite('fullRange()', () => {
+		suite('throws', () => {
+			test('if empty list provided', () => {
 				assert.throws(() => {
 					BaseToken.fullRange([]);
 				});
 			});
 
-			test('• if start line number of the first token is greater than one of the last token', () => {
+			test('if start line number of the first token is greater than one of the last token', () => {
 				assert.throws(() => {
 					const lastToken = randomSimpleToken();
 
@@ -177,7 +177,7 @@ suite('BaseToken', () => {
 				});
 			});
 
-			test('• if start line numbers are equal and end of the first token is greater than the start of the last token', () => {
+			test('if start line numbers are equal and end of the first token is greater than the start of the last token', () => {
 				assert.throws(() => {
 					const firstToken = randomSimpleToken();
 
@@ -207,8 +207,8 @@ suite('BaseToken', () => {
 		});
 	});
 
-	suite('• withRange()', () => {
-		test('• updates token range', () => {
+	suite('withRange()', () => {
+		test('updates token range', () => {
 			class TestToken extends BaseToken {
 				public override get text(): string {
 					throw new Error('Method not implemented.');
@@ -236,8 +236,8 @@ suite('BaseToken', () => {
 		});
 	});
 
-	suite('• collapseRangeToStart()', () => {
-		test('• collapses token range to the start position', () => {
+	suite('collapseRangeToStart()', () => {
+		test('collapses token range to the start position', () => {
 			class TestToken extends BaseToken {
 				public override get text(): string {
 					throw new Error('Method not implemented.');
@@ -296,8 +296,8 @@ suite('BaseToken', () => {
 		});
 	});
 
-	suite('• equals()', () => {
-		test('• true', () => {
+	suite('equals()', () => {
+		test('true', () => {
 			class TestToken extends BaseToken {
 				constructor(
 					range: Range,
@@ -338,9 +338,9 @@ suite('BaseToken', () => {
 			);
 		});
 
-		suite('• false', () => {
-			suite('• different constructor', () => {
-				test('• same base class', () => {
+		suite('false', () => {
+			suite('different constructor', () => {
+				test('same base class', () => {
 					class TestToken1 extends BaseToken {
 						public override get text(): string {
 							throw new Error('Method not implemented.');
@@ -378,7 +378,7 @@ suite('BaseToken', () => {
 					);
 				});
 
-				test('• child', () => {
+				test('child', () => {
 					class TestToken1 extends BaseToken {
 						public override get text(): string {
 							throw new Error('Method not implemented.');
@@ -408,7 +408,7 @@ suite('BaseToken', () => {
 					);
 				});
 
-				test('• different direct ancestor', () => {
+				test('different direct ancestor', () => {
 					class TestToken1 extends BaseToken {
 						public override get text(): string {
 							throw new Error('Method not implemented.');
@@ -449,7 +449,7 @@ suite('BaseToken', () => {
 				});
 			});
 
-			test('• different text', () => {
+			test('different text', () => {
 				class TestToken extends BaseToken {
 					constructor(
 						private readonly value: string,
@@ -482,7 +482,7 @@ suite('BaseToken', () => {
 				);
 			});
 
-			test('• different range', () => {
+			test('different range', () => {
 				class TestToken extends BaseToken {
 					public override get text(): string {
 						return 'some text value';

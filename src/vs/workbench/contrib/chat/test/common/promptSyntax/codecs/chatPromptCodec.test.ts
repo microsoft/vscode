@@ -48,7 +48,7 @@ export class TestChatPromptCodec extends TestDecoder<TChatPromptToken, ChatPromp
 suite('ChatPromptCodec', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• produces expected tokens', async () => {
+	test('produces expected tokens', async () => {
 		const test = testDisposables.add(new TestChatPromptCodec());
 
 		await test.run(

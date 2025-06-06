@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 suite('mockObject', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• overrides properties and functions', () => {
+	test('overrides properties and functions', () => {
 		interface ITestObject {
 			foo: string;
 			bar: string;
@@ -66,7 +66,7 @@ suite('mockObject', () => {
 		});
 	});
 
-	test('• immutability of the overrides object', () => {
+	test('immutability of the overrides object', () => {
 		interface ITestObject {
 			foo: string;
 			bar: string;

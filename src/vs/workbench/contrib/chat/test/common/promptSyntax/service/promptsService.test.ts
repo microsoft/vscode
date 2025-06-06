@@ -132,8 +132,8 @@ suite('PromptsService', () => {
 		service = disposables.add(instaService.createInstance(PromptsService));
 	});
 
-	suite('• getParserFor', () => {
-		test('• provides cached parser instance', async () => {
+	suite('getParserFor', () => {
+		test('provides cached parser instance', async () => {
 			// both languages must yield the same result
 			const languageId = (randomBoolean())
 				? PROMPT_LANGUAGE_ID
@@ -458,7 +458,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• auto-updated on model changes', async () => {
+		test('auto-updated on model changes', async () => {
 			const langId = 'bazLang';
 
 			const model = disposables.add(createTextModel(
@@ -526,7 +526,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• throws if a disposed model provided', async function () {
+		test('throws if a disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',
@@ -543,8 +543,8 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• getAllMetadata', () => {
-		test('• explicit', async function () {
+	suite('getAllMetadata', () => {
+		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
@@ -701,12 +701,12 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• findInstructionFilesFor', () => {
+	suite('findInstructionFilesFor', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('• finds correct instruction files', async () => {
+		test('finds correct instruction files', async () => {
 			const rootFolderName = 'finds-instruction-files';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -885,7 +885,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• does not have duplicates', async () => {
+		test('does not have duplicates', async () => {
 			const rootFolderName = 'finds-instruction-files-without-duplicates';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);

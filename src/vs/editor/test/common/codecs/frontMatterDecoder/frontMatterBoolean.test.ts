@@ -14,9 +14,9 @@ import { FrontMatterSequence } from '../../../../common/codecs/frontMatterCodec/
 suite('FrontMatterBoolean', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• equals()', () => {
-		suite('• base case', () => {
-			test('• true', () => {
+	suite('equals()', () => {
+		suite('base case', () => {
+			test('true', () => {
 				// both values should yield the same result
 				const booleanText = (randomBoolean())
 					? 'true'
@@ -48,7 +48,7 @@ suite('FrontMatterBoolean', () => {
 				);
 			});
 
-			test('• false', () => {
+			test('false', () => {
 				// both values should yield the same result
 				const booleanText = (randomBoolean())
 					? 'false'
@@ -81,9 +81,9 @@ suite('FrontMatterBoolean', () => {
 			});
 		});
 
-		suite('• non-boolean token', () => {
-			suite('• word token', () => {
-				test('• true', () => {
+		suite('non-boolean token', () => {
+			suite('word token', () => {
+				test('true', () => {
 					// both values should yield the same result
 					const booleanText = (randomBoolean())
 						? 'true'
@@ -107,7 +107,7 @@ suite('FrontMatterBoolean', () => {
 					);
 				});
 
-				test('• false', () => {
+				test('false', () => {
 					// both values should yield the same result
 					const booleanText = (randomBoolean())
 						? 'false'
@@ -132,8 +132,8 @@ suite('FrontMatterBoolean', () => {
 				});
 			});
 
-			suite('• sequence token', () => {
-				test('• true', () => {
+			suite('sequence token', () => {
+				test('true', () => {
 					// both values should yield the same result
 					const booleanText = (randomBoolean())
 						? 'true'
@@ -159,7 +159,7 @@ suite('FrontMatterBoolean', () => {
 					);
 				});
 
-				test('• false', () => {
+				test('false', () => {
 					// both values should yield the same result
 					const booleanText = (randomBoolean())
 						? 'false'
@@ -187,8 +187,8 @@ suite('FrontMatterBoolean', () => {
 			});
 		});
 
-		suite('• different range', () => {
-			test('• true', () => {
+		suite('different range', () => {
+			test('true', () => {
 				// both values should yield the same result
 				const booleanText = (randomBoolean())
 					? 'true'
@@ -214,7 +214,7 @@ suite('FrontMatterBoolean', () => {
 				);
 			});
 
-			test('• false', () => {
+			test('false', () => {
 				// both values should yield the same result
 				const booleanText = (randomBoolean())
 					? 'false'
@@ -241,8 +241,8 @@ suite('FrontMatterBoolean', () => {
 			});
 		});
 
-		suite('• different text', () => {
-			test('• true', () => {
+		suite('different text', () => {
+			test('true', () => {
 				const boolean = new FrontMatterBoolean(
 					new Word(
 						new Range(1, 1, 1, 5),
@@ -263,7 +263,7 @@ suite('FrontMatterBoolean', () => {
 				);
 			});
 
-			test('• false', () => {
+			test('false', () => {
 				const boolean = new FrontMatterBoolean(
 					new Word(
 						new Range(5, 15, 5, 15 + 6),
@@ -285,7 +285,7 @@ suite('FrontMatterBoolean', () => {
 			});
 		});
 
-		test('• throws if cannot be converted to a boolean', () => {
+		test('throws if cannot be converted to a boolean', () => {
 			assert.throws(() => {
 				new FrontMatterBoolean(
 					new Word(

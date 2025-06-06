@@ -19,8 +19,8 @@ import { objectStreamFromTextModel } from '../../../../common/codecs/utils/objec
 suite('ObjectStream', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• fromArray()', () => {
-		test('• sends objects in the array', async () => {
+	suite('fromArray()', () => {
+		test('sends objects in the array', async () => {
 			const tokens = randomTokens();
 
 			const stream = disposables.add(ObjectStream.fromArray(tokens));
@@ -30,8 +30,8 @@ suite('ObjectStream', () => {
 		});
 	});
 
-	suite('• fromTextModel()', () => {
-		test('• sends data in text model', async () => {
+	suite('fromTextModel()', () => {
+		test('sends data in text model', async () => {
 			const initialContents = [
 				'some contents',
 				'with some line breaks',
@@ -62,8 +62,8 @@ suite('ObjectStream', () => {
 		});
 	});
 
-	suite('• cancellation token', () => {
-		test('• can be cancelled', async () => {
+	suite('cancellation token', () => {
+		test('can be cancelled', async () => {
 			const initialContents = [
 				'some contents',
 				'with some line breaks',
@@ -121,9 +121,9 @@ suite('ObjectStream', () => {
 		});
 	});
 
-	suite('• helpers', () => {
-		suite('• arrayToGenerator()', () => {
-			test('• sends tokens in the array', async () => {
+	suite('helpers', () => {
+		suite('arrayToGenerator()', () => {
+			test('sends tokens in the array', async () => {
 				const tokens = randomTokens();
 				const generator = arrayToGenerator(tokens);
 
