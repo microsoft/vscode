@@ -491,11 +491,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return undefined;
 	}
 
-	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
+	protected override async _doAccept(): Promise<void> {
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, tx);
+		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._edit = StringEdit.empty;
-		await this._collapse(tx);
+		this._multiDiffEntryDelegate.collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
 		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
@@ -513,7 +513,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
+	protected override async _doReject(): Promise<void> {
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			if (isTextFileEditorModel(this._docFileEditorModel)) {
 				await this._docFileEditorModel.revert({ soft: true });
@@ -527,7 +527,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				// and so that an intermediate saved state gets reverted
 				await this._docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 			}
-			await this._collapse(tx);
+			this._multiDiffEntryDelegate.collapse(undefined);
 		}
 	}
 
@@ -543,9 +543,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	private async _collapse(transaction: ITransaction | undefined): Promise<void> {
-		this._multiDiffEntryDelegate.collapse(transaction);
-	}
 
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
