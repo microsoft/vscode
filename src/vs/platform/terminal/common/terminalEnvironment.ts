@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
-import type { IShellLaunchConfig, TerminalShellType } from './terminal.js';
-import { PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
+import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
 
 /**
  * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
@@ -35,15 +34,15 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 		case PosixShellType.Zsh:
 		case WindowsShellType.GitBash:
 			escapeConfig = {
-				bothQuotes: (path) => `$'${path.replace(/'/g, "\\'")}'`,
-				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\'\\\'\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
 		case PosixShellType.Fish:
 			escapeConfig = {
 				bothQuotes: (path) => `"${path.replace(/"/g, '\\"')}"`,
-				singleQuotes: (path) => `'${path.replace(/'/g, "\\'")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
@@ -52,15 +51,15 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			// but if we get here, use PowerShell escaping
 			escapeConfig = {
 				bothQuotes: (path) => `"${path.replace(/"/g, '`"')}"`,
-				singleQuotes: (path) => `'${path.replace(/'/g, "''")}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\'\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
 		default:
 			// Default to POSIX shell escaping for unknown shells
 			escapeConfig = {
-				bothQuotes: (path) => `$'${path.replace(/'/g, "\\'")}'`,
-				singleQuotes: (path) => `'${path.replace(/'/g, "'\\''")}'`,
+				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\'\\\'\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
@@ -71,9 +70,9 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 	newPath = newPath.replace(bannedChars, '');
 
 	// Apply shell-specific escaping based on quote content
-	if (newPath.includes("'") && newPath.includes('"')) {
+	if (newPath.includes('\'') && newPath.includes('"')) {
 		return escapeConfig.bothQuotes(newPath);
-	} else if (newPath.includes("'")) {
+	} else if (newPath.includes('\'')) {
 		return escapeConfig.singleQuotes(newPath);
 	} else {
 		return escapeConfig.noSingleQuotes(newPath);
