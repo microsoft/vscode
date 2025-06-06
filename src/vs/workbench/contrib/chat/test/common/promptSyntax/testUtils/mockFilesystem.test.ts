@@ -195,7 +195,7 @@ suite('MockFilesystem', () => {
 		instantiationService.stub(IFileService, fileService);
 	});
 
-	test('• mocks file structure', async () => {
+	test('mocks file structure', async () => {
 		const mockFilesystem = instantiationService.createInstance(MockFilesystem, [
 			{
 				name: '/root/folder',

@@ -23,7 +23,7 @@ import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IntervalCounter } from '../../../../base/common/async.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
@@ -608,7 +608,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Update visibility in DOM
-		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
+		const notificationsToastsContainer = assertReturnsDefined(this.notificationsToastsContainer);
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {

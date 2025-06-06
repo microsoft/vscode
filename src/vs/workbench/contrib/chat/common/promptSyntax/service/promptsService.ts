@@ -7,8 +7,7 @@ import { flatten } from '../utils/treeUtils.js';
 import { localize } from '../../../../../../nls.js';
 import { PROMPT_LANGUAGE_ID } from '../constants.js';
 import { PromptParser } from '../parsers/promptParser.js';
-import { match } from '../../../../../../base/common/glob.js';
-import { pick } from '../../../../../../base/common/arrays.js';
+import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { type IPromptFileReference } from '../parsers/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -18,13 +17,12 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
+import { ObjectCache } from '../utils/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
@@ -46,11 +44,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly fileLocator: PromptFilesLocator;
 
-	/**
-	 * Function used by the `@logTime` decorator to log
-	 * execution time of some of the decorated methods.
-	 */
-	public logTime: TLogFunction;
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -67,8 +60,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
-
-		this.logTime = this.logger.trace.bind(this.logger);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -106,7 +97,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public get onDidChangeCustomChatModes(): Event<void> {
 		if (!this.onDidChangeCustomChatModesEvent) {
-			this.onDidChangeCustomChatModesEvent = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
+			this.onDidChangeCustomChatModesEvent = this._register(this.fileLocator.createFilesUpdatedEvent(PromptsType.mode)).event;
 		}
 		return this.onDidChangeCustomChatModesEvent;
 	}
@@ -201,7 +192,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	@logTime()
 	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = (await this.listPromptFiles(PromptsType.mode, CancellationToken.None))
 			.map(modeFile => modeFile.uri);
@@ -242,7 +232,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadataList;
 	}
 
-	@logTime()
 	public async findInstructionFilesFor(
 		files: readonly URI[],
 	): Promise<readonly URI[]> {
@@ -252,7 +241,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const instructions = await this.getAllMetadata(
-			instructionFiles.map(pick('uri')),
+			instructionFiles.map(file => file.uri),
 		);
 
 		const foundFiles = new ResourceSet();
@@ -268,23 +257,38 @@ export class PromptsService extends Disposable implements IPromptsService {
 				continue;
 			}
 
-			// if glob pattern is one of the special wildcard values,
-			// add the instructions file event if no files are attached
-			if ((applyTo === '**') || (applyTo === '**/*')) {
-				foundFiles.add(uri);
-
-				continue;
-			}
-
-			// match each attached file with each glob pattern and
-			// add the instructions file if its rule matches the file
-			for (const file of files) {
-				if (match(applyTo, file.fsPath)) {
-					foundFiles.add(uri);
+			const patterns = splitGlobAware(applyTo, ',');
+			const patterMatches = (pattern: string) => {
+				pattern = pattern.trim();
+				if (pattern.length === 0) {
+					// if glob pattern is empty, skip it
+					return false;
 				}
+				if (pattern === '**' || pattern === '**/*' || pattern === '*') {
+					// if glob pattern is one of the special wildcard values,
+					// add the instructions file event if no files are attached
+					return true;
+				}
+				if (!pattern.startsWith('/') && !pattern.startsWith('**/')) {
+					// support relative glob patterns, e.g. `src/**/*.js`
+					pattern = '**/' + pattern;
+				}
+
+				// match each attached file with each glob pattern and
+				// add the instructions file if its rule matches the file
+				for (const file of files) {
+					// if the file is not a valid URI, skip it
+					if (match(pattern, file.path)) {
+						return true;
+					}
+				}
+				return false;
+			};
+
+			if (patterns.some(patterMatches)) {
+				foundFiles.add(uri);
 			}
 		}
-
 		return [...foundFiles];
 	}
 
@@ -293,7 +297,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metaDatas[0];
 	}
 
-	@logTime()
 	public async getAllMetadata(
 		promptUris: readonly URI[],
 	): Promise<IMetadata[]> {

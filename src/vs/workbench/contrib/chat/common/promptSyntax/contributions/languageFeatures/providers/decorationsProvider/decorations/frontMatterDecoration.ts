@@ -7,11 +7,11 @@ import { CssClassModifiers } from '../types.js';
 import { localize } from '../../../../../../../../../../nls.js';
 import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { Position } from '../../../../../../../../../../editor/common/core/position.js';
-import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../../../../../codecs/base/baseToken.js';
 import { contrastBorder, editorBackground } from '../../../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ColorIdentifier, darken, registerColor } from '../../../../../../../../../../platform/theme/common/colorUtils.js';
 import { TAddAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable, IReactiveDecorationClassNames } from './utils/index.js';
-import { FrontMatterHeader } from '../../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { FrontMatterHeader } from '../../../../../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
  * Decoration CSS class names.

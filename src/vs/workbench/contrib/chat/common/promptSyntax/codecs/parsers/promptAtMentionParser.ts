@@ -6,21 +6,21 @@
 import { PromptAtMention } from '../tokens/promptAtMention.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
-import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
-import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
-import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/space.js';
-import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
-import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
-import { FormFeed } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
-import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
-import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
-import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/exclamationMark.js';
-import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
-import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/angleBrackets.js';
-import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
+import { BaseToken } from '../base/baseToken.js';
+import { At } from '../base/simpleCodec/tokens/at.js';
+import { Tab } from '../base/simpleCodec/tokens/tab.js';
+import { Hash } from '../base/simpleCodec/tokens/hash.js';
+import { Space } from '../base/simpleCodec/tokens/space.js';
+import { Colon } from '../base/simpleCodec/tokens/colon.js';
+import { NewLine } from '../base/linesCodec/tokens/newLine.js';
+import { FormFeed } from '../base/simpleCodec/tokens/formFeed.js';
+import { VerticalTab } from '../base/simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../base/simpleCodec/simpleDecoder.js';
+import { CarriageReturn } from '../base/linesCodec/tokens/carriageReturn.js';
+import { ExclamationMark } from '../base/simpleCodec/tokens/exclamationMark.js';
+import { LeftBracket, RightBracket } from '../base/simpleCodec/tokens/brackets.js';
+import { LeftAngleBracket, RightAngleBracket } from '../base/simpleCodec/tokens/angleBrackets.js';
+import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../base/simpleCodec/parserBase.js';
 
 /**
  * List of characters that terminate the prompt at-mention sequence.

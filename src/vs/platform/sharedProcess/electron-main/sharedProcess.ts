@@ -17,7 +17,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { parseSharedProcessDebugPort } from '../../environment/node/environmentService.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from '../common/sharedProcess.js';
 import { Emitter } from '../../../base/common/event.js';
 
@@ -202,7 +202,7 @@ export class SharedProcess extends Disposable {
 		await this.whenIpcReady;
 
 		// Connect and return message port
-		const utilityProcess = assertIsDefined(this.utilityProcess);
+		const utilityProcess = assertReturnsDefined(this.utilityProcess);
 		return utilityProcess.connect(payload);
 	}
 }

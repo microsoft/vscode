@@ -248,6 +248,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	input(id: number, data: string): Promise<void> {
 		return this._proxy.input(id, data);
 	}
+	sendSignal(id: number, signal: string): Promise<void> {
+		return this._proxy.sendSignal(id, signal);
+	}
 	processBinary(id: number, data: string): Promise<void> {
 		return this._proxy.processBinary(id, data);
 	}
