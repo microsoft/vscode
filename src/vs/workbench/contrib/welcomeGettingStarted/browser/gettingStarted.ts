@@ -158,6 +158,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesSlide!: HTMLElement;
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
+	private nextButton!: HTMLButtonElement;
 	private webview!: IWebviewElement;
 
 	private layoutMarkdown: (() => void) | undefined;
@@ -1504,6 +1505,20 @@ export class GettingStartedPage extends EditorPane {
 				prevButton.removeAttribute('tabindex');
 			}
 		}
+
+		// Update next button text for final slide
+		if (this.nextButton) {
+			const isLastSlide = newIndex === steps.length - 1;
+			const textNode = this.nextButton.firstChild as Text;
+			if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+				textNode.textContent = isLastSlide
+					? localize('last', "Start coding")
+					: localize('next', "Next");
+			}
+			this.nextButton.setAttribute('aria-label', isLastSlide
+				? localize('lastStep', "Start coding")
+				: localize('nextStep', "Next"));
+		}
 	}
 
 	private buildNewCategorySlide(categoryID: string, selectedStep?: string) {
@@ -1653,11 +1668,11 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		// Add next button
-		const nextButton = $('button.button-link.navigation.next', {
+		this.nextButton = $('button.button-link.navigation.next', {
 			'aria-label': localize('nextStep', "Next"),
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
 
-		navigationContainer.appendChild(nextButton);
+		navigationContainer.appendChild(this.nextButton);
 		this.detailsPageDisposables.add(addDisposableListener(prevButton, 'click', () => {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex > 0) {
@@ -1665,7 +1680,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
-		this.detailsPageDisposables.add(addDisposableListener(nextButton, 'click', () => {
+		this.detailsPageDisposables.add(addDisposableListener(this.nextButton, 'click', () => {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex < allSlides.length - 1) {
 				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
