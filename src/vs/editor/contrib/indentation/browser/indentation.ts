@@ -421,6 +421,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
+		const considerOnEnterRulesForInheritedIndentAfterBlankLine = this.editor.getOption(EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine);
 		const { tabSize, indentSize, insertSpaces } = model.getOptions();
 		const textEdits: TextEdit[] = [];
 
@@ -449,7 +450,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
+			const indentOfFirstLine = getGoodIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
 
 			if (indentOfFirstLine !== null) {
 				const oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -509,7 +510,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			const indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
+			const indentOfSecondLine = getGoodIndentForLine(autoIndent, considerOnEnterRulesForInheritedIndentAfterBlankLine, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
 			if (indentOfSecondLine !== null) {
 				const newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				const oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);

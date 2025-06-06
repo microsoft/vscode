@@ -3838,6 +3838,10 @@ declare namespace monaco.editor {
 		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
+		/**
+		 * When the preceding line is a blank line, use OnEnterRule on the previous non-blank line to determine the indentation.
+		 */
+		considerOnEnterRulesForInheritedIndentAfterBlankLine?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5068,7 +5072,8 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 154,
 		colorDecoratorsActivatedOn = 155,
 		inlineCompletionsAccessibilityVerbose = 156,
-		effectiveExperimentalEditContextEnabled = 157
+		effectiveExperimentalEditContextEnabled = 157,
+		considerOnEnterRulesForInheritedIndentAfterBlankLine = 158
 	}
 
 	export const EditorOptions: {
@@ -5230,6 +5235,7 @@ declare namespace monaco.editor {
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
+		considerOnEnterRulesForInheritedIndentAfterBlankLine: IEditorOption<EditorOption.considerOnEnterRulesForInheritedIndentAfterBlankLine, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

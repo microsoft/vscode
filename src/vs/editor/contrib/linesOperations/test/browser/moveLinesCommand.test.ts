@@ -40,7 +40,7 @@ function testMoveLinesUpOrDownCommand(direction: MoveLinesDirection, lines: stri
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Advanced, false, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
@@ -49,7 +49,7 @@ function testMoveLinesUpOrDownWithIndentCommand(direction: MoveLinesDirection, l
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, direction === MoveLinesDirection.Up ? false : true, EditorAutoIndentStrategy.Full, false, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
