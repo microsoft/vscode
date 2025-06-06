@@ -20,7 +20,8 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
-import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { getPromptFileType, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -97,7 +98,7 @@ class TestPromptFileReference extends Disposable {
 		// randomly test with and without delay to ensure that the file
 		// reference resolution is not susceptible to race conditions
 		if (randomBoolean()) {
-			await waitRandom(5);
+			await timeout(5);
 		}
 
 		// start resolving references for the specified root file

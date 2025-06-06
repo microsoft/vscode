@@ -7,7 +7,6 @@ import assert from 'assert';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { mockObject } from '../../../../../../../base/test/common/testUtils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
@@ -26,6 +25,7 @@ import { IUserDataProfileService } from '../../../../../../services/userDataProf
 import { ISearchService, IFileQuery, IFileMatch } from '../../../../../../services/search/common/search.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { match } from '../../../../../../../base/common/glob.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -57,9 +57,9 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextService => {
 	return mockService<IWorkspaceContextService>({
 		getWorkspace(): IWorkspace {
-			return mockObject<IWorkspace>({
-				folders,
-			});
+			return new class extends mock<IWorkspace>() {
+				override folders = folders;
+			};
 		},
 		getWorkspaceFolder(): IWorkspaceFolder | null {
 			return null;
@@ -104,11 +104,11 @@ suite('PromptFilesLocator', () => {
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = URI.file(path);
 
-			return mockObject<IWorkspaceFolder>({
-				uri,
-				name: basename(uri),
-				index,
-			});
+			return new class extends mock<IWorkspaceFolder>() {
+				override uri = uri;
+				override name = basename(uri);
+				override index = index;
+			};
 		});
 		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);

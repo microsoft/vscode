@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { waitRandom } from './testUtils.js';
+import { timeout } from '../../common/async.js';
 import { randomInt } from '../../common/numbers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { logExecutionTime, logTime } from '../../common/decorators/logTime.js';
@@ -46,7 +46,7 @@ suite('logTime', () => {
 
 				@logTime()
 				public async myAsyncMethod(): Promise<number> {
-					await waitRandom(10);
+					await timeout(10);
 
 					return this.returnValue;
 				}
@@ -146,7 +146,7 @@ suite('logTime', () => {
 
 			@logTime()
 			public async myAsyncMethod(): Promise<number> {
-				await waitRandom(10);
+				await timeout(10);
 
 				return this.returnValue;
 			}
@@ -196,7 +196,7 @@ suite('logTime', () => {
 			const resultPromise = logExecutionTime(
 				'my-async-function',
 				async () => {
-					await waitRandom(10);
+					await timeout(10);
 
 					return expectedReturnValue;
 				},
