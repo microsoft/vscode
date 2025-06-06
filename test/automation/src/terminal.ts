@@ -41,7 +41,7 @@ export enum TerminalCommandIdWithValue {
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
+	SendSequence = 'workbench.action.terminal.sendSequence'
 }
 
 /**
@@ -156,7 +156,7 @@ export class Terminal {
 	/**
 	 * Creates an empty terminal by opening a regular terminal and resetting its state such that it
 	 * essentially acts like an Pseudoterminal extension API-based terminal. This can then be paired
-	 * with `TerminalCommandIdWithValue.WriteDataToTerminal` to make more reliable tests.
+	 * with `TerminalCommandIdWithValue.SendSequence` to make more reliable tests.
 	 */
 	async createEmptyTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.createTerminal(expectedLocation);
@@ -167,11 +167,11 @@ export class Terminal {
 		await this.waitForTerminalText(buffer => buffer.some(line => line.startsWith('initialized')));
 
 		// Erase all content and reset cursor to top
-		await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
+		await this.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${csi('2J')}${csi('H')}`);
 
 		// Force windows pty mode off; assume all sequences are rendered in correct position
 		if (process.platform === 'win32') {
-			await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
+			await this.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${vsc('P;IsWindows=False')}`);
 		}
 	}
 
