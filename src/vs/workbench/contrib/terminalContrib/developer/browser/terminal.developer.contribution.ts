@@ -17,11 +17,12 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry } from '../../../../services/statusbar/browser/statusbar.js';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -57,6 +58,41 @@ registerTerminalAction({
 		}
 		await fileService.writeFile(fileUri, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
 		openerService.open(fileUri);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalDeveloperCommandId.WriteDataToTerminal,
+	title: localize2('workbench.action.terminal.writeDataToTerminal', 'Write Data to Terminal'),
+	category: Categories.Developer,
+	run: async (c, accessor) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
+		await instance.processReady;
+		if (!instance.xterm) {
+			throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
+		}
+		const data = await quickInputService.input({
+			value: '',
+			placeHolder: 'Enter data, use \\x to escape',
+			prompt: localize('workbench.action.terminal.writeDataToTerminal.prompt', "Enter data to write directly to the terminal, bypassing the pty"),
+		});
+		if (!data) {
+			return;
+		}
+		let escapedData = data
+			.replace(/\\n/g, '\n')
+			.replace(/\\r/g, '\r');
+		while (true) {
+			const match = escapedData.match(/\\x([0-9a-fA-F]{2})/);
+			if (match === null || match.index === undefined || match.length < 2) {
+				break;
+			}
+			escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
+		}
+		const xterm = instance.xterm as any as IInternalXtermTerminal;
+		xterm._writeText(escapedData);
 	}
 });
 
