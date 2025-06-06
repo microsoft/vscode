@@ -33,10 +33,20 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	const beforeCursor = ctx.commandLine.substring(0, ctx.cursorPosition);
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars.get(shellType) ?? defaultShellTypeResetChars;
 	
-	// Check if the text before cursor ends with any reset character
+	// Check if the text before cursor ends with any reset character AND has whitespace after it
 	const trimmedBeforeCursor = beforeCursor.trim();
-	if (commandResetChars.some(e => trimmedBeforeCursor.endsWith(e))) {
-		return TokenType.Command;
+	for (const separator of commandResetChars) {
+		if (trimmedBeforeCursor.endsWith(separator)) {
+			// Check if there's whitespace after the separator in the original (non-trimmed) text
+			const separatorEndIndex = beforeCursor.lastIndexOf(separator) + separator.length;
+			if (separatorEndIndex < ctx.cursorPosition && /\s/.test(ctx.commandLine[separatorEndIndex])) {
+				return TokenType.Command;
+			}
+			// If cursor is immediately after separator with no space, don't show suggestions
+			if (separatorEndIndex === ctx.cursorPosition) {
+				return TokenType.Argument; // Don't show command suggestions
+			}
+		}
 	}
 	
 	// Find the last command separator (that starts a new command context)

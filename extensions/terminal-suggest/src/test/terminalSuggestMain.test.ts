@@ -37,6 +37,24 @@ const testSpecs2: ISuiteSpec[] = [
 		]
 	},
 
+	{
+		name: 'Separator whitespace requirements',
+		completionSpecs: [],
+		availableCommands: ['git', 'ls', 'echo'],
+		testSpecs: [
+			// Cursor immediately after separator - should NOT show command suggestions
+			{ input: 'git commit ;|', expectedCompletions: [] },
+			{ input: 'ls &&|', expectedCompletions: [] }, 
+			{ input: 'echo hello |||', expectedCompletions: [] },
+			{ input: 'git status |', expectedCompletions: [] },
+			// Cursor after separator with space - should show command suggestions
+			{ input: 'git commit ; |', expectedCompletions: ['echo', 'git', 'ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'ls && |', expectedCompletions: ['echo', 'git', 'ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'echo hello || |', expectedCompletions: ['echo', 'git', 'ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'git status | |', expectedCompletions: ['echo', 'git', 'ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		]
+	},
+
 	...figGenericTestSuites,
 
 	// completions/
