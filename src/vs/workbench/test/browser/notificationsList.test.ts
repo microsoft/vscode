@@ -19,6 +19,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 	let configurationService: IConfigurationService;
 	let keybindingService: IKeybindingService;
 	let accessibilityProvider: NotificationAccessibilityProvider;
+	const createdNotifications: NotificationViewItem[] = [];
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
@@ -26,10 +27,19 @@ suite('NotificationsList AccessibilityProvider', () => {
 		accessibilityProvider = new NotificationAccessibilityProvider({}, keybindingService, configurationService);
 	});
 
+	teardown(() => {
+		// Close all created notifications to prevent disposable leaks
+		for (const notification of createdNotifications) {
+			notification.close();
+		}
+		createdNotifications.length = 0;
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getAriaLabel includes severity prefix for Error notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Error, message: 'Something went wrong' }, noFilter)!;
+		createdNotifications.push(notification);
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
 
 		assert.ok(ariaLabel.startsWith('Error: '), `Expected aria label to start with "Error: ", but got: ${ariaLabel}`);
@@ -39,6 +49,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 
 	test('getAriaLabel includes severity prefix for Warning notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Warning, message: 'This is a warning' }, noFilter)!;
+		createdNotifications.push(notification);
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
 
 		assert.ok(ariaLabel.startsWith('Warning: '), `Expected aria label to start with "Warning: ", but got: ${ariaLabel}`);
@@ -48,6 +59,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 
 	test('getAriaLabel includes severity prefix for Info notifications', () => {
 		const notification = NotificationViewItem.create({ severity: Severity.Info, message: 'Information message' }, noFilter)!;
+		createdNotifications.push(notification);
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
 
 		assert.ok(ariaLabel.startsWith('Info: '), `Expected aria label to start with "Info: ", but got: ${ariaLabel}`);
@@ -61,6 +73,7 @@ suite('NotificationsList AccessibilityProvider', () => {
 			message: 'Error with source',
 			source: 'TestExtension'
 		}, noFilter)!;
+		createdNotifications.push(notification);
 		const ariaLabel = accessibilityProvider.getAriaLabel(notification);
 
 		assert.ok(ariaLabel.startsWith('Error: '), 'Expected aria label to start with severity prefix');
@@ -74,6 +87,8 @@ suite('NotificationsList AccessibilityProvider', () => {
 		const errorNotification = NotificationViewItem.create({ severity: Severity.Error, message: 'Error message' }, noFilter)!;
 		const warningNotification = NotificationViewItem.create({ severity: Severity.Warning, message: 'Warning message' }, noFilter)!;
 		const infoNotification = NotificationViewItem.create({ severity: Severity.Info, message: 'Info message' }, noFilter)!;
+		
+		createdNotifications.push(errorNotification, warningNotification, infoNotification);
 
 		const errorLabel = accessibilityProvider.getAriaLabel(errorNotification);
 		const warningLabel = accessibilityProvider.getAriaLabel(warningNotification);
