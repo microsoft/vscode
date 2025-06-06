@@ -98,33 +98,33 @@ export function setup(options?: { skipSuite: boolean }) {
 				// Use the simplest profile to get as little process interaction as possible
 				await terminal.createEmptyTerminal();
 				// Erase all content and reset cursor to top
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${csi('2J')}${csi('H')}`);
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 			});
 			describe('VS Code sequences', () => {
 				it('should handle the simple case', async () => {
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${vsc('A')}Prompt> ${vsc('B')}exitcode 0`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 0`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `\\r\\n${vsc('C')}Success\\r\\n${vsc('D;0')}`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Success\\r\\n${vsc('D;0')}`);
 					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${vsc('A')}Prompt> ${vsc('B')}exitcode 1`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 1`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `\\r\\n${vsc('C')}Failure\\r\\n${vsc('D;1')}`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}Failure\\r\\n${vsc('D;1')}`);
 					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 1 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${vsc('A')}Prompt> ${vsc('B')}`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 				});
 			});
 			describe('Final Term sequences', () => {
 				it('should handle the simple case', async () => {
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${ft('A')}Prompt> ${ft('B')}exitcode 0`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 0`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `\\r\\n${ft('C')}Success\\r\\n${ft('D;0')}`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${ft('C')}Success\\r\\n${ft('D;0')}`);
 					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `\\r\\n${ft('C')}Failure\\r\\n${ft('D;1')}`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${ft('C')}Failure\\r\\n${ft('D;1')}`);
 					await terminal.assertCommandDecorations({ placeholder: 0, success: 1, error: 1 });
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.SendSequence, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${ft('A')}Prompt> ${ft('B')}exitcode 1`);
 					await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
 				});
 			});

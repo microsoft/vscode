@@ -121,49 +121,48 @@ export async function getCwdForSplit(
 }
 
 export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, args: unknown) => {
-	const configurationResolverService = accessor.get(IConfigurationResolverService);
-	const historyService = accessor.get(IHistoryService);
 	const quickInputService = accessor.get(IQuickInputService);
-	const terminalService = accessor.get(ITerminalService);
+	const configurationResolverService = accessor.get(IConfigurationResolverService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const historyService = accessor.get(IHistoryService);
+	const terminalService = accessor.get(ITerminalService);
 
-	const instance = terminalService.activeInstance || await terminalService.getActiveOrCreateInstance();
-	if (!instance) {
-		return;
-	}
+	const instance = terminalService.activeInstance;
+	if (instance) {
+		let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
 
-	let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
-
-	// If no text provided, prompt user for input
-	if (!text) {
-		text = await quickInputService.input({
-			value: '',
-			placeHolder: 'Enter sequence to send (supports \\n, \\r, \\x escape sequences)',
-			prompt: localize('workbench.action.terminal.sendSequence.prompt', "Enter sequence to send to the terminal"),
-		});
+		// If no text provided, prompt user for input and process special characters
 		if (!text) {
-			return;
+			text = await quickInputService.input({
+				value: '',
+				placeHolder: 'Enter sequence to send (supports \\n, \\r, \\x{AB})',
+				prompt: localize('workbench.action.terminal.sendSequence.prompt', "Enter sequence to send to the terminal"),
+			});
+			if (!text) {
+				return;
+			}
+			// Process escape sequences
+			let processedText = text
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\r');
+
+			// Process hex escape sequences (\xNN)
+			while (true) {
+				const match = processedText.match(/\\x([0-9a-fA-F]{2})/);
+				if (match === null || match.index === undefined || match.length < 2) {
+					break;
+				}
+				processedText = processedText.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + processedText.slice(match.index + 4);
+			}
+
+			text = processedText;
 		}
+
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
+		instance.sendText(resolvedText, false);
 	}
-
-	// Process escape sequences
-	let processedText = text
-		.replace(/\\n/g, '\n')
-		.replace(/\\r/g, '\r');
-
-	// Process hex escape sequences (\xNN)
-	while (true) {
-		const match = processedText.match(/\\x([0-9a-fA-F]{2})/);
-		if (match === null || match.index === undefined || match.length < 2) {
-			break;
-		}
-		processedText = processedText.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + processedText.slice(match.index + 4);
-	}
-
-	const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
-	const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-	const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, processedText);
-	instance.sendText(resolvedText, false);
 };
 
 export const terminalSendSignalCommand = async (accessor: ServicesAccessor, args: unknown) => {
@@ -1043,6 +1042,7 @@ export function registerTerminalActions() {
 				name: 'args',
 				schema: {
 					type: 'object',
+					required: ['text'],
 					properties: {
 						text: {
 							description: localize('sendSequence', "The sequence of text to send to the terminal"),
