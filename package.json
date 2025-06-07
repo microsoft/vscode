@@ -44,7 +44,7 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node build/checker/layersChecker.js && tsc -p build/checker/tsconfig.web.json && tsc -p build/checker/tsconfig.desktop.json && tsc -p build/checker/tsconfig.server.json",
+    "valid-layers-check": "node build/checker/layersChecker.js && tsc -p build/checker/tsconfig.browser.json && tsc -p build/checker/tsconfig.node.json && tsc -p build/checker/tsconfig.electron-sandbox.json && tsc -p build/checker/tsconfig.electron-main.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",

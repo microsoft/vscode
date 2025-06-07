@@ -1459,7 +1459,8 @@ export let runWhenGlobalIdle: (callback: (idle: IdleDeadline) => void, timeout?:
 export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
 (function () {
-	if (typeof globalThis.requestIdleCallback !== 'function' || typeof globalThis.cancelIdleCallback !== 'function') {
+	const safeGlobal: any = globalThis;
+	if (typeof safeGlobal.requestIdleCallback !== 'function' || typeof safeGlobal.cancelIdleCallback !== 'function') {
 		_runWhenIdle = (_targetWindow, runner, timeout?) => {
 			setTimeout0(() => {
 				if (disposed) {
@@ -1485,7 +1486,7 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 			};
 		};
 	} else {
-		_runWhenIdle = (targetWindow: IdleApi, runner, timeout?) => {
+		_runWhenIdle = (targetWindow: typeof safeGlobal, runner, timeout?) => {
 			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
