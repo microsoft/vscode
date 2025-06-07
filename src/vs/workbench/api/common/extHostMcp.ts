@@ -700,9 +700,11 @@ class McpHTTPHandle extends Disposable {
 		});
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const headers: Record<string, string> = {};
+			res.headers.forEach((value, key) => { headers[key] = value; });
 			this._log(LogLevel.Trace, `Fetched ${url}: ${JSON.stringify({
 				status: res.status,
-				headers: Object.fromEntries([...res.headers]),
+				headers: headers,
 			})}`);
 		}
 
