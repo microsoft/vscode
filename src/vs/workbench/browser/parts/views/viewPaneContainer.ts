@@ -18,7 +18,7 @@ import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './media/paneviewlet.css';
 import * as nls from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -29,19 +29,19 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { activeContrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { CompositeMenuActions } from '../../actions.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../../dnd.js';
 import { ViewPane } from './viewPane.js';
 import { IViewletViewOptions } from './viewsViewlet.js';
 import { Component } from '../../../common/component.js';
 import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from '../../../common/theme.js';
-import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from '../../../common/views.js';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewVisibilityState } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ViewContainerMenuActions } from './viewMenuActions.js';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
@@ -288,23 +288,6 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-class ViewContainerMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewContainer: ViewContainer,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
-		const viewContainerLocationKey = scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!));
-		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true, renderShortTitle: true }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(() => viewContainerLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!))));
-	}
-}
-
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
@@ -363,7 +346,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private _menuActions?: ViewContainerMenuActions;
-	get menuActions(): CompositeMenuActions | undefined {
+	get menuActions(): ViewContainerMenuActions | undefined {
 		return this._menuActions;
 	}
 
