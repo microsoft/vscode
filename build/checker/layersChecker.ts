@@ -119,41 +119,6 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// Common: vs/base/common/async.ts
-	{
-		target: '**/vs/base/common/async.ts',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// Safe access to requestIdleCallback & cancelIdleCallback
-			'requestIdleCallback',
-			'cancelIdleCallback'
-		],
-		disallowedTypes: NATIVE_TYPES,
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
-	// Common: vs/base/common/performance.ts
-	{
-		target: '**/vs/base/common/performance.ts',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// Safe access to Performance
-			'Performance',
-			'PerformanceEntry',
-			'PerformanceTiming'
-		],
-		disallowedTypes: NATIVE_TYPES,
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
 	// Common: vs/platform services that can access native types
 	{
 		target: `**/vs/platform/{${[

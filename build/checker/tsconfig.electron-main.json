@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.node.json",
+	"include": [
+		"../../src/**/electron-main/**/*.ts",
+		"../../src/**/electron-utility/**/*.ts",
+		"../../src/typings/*.d.ts",
+		"../../node_modules/@types/trusted-types/index.d.ts",
+	],
+	"exclude": [
+		"../../src/**/test/**",
+		"../../src/**/fixtures/**",
+	]
+}
