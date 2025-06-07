@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+declare const globalThis: { performance: { now(): number } };
+const performanceNow = globalThis.performance.now.bind(globalThis.performance);
+
 export class StopWatch {
 
 	private _startTime: number;
@@ -15,7 +18,7 @@ export class StopWatch {
 	}
 
 	constructor(highResolution?: boolean) {
-		this._now = highResolution === false ? Date.now : performance.now;
+		this._now = highResolution === false ? Date.now : performanceNow;
 		this._startTime = this._now();
 		this._stopTime = -1;
 	}
