@@ -80,7 +80,7 @@ const serverResourceIncludes = [
 ];
 
 const serverResourceExcludes = [
-	'!out-build/vs/**/{electron-sandbox,electron-main,electron-utility}/**',
+	'!out-build/vs/**/{electron-browser,electron-main,electron-utility}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!**/test/**'
