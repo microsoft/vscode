@@ -2,6 +2,7 @@
   {
     content: {
       value: "markdown1",
+      plainTextValue: "markdown1",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: true
@@ -11,6 +12,7 @@
   {
     content: {
       value: "markdown2",
+      plainTextValue: "markdown2",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
