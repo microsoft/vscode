@@ -84,8 +84,8 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 			return;
 		}
 
-		const { failed } = await this.remoteExtensionsScannerService.whenExtensionsReady();
-		if (failed.length === 0) {
+		const { installLocally } = await this.remoteExtensionsScannerService.whenExtensionsReady();
+		if (installLocally.length === 0) {
 			this.logService.trace('No extensions relayed from server');
 			return;
 		}
@@ -95,10 +95,10 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 			return;
 		}
 
-		this.logService.info(`Installing '${failed.length}' extensions relayed from server`);
-		const galleryExtensions = await this.extensionGalleryService.getExtensions(failed.map(({ id }) => ({ id })), CancellationToken.None);
+		this.logService.info(`Installing '${installLocally.length}' extensions relayed from server`);
+		const galleryExtensions = await this.extensionGalleryService.getExtensions(installLocally.map(({ id }) => ({ id })), CancellationToken.None);
 		const installExtensionInfo: InstallExtensionInfo[] = [];
-		for (const { id, installOptions } of failed) {
+		for (const { id, installOptions } of installLocally) {
 			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
 			if (extension) {
 				installExtensionInfo.push({
