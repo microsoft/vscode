@@ -201,11 +201,11 @@ class TestPromptFileReference extends Disposable {
  * @param lineNumber The expected line number of the file reference.
  * @param startColumnNumber The expected start column number of the file reference.
  */
-const createTestFileReference = (
+function createTestFileReference(
 	filePath: string,
 	lineNumber: number,
 	startColumnNumber: number,
-): FileReference => {
+): FileReference {
 	const range = new Range(
 		lineNumber,
 		startColumnNumber,
@@ -214,7 +214,7 @@ const createTestFileReference = (
 	);
 
 	return new FileReference(range, filePath);
-};
+}
 
 suite('PromptFileReference', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();

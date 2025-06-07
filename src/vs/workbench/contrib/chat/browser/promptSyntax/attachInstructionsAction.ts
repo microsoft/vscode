@@ -197,22 +197,22 @@ function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefin
 /**
  * Gets `URI` of a instructions file open in an active editor instance, if any.
  */
-const getActiveInstructionsFileUri = (accessor: ServicesAccessor): URI | undefined => {
+function getActiveInstructionsFileUri(accessor: ServicesAccessor): URI | undefined {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const model = codeEditorService.getActiveCodeEditor()?.getModel();
 	if (model?.getLanguageId() === INSTRUCTIONS_LANGUAGE_ID) {
 		return model.uri;
 	}
 	return undefined;
-};
+}
 
 /**
  * Helper to register the `Attach Prompt` action.
  */
-export const registerAttachPromptActions = () => {
+export function registerAttachPromptActions(): void {
 	registerAction2(AttachInstructionsAction);
 	registerAction2(ManageInstructionsFilesAction);
-};
+}
 
 
 export class ChatInstructionsPickerPick implements IChatContextPickerItem {

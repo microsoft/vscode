@@ -80,9 +80,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 /**
  * Convert a provided diagnostic object into a marker data object.
  */
-const toMarker = (
-	diagnostic: TDiagnostic,
-): IMarkerData => {
+function toMarker(diagnostic: TDiagnostic): IMarkerData {
 	if (diagnostic instanceof PromptMetadataWarning) {
 		return {
 			message: diagnostic.message,
@@ -103,7 +101,7 @@ const toMarker = (
 		diagnostic,
 		`Unknown prompt metadata diagnostic type '${diagnostic}'.`,
 	);
-};
+}
 
 /**
  * The class that manages creation and disposal of {@link PromptHeaderDiagnosticsProvider}

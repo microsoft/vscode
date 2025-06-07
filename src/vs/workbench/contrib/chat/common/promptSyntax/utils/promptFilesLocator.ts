@@ -141,10 +141,7 @@ export class PromptFilesLocator extends Disposable {
 	 *
 	 * @returns List of prompt files found in the local source folders.
 	 */
-	private async listFilesInLocal(
-		type: PromptsType,
-		token: CancellationToken
-	): Promise<readonly URI[]> {
+	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
@@ -232,11 +229,7 @@ export class PromptFilesLocator extends Disposable {
 	/**
 	 * Uses the search service to find all files at the provided location
 	 */
-	private async searchFilesInLocation(
-		folder: URI,
-		filePattern: string | undefined,
-		token: CancellationToken | undefined
-	): Promise<URI[]> {
+	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken | undefined): Promise<URI[]> {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
@@ -272,7 +265,7 @@ export class PromptFilesLocator extends Disposable {
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.
  */
-export const isValidGlob = (pattern: string): boolean => {
+export function isValidGlob(pattern: string): boolean {
 	let squareBrackets = false;
 	let squareBracketsCount = 0;
 
@@ -337,7 +330,7 @@ export const isValidGlob = (pattern: string): boolean => {
 	}
 
 	return false;
-};
+}
 
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
@@ -354,9 +347,7 @@ export const isValidGlob = (pattern: string): boolean => {
  * );
  * ```
  */
-const firstNonGlobParentAndPattern = (
-	location: URI
-): { parent: URI; filePattern?: string } => {
+function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
 	const segments = location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {
@@ -377,7 +368,7 @@ const firstNonGlobParentAndPattern = (
 		parent,
 		filePattern: segments.slice(i).join('/')
 	};
-};
+}
 
 
 

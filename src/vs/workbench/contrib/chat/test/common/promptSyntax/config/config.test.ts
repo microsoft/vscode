@@ -14,7 +14,7 @@ import { IConfigurationOverrides, IConfigurationService } from '../../../../../.
 /**
  * Mocked instance of {@link IConfigurationService}.
  */
-const createMock = <T>(value: T): IConfigurationService => {
+function createMock<T>(value: T): IConfigurationService {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
 			assert(
@@ -30,7 +30,7 @@ const createMock = <T>(value: T): IConfigurationService => {
 			return value;
 		},
 	});
-};
+}
 
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
