@@ -6,16 +6,16 @@
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
-import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
-import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
+import { TestDecoder } from './base/utils/testDecoder.js';
+import { NewLine } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/newLine.js';
 import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/promptAtMention.js';
 import { PromptSlashCommand } from '../../../../common/promptSyntax/codecs/tokens/promptSlashCommand.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
+import { MarkdownLink } from '../../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
 import { PromptTemplateVariable } from '../../../../common/promptSyntax/codecs/tokens/promptTemplateVariable.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { PromptVariable, PromptVariableWithData } from '../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
-import { At, Dash, ExclamationMark, FormFeed, Hash, Space, Tab, VerticalTab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { At, Dash, ExclamationMark, FormFeed, Hash, Space, Tab, VerticalTab, Word } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance
@@ -52,7 +52,7 @@ export class TestChatPromptDecoder extends TestDecoder<TChatPromptToken, ChatPro
 suite('ChatPromptDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• produces expected tokens', async () => {
+	test('produces expected tokens', async () => {
 		const test = testDisposables.add(
 			new TestChatPromptDecoder(),
 		);
@@ -205,8 +205,8 @@ suite('ChatPromptDecoder', () => {
 		);
 	});
 
-	suite('• variables', () => {
-		test('• produces expected tokens', async () => {
+	suite('variables', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);
@@ -263,8 +263,8 @@ suite('ChatPromptDecoder', () => {
 		});
 	});
 
-	suite('• commands', () => {
-		test('• produces expected tokens', async () => {
+	suite('commands', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);
@@ -350,8 +350,8 @@ suite('ChatPromptDecoder', () => {
 		});
 	});
 
-	suite('• template variables', () => {
-		test('• produces expected tokens', async () => {
+	suite('template variables', () => {
+		test('produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
 			);

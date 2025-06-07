@@ -143,7 +143,7 @@ export class SearchExtensionsTool implements IToolImpl {
 			}],
 			toolResultDetails: {
 				input: JSON.stringify(params),
-				output: [{ type: 'text', value: JSON.stringify(result.map(extension => extension.id)) }]
+				output: [{ isText: true, value: JSON.stringify(result.map(extension => extension.id)) }]
 			}
 		};
 	}

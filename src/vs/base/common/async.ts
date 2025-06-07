@@ -117,6 +117,17 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
+ * Wraps a cancellable promise such that it is no cancellable. Can be used to
+ * avoid issues with shared promises that would normally be returned as
+ * cancellable to consumers.
+ */
+export function notCancellablePromise<T>(promise: CancelablePromise<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		promise.then(resolve, reject);
+	});
+}
+
+/**
  * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromise<T> | Promise<T>)[]): CancelablePromise<T> {
@@ -1772,6 +1783,13 @@ export class DeferredPromise<T> {
 			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
 			resolve();
 		});
+	}
+
+	public settleWith(promise: Promise<T>): Promise<void> {
+		return promise.then(
+			value => this.complete(value),
+			error => this.error(error)
+		);
 	}
 
 	public cancel() {

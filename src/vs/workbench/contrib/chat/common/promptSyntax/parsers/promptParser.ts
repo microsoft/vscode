@@ -9,11 +9,11 @@ import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { BasePromptParser, IPromptParserOptions } from './basePromptParser.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { isUntitled } from '../../../../../../platform/prompts/common/prompts.js';
 import { TextModelContentsProvider } from '../contentProviders/textModelContentsProvider.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
  * Get prompt contents provider object based on the prompt type.
@@ -25,7 +25,7 @@ const getContentsProvider = (
 	instaService: IInstantiationService,
 ): IPromptContentsProvider => {
 	// use text model contents provider for `untitled` documents
-	if (isUntitled(uri)) {
+	if (uri.scheme === Schemas.untitled) {
 		const model = modelService.getModel(uri);
 
 		assertDefined(

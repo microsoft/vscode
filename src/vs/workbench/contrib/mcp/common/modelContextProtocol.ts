@@ -14,16 +14,8 @@
  */
 export namespace MCP {
 
-	// https://github.com/modelcontextprotocol/modelcontextprotocol/pull/598
-	export interface CompleteRequest2 extends MCP.CompleteRequest {
-		params: MCP.CompleteRequest['params'] & {
-			/**
-			 * Previously-resolved variables in a URI template. The keys of the object
-			 * are be the template's variable expressions including surrounding braces.
-			 */
-			resolved?: { [key: string]: string };
-		};
-	}
+	// Nothing, yet
+
 }
 
 //#endregion
@@ -1143,6 +1135,16 @@ export namespace MCP {
 				 * The value of the argument to use for completion matching.
 				 */
 				value: string;
+			};
+
+			/**
+			 * Additional, optional context for completions
+			 */
+			context?: {
+				/**
+				 * Previously-resolved variables in a URI template or prompt.
+				 */
+				arguments?: { [key: string]: string };
 			};
 		};
 	}

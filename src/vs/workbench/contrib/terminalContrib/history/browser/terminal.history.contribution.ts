@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -129,7 +129,7 @@ registerActiveInstanceAction({
 	}
 });
 
-registerActiveInstanceAction({
+registerTerminalAction({
 	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
@@ -146,7 +146,22 @@ registerActiveInstanceAction({
 			weight: KeybindingWeight.WorkbenchContrib
 		}
 	],
-	run: async (activeInstance, c) => {
+	run: async (c, accessor) => {
+		let activeInstance = c.service.activeInstance;
+		// If an instanec doesn't exist, create one and wait for shell type to be set
+		if (!activeInstance) {
+			const newInstance = activeInstance = await c.service.getActiveOrCreateInstance();
+			await c.service.revealActiveTerminal();
+			const store = new DisposableStore();
+			const wasDisposedPrematurely = await new Promise<boolean>(r => {
+				store.add(newInstance.onDidChangeShellType(() => r(false)));
+				store.add(newInstance.onDisposed(() => r(true)));
+			});
+			store.dispose();
+			if (wasDisposedPrematurely) {
+				return;
+			}
+		}
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
 			return;

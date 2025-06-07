@@ -161,9 +161,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor."),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the Search view, or in a search editor."),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
+				nls.localize('search.mode.view', "Search in the Search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
@@ -236,7 +236,7 @@ configurationRegistry.registerConfiguration({
 		'search.globalFindClipboard': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
+			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
 		'search.location': {
@@ -282,11 +282,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'right'],
 			enumDescriptions: [
-				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
+				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the Search view is narrow, and immediately after the content when the Search view is wide."),
 				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
 			],
 			default: 'right',
-			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
+			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the Search view.")
 		},
 		'search.searchOnType': {
 			type: 'boolean',
@@ -301,7 +301,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the Search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
@@ -390,7 +390,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.searchView.semanticSearchBehavior': {
 			type: 'string',
-			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the search view."),
+			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),
 			enum: [SemanticSearchBehavior.Manual, SemanticSearchBehavior.RunOnEmpty, SemanticSearchBehavior.Auto],
 			default: SemanticSearchBehavior.Manual,
 			enumDescriptions: [
@@ -402,7 +402,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.searchView.keywordSuggestions': {
 			type: 'boolean',
-			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the search view."),
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the Search view."),
 			default: false,
 			tags: ['preview'],
 		},

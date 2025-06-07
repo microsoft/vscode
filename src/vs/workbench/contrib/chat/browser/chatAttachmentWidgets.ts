@@ -227,7 +227,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverElement.setAttribute('aria-label', ariaLabel);
 		this.element.classList.add('warning');
 
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
+		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
 		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
 	}
 }
@@ -247,6 +247,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -285,11 +287,14 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			supportsVision: supportsVision
 		});
 
-		const fullName = resource?.toString() || attachment.fullName || attachment.name;
+		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, undefined);
+			instantiationService.invokeFunction(accessor => {
+				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+			});
 		}
 
 		this.attachClearButton();
@@ -300,7 +305,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
 	hoverService: IHoverService, ariaLabel: string,
-	currentLanguageModelName: string,
+	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState): IDisposable {
@@ -328,7 +333,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 
 	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
+		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else {
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
@@ -491,7 +496,9 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		let name = attachment.name;
 		const icon = attachment.icon ?? Codicon.tools;
 
-		if (toolOrToolSet) {
+		if (toolOrToolSet instanceof ToolSet) {
+			name = toolOrToolSet.referenceName;
+		} else if (toolOrToolSet) {
 			name = toolOrToolSet.toolReferenceName ?? name;
 		}
 
@@ -503,7 +510,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		let hoverContent: string | undefined;
 
 		if (toolOrToolSet instanceof ToolSet) {
-			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.displayName, toolOrToolSet.source.label);
+			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.referenceName, toolOrToolSet.source.label);
 		} else if (toolOrToolSet) {
 			hoverContent = localize('tool', "{0} - {1}", toolOrToolSet.userDescription ?? toolOrToolSet.modelDescription, toolOrToolSet.source.label);
 		}
@@ -592,7 +599,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		}
 
 		const clickHandler = async () => await this.openResource(resource, false, undefined);
-		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
 	}
