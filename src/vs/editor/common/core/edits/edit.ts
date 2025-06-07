@@ -254,6 +254,40 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 		}
 		return postEditsOffset - accumulatedDelta;
 	}
+
+	/**
+	 * Return undefined if the originalOffset is within an edit
+	 */
+	public applyToOffsetOrUndefined(originalOffset: number): number | undefined {
+		let accumulatedDelta = 0;
+		for (const edit of this.replacements) {
+			if (edit.replaceRange.start <= originalOffset) {
+				if (originalOffset < edit.replaceRange.endExclusive) {
+					// the offset is in the replaced range
+					return undefined;
+				}
+				accumulatedDelta += edit.getNewLength() - edit.replaceRange.length;
+			} else {
+				break;
+			}
+		}
+		return originalOffset + accumulatedDelta;
+	}
+
+	/**
+	 * Return undefined if the originalRange is within an edit
+	 */
+	public applyToOffsetRangeOrUndefined(originalRange: OffsetRange): OffsetRange | undefined {
+		const start = this.applyToOffsetOrUndefined(originalRange.start);
+		if (start === undefined) {
+			return undefined;
+		}
+		const end = this.applyToOffsetOrUndefined(originalRange.endExclusive);
+		if (end === undefined) {
+			return undefined;
+		}
+		return new OffsetRange(start, end);
+	}
 }
 
 export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {

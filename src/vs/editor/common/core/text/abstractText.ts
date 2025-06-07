@@ -48,6 +48,13 @@ export abstract class AbstractText {
 		const value = this.getValue();
 		return splitLines(value);
 	}
+
+	equals(other: AbstractText): boolean {
+		if (this === other) {
+			return true;
+		}
+		return this.getValue() === other.getValue();
+	}
 }
 
 export class LineBasedText extends AbstractText {
