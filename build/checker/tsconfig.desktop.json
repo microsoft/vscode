@@ -3,7 +3,7 @@
 	"include": [
 		"../../src/**/common/**/*.ts",
 		"../../src/**/browser/**/*.ts",
-		"../../src/**/electron-sandbox/**/*.ts",
+		"../../src/**/electron-browser/**/*.ts",
 		"../../src/typings/*.d.ts",
 		"../../src/vs/monaco.d.ts",
 		"../../src/vscode-dts/vscode.proposed.*.d.ts",
@@ -15,7 +15,7 @@
 	"exclude": [
 		"../../src/**/test/**",
 		"../../src/**/fixtures/**",
-		"../../src/vs/base/parts/sandbox/electron-sandbox/preload.ts", 		// Preload scripts for Electron sandbox
-		"../../src/vs/base/parts/sandbox/electron-sandbox/preload-aux.ts"	// have limited access to node.js APIs
+		"../../src/vs/base/parts/sandbox/electron-browser/preload.ts", 		// Preload scripts for Electron sandbox
+		"../../src/vs/base/parts/sandbox/electron-browser/preload-aux.ts"	// have limited access to node.js APIs
 	]
 }

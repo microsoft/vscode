@@ -163,9 +163,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
+    // Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
     {
-        target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
+        target: '**/vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts',
         allowedTypes: [
             ...CORE_TYPES,
             // Safe access to a very small subset of node.js
@@ -210,7 +210,7 @@ const RULES = [
     },
     // Electron (sandbox)
     {
-        target: '**/vs/**/electron-sandbox/**',
+        target: '**/vs/**/electron-browser/**',
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js

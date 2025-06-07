@@ -172,9 +172,9 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
+	// Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
 	{
-		target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
+		target: '**/vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts',
 		allowedTypes: [
 			...CORE_TYPES,
 
@@ -224,7 +224,7 @@ const RULES: IRule[] = [
 
 	// Electron (sandbox)
 	{
-		target: '**/vs/**/electron-sandbox/**',
+		target: '**/vs/**/electron-browser/**',
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
