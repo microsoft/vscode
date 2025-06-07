@@ -79,10 +79,10 @@ class ExpectedLink {
  * @param links Links to assert.
  * @param expectedLinks Expected links to compare against.
  */
-const assertLinks = (
+function assertLinks(
 	links: readonly IPromptFileReference[],
 	expectedLinks: readonly ExpectedLink[],
-) => {
+) {
 	for (let i = 0; i < links.length; i++) {
 		try {
 			expectedLinks[i].assertEqual(links[i]);
@@ -96,7 +96,7 @@ const assertLinks = (
 		expectedLinks.length,
 		`Links count must be correct.`,
 	);
-};
+}
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -18,12 +18,12 @@ import { Schemas } from '../../../../../../base/common/network.js';
 /**
  * Get prompt contents provider object based on the prompt type.
  */
-const getContentsProvider = (
+function getContentsProvider(
 	uri: URI,
 	options: Partial<IPromptParserOptions>,
 	modelService: IModelService,
-	instaService: IInstantiationService,
-): IPromptContentsProvider => {
+	instaService: IInstantiationService
+): IPromptContentsProvider {
 	// use text model contents provider for `untitled` documents
 	if (uri.scheme === Schemas.untitled) {
 		const model = modelService.getModel(uri);
@@ -39,7 +39,7 @@ const getContentsProvider = (
 
 	return instaService
 		.createInstance(FilePromptContentProvider, uri, options);
-};
+}
 
 /**
  * General prompt parser class that automatically infers a prompt

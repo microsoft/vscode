@@ -141,10 +141,10 @@ suite('ObjectStream', () => {
 /**
  * Asserts that two tokens lists are equal.
  */
-const assertTokensEqual = (
+function assertTokensEqual(
 	receivedTokens: BaseToken[],
 	expectedTokens: BaseToken[],
-): void => {
+): void {
 	for (let i = 0; i < expectedTokens.length; i++) {
 		const receivedToken = receivedTokens[i];
 
@@ -158,12 +158,12 @@ const assertTokensEqual = (
 			`Expected token #${i} to be '${expectedTokens[i]}', got '${receivedToken}'.`,
 		);
 	}
-};
+}
 
 /**
  * Consume a provided stream and return a list of received data objects.
  */
-const consume = <T extends object>(stream: ObjectStream<T>): Promise<T[]> => {
+function consume<T extends object>(stream: ObjectStream<T>): Promise<T[]> {
 	return new Promise((resolve, reject) => {
 		const receivedData: T[] = [];
 		stream.on('data', (token) => {
@@ -177,4 +177,4 @@ const consume = <T extends object>(stream: ObjectStream<T>): Promise<T[]> => {
 			reject(error);
 		});
 	});
-};
+}

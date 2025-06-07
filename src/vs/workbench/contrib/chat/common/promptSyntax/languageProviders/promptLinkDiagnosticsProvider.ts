@@ -83,9 +83,7 @@ class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
  *  - if the original error is of `NotPromptFile` type - we don't want to
  *    show diagnostic markers for non-prompt file links in the prompts
  */
-const toMarker = (
-	link: IPromptFileReference,
-): IMarkerData => {
+function toMarker(link: IPromptFileReference): IMarkerData {
 	const { topError, linkRange } = link;
 
 	// a sanity check because this function must be
@@ -115,7 +113,7 @@ const toMarker = (
 		severity,
 		...linkRange,
 	};
-};
+}
 
 /**
  * The class that manages creation and disposal of {@link PromptLinkDiagnosticsProvider}

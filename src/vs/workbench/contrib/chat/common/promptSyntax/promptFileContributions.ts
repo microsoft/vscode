@@ -17,7 +17,7 @@ import { PromptPathAutocompletion } from './languageProviders/promptPathAutocomp
 /**
  * Function that registers all prompt-file related contributions.
  */
-export const registerPromptFileContributions = (): void => {
+export function registerPromptFileContributions(): void {
 
 	// all language constributions
 
@@ -45,7 +45,7 @@ export const registerPromptFileContributions = (): void => {
 	}
 
 	registerContribution(ConfigMigration);
-};
+}
 
 /**
  * Type for a generic workbench contribution.

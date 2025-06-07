@@ -30,7 +30,7 @@ const TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Object.freeze([
 /**
  * Generates a random {@link SimpleToken} instance.
  */
-const randomSimpleToken = (): TSimpleToken => {
+function randomSimpleToken(): TSimpleToken {
 	const index = randomInt(TOKENS.length - 1);
 
 	const Constructor = TOKENS[index];
@@ -40,7 +40,7 @@ const randomSimpleToken = (): TSimpleToken => {
 	);
 
 	return new Constructor(randomRange());
-};
+}
 
 suite('BaseToken', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

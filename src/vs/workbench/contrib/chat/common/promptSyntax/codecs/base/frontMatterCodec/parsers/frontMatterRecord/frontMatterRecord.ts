@@ -199,12 +199,10 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
  * Callback to check if a current token should end a
  * record value that is a generic sequence of tokens.
  */
-const shouldEndTokenSequence = (
-	token: BaseToken,
-): token is (NewLine | CarriageReturn | FormFeed) => {
+function shouldEndTokenSequence(token: BaseToken): token is (NewLine | CarriageReturn | FormFeed) {
 	return (
 		(token instanceof NewLine)
 		|| (token instanceof CarriageReturn)
 		|| (token instanceof FormFeed)
 	);
-};
+}

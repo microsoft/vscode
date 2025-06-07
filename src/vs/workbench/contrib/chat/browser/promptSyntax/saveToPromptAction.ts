@@ -139,9 +139,7 @@ class SaveToPromptAction extends Action2 {
  * Check if provided message belongs to the `save to prompt` slash
  * command itself that was run in the chat to invoke this action.
  */
-const isSaveToPromptSlashCommand = (
-	message: IParsedChatRequest,
-): boolean => {
+function isSaveToPromptSlashCommand(message: IParsedChatRequest): boolean {
 	const { parts } = message;
 	if (parts.length < 1) {
 		return false;
@@ -157,14 +155,12 @@ const isSaveToPromptSlashCommand = (
 	}
 
 	return true;
-};
+}
 
 /**
  * Render the response part of a `request`/`response` turn pair.
  */
-const renderResponse = (
-	response: string,
-): string => {
+function renderResponse(response: string): string {
 	// if response starts with a code block, add an extra new line
 	// before it, to prevent full blockquote from being be broken
 	const delimiter = (response.startsWith('```'))
@@ -176,25 +172,21 @@ const renderResponse = (
 	const quotedResponse = response.replaceAll('\n', '\n> ');
 
 	return `> Copilot:${delimiter}${quotedResponse}`;
-};
+}
 
 /**
  * Render a single `request`/`response` turn of the chat session.
  */
-const renderTurn = (
-	turn: ITurn,
-): string => {
+function renderTurn(turn: ITurn): string {
 	const { request, response } = turn;
 
 	return `\n${request}\n\n${renderResponse(response)}`;
-};
+}
 
 /**
  * Render the entire chat session as a markdown prompt.
  */
-const renderPrompt = (
-	turns: readonly ITurn[],
-): string => {
+function renderPrompt(turns: readonly ITurn[]): string {
 	const content: string[] = [];
 	const allTools = new Set<string>();
 
@@ -225,28 +217,24 @@ const renderPrompt = (
 	result.push('');
 
 	return result.join('\n');
-};
+}
 
 
 /**
  * Render the `tools` metadata inside prompt header.
  */
-const renderTools = (
-	tools: Set<string>,
-): string => {
+function renderTools(tools: Set<string>): string {
 	const toolStrings = [...tools].map((tool) => {
 		return `'${tool}'`;
 	});
 
 	return `tools: [${toolStrings.join(', ')}]`;
-};
+}
 
 /**
  * Render prompt header.
  */
-const renderHeader = (
-	tools: Set<string>,
-): string => {
+function renderHeader(tools: Set<string>): string {
 	// skip rendering the header if no tools provided
 	if (tools.size === 0) {
 		return '';
@@ -257,7 +245,7 @@ const renderHeader = (
 		renderTools(tools),
 		'---',
 	].join('\n');
-};
+}
 
 /**
  * Interface for a single `request`/`response` turn
@@ -274,19 +262,19 @@ interface ITurn {
  * function instead of {@link SAVE_TO_PROMPT_ACTION_ID} directly to
  * encapsulate/enforce the correct options to be passed to the action.
  */
-export const runSaveToPromptAction = async (
+export function runSaveToPromptAction(
 	options: ISaveToPromptActionOptions,
 	commandService: ICommandService,
-) => {
-	return await commandService.executeCommand(
+) {
+	return commandService.executeCommand(
 		SAVE_TO_PROMPT_ACTION_ID,
 		options,
 	);
-};
+}
 
 /**
  * Helper to register all the `Save Prompt` actions.
  */
-export const registerSaveToPromptActions = () => {
+export function registerSaveToPromptActions(): void {
 	registerAction2(SaveToPromptAction);
-};
+}
