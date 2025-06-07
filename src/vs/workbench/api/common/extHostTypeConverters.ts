@@ -34,7 +34,7 @@ import * as languageSelector from '../../../editor/common/languageSelector.js';
 import * as languages from '../../../editor/common/languages.js';
 import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/common/model.js';
 import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
@@ -2513,6 +2513,28 @@ export namespace LanguageModelChatMessage2 {
 			name,
 			content
 		};
+	}
+}
+
+export namespace LanguageModelRequestInitiator {
+	export function to(init: chatProvider.LanguageModelRequestInitiator): vscode.LanguageModelRequestInitiator {
+		if (init.kind === chatProvider.LanguageModelInitiatorKind.Extension) {
+			return { kind: types.LanguageModelRequestInitiatorKind.Extension, extensionId: ExtensionIdentifier.toKey(init.extensionId) };
+		} else if (init.kind === chatProvider.LanguageModelInitiatorKind.Editor) {
+			return { kind: types.LanguageModelRequestInitiatorKind.Editor, reason: init.reason };
+		} else {
+			return { kind: types.LanguageModelRequestInitiatorKind.McpServer, id: init.id, label: init.label };
+		}
+	}
+
+	export function from(init: vscode.LanguageModelRequestInitiator): chatProvider.LanguageModelRequestInitiator {
+		if (init.kind === types.LanguageModelRequestInitiatorKind.Extension) {
+			return { kind: chatProvider.LanguageModelInitiatorKind.Extension, extensionId: new ExtensionIdentifier(init.extensionId) };
+		} else if (init.kind === types.LanguageModelRequestInitiatorKind.Editor) {
+			return { kind: chatProvider.LanguageModelInitiatorKind.Editor, reason: init.reason };
+		} else {
+			return { kind: chatProvider.LanguageModelInitiatorKind.McpServer, id: init.id, label: init.label };
+		}
 	}
 }
 

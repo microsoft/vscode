@@ -83,6 +83,30 @@ export interface IChatMessageToolResultPart {
 
 export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart;
 
+export const enum LanguageModelInitiatorKind {
+	Extension = 1,
+	McpServer = 2,
+	Editor = 3,
+}
+
+export interface IExtensionLanguageModelRequestInitiator {
+	kind: LanguageModelInitiatorKind.Extension;
+	extensionId: ExtensionIdentifier;
+}
+
+export interface IMcpServerLanguageModelRequestInitiator {
+	kind: LanguageModelInitiatorKind.McpServer;
+	label: string;
+	id: string | undefined;
+}
+
+export interface IEditorLanguageModelRequestInitiator {
+	kind: LanguageModelInitiatorKind.Editor;
+	reason: string;
+}
+
+export type LanguageModelRequestInitiator = IExtensionLanguageModelRequestInitiator | IMcpServerLanguageModelRequestInitiator | IEditorLanguageModelRequestInitiator;
+
 export interface IChatMessage {
 	readonly name?: string | undefined;
 	readonly role: ChatMessageRole;
@@ -153,7 +177,7 @@ export interface ILanguageModelChatResponse {
 
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
-	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
+	sendChatRequest(messages: IChatMessage[], initiatior: LanguageModelRequestInitiator, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
@@ -193,7 +217,7 @@ export interface ILanguageModelsService {
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
-	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
+	sendChatRequest(identifier: string, initiator: LanguageModelRequestInitiator, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -365,12 +389,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._hasUserSelectableModels.set(hasUserSelectableModels && hasDefaultModel);
 	}
 
-	async sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+	async sendChatRequest(identifier: string, initiator: LanguageModelRequestInitiator, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
-		return provider.sendChatRequest(messages, from, options, token);
+		return provider.sendChatRequest(messages, initiator, options, token);
 	}
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
