@@ -130,8 +130,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	getInstalled(type?: ExtensionType, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<ILocalExtension[]> {
-		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation, productVersion);
+	getInstalled(type?: ExtensionType, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }, language?: string): Promise<ILocalExtension[]> {
+		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation, productVersion, language);
 	}
 
 	scanAllUserInstalledExtensions(): Promise<ILocalExtension[]> {
@@ -562,14 +562,14 @@ export class ExtensionsScanner extends Disposable {
 		await this.initializeExtensionSize();
 	}
 
-	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
+	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion, language?: string): Promise<ILocalExtension[]> {
 		try {
 			const userScanOptions: UserExtensionsScanOptions = { includeInvalid: true, profileLocation, productVersion };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
 				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(profileLocation);
 				if (!scanAllExtensionsPromise) {
-					scanAllExtensionsPromise = this.extensionsScannerService.scanAllExtensions({}, userScanOptions)
+					scanAllExtensionsPromise = this.extensionsScannerService.scanAllExtensions({ language }, userScanOptions)
 						.finally(() => this.scanAllExtensionPromise.delete(profileLocation));
 					this.scanAllExtensionPromise.set(profileLocation, scanAllExtensionsPromise);
 				}
