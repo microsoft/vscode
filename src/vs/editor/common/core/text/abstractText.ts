@@ -48,6 +48,10 @@ export abstract class AbstractText {
 		const value = this.getValue();
 		return splitLines(value);
 	}
+
+	getLinesOfRange(range: LineRange): string[] {
+		return range.mapToLineArray(lineNumber => this.getLineAt(lineNumber));
+	}
 }
 
 export class LineBasedText extends AbstractText {
