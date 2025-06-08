@@ -501,12 +501,12 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				const disableGloballyAction = this._instantiationService.createInstance(DisableGloballyAction);
-				disableGloballyAction.extension = e.element.marketplaceInfo;
-				actions.push(disableGloballyAction);
 				const disableForWorkspaceAction = this._instantiationService.createInstance(DisableForWorkspaceAction);
 				disableForWorkspaceAction.extension = e.element.marketplaceInfo;
 				actions.push(disableForWorkspaceAction);
+				const disableGloballyAction = this._instantiationService.createInstance(DisableGloballyAction);
+				disableGloballyAction.extension = e.element.marketplaceInfo;
+				actions.push(disableGloballyAction);
 			}
 			actions.push(new Separator());
 
