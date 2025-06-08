@@ -230,6 +230,22 @@ export default tseslint.config(
 			]
 		}
 	},
+	// Disable disposable leaks rule for extensions and test files
+	{
+		files: [
+			'extensions/**/*.ts',
+			'**/*.test.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-disposable-leaks': 'off'
+		}
+	},
 	// vscode API
 	{
 		files: [
