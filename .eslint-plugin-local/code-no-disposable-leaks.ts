@@ -7,9 +7,28 @@ import * as eslint from 'eslint';
 
 /**
  * Checks for potential disposable leaks by identifying cases where:
- * 1. Event listeners are called directly without storing the result
+ * 1. Event listeners (.event() calls) are called directly without storing the result
  * 
- * This rule focuses on high-confidence cases to minimize false positives.
+ * This rule focuses on the most common disposable leak pattern in VS Code:
+ * calling obj.event(handler) directly as an expression statement, which means
+ * the returned IDisposable is not stored and cannot be disposed later.
+ * 
+ * Examples:
+ * 
+ * ❌ Bad - direct call, result not stored:
+ *    this.emitter.event(() => { ... });
+ * 
+ * ✅ Good - result stored:
+ *    const listener = this.emitter.event(() => { ... });
+ * 
+ * ✅ Good - registered for disposal:
+ *    this._register(this.emitter.event(() => { ... }));
+ * 
+ * ✅ Good - added to disposable store:
+ *    store.add(this.emitter.event(() => { ... }));
+ * 
+ * ✅ Good - event with disposables parameter:
+ *    this.emitter.event(() => { ... }, this, this._store);
  */
 export = new class implements eslint.Rule.RuleModule {
 
