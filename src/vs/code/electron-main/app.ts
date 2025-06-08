@@ -268,7 +268,7 @@ export class CodeApplication extends Disposable {
 			return false;
 		};
 
-		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+		this._register(session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.scheme === Schemas.vscodeWebview) {
 				if (!isAllowedWebviewRequest(uri, details)) {
@@ -297,7 +297,7 @@ export class CodeApplication extends Disposable {
 
 		// Configure SVG header content type properly
 		// https://github.com/microsoft/vscode/issues/97564
-		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		this._register(session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
 			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
@@ -326,7 +326,7 @@ export class CodeApplication extends Disposable {
 		//#region Allow CORS for the PRSS CDN
 
 		// https://github.com/microsoft/vscode-remote-release/issues/9246
-		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		this._register(session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 			if (details.url.startsWith('https://vscode.download.prss.microsoft.com/')) {
 				const responseHeaders = details.responseHeaders ?? Object.create(null);
 

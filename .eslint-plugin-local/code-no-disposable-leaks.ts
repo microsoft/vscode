@@ -27,9 +27,8 @@ export = new class implements eslint.Rule.RuleModule {
 		function isEventCall(node: any): boolean {
 			if (node.type === 'CallExpression' && node.callee?.type === 'MemberExpression') {
 				const propertyName = node.callee.property?.name;
-				// Common event patterns that return disposables
-				return propertyName === 'event' || 
-					   (propertyName && propertyName.startsWith('on') && propertyName.length > 2);
+				// Only consider 'event' property, which is the most common pattern for disposable-returning events
+				return propertyName === 'event';
 			}
 			return false;
 		}
