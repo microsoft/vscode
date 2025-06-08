@@ -6,54 +6,36 @@
 import * as eslint from 'eslint';
 
 /**
- * Checks for potential disposable leaks by identifying:
- * 1. Event listeners that return disposables but aren't stored/disposed
- * 2. Emitter/DisposableStore instances that aren't registered for disposal
- * 3. Variables assigned disposables that never get disposed
+ * Checks for potential disposable leaks by identifying cases where:
+ * 1. Event listeners are called directly without storing the result
+ * 
+ * This rule focuses on high-confidence cases to minimize false positives.
  */
 export = new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		messages: {
-			eventNotDisposed: 'Event listener should be disposed. Store the result and call dispose() or use _register().',
-			emitterNotRegistered: 'Emitter should be registered for disposal using _register() or stored in DisposableStore.',
-			disposableNotDisposed: 'Disposable object should be disposed. Call dispose() or use _register().',
+			eventNotStored: 'Event listener or observable call result should be stored and disposed. Consider storing the result or using _register().',
 		},
 		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		// Known disposable types that should be tracked
-		const disposableTypes = new Set([
-			'Emitter', 'DisposableStore', 'MutableDisposable', 'Disposable'
-		]);
-
-		// Event methods that return disposables
-		const eventMethods = new Set([
-			'event'
-		]);
-
-		// Check if a call expression creates a disposable
-		function isDisposableCreation(node: any): boolean {
-			if (node.type === 'NewExpression' && node.callee?.name) {
-				return disposableTypes.has(node.callee.name);
-			}
-			if (node.type === 'CallExpression') {
-				// Check for event listeners like obj.event(...)
-				if (node.callee?.type === 'MemberExpression' && 
-					node.callee.property?.name && 
-					(eventMethods.has(node.callee.property.name) || 
-					 node.callee.property.name.startsWith('on'))) {
-					return true;
-				}
+		// Check if a call expression is an event call that returns a disposable
+		function isEventCall(node: any): boolean {
+			if (node.type === 'CallExpression' && node.callee?.type === 'MemberExpression') {
+				const propertyName = node.callee.property?.name;
+				// Common event patterns that return disposables
+				return propertyName === 'event' || 
+					   (propertyName && propertyName.startsWith('on') && propertyName.length > 2);
 			}
 			return false;
 		}
 
-		// Check if the result is being stored/registered properly
-		function isProperlyHandled(parent: any): boolean {
+		// Check if the result is being properly handled
+		function isProperlyHandled(parent: any, node: any): boolean {
 			if (!parent) return false;
 
 			// Direct registration: this._register(obj.event(...))
@@ -70,8 +52,8 @@ export = new class implements eslint.Rule.RuleModule {
 				return true;
 			}
 
-			// Directly chained .dispose(): obj.event(...).dispose()
-			if (parent.type === 'MemberExpression' && parent.property?.name === 'dispose') {
+			// Event listener with disposables parameter: obj.onEvent(handler, thisArg, disposables)
+			if (node.type === 'CallExpression' && node.arguments?.length >= 3) {
 				return true;
 			}
 
@@ -81,34 +63,14 @@ export = new class implements eslint.Rule.RuleModule {
 		return {
 			// Check for event listeners that might leak
 			'CallExpression': (node: any) => {
-				if (isDisposableCreation(node) && !isProperlyHandled(node.parent)) {
-					// Special handling for event calls
-					if (node.callee?.type === 'MemberExpression' && 
-						node.callee.property?.name && 
-						(eventMethods.has(node.callee.property.name) || 
-						 node.callee.property.name.startsWith('on'))) {
-						context.report({
-							node,
-							messageId: 'eventNotDisposed'
-						});
-					}
-				}
-			},
-
-			// Check for new Emitter/DisposableStore that might leak
-			'NewExpression': (node: any) => {
-				if (disposableTypes.has(node.callee?.name) && !isProperlyHandled(node.parent)) {
-					if (node.callee.name === 'Emitter') {
-						context.report({
-							node,
-							messageId: 'emitterNotRegistered'
-						});
-					} else {
-						context.report({
-							node,
-							messageId: 'disposableNotDisposed'
-						});
-					}
+				// Only flag event calls that are used as expression statements (not stored)
+				if (isEventCall(node) && 
+					node.parent?.type === 'ExpressionStatement' && 
+					!isProperlyHandled(node.parent, node)) {
+					context.report({
+						node,
+						messageId: 'eventNotStored'
+					});
 				}
 			}
 		};
