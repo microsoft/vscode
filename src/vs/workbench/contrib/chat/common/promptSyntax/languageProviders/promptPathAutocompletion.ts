@@ -51,10 +51,7 @@ type TTriggerCharacter = ':' | '.' | '/';
 /**
  * Finds a file reference that suites the provided `position`.
  */
-const findFileReference = (
-	references: readonly TPromptReference[],
-	position: Position,
-): IPromptFileReference | undefined => {
+function findFileReference(references: readonly TPromptReference[], position: Position): IPromptFileReference | undefined {
 	for (const reference of references) {
 		const { range } = reference;
 
@@ -78,7 +75,7 @@ const findFileReference = (
 	}
 
 	return undefined;
-};
+}
 
 /**
  * Provides reference paths autocompletion for the `#file:` variables inside prompts.

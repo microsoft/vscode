@@ -147,22 +147,18 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 /**
  * Check if provided language ID is one of the prompt file languages.
  */
-const isPromptFile = (
-	languageId: string,
-): boolean => {
+function isPromptFile(languageId: string): boolean {
 	return [
 		PROMPT_LANGUAGE_ID,
 		INSTRUCTIONS_LANGUAGE_ID,
 		MODE_LANGUAGE_ID,
 	].includes(languageId);
-};
+}
 
 /**
  * Check if a provided model is used for prompt files.
  */
-const isPromptFileModel = (
-	model: IEditorModel,
-): model is ITextModel => {
+function isPromptFileModel(model: IEditorModel): model is ITextModel {
 	// we support only `text editors` for now so filter out `diff` ones
 	if ('modified' in model || 'model' in model) {
 		return false;
@@ -177,4 +173,4 @@ const isPromptFileModel = (
 	}
 
 	return true;
-};
+}

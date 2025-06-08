@@ -215,10 +215,10 @@ export class ObjectStream<T extends object> extends ObservableDisposable impleme
 /**
  * Create a generator out of a provided array.
  */
-export const arrayToGenerator = <T extends NonNullable<unknown>>(array: T[]): Generator<T, undefined> => {
+export function arrayToGenerator<T extends NonNullable<unknown>>(array: T[]): Generator<T, undefined> {
 	return (function* (): Generator<T, undefined> {
 		for (const item of array) {
 			yield item;
 		}
 	})();
-};
+}

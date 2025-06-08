@@ -46,9 +46,7 @@ class ManageModeAction extends Action2 {
 		});
 	}
 
-	public override async run(
-		accessor: ServicesAccessor,
-	): Promise<void> {
+	public override async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const instaService = accessor.get(IInstantiationService);
 
@@ -69,6 +67,6 @@ class ManageModeAction extends Action2 {
 /**
  * Helper to register all the `Run Current Prompt` actions.
  */
-export const registerChatModeActions = () => {
+export function registerChatModeActions(): void {
 	registerAction2(ManageModeAction);
-};
+}

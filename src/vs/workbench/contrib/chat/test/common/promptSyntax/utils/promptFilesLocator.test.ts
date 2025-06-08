@@ -30,7 +30,7 @@ import { mockService } from './mock.js';
 /**
  * Mocked instance of {@link IConfigurationService}.
  */
-const mockConfigService = <T>(value: T): IConfigurationService => {
+function mockConfigService<T>(value: T): IConfigurationService {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
 			assert(
@@ -49,12 +49,12 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 			return value;
 		},
 	});
-};
+}
 
 /**
  * Mocked instance of {@link IWorkspaceContextService}.
  */
-const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextService => {
+function mockWorkspaceService(folders: IWorkspaceFolder[]): IWorkspaceContextService {
 	return mockService<IWorkspaceContextService>({
 		getWorkspace(): IWorkspace {
 			return new class extends mock<IWorkspace>() {
@@ -66,7 +66,7 @@ const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextSer
 		}
 
 	});
-};
+}
 
 suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

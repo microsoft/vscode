@@ -109,9 +109,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * 	- newly created parser is disposed immediately on initialization.
 	 * 	  See factory function in the {@link constructor} for more info.
 	 */
-	public getSyntaxParserFor(
-		model: ITextModel,
-	): TextModelPromptParser & { isDisposed: false } {
+	public getSyntaxParserFor(model: ITextModel): TextModelPromptParser & { isDisposed: false } {
 		assert(
 			model.isDisposed() === false,
 			'Cannot create a prompt syntax parser for a disposed model.',
@@ -232,9 +230,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metadataList;
 	}
 
-	public async findInstructionFilesFor(
-		files: readonly URI[],
-	): Promise<readonly URI[]> {
+	public async findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
 		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		if (instructionFiles.length === 0) {
 			return [];
@@ -297,9 +293,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return metaDatas[0];
 	}
 
-	public async getAllMetadata(
-		promptUris: readonly URI[],
-	): Promise<IMetadata[]> {
+	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
 			promptUris.map(async (uri) => {
 				let parser: PromptParser | undefined;
@@ -327,9 +321,7 @@ export class PromptsService extends Disposable implements IPromptsService {
  * Collect all metadata from prompt file references
  * into a single hierarchical tree structure.
  */
-const collectMetadata = (
-	reference: Pick<IPromptFileReference, 'uri' | 'metadata' | 'references'>,
-): IMetadata => {
+function collectMetadata(reference: Pick<IPromptFileReference, 'uri' | 'metadata' | 'references'>): IMetadata {
 	const childMetadata = [];
 	for (const child of reference.references) {
 		if (child.errorCondition !== undefined) {
@@ -348,7 +340,7 @@ const collectMetadata = (
 		metadata: reference.metadata,
 		children,
 	};
-};
+}
 
 export function getPromptCommandName(path: string): string {
 	const name = basename(path, PROMPT_FILE_EXTENSION);
@@ -359,24 +351,18 @@ export function getPromptCommandName(path: string): string {
  * Utility to add a provided prompt `storage` and
  * `type` attributes to a prompt URI.
  */
-const addType = (
-	storage: TPromptsStorage,
-	type: PromptsType,
-): (uri: URI) => IPromptPath => {
+function addType(storage: TPromptsStorage, type: PromptsType): (uri: URI) => IPromptPath {
 	return (uri) => {
 		return { uri, storage, type };
 	};
-};
+}
 
 /**
  * Utility to add a provided prompt `type` to a list of prompt URIs.
  */
-const withType = (
-	storage: TPromptsStorage,
-	type: PromptsType,
-): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
+function withType(storage: TPromptsStorage, type: PromptsType): (uris: readonly URI[]) => (readonly IPromptPath[]) {
 	return (uris) => {
 		return uris
 			.map(addType(storage, type));
 	};
-};
+}
