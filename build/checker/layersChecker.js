@@ -63,6 +63,11 @@ const RULES = [
         target: '**/vs/**/common/**',
         disallowedTypes: NATIVE_TYPES,
     },
+    // Common
+    {
+        target: '**/vs/**/worker/**',
+        disallowedTypes: NATIVE_TYPES,
+    },
     // Browser
     {
         target: '**/vs/**/browser/**',

@@ -67,6 +67,12 @@ const RULES: IRule[] = [
 		disallowedTypes: NATIVE_TYPES,
 	},
 
+	// Common
+	{
+		target: '**/vs/**/worker/**',
+		disallowedTypes: NATIVE_TYPES,
+	},
+
 	// Browser
 	{
 		target: '**/vs/**/browser/**',
