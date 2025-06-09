@@ -60,17 +60,22 @@
 	top: 0;
 	right: 0;
 	height: 100%;
-	width: 43px;
+	width: 44px;
 }
 
 .settings-editor > .settings-header > .search-container.with-ai-toggle > .settings-clear-widget {
-	width: 62px;
+	width: 66px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
-	padding: 2px;
+	padding: 3px;
 	margin-left: 0px;
 	box-sizing: content-box;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label.monaco-custom-toggle {
+	/* To offset the border width. */
+	padding: 2.3px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
