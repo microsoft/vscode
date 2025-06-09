@@ -77,6 +77,7 @@ export class PromptFilesLocator extends Disposable {
 				return;
 			}
 		}));
+		this._register(this.fileService.watch(this.userDataService.currentProfile.promptsHome));
 		return eventEmitter.event;
 	}
 
