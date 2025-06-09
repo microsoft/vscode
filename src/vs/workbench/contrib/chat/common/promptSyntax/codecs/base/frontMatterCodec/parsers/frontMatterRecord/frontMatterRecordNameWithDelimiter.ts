@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../../../../../../../base/common/assert.js';
-import { PartialFrontMatterRecord } from './frontMatterRecord.js';
+import { type PartialFrontMatterRecord } from './frontMatterRecord.js';
 import { Colon, SpacingToken } from '../../../simpleCodec/tokens/tokens.js';
 import { type TSimpleDecoderToken } from '../../../simpleCodec/simpleDecoder.js';
 import { FrontMatterRecordName, FrontMatterRecordDelimiter } from '../../tokens/index.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
+import { type FrontMatterParserFactory } from '../frontMatterParserFactory.js';
 
 /**
  * Type for tokens that stop a front matter record name sequence.
  */
-type TNameStopToken = Colon | SpacingToken;
+export type TNameStopToken = Colon | SpacingToken;
 
 /**
  * Type for the next parser that can be returned by {@link PartialFrontMatterRecordNameWithDelimiter}.
@@ -34,6 +35,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<
 	TNextParser
 > {
 	constructor(
+		private readonly factory: FrontMatterParserFactory,
 		tokens: readonly [FrontMatterRecordName, TNameStopToken],
 	) {
 		super([...tokens]);
@@ -63,7 +65,7 @@ export class PartialFrontMatterRecordNameWithDelimiter extends ParserBase<
 			this.isConsumed = true;
 			return {
 				result: 'success',
-				nextParser: new PartialFrontMatterRecord(
+				nextParser: this.factory.createRecord(
 					[recordName, recordDelimiter],
 				),
 				wasTokenConsumed: true,
