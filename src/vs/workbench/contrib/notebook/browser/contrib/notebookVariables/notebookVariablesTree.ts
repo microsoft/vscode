@@ -9,7 +9,7 @@ import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/li
 import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
@@ -89,10 +89,6 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<INotebookVariableElement> {
 
 	private _widgetAriaLabel = observableValue('widgetAriaLabel', NotebookVariablesView.NOTEBOOK_TITLE.value);
-
-	get widgetAriaLabel(): IObservable<string> {
-		return this._widgetAriaLabel;
-	}
 
 	getWidgetAriaLabel() {
 		return this._widgetAriaLabel;
