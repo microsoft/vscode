@@ -266,6 +266,7 @@ pub enum ExtensionSubcommand {
 	Uninstall(UninstallExtensionArgs),
 	/// Update the installed extensions.
 	Update,
+	DownloadExtensionsLocally,
 }
 
 impl ExtensionSubcommand {
@@ -301,6 +302,9 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Update => {
 				target.push("--update-extensions".to_string());
+			}
+			ExtensionSubcommand::DownloadExtensionsLocally => {
+				target.push("--download-extensions-locally".to_string());
 			}
 		}
 	}
