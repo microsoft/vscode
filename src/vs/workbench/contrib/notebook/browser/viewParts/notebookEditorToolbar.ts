@@ -9,7 +9,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -80,8 +80,9 @@ class WorkbenchAlwaysLabelStrategy implements IActionLayoutStrategy {
 
 	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
-			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			const item = this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			this.editorToolbar._createdActionViewItems.add(item);
+			return item;
 		}
 
 		if (action instanceof MenuItemAction) {
@@ -120,8 +121,9 @@ class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
 
 	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
-			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			const item = this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			this.editorToolbar._createdActionViewItems.add(item);
+			return item;
 		}
 
 		if (action instanceof MenuItemAction) {
@@ -164,8 +166,9 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 
 	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
-			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			const item = this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+			this.editorToolbar._createdActionViewItems.add(item);
+			return item;
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
@@ -254,6 +257,9 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 	private _deferredActionUpdate: IDisposable | undefined;
 
+	// Track action view items created by this toolbar to ensure proper disposal
+	private readonly _createdActionViewItems = this._register(new DisposableStore());
+
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly contextKeyService: IContextKeyService,
@@ -335,8 +341,9 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		const actionProvider = (action: IAction, options: IActionViewItemOptions) => {
 			if (action.id === SELECT_KERNEL_ID) {
-				// this is being disposed by the consumer
-				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+				const item = this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
+				this._createdActionViewItems.add(item);
+				return item;
 			}
 
 			if (this._renderLabel !== RenderLabel.Never) {
@@ -421,6 +428,10 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			if (e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
 				this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 				this._updateStrategy();
+				
+				// Clear tracked action view items before disposing the toolbar
+				this._createdActionViewItems.clear();
+				
 				const oldElement = this._notebookLeftToolbar.getElement();
 				oldElement.remove();
 				this._notebookLeftToolbar.dispose();
@@ -532,6 +543,9 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
 		const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
 
+		// Clear tracked action view items before setting new actions
+		this._createdActionViewItems.clear();
+		
 		this._notebookLeftToolbar.setActions([], []);
 
 		this._primaryActions = primaryActions.map(action => ({
@@ -598,6 +612,9 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 	}
 
 	override dispose() {
+		// Clear any tracked action view items first
+		this._createdActionViewItems.clear();
+		
 		this._notebookLeftToolbar.context = undefined;
 		this._notebookRightToolbar.context = undefined;
 		this._notebookLeftToolbar.dispose();
