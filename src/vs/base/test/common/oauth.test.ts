@@ -16,6 +16,7 @@ import {
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
 	isAuthorizationTokenResponse,
+	isAuthorizationTokenErrorResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	IAuthorizationJWTClaims,
@@ -175,6 +176,33 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error: 'missing-description' }), false);
 			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error_description: 'missing-error' }), false);
 			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse('not an object'), false);
+		});
+
+		test('isAuthorizationTokenErrorResponse should correctly identify token error response', () => {
+			// Valid response with just error
+			assert.strictEqual(isAuthorizationTokenErrorResponse({
+				error: 'invalid_client'
+			}), true);
+
+			// Valid response with error and description
+			assert.strictEqual(isAuthorizationTokenErrorResponse({
+				error: 'invalid_grant',
+				error_description: 'The authorization grant is invalid'
+			}), true);
+
+			// Valid response with all optional fields
+			assert.strictEqual(isAuthorizationTokenErrorResponse({
+				error: 'invalid_request',
+				error_description: 'The request is missing a required parameter',
+				error_uri: 'https://example.com/error'
+			}), true);
+
+			// Invalid cases
+			assert.strictEqual(isAuthorizationTokenErrorResponse(null), false);
+			assert.strictEqual(isAuthorizationTokenErrorResponse(undefined), false);
+			assert.strictEqual(isAuthorizationTokenErrorResponse({}), false);
+			assert.strictEqual(isAuthorizationTokenErrorResponse({ error_description: 'missing error' }), false);
+			assert.strictEqual(isAuthorizationTokenErrorResponse('not an object'), false);
 		});
 	});
 

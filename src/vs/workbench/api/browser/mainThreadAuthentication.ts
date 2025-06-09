@@ -24,7 +24,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
-import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { IAuthorizationTokenResponse, IAuthorizationTokenErrorResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 
@@ -221,6 +221,22 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {
 		await this.dynamicAuthProviderStorageService.setSessionsForDynamicAuthProvider(authProviderId, clientId, sessions);
+	}
+
+	async $invalidateClient(authorizationServer: string, clientId: string, error: IAuthorizationTokenErrorResponse): Promise<void> {
+		this.logService.warn(`Client authentication failed for ${authorizationServer} with client ID ${clientId}: ${error.error_description || error.error}. Removing stored client data.`);
+		
+		// Find the provider ID for this authorization server
+		const providerId = authorizationServer;
+		
+		// Remove the dynamic provider data, which will clear stored sessions and client ID
+		await this.dynamicAuthProviderStorageService.removeDynamicProvider(providerId);
+		
+		// Unregister the authentication provider from the service
+		// This will trigger re-registration when the provider is needed again
+		if (this.authenticationService.isAuthenticationProviderRegistered(providerId)) {
+			this.authenticationService.unregisterAuthenticationProvider(providerId);
+		}
 	}
 
 	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationInteractiveOptions): Promise<boolean> {

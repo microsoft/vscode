@@ -614,6 +614,14 @@ export function isAuthorizationDeviceTokenErrorResponse(obj: unknown): obj is IA
 	return response.error !== undefined && response.error_description !== undefined;
 }
 
+export function isAuthorizationTokenErrorResponse(obj: unknown): obj is IAuthorizationTokenErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationTokenErrorResponse;
+	return response.error !== undefined;
+}
+
 //#endregion
 
 export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
