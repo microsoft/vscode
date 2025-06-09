@@ -6,9 +6,9 @@
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
 

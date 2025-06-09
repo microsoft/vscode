@@ -54,7 +54,8 @@ export namespace ChatContextKeys {
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
-		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true)  	// True when the chat extension is disabled.
+		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled.
+		later: new RawContextKey<boolean>('chatSetupLater', false, true)  			// True when the user wants to finish setup later.
 	};
 
 	export const Entitlement = {

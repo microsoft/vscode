@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptContentsProvider } from './types.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { FilePromptContentProvider } from './filePromptContentsProvider.js';
-import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { objectStreamFromTextModel } from '../codecs/base/utils/objectStreamFromTextModel.js';
+import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
-import { objectStreamFromTextModel } from '../../../../../../editor/common/codecs/utils/objectStreamFromTextModel.js';
+import { IPromptContentsProvider } from './types.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.

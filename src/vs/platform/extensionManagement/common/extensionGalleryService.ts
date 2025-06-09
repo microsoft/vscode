@@ -38,6 +38,7 @@ const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
 const ACTIVITY_HEADER_NAME = 'Activityid';
 const SERVER_HEADER_NAME = 'Server';
 const END_END_ID_HEADER_NAME = 'X-Vss-E2eid';
+const REQUEST_TIME_OUT = 10_000;
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -1455,7 +1456,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'GET',
 				url: uri.toString(true),
 				headers,
-				timeout: 10000 /*10s*/
+				timeout: REQUEST_TIME_OUT
 			}, token);
 
 			if (context.res.statusCode === 404) {
@@ -1735,7 +1736,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url };
+		const firstOptions = { ...options, url, timeout: REQUEST_TIME_OUT };
 
 		let context;
 		try {
@@ -1781,7 +1782,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl };
+			const fallbackOptions = { ...options, url: fallbackUrl, timeout: REQUEST_TIME_OUT };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1798,7 +1799,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			timeout: 10000 /*10s*/
+			timeout: REQUEST_TIME_OUT
 		}, CancellationToken.None);
 
 		if (context.res.statusCode !== 200) {

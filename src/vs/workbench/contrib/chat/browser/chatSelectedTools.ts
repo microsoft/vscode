@@ -151,6 +151,7 @@ export class ChatSelectedTools extends Disposable {
 
 	asEnablementMap(): Map<IToolData, boolean> {
 		const result = new Map<IToolData, boolean>();
+		const map = this.entriesMap;
 
 		const _set = (tool: IToolData, enabled: boolean) => {
 			// ONLY disable a tool that isn't enabled yet
@@ -160,10 +161,10 @@ export class ChatSelectedTools extends Disposable {
 			}
 		};
 
-		for (const [item, enabled] of this.entriesMap) {
+		for (const [item, enabled] of map) {
 			if (item instanceof ToolSet) {
 				for (const tool of item.getTools()) {
-					_set(tool, enabled);
+					_set(tool, map.get(tool) ?? enabled); // tools from tool set can be explicitly set
 				}
 			} else {
 				if (item.canBeReferencedInPrompt) {

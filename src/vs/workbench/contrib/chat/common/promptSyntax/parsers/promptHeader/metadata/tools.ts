@@ -6,8 +6,8 @@
 import { PromptMetadataRecord } from './base/record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
-import { FrontMatterSequence } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
-import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
+import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.

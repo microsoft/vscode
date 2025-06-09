@@ -68,6 +68,10 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			};
 		}).filter(isDefined);
 
+		if (opts.params.systemPrompt) {
+			messages.unshift({ role: ChatMessageRole.System, content: [{ type: 'text', value: opts.params.systemPrompt }] });
+		}
+
 		const model = await this._getMatchingModel(opts);
 		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
 		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('Github.copilot-chat'), messages, {}, token);
@@ -169,7 +173,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 				await this.updateConfig(server, c => c[key] = true);
 				return true;
 			},
-			[localize('mcp.sampling.allow.notNow', 'Now Now')]: async () => {
+			[localize('mcp.sampling.allow.notNow', 'Not Now')]: async () => {
 				this._sessionSets[key].set(server.definition.id, false);
 				return false;
 			},

@@ -28,7 +28,7 @@ import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelTo
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
-import { ChatInstructionsPickerPick } from './promptActions/chatAttachInstructionsAction.js';
+import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {

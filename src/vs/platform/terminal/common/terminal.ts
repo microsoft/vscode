@@ -121,7 +121,6 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
-	KillGracefully = 'terminal.integrated.killGracefully',
 
 	// Debug settings that are hidden from user
 
@@ -331,6 +330,7 @@ export interface IPtyService {
 	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
+	sendSignal(id: number, signal: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
 	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
@@ -650,10 +650,6 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
-	/**
-	 * Whether the process should be killed gracefully
-	 */
-	killGracefully?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -791,6 +787,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
+	sendSignal(signal: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
 	clearBuffer(): void | Promise<void>;
