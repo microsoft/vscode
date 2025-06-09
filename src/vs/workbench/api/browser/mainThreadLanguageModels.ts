@@ -17,7 +17,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
-import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService, LanguageModelInitiatorKind, LanguageModelRequestInitiator } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -60,7 +60,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
 			metadata,
-			sendChatRequest: async (messages, from, options, token) => {
+			sendChatRequest: async (messages, initiator, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
 				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
@@ -74,7 +74,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 								part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
 							})
 					);
-					await this._proxy.$startChatRequest(handle, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
+					await this._proxy.$startChatRequest(handle, requestId, initiator, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
 					throw err;
@@ -127,18 +127,18 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
-	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
-		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
+	$whenLanguageModelChatRequestMade(identifier: string, initiator: LanguageModelRequestInitiator, participant?: string | undefined, tokenCount?: number | undefined): void {
+		this._languageModelStatsService.update(identifier, initiator, participant, tokenCount);
 	}
 
-	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
-		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
+	async $tryStartChatRequest(extensionId: ExtensionIdentifier, providerId: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
+		this._logService.trace('[CHAT] request STARTED', extensionId.value, requestId);
 
 		let response: ILanguageModelChatResponse;
 		try {
-			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages.value, options, token);
+			response = await this._chatProviderService.sendChatRequest(providerId, { kind: LanguageModelInitiatorKind.Extension, extensionId }, messages.value, options, token);
 		} catch (err) {
-			this._logService.error('[CHAT] request FAILED', extension.value, requestId, err);
+			this._logService.error('[CHAT] request FAILED', extensionId.value, requestId, err);
 			throw err;
 		}
 
@@ -149,22 +149,22 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const streaming = (async () => {
 			try {
 				for await (const part of response.stream) {
-					this._logService.trace('[CHAT] request PART', extension.value, requestId, part);
+					this._logService.trace('[CHAT] request PART', extensionId.value, requestId, part);
 					await this._proxy.$acceptResponsePart(requestId, part);
 				}
-				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
+				this._logService.trace('[CHAT] request DONE', extensionId.value, requestId);
 			} catch (err) {
-				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extensionId.value, requestId);
 				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
 
 		// When the response is done (signaled via its result) we tell the EH
 		Promise.allSettled([response.result, streaming]).then(() => {
-			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
+			this._logService.debug('[CHAT] extension request DONE', extensionId.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
-			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
+			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extensionId.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}

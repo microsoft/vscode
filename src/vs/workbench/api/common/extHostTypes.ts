@@ -5123,6 +5123,12 @@ export enum LanguageModelChatToolMode {
 	Required = 2
 }
 
+export enum LanguageModelRequestInitiatorKind {
+	Extension = 1,
+	McpServer = 2,
+	Editor = 3,
+}
+
 //#endregion
 
 //#region ai
@@ -5181,7 +5187,7 @@ export enum InlineEditTriggerKind {
 
 //#endregion
 
-//#region MC
+//#region MCP
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 
