@@ -135,7 +135,7 @@ export class ListMcpServerCommand extends Action2 {
 		if (!picked) {
 			// no-op
 		} else if (picked.id === '$add') {
-			commandService.executeCommand(AddConfigurationAction.ID);
+			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
 		}
@@ -454,11 +454,9 @@ export class ResetMcpCachedTools extends Action2 {
 }
 
 export class AddConfigurationAction extends Action2 {
-	static readonly ID = 'workbench.mcp.addConfiguration';
-
 	constructor() {
 		super({
-			id: AddConfigurationAction.ID,
+			id: McpCommandIds.AddConfiguration,
 			title: localize2('mcp.addConfiguration', "Add Server..."),
 			metadata: {
 				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
