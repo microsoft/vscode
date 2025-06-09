@@ -13,8 +13,7 @@ import { IAccessibilitySignalService, AccessibilitySignal } from '../../../../pl
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { getNotificationFromContext } from './notificationsCommands.js';
-import { getSeverityPrefix } from './notificationsCommands.js';
+import { getNotificationFromContext, getSeverityPrefix } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
 
