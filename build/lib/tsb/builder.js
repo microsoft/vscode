@@ -591,7 +591,7 @@ class LanguageServiceHost {
         while (this._dependenciesRecomputeList.length) {
             this._processFile(this._dependenciesRecomputeList.pop());
         }
-        const cycles = this._dependencies.findCycles(filenames);
+        const cycles = this._dependencies.findCycles(filenames.sort((a, b) => a.localeCompare(b)));
         const result = new Map();
         for (const [key, value] of cycles) {
             result.set(key, value?.join(' -> '));
