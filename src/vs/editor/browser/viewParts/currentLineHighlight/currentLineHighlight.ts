@@ -204,6 +204,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	protected abstract _shouldRenderThis(): boolean;
+	protected abstract _shouldRenderOther(): boolean;
 	/**
 	 * Render a single view line
 	 * @param {boolean} first Whether the view line is the first of a model line
@@ -224,6 +225,9 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _shouldRenderThis(): boolean {
 		return this._shouldRenderInContent();
 	}
+	protected _shouldRenderOther(): boolean {
+		return this._shouldRenderInMargin();
+	}
 }
 
 /**
@@ -235,7 +239,10 @@ export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOver
 		return `<div class="${className}" style="width:${this._contentLeft}px"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
-		return this._shouldRenderInMargin();
+		return true;
+	}
+	protected _shouldRenderOther(): boolean {
+		return this._shouldRenderInContent();
 	}
 }
 
@@ -243,7 +250,7 @@ registerThemingParticipant((theme, collector) => {
 	const lineHighlight = theme.getColor(editorLineHighlight);
 	if (lineHighlight) {
 		collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${lineHighlight}; }`);
-		collector.addRule(`.monaco-editor .margin-view-overlays .current-line { background-color: ${lineHighlight}; border: none; }`);
+		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	}
 	if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
 		const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
