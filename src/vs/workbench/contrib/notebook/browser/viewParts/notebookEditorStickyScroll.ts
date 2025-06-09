@@ -164,6 +164,11 @@ export class NotebookStickyScroll extends Disposable {
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this.onContextMenu(event);
 		}));
+
+		// Forward wheel events to the notebook editor to enable scrolling when hovering over sticky scroll
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.WHEEL, (event: WheelEvent) => {
+			this.notebookCellList.triggerScrollFromMouseWheelEvent(event);
+		}));
 	}
 
 	private onContextMenu(e: MouseEvent) {
