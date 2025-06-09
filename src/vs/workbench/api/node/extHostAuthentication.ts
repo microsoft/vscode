@@ -8,14 +8,14 @@ import type * as vscode from 'vscode';
 import * as http from 'http';
 import { randomBytes } from 'crypto';
 import { URL } from 'url';
-import { ExtHostAuthentication, DynamicAuthProvider, IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { ExtHostAuthentication, DynamicAuthProvider, IExtHostAuthentication, InvalidClientError } from '../common/extHostAuthentication.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
-import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, DEFAULT_AUTH_FLOW_PORT, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse } from '../../../base/common/oauth.js';
+import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationTokenErrorResponse, DEFAULT_AUTH_FLOW_PORT, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, isAuthorizationTokenErrorResponse, IAuthorizationDeviceTokenErrorResponse } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DeferredPromise, raceCancellationError } from '../../../base/common/async.js';
 import { IExtHostProgress } from '../common/extHostProgress.js';
@@ -448,6 +448,17 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 						throw new Error('Device code expired. Please try again.');
 					} else if (errorData.error === 'access_denied') {
 						throw new CancellationError();
+					} else if (errorData.error === 'invalid_client') {
+						// Client authentication failed - convert to proper error response format and throw InvalidClientError
+						const tokenErrorResponse: IAuthorizationTokenErrorResponse = {
+							error: errorData.error,
+							error_description: errorData.error_description,
+							error_uri: errorData.error_uri
+						};
+						throw new InvalidClientError(
+							`Client authentication failed: ${errorData.error_description || errorData.error}`,
+							tokenErrorResponse
+						);
 					} else {
 						throw new Error(`Token request failed: ${errorData.error_description || errorData.error || 'Unknown error'}`);
 					}
