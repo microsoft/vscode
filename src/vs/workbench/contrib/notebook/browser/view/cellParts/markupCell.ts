@@ -243,10 +243,8 @@ export class MarkupCell extends Disposable {
 	}
 
 	private updateForMarkupFontFamilyChange(): void {
-		// Only re-render if the cell is currently in preview mode (not collapsed and not editing)
-		if (!this.viewCell.isInputCollapsed && this.viewCell.getEditState() !== CellEditState.Editing) {
-			this.notebookEditor.createMarkupPreview(this.viewCell);
-		}
+		// Re-render the cell to reflect the new font family
+		this.viewUpdate();
 	}
 
 	private viewUpdate(): void {
