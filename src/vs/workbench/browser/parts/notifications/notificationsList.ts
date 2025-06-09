@@ -18,7 +18,7 @@ import { assertReturnsAllDefined } from '../../../../base/common/types.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
-import { NotificationActionRunner } from './notificationsCommands.js';
+import { getSeverityPrefix, NotificationActionRunner } from './notificationsCommands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
@@ -244,7 +244,7 @@ export class NotificationsList extends Disposable {
 	}
 }
 
-class NotificationAccessibilityProvider implements IListAccessibilityProvider<INotificationViewItem> {
+export class NotificationAccessibilityProvider implements IListAccessibilityProvider<INotificationViewItem> {
 	constructor(
 		private readonly _options: INotificationsListOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -256,12 +256,18 @@ class NotificationAccessibilityProvider implements IListAccessibilityProvider<IN
 		if (this._configurationService.getValue('accessibility.verbosity.notification')) {
 			accessibleViewHint = keybinding ? localize('notificationAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('notificationAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
 		}
+
+		// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
+		const severityPrefix = getSeverityPrefix(element.severity);
+		const messageWithSeverity = `${severityPrefix}${element.message.raw}`;
+
 		if (!element.source) {
-			return accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", element.message.raw, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", element.message.raw);
+			return accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", messageWithSeverity, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", messageWithSeverity);
 		}
 
-		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", element.message.raw, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
+		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", messageWithSeverity, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, element.source);
 	}
+
 	getWidgetAriaLabel(): string {
 		return this._options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 	}
