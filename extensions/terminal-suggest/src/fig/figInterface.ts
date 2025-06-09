@@ -31,7 +31,7 @@ export async function getFigSuggestions(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
-	prefix: string,
+	currentCommandAndArgString: string,
 	tokenType: TokenType,
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
@@ -45,7 +45,7 @@ export async function getFigSuggestions(
 		hasCurrentArg: false,
 		items: [],
 	};
-	const currentCommand = prefix.split(' ')[0];
+	const currentCommand = currentCommandAndArgString.split(' ')[0];
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 
@@ -66,7 +66,7 @@ export async function getFigSuggestions(
 					const description = getFixSuggestionDescription(spec);
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
-						prefix,
+						currentCommandAndArgString,
 						{
 							label: { label: specLabel, description },
 							kind: vscode.TerminalCompletionItemKind.Method
@@ -93,7 +93,7 @@ export async function getFigSuggestions(
 			if (!actualSpec) {
 				continue;
 			}
-			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, currentCommandAndArgString, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
