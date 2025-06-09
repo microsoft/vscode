@@ -88,10 +88,18 @@ declare module 'vscode' {
 		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
 		readonly isDefault?: boolean;
 		readonly isUserSelectable?: boolean;
+
 		readonly capabilities?: {
 			readonly vision?: boolean;
+
+			// TODO@API should be `boolean | number` so extensions can express how many tools they support
 			readonly toolCalling?: boolean;
+
+			// TODO@API WHY is agentMode a capability? This seems wrong?
 			readonly agentMode?: boolean;
+
+			// TODO@API support prompt TSX style messages
+			// readonly promptTsx?:boolean
 		};
 
 		/**
@@ -105,6 +113,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
+		// TODO@API remove? unused?
 		extensions?: string[];
 	}
 
