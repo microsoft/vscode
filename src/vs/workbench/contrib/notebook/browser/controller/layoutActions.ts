@@ -261,9 +261,7 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
 			},
 			menu: [
-				{ id: MenuId.CommandPalette },
-				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
-				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
+				{ id: MenuId.CommandPalette }
 			]
 		});
 	}
@@ -273,4 +271,25 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
 		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
 	}
+});
+
+// Register the toggle action with a shorter title for notebook-specific contexts
+MenuRegistry.appendMenuItem(MenuId.NotebookStickyScrollContext, {
+	command: {
+		id: 'notebook.action.toggleNotebookStickyScroll',
+		title: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
+		toggled: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true)
+	},
+	group: 'notebookView',
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbarContext, {
+	command: {
+		id: 'notebook.action.toggleNotebookStickyScroll',
+		title: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
+		toggled: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true)
+	},
+	group: 'notebookView',
+	order: 2
 });
