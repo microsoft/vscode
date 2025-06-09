@@ -2031,3 +2031,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	padding: 4px 8px;
 }
+
+/* .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
+	/* The default is `display: block`. Allow the disabled-overlay element to show up on top of the rowContainer it applies to */
+	/* display: flex; */
+
+.disabled-overlay {
+	display: none;
+}
+
+.disabled-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(128, 128, 128, 0.2);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 1;
+}
+

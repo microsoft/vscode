@@ -310,6 +310,7 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 	readonly editedFileEvents?: IChatAgentEditedFileEvent[];
 	shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	isDisabled: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -421,6 +422,7 @@ export interface IChatResponseModel {
 	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
+	isDisabled: boolean;
 	addUndoStop(undoStop: IChatUndoStop): void;
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
@@ -459,6 +461,7 @@ export interface IChatRequestModelParameters {
 export class ChatRequestModel implements IChatRequestModel {
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
+	public isDisabled: boolean = false;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly timestamp: number;
 	public readonly message: IParsedChatRequest;
@@ -813,6 +816,7 @@ export interface IChatResponseModelParameters {
 	isCompleteAddedRequest?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	restoredId?: string;
+	isDisabled?: boolean;
 }
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
@@ -831,9 +835,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _result?: IChatAgentResult;
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
+	private _isDisabled: boolean = false;
 
 	public get session() {
 		return this._session;
+	}
+
+	public get isDisabled() {
+		return this._isDisabled;
 	}
 
 	public get shouldBeRemovedOnSend() {
@@ -964,6 +973,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = params.followups ? [...params.followups] : undefined;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._shouldBeRemovedOnSend = params.shouldBeRemovedOnSend;
+		this._isDisabled = params.isDisabled ?? false;
+
 
 		// If we are creating a response with some existing content, consider it stale
 		this._isStale = Array.isArray(params.responseContent) && (params.responseContent.length !== 0 || isMarkdownString(params.responseContent) && params.responseContent.value.length !== 0);
@@ -993,6 +1004,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
+
+		this._register(this._session.onDidChange((e) => {
+			if (e.kind === 'setCheckpoint') {
+				const isDisabled = e.disabledResponseIds.has(this.id);
+				const didChange = this._isDisabled === isDisabled;
+				this._isDisabled = isDisabled;
+				if (didChange) {
+					this._onDidChange.fire(defaultChatResponseModelChangeReason);
+				}
+			}
+		}));
 	}
 
 	/**
@@ -1146,6 +1168,9 @@ export interface IChatModel {
 	getRequests(): IChatRequestModel[];
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+	readonly checkpoint: IChatRequestModel | undefined;
+	setCheckpoint(requestId: string | undefined): void;
+	getRequests(includeDisabledRequests?: boolean): IChatRequestModel[];
 }
 
 export interface ISerializableChatsData {
@@ -1305,6 +1330,7 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
+	| IChatSetCheckpointEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1325,6 +1351,12 @@ export interface IChatCompletedRequestEvent {
 export interface IChatAddResponseEvent {
 	kind: 'addResponse';
 	response: IChatResponseModel;
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
+	disabledRequestIds: Set<string>;
+	disabledResponseIds: Set<string>;
 }
 
 export const enum ChatRequestRemovalReason {
@@ -1584,7 +1616,8 @@ export class ChatModel extends Disposable implements IChatModel {
 						voteDownReason: raw.voteDownReason,
 						result,
 						followups: raw.followups,
-						restoredId: raw.responseId
+						restoredId: raw.responseId,
+						isDisabled: request.isDisabled,
 					});
 					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
@@ -1645,13 +1678,66 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	getRequests(): ChatRequestModel[] {
-		return this._requests;
+	getRequests(includeDisabledRequests = true): ChatRequestModel[] {
+		if (includeDisabledRequests) {
+			return this._requests;
+		}
+
+		const requests: ChatRequestModel[] = [];
+		for (const request of this._requests) {
+			if (request.isDisabled) {
+				break;
+			}
+			requests.push(request);
+		}
+		return requests;
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;
 	public get checkpoint() {
 		return this._checkpoint;
+	}
+
+	setCheckpoint(requestId: string | undefined) {
+		let checkpoint: ChatRequestModel | undefined;
+		let checkpointIndex = -1;
+		if (requestId !== undefined) {
+			this._requests.forEach((request, index) => {
+				if (request.id === requestId) {
+					checkpointIndex = index;
+					checkpoint = request;
+				}
+			});
+
+			if (!checkpoint) {
+				return; // Invalid request ID
+			}
+		}
+
+		const disabledRequestIds = new Set<string>();
+		const disabledResponseIds = new Set<string>();
+		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
+			const request = this._requests[i];
+			if (this._checkpoint && !checkpoint) {
+				// The user removed the checkpoint
+				request.isDisabled = false;
+			} else if (checkpoint && i > checkpointIndex) {
+				request.isDisabled = true;
+				disabledRequestIds.add(request.id);
+				if (request.response) {
+					disabledResponseIds.add(request.response.id);
+				}
+			} else if (checkpoint && i <= checkpointIndex) {
+				request.isDisabled = false;
+			}
+		}
+
+		this._checkpoint = checkpoint;
+		this._onDidChange.fire({
+			kind: 'setCheckpoint',
+			disabledRequestIds,
+			disabledResponseIds
+		});
 	}
 
 	setDisabledRequests(requestIds: IChatRequestDisablement[]) {
