@@ -22,7 +22,6 @@ import { NotificationActionRunner } from './notificationsCommands.js';
 import { getSeverityPrefix } from './notificationsCommands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Severity } from '../../../../platform/notification/common/notification.js';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;

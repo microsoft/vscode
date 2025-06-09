@@ -17,7 +17,6 @@ import { getNotificationFromContext } from './notificationsCommands.js';
 import { getSeverityPrefix } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
-import { Severity } from '../../../../platform/notification/common/notification.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
