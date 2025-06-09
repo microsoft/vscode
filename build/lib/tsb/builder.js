@@ -294,7 +294,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
                         if (jsValue) {
                             outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
-                            toBeCheckedForCycles.push(jsValue.path);
+                            toBeCheckedForCycles.push(normalize(jsValue.path));
                         }
                     }).catch(e => {
                         // can't just skip this or make a result up..
