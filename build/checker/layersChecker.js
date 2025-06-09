@@ -53,14 +53,19 @@ const RULES = [
         ].join(',')}}`,
         disallowedTypes: [ /* Ignore native types that are defined from here */],
     },
-    // Common: vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts
+    // Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
     {
-        target: '**/vs/base/parts/sandbox/electron-sandbox/preload{,-aux}.ts',
+        target: '**/vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts',
         disallowedTypes: NATIVE_TYPES,
     },
     // Common
     {
         target: '**/vs/**/common/**',
+        disallowedTypes: NATIVE_TYPES,
+    },
+    // Common
+    {
+        target: '**/vs/**/worker/**',
         disallowedTypes: NATIVE_TYPES,
     },
     // Browser
