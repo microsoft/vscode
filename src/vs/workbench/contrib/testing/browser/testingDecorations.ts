@@ -1367,11 +1367,17 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		super();
 
 		const setMarginTop = () => {
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const lineHeight = editor.getLineHeightForPosition(position);
 			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
 		};
 
 		setMarginTop();
+		this._register(editor.onDidChangeLineHeight(e => {
+			if (e.affects(position)) {
+				setMarginTop();
+			}
+		}));
+
 		this._register(editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.lineHeight)) {
 				setMarginTop();
