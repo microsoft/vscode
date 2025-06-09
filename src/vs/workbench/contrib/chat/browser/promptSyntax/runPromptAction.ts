@@ -13,11 +13,11 @@ import { assertDefined } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
+import { PromptsType, PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { UILabelProvider } from '../../../../../base/common/keybindingLabels.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -28,9 +28,8 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getPromptCommandName } from '../../common/promptSyntax/service/promptsService.js';
+import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
 
 /**
  * Condition for the `Run Current Prompt` action.

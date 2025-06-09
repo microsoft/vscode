@@ -8,8 +8,8 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -19,7 +19,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { getCleanPromptName, PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../base/common/resources.js';
@@ -27,7 +28,6 @@ import { IPromptFileVariableEntry } from '../../common/chatModel.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
@@ -197,22 +197,22 @@ function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefin
 /**
  * Gets `URI` of a instructions file open in an active editor instance, if any.
  */
-const getActiveInstructionsFileUri = (accessor: ServicesAccessor): URI | undefined => {
+function getActiveInstructionsFileUri(accessor: ServicesAccessor): URI | undefined {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const model = codeEditorService.getActiveCodeEditor()?.getModel();
 	if (model?.getLanguageId() === INSTRUCTIONS_LANGUAGE_ID) {
 		return model.uri;
 	}
 	return undefined;
-};
+}
 
 /**
  * Helper to register the `Attach Prompt` action.
  */
-export const registerAttachPromptActions = () => {
+export function registerAttachPromptActions(): void {
 	registerAction2(AttachInstructionsAction);
 	registerAction2(ManageInstructionsFilesAction);
-};
+}
 
 
 export class ChatInstructionsPickerPick implements IChatContextPickerItem {

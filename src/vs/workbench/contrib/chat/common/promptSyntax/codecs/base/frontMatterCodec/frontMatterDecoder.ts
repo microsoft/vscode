@@ -11,8 +11,11 @@ import { ReadableStream } from '../../../../../../../../base/common/stream.js';
 import { FrontMatterToken, FrontMatterRecord } from './tokens/index.js';
 import { BaseDecoder } from '../baseDecoder.js';
 import { SimpleDecoder, type TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
-import { PartialFrontMatterRecord, PartialFrontMatterRecordName, PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord/index.js';
 import { ObjectStream } from '../utils/objectStream.js';
+import { PartialFrontMatterRecordNameWithDelimiter } from './parsers/frontMatterRecord/frontMatterRecordNameWithDelimiter.js';
+import { PartialFrontMatterRecord } from './parsers/frontMatterRecord/frontMatterRecord.js';
+import { PartialFrontMatterRecordName } from './parsers/frontMatterRecord/frontMatterRecordName.js';
+import { FrontMatterParserFactory } from './parsers/frontMatterParserFactory.js';
 
 /**
  * Tokens produced by this decoder.
@@ -29,16 +32,17 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 	 */
 	private current?: PartialFrontMatterRecordName | PartialFrontMatterRecordNameWithDelimiter | PartialFrontMatterRecord;
 
+	private readonly parserFactory: FrontMatterParserFactory;
+
 	constructor(
 		stream: ReadableStream<VSBuffer> | ObjectStream<TSimpleDecoderToken>,
 	) {
 		if (stream instanceof ObjectStream) {
 			super(stream);
-
-			return;
+		} else {
+			super(new SimpleDecoder(stream));
 		}
-
-		super(new SimpleDecoder(stream));
+		this.parserFactory = new FrontMatterParserFactory();
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
@@ -92,7 +96,7 @@ export class FrontMatterDecoder extends BaseDecoder<TFrontMatterToken, TSimpleDe
 
 		// a word token starts a new record
 		if (token instanceof Word) {
-			this.current = new PartialFrontMatterRecordName(token);
+			this.current = this.parserFactory.createRecordName(token);
 			return;
 		}
 

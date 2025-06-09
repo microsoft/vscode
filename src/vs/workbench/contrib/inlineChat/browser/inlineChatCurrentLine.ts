@@ -39,8 +39,8 @@ import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/constants.js';
-import { MODE_FILE_EXTENSION } from '../../../../platform/prompts/common/prompts.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../chat/common/promptSyntax/promptTypes.js';
+import { MODE_FILE_EXTENSION } from '../../chat/common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Set of language IDs where inline chat hints should not be shown.

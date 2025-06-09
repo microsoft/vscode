@@ -20,8 +20,8 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
-import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/prompts.js';
+import { PromptsConfig } from '../common/promptSyntax/config/config.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -48,10 +48,10 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
-import { registerPromptFileContributions } from '../common/promptSyntax/contributions/index.js';
-import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { IPromptsService } from '../common/promptSyntax/service/types.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { registerPromptFileContributions } from '../common/promptSyntax/promptFileContributions.js';
+import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';

@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { ChatMode, modeToString } from './constants.js';
-import { ICustomChatMode, IPromptsService } from './promptSyntax/service/types.js';
+import { ICustomChatMode, IPromptsService } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {

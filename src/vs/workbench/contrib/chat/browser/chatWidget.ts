@@ -34,7 +34,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { PromptsType } from '../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -54,7 +54,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
-import { IMetadata, IPromptsService } from '../common/promptSyntax/service/types.js';
+import { IMetadata, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
@@ -67,6 +67,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 
 const $ = dom.$;
 
@@ -1077,7 +1078,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
-		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, 0), (events => {
+		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
+		const delay = renderImmediately ? MicrotaskDelay : 0;
+		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
 			if (!this.viewModel) {
 				return;
 			}

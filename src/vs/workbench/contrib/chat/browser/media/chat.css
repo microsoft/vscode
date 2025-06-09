@@ -1182,6 +1182,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 
+.chat-attached-context-attachment .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
+	color: var(--vscode-peekViewTitleDescription-foreground);
+	opacity: 1;
+}
+
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
 .chat-quota-error-widget .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */

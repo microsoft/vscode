@@ -14,6 +14,7 @@ import { type TSimpleDecoderToken } from '../../../simpleCodec/simpleDecoder.js'
 import { Word, FormFeed, SpacingToken } from '../../../simpleCodec/tokens/tokens.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
 import { FrontMatterValueToken, FrontMatterRecordName, FrontMatterRecordDelimiter, FrontMatterRecord } from '../../tokens/index.js';
+import { type FrontMatterParserFactory } from '../frontMatterParserFactory.js';
 
 /**
  * Type of a next parser that can be returned by {@link PartialFrontMatterRecord}.
@@ -44,6 +45,7 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 	private readonly recordDelimiterToken: FrontMatterRecordDelimiter;
 
 	constructor(
+		private readonly factory: FrontMatterParserFactory,
 		tokens: [FrontMatterRecordName, FrontMatterRecordDelimiter],
 	) {
 		super(tokens);
@@ -117,14 +119,14 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
 
 		// if token can start a "value" sequence, parse the value
 		if (PartialFrontMatterValue.isValueStartToken(token)) {
-			this.valueParser = new PartialFrontMatterValue(shouldEndTokenSequence);
+			this.valueParser = this.factory.createValue(shouldEndTokenSequence);
 
 			return this.accept(token);
 		}
 
 		// in all other cases, collect all the subsequent tokens into
 		// a "sequence of tokens" until a new line is found
-		this.valueParser = new PartialFrontMatterSequence(
+		this.valueParser = this.factory.createSequence(
 			shouldEndTokenSequence,
 		);
 
@@ -199,12 +201,10 @@ export class PartialFrontMatterRecord extends ParserBase<TSimpleDecoderToken, TN
  * Callback to check if a current token should end a
  * record value that is a generic sequence of tokens.
  */
-const shouldEndTokenSequence = (
-	token: BaseToken,
-): token is (NewLine | CarriageReturn | FormFeed) => {
+function shouldEndTokenSequence(token: BaseToken): token is (NewLine | CarriageReturn | FormFeed) {
 	return (
 		(token instanceof NewLine)
 		|| (token instanceof CarriageReturn)
 		|| (token instanceof FormFeed)
 	);
-};
+}
