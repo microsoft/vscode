@@ -45,6 +45,7 @@ export async function getFigSuggestions(
 		hasCurrentArg: false,
 		items: [],
 	};
+	const currentCommand = prefix.split(' ')[0];
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 
@@ -82,8 +83,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => prefix.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => prefix.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
+					? commandAndAliases.some(e => currentCommand.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
+					: commandAndAliases.some(e => currentCommand.startsWith(typeof e.label === 'string' ? e.label : e.label.label)))
 			) {
 				continue;
 			}
