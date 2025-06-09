@@ -152,14 +152,13 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Adjusts the current working directory based on a given prefix if it is a folder.
+ * Adjusts the current working directory based on a given current command string if it is a folder.
  * @param currentCommandString - The current command string, which might contain a folder path prefix.
  * @param currentCwd - The current working directory.
  * @returns The new working directory.
  */
 export async function resolveCwdFromCurrentCommandString(currentCommandString: string, currentCwd?: vscode.Uri): Promise<vscode.Uri | undefined> {
-	// Set prefix to the last word of the original prefix
-	currentCommandString = currentCommandString.split(/\s+/).pop()?.trim() ?? '';
+	const prefix = currentCommandString.split(/\s+/).pop()?.trim() ?? '';
 
 	if (!currentCwd) {
 		return;
@@ -172,14 +171,14 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 			// TODO: This support is very basic, ideally the slashes supported would depend upon the
 			//       shell type. For example git bash under Windows does not allow using \ as a path
 			//       separator.
-			lastSlashIndex = currentCommandString.lastIndexOf('\\');
+			lastSlashIndex = prefix.lastIndexOf('\\');
 			if (lastSlashIndex === -1) {
-				lastSlashIndex = currentCommandString.lastIndexOf('/');
+				lastSlashIndex = prefix.lastIndexOf('/');
 			}
 		} else {
-			lastSlashIndex = currentCommandString.lastIndexOf('/');
+			lastSlashIndex = prefix.lastIndexOf('/');
 		}
-		const relativeFolder = lastSlashIndex === -1 ? '' : currentCommandString.slice(0, lastSlashIndex);
+		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
 
 		// Resolve the absolute path of the prefix
 		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
@@ -225,11 +224,11 @@ export function getCurrentCommandAndArgs(commandLine: string, cursorPosition: nu
 		}
 	}
 
-	// The start of the prefix is after the last reset char (plus one for the char itself)
-	const prefixStart = lastResetIndex + 1;
-	const prefix = beforeCursor.slice(prefixStart).replace(/^\s+/, '');
+	// The start of the current command string is after the last reset char (plus one for the char itself)
+	const currentCommandStart = lastResetIndex + 1;
+	const currentCommandString = beforeCursor.slice(currentCommandStart).replace(/^\s+/, '');
 
-	return prefix;
+	return currentCommandString;
 }
 
 export function asArray<T>(x: T | T[]): T[];
