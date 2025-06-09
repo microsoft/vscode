@@ -63,15 +63,15 @@ export namespace graph {
             return this._nodes.get(data) ?? null;
         }
 
-        findCycles(allData: T[]): Map<T, T[]> {
-            const result = new Map<T, T[]>();
+        findCycles(allData: T[]): Map<T, T[] | undefined> {
+            const result = new Map<T, T[] | undefined>();
             const checked = new Set<T>();
             for (const data of allData) {
                 const node = this.lookup(data);
                 if (!node) {
                     continue;
                 }
-                const r = this._findCycle(node, checked, new Set()) ?? [];
+                const r = this._findCycle(node, checked, new Set());
                 result.set(node.data, r);
             }
             return result;

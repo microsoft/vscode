@@ -429,16 +429,18 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			toBeCheckedForCycles.length = 0;
 
 			for (const [filename, error] of cycles) {
-				const cycleError: ts.Diagnostic = {
-					category: ts.DiagnosticCategory.Error,
-					code: 1,
-					file: undefined,
-					start: undefined,
-					length: undefined,
-					messageText: `CYCLIC dependency: ${error}`
-				};
-				onError(cycleError);
-				newErrors[filename] = [cycleError];
+				const cyclicDepErrors: ts.Diagnostic[] = [];
+				if (error) {
+					cyclicDepErrors.push({
+						category: ts.DiagnosticCategory.Error,
+						code: 1,
+						file: undefined,
+						start: undefined,
+						length: undefined,
+						messageText: `CYCLIC dependency: ${error}`
+					});
+				}
+				newErrors[filename] = cyclicDepErrors;
 			}
 
 		}).then(() => {
@@ -662,19 +664,15 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 	}
 
-	getCyclicDependencies(filenames: string[]): Map<string, string> {
+	getCyclicDependencies(filenames: string[]): Map<string, string | undefined> {
 		// Ensure dependencies are up to date
 		while (this._dependenciesRecomputeList.length) {
 			this._processFile(this._dependenciesRecomputeList.pop()!);
 		}
-		const t2 = performance.now();
-		console.log(`START CYCLE_CHECK for ${filenames.length} files`);
 		const cycles = this._dependencies.findCycles(filenames);
-		console.log(`END CYCLE_CHECK after ${performance.now() - t2}ms`);
-
-		const result = new Map<string, string>();
+		const result = new Map<string, string | undefined>();
 		for (const [key, value] of cycles) {
-			result.set(key, value.join(' -> '));
+			result.set(key, value?.join(' -> '));
 		}
 		return result;
 	}

@@ -63,7 +63,7 @@ var graph;
                 if (!node) {
                     continue;
                 }
-                const r = this._findCycle(node, checked, new Set()) ?? [];
+                const r = this._findCycle(node, checked, new Set());
                 result.set(node.data, r);
             }
             return result;
