@@ -45,6 +45,7 @@ export class NotebookVariablesView extends ViewPane {
 	private tree: WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
 	private readonly dataSource: NotebookVariableDataSource;
+	private readonly accessibilityProvider: NotebookVariableAccessibilityProvider;
 
 	private updateScheduler: RunOnceScheduler;
 
@@ -76,6 +77,7 @@ export class NotebookVariablesView extends ViewPane {
 		this.handleActiveEditorChange(false);
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
+		this.accessibilityProvider = new NotebookVariableAccessibilityProvider();
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
 
@@ -91,7 +93,7 @@ export class NotebookVariablesView extends ViewPane {
 			[this.instantiationService.createInstance(NotebookVariableRenderer)],
 			this.dataSource,
 			{
-				accessibilityProvider: new NotebookVariableAccessibilityProvider(),
+				accessibilityProvider: this.accessibilityProvider,
 				identityProvider: { getId: (e: INotebookVariableElement) => e.id },
 			});
 
@@ -150,8 +152,10 @@ export class NotebookVariablesView extends ViewPane {
 
 		if (isCompositeNotebookEditorInput(editor.input)) {
 			this.updateTitle(NotebookVariablesView.REPL_TITLE.value);
+			this.accessibilityProvider.updateWidgetAriaLabel(NotebookVariablesView.REPL_TITLE.value);
 		} else {
 			this.updateTitle(NotebookVariablesView.NOTEBOOK_TITLE.value);
+			this.accessibilityProvider.updateWidgetAriaLabel(NotebookVariablesView.NOTEBOOK_TITLE.value);
 		}
 
 		if (doUpdate) {
