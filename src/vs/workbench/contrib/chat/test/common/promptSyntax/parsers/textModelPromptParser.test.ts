@@ -15,14 +15,14 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
+
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ExpectedDiagnosticError, ExpectedDiagnosticWarning, TExpectedDiagnostic } from '../testUtils/expectedDiagnostic.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -177,7 +177,7 @@ suite('TextModelPromptParser', () => {
 		);
 	};
 
-	test('• core logic #1', async () => {
+	test('core logic #1', async () => {
 		const test = createTest(
 			URI.file('/foo/bar.md'),
 			[
@@ -227,7 +227,7 @@ suite('TextModelPromptParser', () => {
 		]);
 	});
 
-	test('• core logic #2', async () => {
+	test('core logic #2', async () => {
 		const test = createTest(
 			URI.file('/absolute/folder/and/a/filename.txt'),
 			[
@@ -289,7 +289,7 @@ suite('TextModelPromptParser', () => {
 		]);
 	});
 
-	suite('• header', () => {
+	suite('header', () => {
 		suite(' • metadata', () => {
 			suite(' • instructions', () => {
 				test(`• empty header`, async () => {
@@ -591,8 +591,8 @@ suite('TextModelPromptParser', () => {
 			});
 		});
 
-		suite('• diagnostics', () => {
-			test('• core logic', async () => {
+		suite('diagnostics', () => {
+			test('core logic', async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/filename.txt'),
 					[
@@ -685,8 +685,8 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
-			suite('• tools metadata', () => {
-				test('• tool names can be quoted and non-quoted string', async () => {
+			suite('tools metadata', () => {
+				test('tool names can be quoted and non-quoted string', async () => {
 					const test = createTest(
 						URI.file('/absolute/folder/and/a/my.prompt.md'),
 						[
@@ -722,9 +722,9 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite('• applyTo metadata', () => {
-				suite('• language', () => {
-					test('• prompt', async () => {
+			suite('applyTo metadata', () => {
+				suite('language', () => {
+					test('prompt', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -762,7 +762,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• instructions', async () => {
+					test('instructions', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -802,7 +802,7 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			test('• invalid glob pattern', async () => {
+			test('invalid glob pattern', async () => {
 				const test = createTest(
 					URI.file('/absolute/folder/and/a/my.prompt.md'),
 					[
@@ -843,9 +843,9 @@ suite('TextModelPromptParser', () => {
 				]);
 			});
 
-			suite('• mode', () => {
-				suite('• invalid', () => {
-					test('• quoted string value', async () => {
+			suite('mode', () => {
+				suite('invalid', () => {
+					test('quoted string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -873,7 +873,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• single-token unquoted-string value', async () => {
+					test('single-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -901,7 +901,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• unquoted string value', async () => {
+					test('unquoted string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -929,7 +929,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• multi-token unquoted-string value', async () => {
+					test('multi-token unquoted-string value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -957,7 +957,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• after a description metadata', async () => {
+					test('after a description metadata', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -986,7 +986,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• boolean value', async () => {
+					test('boolean value', async () => {
 						const booleanValue = randomBoolean();
 
 						const test = createTest(
@@ -1016,7 +1016,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• empty quoted string value', async () => {
+					test('empty quoted string value', async () => {
 						const quotedString = (randomBoolean())
 							? `''`
 							: '""';
@@ -1048,7 +1048,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• empty value', async () => {
+					test('empty value', async () => {
 						const value = (randomBoolean())
 							? '\t\t  \t\t'
 							: ' \t \v \t ';
@@ -1080,7 +1080,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• void value', async () => {
+					test('void value', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/my.prompt.md'),
 							[
@@ -1110,9 +1110,9 @@ suite('TextModelPromptParser', () => {
 				});
 			});
 
-			suite('• tools and mode compatibility', () => {
-				suite('• tools is set', () => {
-					test('• ask mode', async () => {
+			suite('tools and mode compatibility', () => {
+				suite('tools is set', () => {
+					test('ask mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1158,7 +1158,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• edit mode', async () => {
+					test('edit mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1204,7 +1204,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• agent mode', async () => {
+					test('agent mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1245,7 +1245,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• no mode', async () => {
+					test('no mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1285,7 +1285,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• invalid mode', async () => {
+					test('invalid mode', async () => {
 						const value = (randomBoolean())
 							? 'unknown mode  '
 							: 'unknown';
@@ -1336,8 +1336,8 @@ suite('TextModelPromptParser', () => {
 					});
 				});
 
-				suite('• tools is not set', () => {
-					test('• ask mode', async () => {
+				suite('tools is not set', () => {
+					test('ask mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1383,7 +1383,7 @@ suite('TextModelPromptParser', () => {
 						]);
 					});
 
-					test('• edit mode', async () => {
+					test('edit mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1424,7 +1424,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• agent mode', async () => {
+					test('agent mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1464,7 +1464,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([]);
 					});
 
-					test('• no mode', async () => {
+					test('no mode', async () => {
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
@@ -1506,7 +1506,7 @@ suite('TextModelPromptParser', () => {
 		});
 	});
 
-	test('• gets disposed with the model', async () => {
+	test('gets disposed with the model', async () => {
 		const test = createTest(
 			URI.file('/some/path/file.prompt.md'),
 			[
@@ -1527,7 +1527,7 @@ suite('TextModelPromptParser', () => {
 		);
 	});
 
-	test('• toString()', async () => {
+	test('toString()', async () => {
 		const modelUri = URI.file('/Users/legomushroom/repos/prompt-snippets/README.md');
 		const test = createTest(
 			modelUri,

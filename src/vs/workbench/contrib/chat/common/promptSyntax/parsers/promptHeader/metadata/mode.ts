@@ -5,7 +5,7 @@
 
 import { ChatMode } from '../../../../constants.js';
 import { PromptEnumMetadata } from './base/enum.js';
-import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.

@@ -39,6 +39,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
+	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
 	acknowledgeDataEvent(charCount: number): void { }

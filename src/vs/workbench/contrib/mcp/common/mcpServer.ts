@@ -668,10 +668,11 @@ class McpPrompt implements IMcpPrompt {
 		return result.messages;
 	}
 
-	async complete(argument: string, prefix: string, token?: CancellationToken): Promise<string[]> {
+	async complete(argument: string, prefix: string, alreadyResolved: Record<string, string>, token?: CancellationToken): Promise<string[]> {
 		const result = await McpServer.callOn(this._server, h => h.complete({
 			ref: { type: 'ref/prompt', name: this._definition.name },
-			argument: { name: argument, value: prefix, }
+			argument: { name: argument, value: prefix },
+			context: { arguments: alreadyResolved },
 		}, token), token);
 		return result.completion.values;
 	}
@@ -849,7 +850,9 @@ class McpResourceTemplate implements IMcpResourceTemplate {
 		const result = await McpServer.callOn(this._server, h => h.complete({
 			ref: { type: 'ref/resource', uri: this._definition.uriTemplate },
 			argument: { name: templatePart, value: prefix },
-			resolved: mapValues(alreadyResolved, v => Array.isArray(v) ? v.join('/') : v),
+			context: {
+				arguments: mapValues(alreadyResolved, v => Array.isArray(v) ? v.join('/') : v),
+			},
 		}, token), token);
 		return result.completion.values;
 	}

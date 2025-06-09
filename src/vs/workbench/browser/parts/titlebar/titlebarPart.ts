@@ -556,15 +556,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private createTitle(): void {
 		this.titleDisposables.clear();
 
+		const isShowingTitleInNativeTitlebar = hasNativeTitlebar(this.configurationService, this.titleBarStyle);
+
 		// Text Title
 		if (!this.isCommandCenterVisible) {
-			this.title.innerText = this.windowTitle.value;
-			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+			if (!isShowingTitleInNativeTitlebar) {
 				this.title.innerText = this.windowTitle.value;
-				if (this.lastLayoutDimensions) {
-					this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
-				}
-			}));
+				this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+					this.title.innerText = this.windowTitle.value;
+					if (this.lastLayoutDimensions) {
+						this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
+					}
+				}));
+			}
 		}
 
 		// Menu Title

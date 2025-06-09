@@ -168,7 +168,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService configService: IConfigurationService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -444,15 +444,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
+		// hack @joaomoreno
+		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
-
-		if (isRequestVM(element)) {
-			templateData.rowContainer.tabIndex = -1;
-		} else {
-			templateData.rowContainer.tabIndex = 0;
-		}
-
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
@@ -803,6 +798,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getNextProgressiveRenderContent(element: IChatResponseViewModel): { content: IChatRendererContent[]; moreContentAvailable: boolean } {
 		const data = this.getDataForProgressiveRender(element);
 
+		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
+		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
+
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
@@ -816,7 +814,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
-			if (part.kind === 'markdownContent') {
+			if (part.kind === 'markdownContent' && !renderImmediately) {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;

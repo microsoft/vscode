@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_LANGUAGE_ID } from '../constants.js';
+import { PROMPT_LANGUAGE_ID } from '../promptTypes.js';
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -12,7 +12,7 @@ import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js'
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { isPromptOrInstructionsFile } from '../../../../../../platform/prompts/common/prompts.js';
+import { isPromptOrInstructionsFile } from '../config/promptFileLocations.js';
 import { IPromptContentsProviderOptions, PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';

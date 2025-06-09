@@ -6,7 +6,6 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from './quickFix.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
@@ -20,6 +19,8 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private _providers: Map<string, ITerminalQuickFixProvider> = new Map();
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
+	private _pendingProviders: Map<string, ITerminalQuickFixProvider> = new Map();
+
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 	private readonly _onDidRegisterCommandSelector = new Emitter<ITerminalCommandSelector>();
@@ -29,9 +30,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 
 	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-	) {
+	constructor() {
 		this.extensionQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
 			r(fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
 				if (!c.value) {
@@ -50,6 +49,14 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	registerCommandSelector(selector: ITerminalCommandSelector): void {
 		this._selectors.set(selector.id, selector);
 		this._onDidRegisterCommandSelector.fire(selector);
+
+		// Check if there's a pending provider for this selector
+		const pendingProvider = this._pendingProviders.get(selector.id);
+		if (pendingProvider) {
+			this._pendingProviders.delete(selector.id);
+			this._providers.set(selector.id, pendingProvider);
+			this._onDidRegisterProvider.fire({ selector, provider: pendingProvider });
+		}
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
@@ -61,17 +68,20 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 			if (disposed) {
 				return;
 			}
-			this._providers.set(id, provider);
 			const selector = this._selectors.get(id);
-			if (!selector) {
-				this._logService.error(`No registered selector for ID: ${id}`);
-				return;
+			if (selector) {
+				// Selector is already available, register immediately
+				this._providers.set(id, provider);
+				this._onDidRegisterProvider.fire({ selector, provider });
+			} else {
+				// Selector not yet available, store provider as pending
+				this._pendingProviders.set(id, provider);
 			}
-			this._onDidRegisterProvider.fire({ selector, provider });
 		});
 		return toDisposable(() => {
 			disposed = true;
 			this._providers.delete(id);
+			this._pendingProviders.delete(id);
 			const selector = this._selectors.get(id);
 			if (selector) {
 				this._selectors.delete(id);

@@ -17,7 +17,6 @@ import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -94,7 +93,7 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
-import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
+import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
@@ -193,11 +192,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// prompt files may have nested child references to other prompt
 		// files that are resolved asynchronously, hence we need to wait
 		// for the entire prompt instruction tree to be processed
-		await logExecutionTime('instructions tree resolve',
-			this.promptInstructionsAttachmentsPart
-				.allSettled.bind(this.promptInstructionsAttachmentsPart),
-			this.logService.trace.bind(this.logService),
-		);
+		this.promptInstructionsAttachmentsPart
+			.allSettled.bind(this.promptInstructionsAttachmentsPart);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
@@ -435,6 +431,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;
+
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this._indexOfLastOpenedContext = -1;
+		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, observableFromEvent(this, this.onDidChangeCurrentChatMode, () => this.currentMode)));
@@ -1493,7 +1493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				arg: { sessionId: chatEditingSession.chatSessionId },
 			},
 			buttonConfigProvider: (action) => {
-				if (action.id === ChatEditingShowChangesAction.ID || action.id === ChatEditingRemoveAllFilesAction.ID || action.id === ViewPreviousEditsAction.Id) {
+				if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
 					return { showIcon: true, showLabel: false, isSecondary: true };
 				}
 				return undefined;
