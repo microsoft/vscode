@@ -251,17 +251,18 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 		super({
 			id: 'notebook.action.toggleNotebookStickyScroll',
 			title: {
-				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				...localize2('toggleStickyScroll', "Toggle Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Sticky Scroll"),
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
-				title: localize('notebookStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				title: localize('stickyScroll', "Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
 			menu: [
-				{ id: MenuId.CommandPalette }
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
+				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}
@@ -273,23 +274,11 @@ registerAction2(class ToggleNotebookStickyScroll extends Action2 {
 	}
 });
 
-// Register the toggle action with a shorter title for notebook-specific contexts
-MenuRegistry.appendMenuItem(MenuId.NotebookStickyScrollContext, {
+// Register the action with "Notebook" prefix for Command Palette where context is needed
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'notebook.action.toggleNotebookStickyScroll',
-		title: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
-		toggled: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true)
-	},
-	group: 'notebookView',
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbarContext, {
-	command: {
-		id: 'notebook.action.toggleNotebookStickyScroll',
-		title: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
-		toggled: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true)
-	},
-	group: 'notebookView',
-	order: 2
+		title: localize('toggleNotebookStickyScroll', "Toggle Notebook Sticky Scroll"),
+		category: Categories.View
+	}
 });
