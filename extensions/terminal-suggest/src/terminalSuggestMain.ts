@@ -158,6 +158,9 @@ export async function activate(context: vscode.ExtensionContext) {
  * @returns The new working directory.
  */
 export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.Uri): Promise<vscode.Uri | undefined> {
+	// Set prefix to the last word of the original prefix
+	prefix = prefix.split(/\s+/).pop()?.trim() ?? '';
+
 	if (!currentCwd) {
 		return;
 	}
