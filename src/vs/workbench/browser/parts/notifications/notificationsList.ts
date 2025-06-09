@@ -18,8 +18,7 @@ import { assertReturnsAllDefined } from '../../../../base/common/types.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
-import { NotificationActionRunner } from './notificationsCommands.js';
-import { getSeverityPrefix } from './notificationsCommands.js';
+import { getSeverityPrefix, NotificationActionRunner } from './notificationsCommands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 

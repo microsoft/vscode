@@ -16,8 +16,7 @@ import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../c
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { INotificationsToastController } from './notificationsCommands.js';
-import { getSeverityPrefix } from './notificationsCommands.js';
+import { getSeverityPrefix, INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
