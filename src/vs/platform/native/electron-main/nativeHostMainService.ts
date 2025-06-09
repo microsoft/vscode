@@ -616,20 +616,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			await shell.openExternal(url);
 		} catch (error) {
 			let isLink: boolean;
-			let title: string;
 			let message: string;
 			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
 				isLink = true;
-				title = localize('openExternalErrorLinkTitle', "Error Opening Link");
 				message = localize('openExternalErrorLinkMessage', "An error occurred opening a link in your default browser.");
 			} else {
 				isLink = false;
-				title = localize('openExternalProgramErrorTitle', "Error Opening External Program");
 				message = localize('openExternalProgramErrorMessage', "An error occurred opening an external program.");
 			}
 
 			const { response } = await this.dialogMainService.showMessageBox({
-				title,
+				type: 'error',
 				message,
 				detail: error.message,
 				buttons: isLink ? [
