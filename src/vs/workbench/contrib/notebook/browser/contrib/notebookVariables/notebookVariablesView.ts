@@ -74,10 +74,10 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 		this._register(this.editorService.onDidCloseEditor((e) => this.handleCloseEditor(e)));
 
+		this.accessibilityProvider = new NotebookVariableAccessibilityProvider();
 		this.handleActiveEditorChange(false);
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
-		this.accessibilityProvider = new NotebookVariableAccessibilityProvider();
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
 
