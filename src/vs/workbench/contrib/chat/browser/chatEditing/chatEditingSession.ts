@@ -529,28 +529,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._entriesObs.set(entriesArr, undefined);
 	}
 
-	remove(...uris: URI[]): void {
-		this._assertNotDisposed();
-
-		let didRemoveUris = false;
-		for (const uri of uris) {
-
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				entry.dispose();
-				const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
-				this._entriesObs.set(newEntries, undefined);
-				didRemoveUris = true;
-			}
-
-		}
-
-		if (!didRemoveUris) {
-			return; // noop
-		}
-
-	}
-
 	private _assertNotDisposed(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			throw new BugIndicatingError(`Cannot access a disposed editing session`);
