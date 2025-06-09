@@ -63,7 +63,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
     const host = new LanguageServiceHost(cmd, projectFile, _log);
     const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
-    let lastCycleCheckVersion;
+    const toBeCheckedForCycles = [];
     const service = typescript_1.default.createLanguageService(host, typescript_1.default.createDocumentRegistry());
     const lastBuildVersion = Object.create(null);
     const lastDtsHash = Object.create(null);
@@ -294,6 +294,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
                         if (jsValue) {
                             outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+                            toBeCheckedForCycles.push(jsValue.path);
                         }
                     }).catch(e => {
                         // can't just skip this or make a result up..
@@ -387,24 +388,19 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             workOnNext();
         }).then(() => {
             // check for cyclic dependencies
-            const thisCycleCheckVersion = outHost.getProjectVersion();
-            if (thisCycleCheckVersion === lastCycleCheckVersion) {
-                return;
-            }
-            const oneCycle = outHost.hasCyclicDependency();
-            lastCycleCheckVersion = thisCycleCheckVersion;
-            delete oldErrors[projectFile];
-            if (oneCycle) {
+            const cycles = outHost.getCyclicDependencies(toBeCheckedForCycles);
+            toBeCheckedForCycles.length = 0;
+            for (const [filename, error] of cycles) {
                 const cycleError = {
                     category: typescript_1.default.DiagnosticCategory.Error,
                     code: 1,
                     file: undefined,
                     start: undefined,
                     length: undefined,
-                    messageText: `CYCLIC dependency between ${oneCycle}`
+                    messageText: `CYCLIC dependency: ${error}`
                 };
                 onError(cycleError);
-                newErrors[projectFile] = [cycleError];
+                newErrors[filename] = [cycleError];
             }
         }).then(() => {
             // store the build versions to not rebuilt the next time
@@ -588,15 +584,20 @@ class LanguageServiceHost {
             node.incoming.forEach(entry => target.push(entry.data));
         }
     }
-    hasCyclicDependency() {
+    getCyclicDependencies(filenames) {
         // Ensure dependencies are up to date
         while (this._dependenciesRecomputeList.length) {
             this._processFile(this._dependenciesRecomputeList.pop());
         }
-        const cycle = this._dependencies.findCycle();
-        return cycle
-            ? cycle.join(' -> ')
-            : undefined;
+        const t2 = performance.now();
+        console.log(`START CYCLE_CHECK for ${filenames.length} files`);
+        const cycles = this._dependencies.findCycles(filenames);
+        console.log(`END CYCLE_CHECK after ${performance.now() - t2}ms`);
+        const result = new Map();
+        for (const [key, value] of cycles) {
+            result.set(key, value.join(' -> '));
+        }
+        return result;
     }
     _processFile(filename) {
         if (filename.match(/.*\.d\.ts$/)) {

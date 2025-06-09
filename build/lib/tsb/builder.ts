@@ -44,7 +44,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	const host = new LanguageServiceHost(cmd, projectFile, _log);
 
 	const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
-	let lastCycleCheckVersion: string;
+	const toBeCheckedForCycles: string[] = [];
 
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const lastBuildVersion: { [path: string]: string } = Object.create(null);
@@ -315,6 +315,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
 						if (jsValue) {
 							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+							toBeCheckedForCycles.push(jsValue.path);
 						}
 
 					}).catch(e => {
@@ -424,25 +425,20 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		}).then(() => {
 			// check for cyclic dependencies
-			const thisCycleCheckVersion = outHost.getProjectVersion();
-			if (thisCycleCheckVersion === lastCycleCheckVersion) {
-				return;
-			}
-			const oneCycle = outHost.hasCyclicDependency();
-			lastCycleCheckVersion = thisCycleCheckVersion;
-			delete oldErrors[projectFile];
+			const cycles = outHost.getCyclicDependencies(toBeCheckedForCycles);
+			toBeCheckedForCycles.length = 0;
 
-			if (oneCycle) {
+			for (const [filename, error] of cycles) {
 				const cycleError: ts.Diagnostic = {
 					category: ts.DiagnosticCategory.Error,
 					code: 1,
 					file: undefined,
 					start: undefined,
 					length: undefined,
-					messageText: `CYCLIC dependency between ${oneCycle}`
+					messageText: `CYCLIC dependency: ${error}`
 				};
 				onError(cycleError);
-				newErrors[projectFile] = [cycleError];
+				newErrors[filename] = [cycleError];
 			}
 
 		}).then(() => {
@@ -666,15 +662,21 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 	}
 
-	hasCyclicDependency(): string | undefined {
+	getCyclicDependencies(filenames: string[]): Map<string, string> {
 		// Ensure dependencies are up to date
 		while (this._dependenciesRecomputeList.length) {
 			this._processFile(this._dependenciesRecomputeList.pop()!);
 		}
-		const cycle = this._dependencies.findCycle();
-		return cycle
-			? cycle.join(' -> ')
-			: undefined;
+		const t2 = performance.now();
+		console.log(`START CYCLE_CHECK for ${filenames.length} files`);
+		const cycles = this._dependencies.findCycles(filenames);
+		console.log(`END CYCLE_CHECK after ${performance.now() - t2}ms`);
+
+		const result = new Map<string, string>();
+		for (const [key, value] of cycles) {
+			result.set(key, value.join(' -> '));
+		}
+		return result;
 	}
 
 	_processFile(filename: string): void {
