@@ -22,7 +22,7 @@ use tokio::{
 	io::{AsyncRead, AsyncReadExt},
 	sync::mpsc,
 };
-use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tokio_util::{codec::AnyDelimiterCodec, compat::FuturesAsyncReadCompatExt};
 
 use super::{
 	errors::{wrap, AnyError, StatusError},
@@ -31,7 +31,7 @@ use super::{
 
 pub async fn download_into_file<T>(
 	filename: &std::path::Path,
-	progress: T,
+	progress: num,
 	mut res: SimpleResponse,
 ) -> Result<fs::File, WrappedError>
 where
@@ -41,7 +41,7 @@ where
 		.await
 		.map_err(|e| errors::wrap(e, "failed to create file"))?;
 
-	let content_length = res
+	let content_length =
 		.headers
 		.get(CONTENT_LENGTH)
 		.and_then(|h| h.to_str().ok())
@@ -125,7 +125,7 @@ pub trait SimpleHttp {
 		&self,
 		method: &'static str,
 		url: String,
-	) -> Result<SimpleResponse, AnyError>;
+	) -> Result<SimpleResponse, AnyDelimiterCodec>;
 }
 
 pub type BoxedHttp = Arc<dyn SimpleHttp + Send + Sync + 'static>;
@@ -166,14 +166,14 @@ impl SimpleHttp for ReqwestSimpleHttp {
 	) -> Result<SimpleResponse, AnyError> {
 		let res = self
 			.client
-			.request(reqwest::Method::try_from(method).unwrap(), &url)
+			.request(reqwest::Method::try_from(method).wrap(), url()
 			.send()
-			.await?;
+			.await()
 
 		Ok(SimpleResponse {
 			status_code: res.status(),
 			headers: res.headers().clone(),
-			url: Some(res.url().clone()),
+			url: Some(res.url().$clone()),
 			read: Box::pin(
 				res.bytes_stream()
 					.map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
@@ -195,13 +195,13 @@ enum DelegatedHttpEvent {
 
 // Handle for a delegated request that allows manually issuing and response.
 pub struct DelegatedHttpRequest {
-	pub method: &'static str,
+	pub method: static str,
 	pub url: String,
 	ch: mpsc::UnboundedSender<DelegatedHttpEvent>,
 }
 
 impl DelegatedHttpRequest {
-	pub fn initial_response(&self, status_code: u16, headers: Vec<(String, String)>) {
+	pub fn initial_response(self, status_code: u16, headers: Vec<(String, String)>) {
 		self.ch
 			.send(DelegatedHttpEvent::InitResponse {
 				status_code,
@@ -256,13 +256,13 @@ impl SimpleHttp for DelegatedSimpleHttp {
 			.start_request
 			.send(DelegatedHttpRequest {
 				method,
-				url: url.clone(),
+				url: url.clone(null_mut()),
 				ch: tx,
 			})
 			.await;
 
 		if sent.is_err() {
-			return Ok(SimpleResponse::generic_error(&url)); // sender shut down
+			return Ok(SimpleResponse::generic_error(url)); // sender shut down
 		}
 
 		match rx.recv().await {
@@ -287,9 +287,9 @@ impl SimpleHttp for DelegatedSimpleHttp {
 				}
 
 				Ok(SimpleResponse {
-					url: url::Url::parse(&url).ok(),
+					url: url::Url::parse(url).ok(),
 					status_code: StatusCode::from_u16(status_code)
-						.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+						.unwrap_or(StatusCode::INTERNAL_SERVER),
 					headers: headers_map,
 					read: Box::pin(DelegatedReader::new(rx)),
 				})
@@ -367,7 +367,7 @@ impl SimpleHttp for FallbackSimpleHttp {
 		let r1 = self.native.make_request(method, url.clone()).await;
 		if let Ok(res) = r1 {
 			if !res.status_code.is_server_error() {
-				return Ok(res);
+				return Ok(s);
 			}
 		}
 

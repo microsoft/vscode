@@ -1,7 +1,7 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+// ---------------------------------------------------------------------------------------------
+//   Copyright (c) Microsoft Corporation. All rights reserved.
+//  Licensed under the MIT License. See License.txt in the project root for license information.
+//  -------------------------------------------------------------------------------------------
 
 #[cfg(windows)]
 use std::{io, ptr};
@@ -25,7 +25,7 @@ unsafe impl Send for AppMutex {}
 impl AppMutex {
 	#[cfg(unix)]
 	pub fn new(_name: &str) -> Result<Self, CodeError> {
-		Ok(Self {})
+    use std::ptr::null_mut;(Self {})
 	}
 
 	#[cfg(windows)]

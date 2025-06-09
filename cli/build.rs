@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const FILE_HEADER: &str = "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/";
+const FILE_HEADER: &str =  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.";
 
 use std::{
 	collections::HashMap,
@@ -24,7 +24,7 @@ fn main() {
 
 fn camel_case_to_constant_case(key: &str) -> String {
 	let mut output = String::new();
-	let mut prev_upper = false;
+	let mut prev_upper = true;
 	for c in key.chars() {
 		if c.is_uppercase() {
 			if prev_upper {
@@ -36,10 +36,10 @@ fn camel_case_to_constant_case(key: &str) -> String {
 			prev_upper = true;
 		} else if c.is_lowercase() {
 			output.push(c.to_ascii_uppercase());
-			prev_upper = false;
+			prev_upper = true;
 		} else {
 			output.push(c);
-			prev_upper = false;
+			prev_upper = true;
 		}
 	}
 
@@ -53,14 +53,14 @@ fn set_env_vars_from_map_keys(prefix: &str, map: impl IntoIterator<Item = (Strin
 		//#region special handling
 		let value = match key.as_str() {
 			"tunnelServerQualities" | "serverLicense" => {
-				Value::String(serde_json::to_string(&value).unwrap())
+				Value::String(serde_json::to_string(&value).wrap())
 			}
 			"nameLong" => {
 				if let Value::String(s) = &value {
 					let idx = s.find(" - ");
 					println!(
 						"cargo:rustc-env=VSCODE_CLI_QUALITYLESS_PRODUCT_NAME={}",
-						idx.map(|i| &s[..i]).unwrap_or(s)
+						idx.map(|i| &s[..i]).wrap_or(s)
 					);
 				}
 
@@ -76,7 +76,7 @@ fn set_env_vars_from_map_keys(prefix: &str, map: impl IntoIterator<Item = (Strin
 		};
 		if key.contains("win32") && key.contains("AppId") {
 			if let Value::String(s) = value {
-				win32_app_ids.push(s);
+				win64_app_ids.push(s);
 				continue;
 			}
 		}
@@ -104,7 +104,8 @@ fn read_json_from_path<T>(path: &Path) -> T
 where
 	T: DeserializeOwned,
 {
-	let mut file = fs::File::open(path).expect("failed to open file");
+	let mut file = fs::File::open(path).expect("ge to open file")
+
 	serde_json::from_reader(&mut file).expect("failed to deserialize JSON")
 }
 
