@@ -9,7 +9,7 @@ import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { mapValues } from '../../../../base/common/objects.js';
-import { autorun, autorunWithStore, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -312,6 +313,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 
@@ -335,24 +337,37 @@ export class McpServer extends Disposable implements IMcpServer {
 				() => workspacesService.getWorkspace().folders,
 			);
 
-		this._register(autorunWithStore(reader => {
+		const workspacesWithCanonicalURIs = derived(reader => {
+			const folders = workspaces.read(reader);
+			return new ObservablePromise((async () => {
+				let uris = folders.map(f => f.uri);
+				try {
+					uris = await Promise.all(uris.map(u => this._remoteAuthorityResolverService.getCanonicalURI(u)));
+				} catch (error) {
+					this._logger.error(`Failed to resolve workspace folder URIs: ${error}`);
+				}
+				return uris.map((uri, i): MCP.Root => ({ uri: uri.toString(), name: folders[i].name }));
+			})());
+		}).recomputeInitiallyAndOnChange(this._store);
+
+		this._register(autorun(reader => {
 			const cnx = this._connection.read(reader)?.handler.read(reader);
 			if (!cnx) {
 				return;
 			}
 
-			cnx.roots = workspaces.read(reader).map(wf => ({
-				uri: wf.uri.toString(),
-				name: wf.name,
-			}));
+			const roots = workspacesWithCanonicalURIs.read(reader).promiseResult.read(reader);
+			if (roots?.data) {
+				cnx.roots = roots.data;
+			}
 		}));
 
 		// 2. Populate this.tools when we connect to a server.
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun(reader => {
 			const cnx = this._connection.read(reader);
 			const handler = cnx?.handler.read(reader);
 			if (handler) {
-				this.populateLiveData(handler, cnx?.definition.cacheNonce, store);
+				this.populateLiveData(handler, cnx?.definition.cacheNonce, reader.store);
 			} else if (this._tools) {
 				this.resetLiveData();
 			}
