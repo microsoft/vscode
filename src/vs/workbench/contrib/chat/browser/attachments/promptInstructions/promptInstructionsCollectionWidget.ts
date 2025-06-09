@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { InstructionsAttachmentWidget } from './promptInstructionsWidget.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';

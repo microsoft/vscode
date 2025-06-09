@@ -334,6 +334,11 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.handleInput?.(data);
 	}
 
+	sendSignal(signal: string): void {
+		// Extension owned terminals don't support sending signals directly to processes
+		// This could be extended in the future if the pseudoterminal API is enhanced
+	}
+
 	resize(cols: number, rows: number): void {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}

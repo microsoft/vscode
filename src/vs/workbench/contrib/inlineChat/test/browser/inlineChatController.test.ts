@@ -67,7 +67,7 @@ import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../ch
 import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
-import { IPromptsService } from '../../../chat/common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../chat/test/common/mockChatModeService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';

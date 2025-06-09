@@ -329,6 +329,7 @@ export class McpResourcePickHelper {
 				rec.templates.complete([]);
 				rec.resources.complete([]);
 			}
+			publish();
 		})).finally(() => {
 			store.dispose();
 		});

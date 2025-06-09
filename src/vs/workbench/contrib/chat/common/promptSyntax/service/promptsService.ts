@@ -3,392 +3,222 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from '../utils/treeUtils.js';
-import { localize } from '../../../../../../nls.js';
-import { PROMPT_LANGUAGE_ID } from '../constants.js';
-import { PromptParser } from '../parsers/promptParser.js';
-import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
-import { pick } from '../../../../../../base/common/arrays.js';
-import { type URI } from '../../../../../../base/common/uri.js';
-import { type IPromptFileReference } from '../parsers/types.js';
-import { assert } from '../../../../../../base/common/assert.js';
-import { basename } from '../../../../../../base/common/path.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
-import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { TTree } from '../utils/treeUtils.js';
+import { ChatMode } from '../../constants.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { TMetadata } from '../parsers/promptHeader/headerBase.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { logTime, TLogFunction } from '../../../../../../base/common/decorators/logTime.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './types.js';
-import { getCleanPromptName, isValidPromptType, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../promptTypes.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Provides prompt services.
  */
-export class PromptsService extends Disposable implements IPromptsService {
-	public declare readonly _serviceBrand: undefined;
+export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
+
+/**
+ * Where the prompt is stored.
+ */
+export type TPromptsStorage = 'local' | 'user';
+
+/**
+ * Represents a prompt path with its type.
+ * This is used for both prompt files and prompt source folders.
+ */
+export interface IPromptPath {
+	/**
+	 * URI of the prompt.
+	 */
+	readonly uri: URI;
 
 	/**
-	 * Cache of text model content prompt parsers.
+	 * Storage of the prompt.
 	 */
-	private readonly cache: ObjectCache<TextModelPromptParser, ITextModel>;
+	readonly storage: TPromptsStorage;
 
 	/**
-	 * Prompt files locator utility.
+	 * Type of the prompt (e.g. 'prompt' or 'instructions').
 	 */
-	private readonly fileLocator: PromptFilesLocator;
+	readonly type: PromptsType;
+}
+
+/**
+ * Type for a shared prompt parser instance returned by the {@link IPromptsService}.
+ * Because the parser is shared, we omit the `dispose` method from
+ * the original type so the caller cannot dispose it prematurely
+ */
+export type TSharedPrompt = Omit<TextModelPromptParser, 'dispose'>;
+
+/**
+ * Metadata node object in a hierarchical tree of prompt references.
+ */
+export interface IMetadata {
+	/**
+	 * URI of a prompt file.
+	 */
+	readonly uri: URI;
 
 	/**
-	 * Function used by the `@logTime` decorator to log
-	 * execution time of some of the decorated methods.
+	 * Metadata of the prompt file.
 	 */
-	public logTime: TLogFunction;
+	readonly metadata: TMetadata | null;
 
 	/**
-	 * Lazily created event that is fired when the custom chat modes change.
+	 * List of metadata for each valid child prompt reference.
 	 */
-	private onDidChangeCustomChatModesEvent: Event<void> | undefined;
+	readonly children?: readonly TTree<IMetadata | null>[];
+}
 
-	constructor(
-		@ILogService public readonly logger: ILogService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IModelService private readonly modelService: IModelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-	) {
-		super();
-
-		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
-
-		this.logTime = this.logger.trace.bind(this.logger);
-
-		// the factory function below creates a new prompt parser object
-		// for the provided model, if no active non-disposed parser exists
-		this.cache = this._register(
-			new ObjectCache((model) => {
-				assert(
-					model.isDisposed() === false,
-					'Text model must not be disposed.',
-				);
-
-				/**
-				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
-				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
-				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
-				 */
-				const parser: TextModelPromptParser = instantiationService.createInstance(
-					TextModelPromptParser,
-					model,
-					{ seenReferences: [] },
-				).start();
-
-				// this is a sanity check and the contract of the object cache,
-				// we must return a non-disposed object from this factory function
-				parser.assertNotDisposed(
-					'Created prompt parser must not be disposed.',
-				);
-
-				return parser;
-			})
-		);
-	}
+export interface ICustomChatMode {
+	/**
+	 * URI of a custom chat mode file.
+	 */
+	readonly uri: URI;
 
 	/**
-	 * Emitter for the custom chat modes change event.
+	 * Name of the custom chat mode.
 	 */
-	public get onDidChangeCustomChatModes(): Event<void> {
-		if (!this.onDidChangeCustomChatModesEvent) {
-			this.onDidChangeCustomChatModesEvent = this.fileLocator.getFilesUpdatedEvent(PromptsType.mode);
-		}
-		return this.onDidChangeCustomChatModesEvent;
-	}
-
+	readonly name: string;
 
 	/**
-	 * @throws {Error} if:
-	 * 	- the provided model is disposed
-	 * 	- newly created parser is disposed immediately on initialization.
-	 * 	  See factory function in the {@link constructor} for more info.
+	 * Description of the mode
 	 */
-	public getSyntaxParserFor(
+	readonly description?: string;
+
+	/**
+	 * Tools metadata in the prompt header.
+	 */
+	readonly tools?: readonly string[];
+
+	/**
+	 * Contents of the custom chat mode file body.
+	 */
+	readonly body: string;
+}
+
+/**
+ * Type of combined tools metadata for the case
+ * when the prompt is in the agent mode.
+ */
+interface ICombinedAgentToolsMetadata {
+	/**
+	 * List of combined tools metadata for
+	 * the entire tree of prompt references.
+	 */
+	readonly tools: readonly string[] | undefined;
+
+	/**
+	 * Resulting chat mode of a prompt, based on modes
+	 * used in the entire tree of prompt references.
+	 */
+	readonly mode: ChatMode.Agent;
+}
+
+/**
+ * Type of combined tools metadata for the case
+ * when the prompt is in non-agent mode.
+ */
+interface ICombinedNonAgentToolsMetadata {
+	/**
+	 * List of combined tools metadata is empty
+	 * when the prompt is in non-agent mode.
+	 */
+	readonly tools: undefined;
+
+	/**
+	 * Resulting chat mode of a prompt, based on modes
+	 * used in the entire tree of prompt references.
+	 */
+	readonly mode?: ChatMode.Ask | ChatMode.Edit;
+}
+
+/**
+ * General type of the combined tools metadata.
+ */
+export type TCombinedToolsMetadata = ICombinedAgentToolsMetadata | ICombinedNonAgentToolsMetadata;
+
+/**
+ * Provides prompt services.
+ */
+export interface IPromptsService extends IDisposable {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Get a prompt syntax parser for the provided text model.
+	 * See {@link TextModelPromptParser} for more info on the parser API.
+	 */
+	getSyntaxParserFor(
 		model: ITextModel,
-	): TextModelPromptParser & { isDisposed: false } {
-		assert(
-			model.isDisposed() === false,
-			'Cannot create a prompt syntax parser for a disposed model.',
-		);
+	): TSharedPrompt & { isDisposed: false };
 
-		return this.cache.get(model);
-	}
+	/**
+	 * List all available prompt files.
+	 */
+	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
-	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const prompts = await Promise.all([
-			this.fileLocator.listFiles(type, 'user', token)
-				.then(withType('user', type)),
-			this.fileLocator.listFiles(type, 'local', token)
-				.then(withType('local', type)),
-		]);
+	/**
+	 * Get a list of prompt source folders based on the provided prompt type.
+	 */
+	getSourceFolders(type: PromptsType): readonly IPromptPath[];
 
-		return prompts.flat();
-	}
+	/**
+	 * Returns a prompt command if the command name.
+	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 */
+	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
 
-	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
-		// sanity check to make sure we don't miss a new
-		// prompt type that could be added in the future
-		assert(isValidPromptType(type), `Unknown prompt type '${type}'.`);
+	/**
+	 * Gets the prompt file for a slash command.
+	 */
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined>;
 
-		const result: IPromptPath[] = [];
+	/**
+	 * Returns a prompt command if the command name is valid.
+	 */
+	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
 
-		for (const uri of this.fileLocator.getConfigBasedSourceFolders(type)) {
-			result.push({ uri, storage: 'local', type });
-		}
-		const userHome = this.userDataService.currentProfile.promptsHome;
-		result.push({ uri: userHome, storage: 'user', type });
+	/**
+	 * Find all instruction files which have a glob pattern in their
+	 * 'applyTo' metadata record that match the provided list of files.
+	 */
+	findInstructionFilesFor(
+		fileUris: readonly URI[],
+	): Promise<readonly URI[]>;
 
-		return result;
-	}
+	/**
+	 * Event that is triggered when the list of custom chat modes changes.
+	 */
+	readonly onDidChangeCustomChatModes: Event<void>;
 
-	public asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
-		if (command.match(/^[\w_\-\.]+$/)) {
-			return { command, detail: localize('prompt.file.detail', 'Prompt file: {0}', command) };
-		}
-		return undefined;
-	}
+	/**
+	 * Finds all available custom chat modes
+	 */
+	getCustomChatModes(): Promise<readonly ICustomChatMode[]>;
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
-		const promptUri = await this.getPromptPath(data);
-		if (!promptUri) {
-			return undefined;
-		}
-		return await this.getMetadata(promptUri);
-	}
+	/**
+	 * Gets the metadata for the given prompt file uri.
+	 */
+	getMetadata(promptFileUri: URI): Promise<IMetadata>;
 
-	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
-		if (data.promptPath) {
-			return data.promptPath.uri;
-		}
-
-		const files = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const command = data.command;
-		const result = files.find(file => getPromptCommandName(file.uri.path) === command);
-		if (result) {
-			return result.uri;
-		}
-		const textModel = this.modelService.getModels().find(model => model.getLanguageId() === PROMPT_LANGUAGE_ID && getPromptCommandName(model.uri.path) === command);
-		if (textModel) {
-			return textModel.uri;
-		}
-		return undefined;
-	}
-
-	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
-		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		return promptFiles.map(promptPath => {
-			const command = getPromptCommandName(promptPath.uri.path);
-			return {
-				command,
-				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
-				promptPath
-			};
-		});
-	}
-
-	@logTime()
-	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = (await this.listPromptFiles(PromptsType.mode, CancellationToken.None))
-			.map(modeFile => modeFile.uri);
-
-		const metadataList = await Promise.all(
-			modeFiles.map(async (uri): Promise<ICustomChatMode> => {
-				let parser: PromptParser | undefined;
-				try {
-					// Note! this can be (and should be) improved by using shared parser instances
-					// 		 that the `getSyntaxParserFor` method provides for opened documents.
-					parser = this.instantiationService.createInstance(
-						PromptParser,
-						uri,
-						{ allowNonPromptFiles: true },
-					).start();
-
-					await parser.settled();
-
-					const { metadata } = parser;
-					const tools = (metadata && ('tools' in metadata))
-						? metadata.tools
-						: undefined;
-
-					const body = await parser.getBody();
-					return {
-						uri: uri,
-						name: getCleanPromptName(uri),
-						description: metadata?.description,
-						tools,
-						body,
-					};
-				} finally {
-					parser?.dispose();
-				}
-			}),
-		);
-
-		return metadataList;
-	}
-
-	@logTime()
-	public async findInstructionFilesFor(
-		files: readonly URI[],
-	): Promise<readonly URI[]> {
-		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		if (instructionFiles.length === 0) {
-			return [];
-		}
-
-		const instructions = await this.getAllMetadata(
-			instructionFiles.map(pick('uri')),
-		);
-
-		const foundFiles = new ResourceSet();
-		for (const instruction of instructions.flatMap(flatten)) {
-			const { metadata, uri } = instruction;
-
-			if (metadata?.promptType !== PromptsType.instructions) {
-				continue;
-			}
-
-			const { applyTo } = metadata;
-			if (applyTo === undefined) {
-				continue;
-			}
-
-			const patterns = splitGlobAware(applyTo, ',');
-			const patterMatches = (pattern: string) => {
-				pattern = pattern.trim();
-				if (pattern.length === 0) {
-					// if glob pattern is empty, skip it
-					return false;
-				}
-				if (pattern === '**' || pattern === '**/*' || pattern === '*') {
-					// if glob pattern is one of the special wildcard values,
-					// add the instructions file event if no files are attached
-					return true;
-				}
-				if (!pattern.startsWith('/') && !pattern.startsWith('**/')) {
-					// support relative glob patterns, e.g. `src/**/*.js`
-					pattern = '**/' + pattern;
-				}
-
-				// match each attached file with each glob pattern and
-				// add the instructions file if its rule matches the file
-				for (const file of files) {
-					// if the file is not a valid URI, skip it
-					if (match(pattern, file.path)) {
-						return true;
-					}
-				}
-				return false;
-			};
-
-			if (patterns.some(patterMatches)) {
-				foundFiles.add(uri);
-			}
-		}
-		return [...foundFiles];
-	}
-
-	public async getMetadata(promptFileUri: URI): Promise<IMetadata> {
-		const metaDatas = await this.getAllMetadata([promptFileUri]);
-		return metaDatas[0];
-	}
-
-	@logTime()
-	public async getAllMetadata(
+	/**
+	 * Get all metadata for entire prompt references tree
+	 * that spans out of each of the provided files.
+	 *
+	 * In other words, the metadata tree is built starting from
+	 * each of the provided files, therefore the result is a number
+	 * of metadata trees, one for each file.
+	 */
+	getAllMetadata(
 		promptUris: readonly URI[],
-	): Promise<IMetadata[]> {
-		const metadata = await Promise.all(
-			promptUris.map(async (uri) => {
-				let parser: PromptParser | undefined;
-				try {
-					parser = this.instantiationService.createInstance(
-						PromptParser,
-						uri,
-						{ allowNonPromptFiles: true },
-					).start();
-
-					await parser.allSettled();
-
-					return collectMetadata(parser);
-				} finally {
-					parser?.dispose();
-				}
-			}),
-		);
-
-		return metadata;
-	}
+	): Promise<readonly IMetadata[]>;
 }
 
-/**
- * Collect all metadata from prompt file references
- * into a single hierarchical tree structure.
- */
-const collectMetadata = (
-	reference: Pick<IPromptFileReference, 'uri' | 'metadata' | 'references'>,
-): IMetadata => {
-	const childMetadata = [];
-	for (const child of reference.references) {
-		if (child.errorCondition !== undefined) {
-			continue;
-		}
-
-		childMetadata.push(collectMetadata(child));
-	}
-
-	const children = (childMetadata.length > 0)
-		? childMetadata
-		: undefined;
-
-	return {
-		uri: reference.uri,
-		metadata: reference.metadata,
-		children,
-	};
-};
-
-export function getPromptCommandName(path: string): string {
-	const name = basename(path, PROMPT_FILE_EXTENSION);
-	return name;
+export interface IChatPromptSlashCommand {
+	readonly command: string;
+	readonly detail: string;
+	readonly promptPath?: IPromptPath;
 }
-
-/**
- * Utility to add a provided prompt `storage` and
- * `type` attributes to a prompt URI.
- */
-const addType = (
-	storage: TPromptsStorage,
-	type: PromptsType,
-): (uri: URI) => IPromptPath => {
-	return (uri) => {
-		return { uri, storage, type };
-	};
-};
-
-/**
- * Utility to add a provided prompt `type` to a list of prompt URIs.
- */
-const withType = (
-	storage: TPromptsStorage,
-	type: PromptsType,
-): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
-	return (uris) => {
-		return uris
-			.map(addType(storage, type));
-	};
-};

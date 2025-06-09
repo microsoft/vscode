@@ -1387,10 +1387,10 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 			text = lf === -1 ? msg : msg.slice(0, lf);
 		}
 
-		this.node.root.addEventListener('click', e => {
+		this._register(dom.addDisposableListener(this.node.root, dom.EventType.CLICK, e => {
 			this.peekOpener.peekUri(uri);
 			e.preventDefault();
-		});
+		}));
 
 		const ctrl = TestingOutputPeekController.get(editor);
 		if (ctrl) {

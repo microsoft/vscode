@@ -24,7 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -988,7 +988,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this.registerSetupAgents(context, controller);
 		this.registerActions(context, requests, controller);
-		this.registerMenus();
 		this.registerUrlLinkHandler();
 	}
 
@@ -1292,38 +1291,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
-	}
-
-	private registerMenus(): void {
-		const menuContext = ContextKeyExpr.and(
-			// TODO@bpasero this needs to be revisited when the Copilot
-			// extension contributes this OOTB where this menu is also
-			// defined.
-			ChatContextKeys.Setup.installed.negate(),
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
-		);
-
-		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-			submenu: MenuId.ChatExplorerMenu,
-			group: '5_copilot',
-			title: localize('title4', "Copilot"),
-			when: menuContext
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-			submenu: MenuId.ChatTextEditorMenu,
-			group: '1_copilot',
-			title: localize('title4', "Copilot"),
-			when: menuContext
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
-			submenu: MenuId.ChatTerminalMenu,
-			group: '2_copilot',
-			title: localize('title4', "Copilot"),
-			when: menuContext
-		});
 	}
 
 	private registerUrlLinkHandler(): void {

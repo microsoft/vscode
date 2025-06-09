@@ -65,6 +65,16 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		});
 	}
 
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+
+		this._startBarrier.wait().then(_ => {
+			this._remoteTerminalChannel.sendSignal(this.id, signal);
+		});
+	}
+
 	processBinary(e: string): Promise<void> {
 		return this._remoteTerminalChannel.processBinary(this.id, e);
 	}

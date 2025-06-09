@@ -52,7 +52,7 @@ import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';

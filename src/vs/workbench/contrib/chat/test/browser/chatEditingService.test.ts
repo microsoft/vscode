@@ -166,7 +166,7 @@ suite('ChatEditingService', function () {
 
 		await unset;
 
-		await entry.reject(undefined);
+		await entry.reject();
 
 		model.dispose();
 	});

@@ -5,10 +5,10 @@
 
 import { PromptStringMetadata } from './base/string.js';
 import { localize } from '../../../../../../../../nls.js';
-import { INSTRUCTIONS_LANGUAGE_ID } from '../../../constants.js';
+import { INSTRUCTIONS_LANGUAGE_ID } from '../../../promptTypes.js';
 import { isEmptyPattern, parse, splitGlobAware } from '../../../../../../../../base/common/glob.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
-import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.

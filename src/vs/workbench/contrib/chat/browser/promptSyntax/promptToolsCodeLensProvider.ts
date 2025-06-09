@@ -15,9 +15,9 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/constants.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/promptTypes.js';
 import { PromptToolsMetadata } from '../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {

@@ -20,8 +20,8 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
-import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/prompts.js';
+import { PromptsConfig } from '../common/promptSyntax/config/config.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -48,10 +48,10 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
-import { registerPromptFileContributions } from '../common/promptSyntax/contributions/index.js';
-import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { IPromptsService } from '../common/promptSyntax/service/types.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { registerPromptFileContributions } from '../common/promptSyntax/promptFileContributions.js';
+import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
@@ -73,7 +73,6 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { SAVE_TO_PROMPT_SLASH_COMMAND_NAME, runSaveToPromptAction } from './actions/promptActions/chatSaveToPromptAction.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
@@ -105,12 +104,12 @@ import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
-import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
+import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
