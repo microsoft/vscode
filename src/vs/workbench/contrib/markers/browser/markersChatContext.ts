@@ -15,7 +15,7 @@ import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/com
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
-import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatModel.js';
+import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
 
 class MarkerChatContextPick implements IChatContextPickerItem {
 

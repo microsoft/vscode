@@ -23,7 +23,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
-import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
+import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './mcpCommands.js';

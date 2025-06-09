@@ -46,9 +46,10 @@ import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI 
 import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { getAttachableImageExtension, IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';

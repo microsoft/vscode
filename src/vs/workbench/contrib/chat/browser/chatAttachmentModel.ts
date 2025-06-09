@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { IFileService } from '../../../../platform/files/common/files.js';

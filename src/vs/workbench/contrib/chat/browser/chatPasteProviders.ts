@@ -22,7 +22,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatInputPart } from './chatInputPart.js';
