@@ -225,7 +225,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				this._initialFileContents.set(uri, content);
 			}
 			this._pendingSnapshot = restoredSessionState.pendingSnapshot;
-			await this._restoreSnapshot(restoredSessionState.recentSnapshot, false);
+			await this._restoreSnapshot(restoredSessionState.recentSnapshot, false, true);
 			transaction(async tx => {
 				this._linearHistory.set(restoredSessionState.linearHistory, tx);
 				this._linearHistoryIndex.set(restoredSessionState.linearHistoryIndex, tx);
@@ -505,7 +505,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {
+	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true, isWorkspaceRestore = false): Promise<void> {
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -520,6 +520,16 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entriesArr: AbstractChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
+			// During workspace restore, check if the file exists on disk before attempting to restore it
+			if (isWorkspaceRestore) {
+				const fileExists = await this._fileService.exists(snapshotEntry.resource);
+				if (!fileExists) {
+					// If the file doesn't exist during workspace restore, skip restoring it to avoid creating ghost files
+					// This prevents recreating files that the user intentionally deleted
+					continue;
+				}
+			}
+			
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
 			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
