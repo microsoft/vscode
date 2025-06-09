@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -167,7 +167,7 @@ export class NotebookStickyScroll extends Disposable {
 
 		// Forward wheel events to the notebook editor to enable scrolling when hovering over sticky scroll
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.WHEEL, (event: WheelEvent) => {
-			this.notebookCellList.triggerScrollFromMouseWheelEvent(event);
+			this.notebookCellList.triggerScrollFromMouseWheelEvent(event as IMouseWheelEvent);
 		}));
 	}
 
