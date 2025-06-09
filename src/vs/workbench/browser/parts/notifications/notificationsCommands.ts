@@ -19,6 +19,7 @@ import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExe
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -86,6 +87,16 @@ export function getNotificationFromContext(listService: IListService, context?: 
 	}
 
 	return undefined;
+}
+
+export function getSeverityPrefix(severity: Severity): string {
+	if (severity === Severity.Error) {
+		return localize('severityPrefix.error', "Error: ");
+	} else if (severity === Severity.Warning) {
+		return localize('severityPrefix.warning', "Warning: ");
+	} else {
+		return localize('severityPrefix.info', "Info: ");
+	}
 }
 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {

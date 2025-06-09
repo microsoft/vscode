@@ -17,6 +17,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
+import { getSeverityPrefix } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -201,7 +202,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
 				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
-				const severityPrefix = this.getSeverityPrefix(item.severity);
+				const severityPrefix = getSeverityPrefix(item.severity);
 				const messageWithSeverity = `${severityPrefix}${item.message.raw}`;
 
 				if (!item.source) {
@@ -624,15 +625,5 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private isToastInDOM(toast: INotificationToast): boolean {
 		return !!toast.container.parentElement;
-	}
-
-	private getSeverityPrefix(severity: Severity): string {
-		if (severity === Severity.Error) {
-			return localize('severityPrefix.error', "Error: ");
-		} else if (severity === Severity.Warning) {
-			return localize('severityPrefix.warning', "Warning: ");
-		} else {
-			return localize('severityPrefix.info', "Info: ");
-		}
 	}
 }

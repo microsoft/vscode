@@ -19,6 +19,7 @@ import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { NotificationActionRunner } from './notificationsCommands.js';
+import { getSeverityPrefix } from './notificationsCommands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
@@ -259,7 +260,7 @@ export class NotificationAccessibilityProvider implements IListAccessibilityProv
 		}
 
 		// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
-		const severityPrefix = this.getSeverityPrefix(element.severity);
+		const severityPrefix = getSeverityPrefix(element.severity);
 		const messageWithSeverity = `${severityPrefix}${element.message.raw}`;
 
 		if (!element.source) {
@@ -269,15 +270,6 @@ export class NotificationAccessibilityProvider implements IListAccessibilityProv
 		return accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", messageWithSeverity, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, element.source);
 	}
 
-	private getSeverityPrefix(severity: Severity): string {
-		if (severity === Severity.Error) {
-			return localize('severityPrefix.error', "Error: ");
-		} else if (severity === Severity.Warning) {
-			return localize('severityPrefix.warning', "Warning: ");
-		} else {
-			return localize('severityPrefix.info', "Info: ");
-		}
-	}
 	getWidgetAriaLabel(): string {
 		return this._options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
 	}
