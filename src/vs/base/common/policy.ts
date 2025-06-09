@@ -28,7 +28,10 @@ export interface IPolicy {
 	readonly previewFeature?: boolean;
 
 	/**
-	 * Default value when enabled. Default is `false`.
+	 * Default value for a 'previewFeature' policy. Default is `false`.
+	 * Remarks:
+	 * A default value is only relevant when previewFeature is `true`.
+	 * In all other instances, a value is required when setting a policy.
 	 */
 	readonly defaultValue?: string | number | boolean;
 }
