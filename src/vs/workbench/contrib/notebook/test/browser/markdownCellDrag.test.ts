@@ -6,7 +6,6 @@
 // Test for verifying markdown cell drag handles are properly registered
 // This is a simple unit test to ensure the fix is working
 
-import { CellKind } from '../../common/notebookCommon.js';
 import assert from 'assert';
 
 suite('Markdown Cell Drag Fix', () => {
@@ -24,7 +23,6 @@ suite('Markdown Cell Drag Fix', () => {
 				assert.ok(typeof dragImageProvider === 'function', 'Should provide a drag image provider function');
 				
 				// Test the drag image provider function
-				const mockTemplateData = { currentEditor: null };
 				const dragImage = dragImageProvider();
 				assert.ok(dragImage, 'Should create a drag image');
 			}
@@ -73,13 +71,23 @@ suite('Markdown Cell Drag Fix', () => {
 		const previewModeTemplate = { currentEditor: null };
 		const previewDragProvider = createDragImageProvider(previewModeTemplate);
 		const previewDragImage = previewDragProvider();
-		assert.strictEqual(previewDragImage.textContent, '1 cell', 'Should create simple drag image for preview mode');
+		// Check if it's an HTMLElement (preview mode)
+		if (previewDragImage instanceof HTMLElement) {
+			assert.strictEqual(previewDragImage.textContent, '1 cell', 'Should create simple drag image for preview mode');
+		} else {
+			assert.fail('Preview mode should return HTMLElement');
+		}
 
 		// Test edit mode
 		const editModeTemplate = { currentEditor: { id: 'mock-editor' } };
 		const editDragProvider = createDragImageProvider(editModeTemplate);
 		const editDragImage = editDragProvider();
-		assert.strictEqual(editDragImage.type, 'markdown-edit-mode', 'Should create editor-based drag image for edit mode');
-		assert.ok(editDragImage.hasEditor, 'Should indicate editor is available');
+		// Check if it's a custom object (edit mode)
+		if (typeof editDragImage === 'object' && 'type' in editDragImage && 'hasEditor' in editDragImage) {
+			assert.strictEqual(editDragImage.type, 'markdown-edit-mode', 'Should create editor-based drag image for edit mode');
+			assert.ok(editDragImage.hasEditor, 'Should indicate editor is available');
+		} else {
+			assert.fail('Edit mode should return custom object with type and hasEditor properties');
+		}
 	});
 });
