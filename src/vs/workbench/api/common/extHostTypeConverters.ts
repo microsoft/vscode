@@ -3204,7 +3204,7 @@ export namespace TerminalResourceRequestConfig {
 	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig, pathSeparator: string): extHostProtocol.TerminalResourceRequestConfigDto {
 		return {
 			...resourceRequestConfig,
-			pathSeparator: pathSeparator,
+			pathSeparator,
 			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
 		};
 	}
