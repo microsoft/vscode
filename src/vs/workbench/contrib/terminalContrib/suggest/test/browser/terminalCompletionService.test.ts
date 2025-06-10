@@ -19,7 +19,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
-import { gitBashPathToWindows, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
+import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -615,10 +615,10 @@ suite('TerminalCompletionService', () => {
 	if (isWindows) {
 		suite('gitbash', () => {
 			test('should convert Git Bash absolute path to Windows absolute path', () => {
-				assert.strictEqual(gitBashPathToWindows('/'), 'C:\\');
-				assert.strictEqual(gitBashPathToWindows('/c/'), 'C:\\');
-				assert.strictEqual(gitBashPathToWindows('/c/Users/foo'), 'C:\\Users\\foo');
-				assert.strictEqual(gitBashPathToWindows('/d/bar'), 'D:\\bar');
+				assert.strictEqual(gitBashToWindowsPath('/'), 'C:\\');
+				assert.strictEqual(gitBashToWindowsPath('/c/'), 'C:\\');
+				assert.strictEqual(gitBashToWindowsPath('/c/Users/foo'), 'C:\\Users\\foo');
+				assert.strictEqual(gitBashToWindowsPath('/d/bar'), 'D:\\bar');
 			});
 
 			test('should convert Windows absolute path to Git Bash absolute path', () => {
