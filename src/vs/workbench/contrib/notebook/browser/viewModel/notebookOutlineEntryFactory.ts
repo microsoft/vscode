@@ -24,6 +24,7 @@ export const enum NotebookOutlineConstants {
 type entryDesc = {
 	name: string;
 	range: IRange;
+	selectionRange: IRange;
 	level: number;
 	kind: SymbolKind;
 };
@@ -104,7 +105,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
 					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 					cached.forEach((entry) => {
-						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind));
+						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind, entry.selectionRange));
 					});
 				}
 			}
@@ -144,7 +145,13 @@ type documentSymbol = ReturnType<outlineModel['getTopLevelSymbols']>[number];
 function createOutlineEntries(symbols: documentSymbol[], level: number): entryDesc[] {
 	const entries: entryDesc[] = [];
 	symbols.forEach(symbol => {
-		entries.push({ name: symbol.name, range: symbol.range, level, kind: symbol.kind });
+		entries.push({ 
+			name: symbol.name, 
+			range: symbol.range, 
+			selectionRange: symbol.selectionRange,
+			level, 
+			kind: symbol.kind 
+		});
 		if (symbol.children) {
 			entries.push(...createOutlineEntries(symbol.children, level + 1));
 		}

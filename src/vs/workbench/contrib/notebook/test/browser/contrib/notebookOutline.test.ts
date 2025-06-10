@@ -208,12 +208,47 @@ suite('Notebook Outline', function () {
 				}
 			};
 			
-			// Call reveal
-			await outline.reveal(entry, {}, false);
+			// Call reveal with select=true (simulating double-click for full highlighting)
+			await outline.reveal(entry, {}, false, true);
 			
 			// Verify that the selection is set to the entry's range
 			assert.ok(capturedOptions, 'Options should be captured');
 			assert.deepStrictEqual(capturedOptions.selection, entry.range, 'Selection should be the entry range, not just position');
+		});
+	});
+
+	test('Reveal uses selectionRange for cursor positioning on single click', async function () {
+		await withNotebookOutline([
+			['# Test heading', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, async (outline, editor) => {
+			const entries = outline.entries;
+			assert.strictEqual(entries.length, 1);
+			
+			const entry = entries[0];
+			assert.ok(entry.range, 'Entry should have a range');
+			
+			// Mock the editor service to capture the reveal options
+			let capturedOptions: any = null;
+			const originalEditorService = (outline as any)._editorService;
+			(outline as any)._editorService = {
+				openEditor: async (input: any, group: any) => {
+					capturedOptions = input.options;
+					return originalEditorService.openEditor(input, group);
+				}
+			};
+			
+			// Call reveal with select=false (simulating single-click for cursor positioning)
+			await outline.reveal(entry, {}, false, false);
+			
+			// Verify that the selection is collapsed to start when no selectionRange is available
+			assert.ok(capturedOptions, 'Options should be captured');
+			const expectedSelection = {
+				startLineNumber: entry.range.startLineNumber,
+				startColumn: entry.range.startColumn,
+				endLineNumber: entry.range.startLineNumber,
+				endColumn: entry.range.startColumn
+			};
+			assert.deepStrictEqual(capturedOptions.selection, expectedSelection, 'Selection should be collapsed to start position');
 		});
 	});
 });
