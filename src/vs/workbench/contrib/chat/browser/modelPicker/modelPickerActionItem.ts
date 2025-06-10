@@ -98,7 +98,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const actionWithLabel: IAction = {
 			...action,
 			label: currentModel.metadata.name,
-			tooltip: localize('chat.modelPicker.label', "Pick Model"),
+			tooltip: localize('chat.modelPicker.tooltip', "Select Language Model"),
 			run: () => { }
 		};
 
@@ -122,6 +122,15 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
 		this.setAriaLabelAttributes(element);
 		return null;
+	}
+
+	protected override setAriaLabelAttributes(element: HTMLElement): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-haspopup', 'true');
+		element.setAttribute('aria-expanded', 'false');
+		// Provide a more descriptive aria-label for screen readers
+		const descriptiveLabel = localize('chat.modelPicker.ariaLabel', "Select language model, currently {0}", this.currentModel.metadata.name);
+		element.ariaLabel = descriptiveLabel;
 	}
 
 	override render(container: HTMLElement): void {
