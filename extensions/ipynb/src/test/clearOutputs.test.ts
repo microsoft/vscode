@@ -25,7 +25,7 @@ suite(`ipynb Clear Outputs`, () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test.skip('Clear outputs after opening Notebook', async () => {
+	test('Clear outputs after opening Notebook', async () => {
 		const cells: nbformat.ICell[] = [
 			{
 				cell_type: 'code',
