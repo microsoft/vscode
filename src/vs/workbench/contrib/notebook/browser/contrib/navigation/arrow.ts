@@ -123,7 +123,28 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 		}
 
 		if (idx >= editor.getLength() - 1) {
-			// last one
+			// We're in the last cell, check if we can move down within the cell
+			const targetCell = (context.cell ?? context.selectedCells?.[0]);
+			const foundEditor: ICodeEditor | undefined = targetCell ? findTargetCellEditor(context, targetCell) : undefined;
+			
+			if (foundEditor && foundEditor.hasTextFocus()) {
+				const currentPosition = foundEditor.getPosition();
+				const model = foundEditor.getModel();
+				
+				if (currentPosition && model) {
+					const lastLineNumber = model.getLineCount();
+					const lastColumnNumber = model.getLineMaxColumn(lastLineNumber);
+					
+					// If we're not at the last position in the document, execute normal cursor down
+					if (currentPosition.lineNumber < lastLineNumber || 
+						(currentPosition.lineNumber === lastLineNumber && currentPosition.column < lastColumnNumber)) {
+						EditorExtensionsRegistry.getEditorCommand('cursorDown').runCommand(accessor, {});
+						return;
+					}
+				}
+			}
+			
+			// If we reach here, we're already at the bottom-right of the last cell, so do nothing
 			return;
 		}
 
