@@ -282,7 +282,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			case 'absolute': {
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashPathToWindows(lastWordFolder));
+					lastWordFolderResource = URI.file(gitBashPathToWindows(lastWordFolder, this._processEnv.SystemDrive));
 				} else {
 					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
 				}

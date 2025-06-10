@@ -11,9 +11,9 @@
  *   "/c/Users/foo" => "C:\\Users\\foo"
  *   "/d/bar" => "D:\\bar"
  */
-export function gitBashPathToWindows(path: string): string {
+export function gitBashPathToWindows(path: string, driveLetter?: string): string {
 	// Dynamically determine the system drive (default to 'C:' if not set)
-	const systemDrive = (process.env.SystemDrive || 'C:').toUpperCase();
+	const systemDrive = (driveLetter || 'C:').toUpperCase();
 	// Handle root "/"
 	if (path === '/') {
 		return `${systemDrive}\\`;
