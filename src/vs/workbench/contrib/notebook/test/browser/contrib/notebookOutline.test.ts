@@ -187,5 +187,4 @@ suite('Notebook Outline', function () {
 			assert.strictEqual(symbolsCached, true);
 		});
 	});
-
 });
