@@ -6,7 +6,7 @@
 import { assert } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { Position } from '../position.js';
-import { PositionOffsetTransformer } from './positionToOffset.js';
+import { PositionOffsetTransformer } from './positionToOffsetImpl.js';
 import { Range } from '../range.js';
 import { LineRange } from '../ranges/lineRange.js';
 import { TextLength } from '../text/textLength.js';
