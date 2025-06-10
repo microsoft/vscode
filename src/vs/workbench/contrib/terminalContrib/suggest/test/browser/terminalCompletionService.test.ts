@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { gitBashPathToWindows, TerminalCompletionService, TerminalResourceRequestConfig, windowsToGitBashPath } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
 import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
@@ -19,6 +19,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { gitBashPathToWindows, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
