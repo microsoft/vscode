@@ -9,17 +9,16 @@
 	width: 100%;
 	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 4px 2px -2px;
 	z-index: 4;
-	background-color: var(--vscode-editorStickyScroll-background);
 	right: initial !important;
-}
-
-.monaco-editor .sticky-widget.peek {
-	background-color: var(--vscode-peekViewEditorStickyScroll-background);
 }
 
 .monaco-editor .sticky-widget .sticky-widget-line-numbers {
 	float: left;
-	background-color: inherit;
+	background-color: var(--vscode-editorStickyScrollGutter-background);
+}
+
+.monaco-editor .sticky-widget.peek .sticky-widget-line-numbers {
+	background-color: var(--vscode-peekViewEditorStickyScrollGutter-background);
 }
 
 .monaco-editor .sticky-widget .sticky-widget-lines-scrollable {
@@ -27,7 +26,11 @@
 	position: absolute;
 	overflow: hidden;
 	width: var(--vscode-editorStickyScroll-scrollableWidth);
-	background-color: inherit;
+	background-color: var(--vscode-editorStickyScroll-background);
+}
+
+.monaco-editor .sticky-widget.peek .sticky-widget-lines-scrollable {
+	background-color: var(--vscode-peekViewEditorStickyScroll-background);
 }
 
 .monaco-editor .sticky-widget .sticky-widget-lines {
