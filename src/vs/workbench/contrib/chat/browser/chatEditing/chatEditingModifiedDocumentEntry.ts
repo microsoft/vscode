@@ -14,7 +14,6 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
-import { offsetEditFromLineRangeMapping } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
@@ -32,7 +31,7 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingModifiedTextModelService } from './chatEditingModifiedTextModelService.js';
+import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 
@@ -45,14 +44,12 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private readonly _docFileEditorModel: IResolvedTextEditorModel;
 
-	private _edit: StringEdit = StringEdit.empty;
-
 	override get changesCount() {
-		return this.modifiedTextModel.diffInfo.map(diff => diff.changes.length);
+		return this.textModelChangeService.diffInfo.map(diff => diff.changes.length);
 	}
 
 	readonly originalURI: URI;
-	private readonly modifiedTextModel: ChatEditingModifiedTextModelService;
+	private readonly textModelChangeService: ChatEditingTextModelChangeService;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -98,10 +95,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			)
 		);
 
-		this.modifiedTextModel = this._register(instantiationService.createInstance(ChatEditingModifiedTextModelService,
+		this.textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
 			this.originalModel, this.modifiedModel, this._stateObs));
 
-		this._register(this.modifiedTextModel.onHunkAction(action => {
+		this._register(this.textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			if (action === 'acceptedAllChanges') {
 				this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
 				this._notifyAction('accepted');
@@ -109,15 +106,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 				this._notifyAction('rejected');
 			}
-		}));
-
-		this._register(autorun(r => {
-			const diffInfo = this.modifiedTextModel.diffInfo.read(r);
-			if (this.state.get() !== ModifiedFileEntryState.Modified) {
-				return;
-			}
-			// If the diff has changed, then recompute the edit
-			this._edit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diffInfo.changes);
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose
@@ -131,15 +119,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		})();
 
 
-		this._register(this.modifiedModel.onDidChangeContent(e => {
-			this._edit = this.modifiedTextModel.mirrorEdits(e, this._edit);
-
-			if (!this.modifiedTextModel.isEditFromUs) {
-				this._userEditScheduler.schedule();
-				const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-				if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
-					this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
-				}
+		this._register(this.textModelChangeService.onDidUserEditModel(() => {
+			this._userEditScheduler.schedule();
+			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
 
@@ -162,7 +146,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.modifiedModel.getLanguageId() === snapshot.languageId &&
 			this.originalModel.getValue() === snapshot.original &&
 			this.modifiedModel.getValue() === snapshot.current &&
-			this._edit.equals(snapshot.originalToCurrentEdit) &&
+			this.textModelChangeService.edit.equals(snapshot.originalToCurrentEdit) &&
 			this.state.get() === snapshot.state;
 	}
 
@@ -173,7 +157,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
-			originalToCurrentEdit: this._edit,
+			originalToCurrentEdit: this.textModelChangeService.edit,
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
@@ -181,25 +165,26 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
-		this.originalModel.setValue(snapshot.original);
+		this.textModelChangeService.setOriginalDocValue(snapshot.original);
 		if (restoreToDisk) {
-			this.modifiedTextModel.setDocValue(snapshot.current);
+			this.textModelChangeService.setModifiedDocValue(snapshot.current, snapshot.originalToCurrentEdit);
+		} else {
+			this.textModelChangeService.setModifiedDocValue(this.modifiedModel.getValue(), snapshot.originalToCurrentEdit);
 		}
-		this._edit = snapshot.originalToCurrentEdit;
-		this.modifiedTextModel.updateDiffInfo();
+		this.textModelChangeService.updateDiffInfo();
 	}
 
 	resetToInitialContent() {
-		this.modifiedTextModel.setDocValue(this.initialContent);
+		this.textModelChangeService.setModifiedDocValue(this.initialContent);
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
-		return this.modifiedTextModel.areOriginalAndModifiedIdentical();
+		return this.textModelChangeService.areOriginalAndModifiedIdentical();
 	}
 
 	protected override _resetEditsState(tx: ITransaction): void {
 		super._resetEditsState(tx);
-		this.modifiedTextModel.clearCurrentEditLineDecoration();
+		this.textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
 	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement {
@@ -210,7 +195,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
-		const result = await this.modifiedTextModel.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		const result = await this.textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
 			this._waitsForLastEdits.set(!isLastEdits, tx);
@@ -234,9 +219,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 
 	protected override async _doAccept(): Promise<void> {
-		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		await this.modifiedTextModel.updateDiffInfo();
-		this._edit = StringEdit.empty;
+		this.textModelChangeService.setOriginalDocValue(this.modifiedModel.createSnapshot());
+		await this.textModelChangeService.updateDiffInfo();
+		this.textModelChangeService.setModifiedDocValue(this.modifiedModel.getValue(), StringEdit.empty);
 		this._multiDiffEntryDelegate.collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
@@ -263,8 +248,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 			this._onDidDelete.fire();
 		} else {
-			this.modifiedTextModel.setDocValue(this.originalModel.getValue());
-			if (this.modifiedTextModel.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
+			this.textModelChangeService.setModifiedDocValue(this.originalModel.getValue());
+			if (this.textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
 				await this._docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
@@ -277,7 +262,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this.modifiedTextModel.diffInfo;
+		const diffInfo = this.textModelChangeService.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}
