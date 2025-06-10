@@ -6,6 +6,7 @@
 import { References } from './peek';
 import { Commands } from './workbench';
 import { Code } from './code';
+import { Quality } from './application';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
@@ -106,7 +107,7 @@ export class Editor {
 	}
 
 	private _editContextSelector() {
-		return '.native-edit-context';
+		return this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context';
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
