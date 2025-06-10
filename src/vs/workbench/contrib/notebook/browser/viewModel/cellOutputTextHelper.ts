@@ -107,76 +107,22 @@ export function getOutputText(mimeType: string, buffer: IOutputItemDto, shortErr
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
 	const cellOutput = outputViewModel.model;
-	
-	// If a specific mime type is requested and it's text-based, use it
-	if (mimeType && TEXT_BASED_MIMETYPES.includes(mimeType)) {
-		const output = cellOutput.outputs.find(output => output.mime === mimeType);
-		if (output) {
-			const text = isTextStreamMime(mimeType) ? getOutputStreamText(outputViewModel).text : getOutputText(mimeType, output);
-			try {
-				await clipboardService.writeText(text);
-			} catch (e) {
-				logService.error(`Failed to copy content: ${e}`);
-			}
-			return;
-		}
-	}
+	const output = mimeType && TEXT_BASED_MIMETYPES.includes(mimeType) ?
+		cellOutput.outputs.find(output => output.mime === mimeType) :
+		cellOutput.outputs.find(output => TEXT_BASED_MIMETYPES.includes(output.mime));
 
-	// Collect all available formats
-	const formats = new Map<string, Uint8Array | string>();
-	let hasTextFormat = false;
-	
-	for (const output of cellOutput.outputs) {
-		if (TEXT_BASED_MIMETYPES.includes(output.mime)) {
-			const text = isTextStreamMime(output.mime) ? getOutputStreamText(outputViewModel).text : getOutputText(output.mime, output);
-			formats.set(output.mime, text);
-			hasTextFormat = true;
-		} else if (output.mime.startsWith('image/')) {
-			// For images, include the binary data
-			formats.set(output.mime, new Uint8Array(output.data.buffer));
-		}
-	}
+	mimeType = output?.mime;
 
-	// If no formats were collected, fall back to the old behavior
-	if (formats.size === 0) {
-		const output = cellOutput.outputs.find(output => TEXT_BASED_MIMETYPES.includes(output.mime));
-		if (output) {
-			const text = isTextStreamMime(output.mime) ? getOutputStreamText(outputViewModel).text : getOutputText(output.mime, output);
-			try {
-				await clipboardService.writeText(text);
-			} catch (e) {
-				logService.error(`Failed to copy content: ${e}`);
-			}
-		}
+	if (!mimeType || !output) {
 		return;
 	}
 
-	// Try to write multiple formats if supported
-	if (clipboardService.writeMultipleFormats && formats.size > 1) {
-		try {
-			await clipboardService.writeMultipleFormats(formats);
-		} catch (e) {
-			logService.error(`Failed to copy multiple formats: ${e}`);
-			// Fallback to single text format
-			if (hasTextFormat) {
-				const textEntry = Array.from(formats.entries()).find(([mime]) => TEXT_BASED_MIMETYPES.includes(mime));
-				if (textEntry && typeof textEntry[1] === 'string') {
-					await clipboardService.writeText(textEntry[1]);
-				}
-			}
-		}
-	} else {
-		// Fallback to single format (text preferred)
-		if (hasTextFormat) {
-			const textEntry = Array.from(formats.entries()).find(([mime]) => TEXT_BASED_MIMETYPES.includes(mime));
-			if (textEntry && typeof textEntry[1] === 'string') {
-				try {
-					await clipboardService.writeText(textEntry[1]);
-				} catch (e) {
-					logService.error(`Failed to copy content: ${e}`);
-				}
-			}
-		}
+	const text = isTextStreamMime(mimeType) ? getOutputStreamText(outputViewModel).text : getOutputText(mimeType, output);
+
+	try {
+		await clipboardService.writeText(text);
+	} catch (e) {
+		logService.error(`Failed to copy content: ${e}`);
 	}
 }
 

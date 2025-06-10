@@ -296,44 +296,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this.clearResourcesState();
 	}
 
-	async writeMultipleFormats(formats: Map<string, Uint8Array | string>): Promise<void> {
-		// Clear resources given we are writing multiple formats
-		this.clearResourcesState();
-
-		// Build ClipboardItem data
-		const clipboardData: Record<string, Blob | string> = {};
-		
-		for (const [mimeType, data] of formats) {
-			if (typeof data === 'string') {
-				// For text data, we can use string directly or create a blob
-				if (mimeType === 'text/plain' || mimeType.startsWith('text/')) {
-					clipboardData[mimeType] = data;
-				} else {
-					clipboardData[mimeType] = new Blob([data], { type: mimeType });
-				}
-			} else {
-				// For binary data, create a blob
-				clipboardData[mimeType] = new Blob([data], { type: mimeType });
-			}
-		}
-
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			await getActiveWindow().navigator.clipboard.write([
-				new ClipboardItem(clipboardData)
-			]);
-		} catch (error) {
-			// Fallback to just text if multiple formats fail
-			const textData = formats.get('text/plain');
-			if (textData && typeof textData === 'string') {
-				this.fallbackWriteText(textData);
-			}
-			this.logService.error(`Failed to write multiple formats to clipboard: ${error}`);
-		}
-	}
-
 	private clearResourcesState(): void {
 		this.resources = [];
 		this.resourcesStateHash = undefined;

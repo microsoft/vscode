@@ -107,11 +107,16 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
-		// Always use the new copyCellOutput function which handles multiple formats
-		const clipboardService = accessor.get(IClipboardService);
-		const logService = accessor.get(ILogService);
+		if (mimeType?.startsWith('image/')) {
+			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId, altOutputId: outputViewModel.model.alternativeOutputId };
+			await notebookEditor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', focusOptions);
+			notebookEditor.copyOutputImage(outputViewModel);
+		} else {
+			const clipboardService = accessor.get(IClipboardService);
+			const logService = accessor.get(ILogService);
 
-		copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
+			copyCellOutput(mimeType, outputViewModel, clipboardService, logService);
+		}
 	}
 
 });

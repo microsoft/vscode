@@ -18,31 +18,13 @@ suite('Cell Output Clipboard Tests', () => {
 
 	class ClipboardService {
 		private _clipboardContent = '';
-		private _clipboardFormats = new Map<string, Uint8Array | string>();
 		
 		public get clipboardContent() {
 			return this._clipboardContent;
 		}
 		
-		public get clipboardFormats() {
-			return this._clipboardFormats;
-		}
-		
 		public async writeText(value: string) {
 			this._clipboardContent = value;
-			this._clipboardFormats.clear();
-			this._clipboardFormats.set('text/plain', value);
-		}
-		
-		public async writeMultipleFormats(formats: Map<string, Uint8Array | string>) {
-			this._clipboardFormats = new Map(formats);
-			// Set the main clipboard content to the first text format found
-			for (const [mime, data] of formats) {
-				if (typeof data === 'string' && (mime === 'text/plain' || mime.startsWith('text/'))) {
-					this._clipboardContent = data;
-					break;
-				}
-			}
 		}
 	}
 
@@ -166,47 +148,5 @@ suite('Cell Output Clipboard Tests', () => {
 		await copyCellOutput('application/vnd.code.notebook.error', output, clipboard as unknown as IClipboardService, logService);
 
 		assert.strictEqual(clipboard.clipboardContent, 'Error Name: error message');
-	});
-
-	test('Multiple mime types should be copied when no specific type requested', async () => {
-		const clipboard = new ClipboardService();
-
-		const outputDtos = [
-			{ data: VSBuffer.fromString('plain text content'), mime: 'text/plain' },
-			{ data: VSBuffer.fromString('<h1>HTML content</h1>'), mime: 'text/html' },
-			{ data: VSBuffer.fromString('PNG_DATA'), mime: 'image/png' }
-		];
-		const output = createOutputViewModel(outputDtos);
-
-		// When no specific mime type is specified, should copy all relevant types
-		await copyCellOutput(undefined, output, clipboard as unknown as IClipboardService, logService);
-
-		// Should have multiple formats in the clipboard
-		assert.strictEqual(clipboard.clipboardFormats.size, 3);
-		assert.strictEqual(clipboard.clipboardFormats.get('text/plain'), 'plain text content');
-		assert.strictEqual(clipboard.clipboardFormats.get('text/html'), '<h1>HTML content</h1>');
-		assert.ok(clipboard.clipboardFormats.has('image/png'));
-		
-		// The main clipboard content should be the text/plain version
-		assert.strictEqual(clipboard.clipboardContent, 'plain text content');
-	});
-
-	test('Only text formats copied when multiple text formats available', async () => {
-		const clipboard = new ClipboardService();
-
-		const outputDtos = [
-			{ data: VSBuffer.fromString('plain text content'), mime: 'text/plain' },
-			{ data: VSBuffer.fromString('<h1>HTML content</h1>'), mime: 'text/html' },
-			{ data: VSBuffer.fromString('{"key": "value"}'), mime: 'application/json' }
-		];
-		const output = createOutputViewModel(outputDtos);
-
-		await copyCellOutput(undefined, output, clipboard as unknown as IClipboardService, logService);
-
-		// Should have all text formats
-		assert.strictEqual(clipboard.clipboardFormats.size, 3);
-		assert.strictEqual(clipboard.clipboardFormats.get('text/plain'), 'plain text content');
-		assert.strictEqual(clipboard.clipboardFormats.get('text/html'), '<h1>HTML content</h1>');
-		assert.strictEqual(clipboard.clipboardFormats.get('application/json'), '{"key": "value"}');
 	});
 });
