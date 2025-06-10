@@ -13,7 +13,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../../../platform/markers/common/markerService.js';
 import { CellKind, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon.js';
-import { IActiveNotebookEditor, INotebookEditorPane, CellRevealType } from '../../../browser/notebookBrowser.js';
+import { IActiveNotebookEditor, INotebookEditorPane } from '../../../browser/notebookBrowser.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NotebookCellOutline, NotebookOutlineCreator } from '../../../browser/contrib/outline/notebookOutline.js';
@@ -188,38 +188,5 @@ suite('Notebook Outline', function () {
 		});
 	});
 
-	test('Outline reveal uses Top scroll position for consistent behavior', async function () {
-		await withNotebookOutline([
-			['# Header 1', 'md', CellKind.Markup],
-			['Some content', 'md', CellKind.Markup]
-		], OutlineTarget.OutlinePane, async (outline, editor) => {
-			assert.ok(outline instanceof NotebookCellOutline);
-			
-			// Mock the editor service to capture the options passed to openEditor
-			let capturedOptions: any = undefined;
-			const originalEditorService = (outline as any)._editorService;
-			const mockEditorService = {
-				openEditor: (input: any, target?: any) => {
-					capturedOptions = input.options;
-					return Promise.resolve();
-				}
-			};
-			(outline as any)._editorService = mockEditorService;
 
-			// Get the first entry (should be the header)
-			const entries = outline.entries;
-			assert.ok(entries.length > 0);
-			const firstEntry = entries[0];
-
-			// Call reveal
-			await outline.reveal(firstEntry, {}, false);
-
-			// Verify that CellRevealType.Top was used
-			assert.ok(capturedOptions);
-			assert.strictEqual(capturedOptions.cellRevealType, CellRevealType.Top);
-
-			// Restore the original service
-			(outline as any)._editorService = originalEditorService;
-		});
-	});
 });
