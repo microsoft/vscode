@@ -108,6 +108,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	private readonly _layoutDisposableStore = this._register(new DisposableStore());
 	private readonly scrollDelayer = this._register(new Delayer(100));
+	private _isUpdatingContent = false;
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -241,6 +242,11 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
+			// Prevent recursive updates caused by our own layout changes
+			if (this._isUpdatingContent) {
+				return;
+			}
+			
 			this.scrollDelayer.trigger(() => {
 				if (!this.notebookCellOutlineReference?.object) {
 					return;
@@ -312,8 +318,14 @@ export class NotebookStickyScroll extends Disposable {
 			this._onDidChangeNotebookStickyScroll.fire(sizeDelta);
 
 			const d = this._layoutDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
-				this.layoutFn(sizeDelta);
-				this.updateDisplay();
+				// Set flag to prevent recursive updates during layout
+				this._isUpdatingContent = true;
+				try {
+					this.layoutFn(sizeDelta);
+					this.updateDisplay();
+				} finally {
+					this._isUpdatingContent = false;
+				}
 
 				this._layoutDisposableStore.delete(d);
 			}));
