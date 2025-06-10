@@ -301,6 +301,29 @@ export async function getCompletionItemsFromSpecs(
 				existingItem.detail ??= command.detail;
 			}
 		}
+
+		// On Windows, also try to match .exe commands with their trimmed versions
+		if (isWindows) {
+			for (const command of availableCommands) {
+				const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
+				
+				// Check if this is a .exe command that might match a trimmed completion item
+				const spaceIndex = commandTextLabel.indexOf(' ');
+				const commandEndIndex = spaceIndex === -1 ? commandTextLabel.length : spaceIndex;
+				const lastDotIndex = commandTextLabel.lastIndexOf('.', commandEndIndex);
+				
+				if (lastDotIndex > 0) { // Don't treat dotfiles as extensions
+					const trimmedCommandLabel = commandTextLabel.substring(0, lastDotIndex) + (spaceIndex === -1 ? '' : commandTextLabel.substring(spaceIndex));
+					
+					// Find existing completion items that match the trimmed version
+					const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === trimmedCommandLabel);
+					if (existingItem) {
+						existingItem.documentation ??= command.documentation;
+						existingItem.detail ??= command.detail;
+					}
+				}
+			}
+		}
 		filesRequested = true;
 		foldersRequested = true;
 	}

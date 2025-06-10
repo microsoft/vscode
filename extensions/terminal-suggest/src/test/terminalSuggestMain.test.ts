@@ -84,7 +84,7 @@ if (osIsWindows()) {
 		name: 'Handle code-tunnel.exe extension on Windows',
 		completionSpecs: [codeTunnelCompletionSpec],
 		availableCommands: [
-			'code-tunnel.exe',
+			{ label: 'code-tunnel.exe', documentation: '/path/to/code-tunnel.exe' },
 		],
 		testSpecs: [
 			{ input: 'code-tunnel.exe |', expectedCompletions: expectedCodeTunnelCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
@@ -115,7 +115,7 @@ suite('Terminal Suggest', () => {
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
-						availableCommands.map(c => { return { label: c }; }),
+						availableCommands.map(c => { return typeof c === 'string' ? { label: c } : c; }),
 						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
