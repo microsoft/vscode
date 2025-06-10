@@ -31,14 +31,14 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	}
 
 	public get isEditFromUs(): boolean {
-		return this.textModelChangeService.isEditFromUs;
+		return this._textModelChangeService.isEditFromUs;
 	}
 
 	public get allEditsAreFromUs(): boolean {
-		return this.textModelChangeService.allEditsAreFromUs;
+		return this._textModelChangeService.allEditsAreFromUs;
 	}
 	public get diffInfo(): IObservable<IDocumentDiff> {
-		return this.textModelChangeService.diffInfo;
+		return this._textModelChangeService.diffInfo;
 	}
 	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
 	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
@@ -46,7 +46,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 	private readonly initialContent: string;
-	private readonly textModelChangeService: ChatEditingTextModelChangeService;
+	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
 	constructor(
 		public readonly notebookUri: URI,
 		public readonly cell: NotebookCellTextModel,
@@ -59,18 +59,14 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this.textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
 
-		this._register(this.textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
+		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this.revertMarkdownPreviewState();
-			if (action === 'acceptedAllChanges') {
-				this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
-			} else {
-				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
-			}
+			this._stateObs.set(action, undefined);
 		}));
 
-		this._register(this.textModelChangeService.onDidUserEditModel(() => {
+		this._register(this._textModelChangeService.onDidUserEditModel(() => {
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
 			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
@@ -83,11 +79,11 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		if (this.modifiedModel.isDisposed()) {
 			return;
 		}
-		this.textModelChangeService.clearCurrentEditLineDecoration();
+		this._textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
 	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		const { maxLineNumber } = await this.textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
+		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits);
 
 		transaction((tx) => {
 			if (!isLastEdits) {
@@ -116,10 +112,10 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	}
 
 	public async keep(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this.textModelChangeService.diffInfo.get().keep(change);
+		return this._textModelChangeService.diffInfo.get().keep(change);
 	}
 
 	public async undo(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this.textModelChangeService.diffInfo.get().undo(change);
+		return this._textModelChangeService.diffInfo.get().undo(change);
 	}
 }

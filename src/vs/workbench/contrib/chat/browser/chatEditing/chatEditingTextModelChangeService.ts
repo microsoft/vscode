@@ -29,7 +29,6 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -85,8 +84,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				...value,
 				originalModel: this.originalModel,
 				modifiedModel: this.modifiedModel,
-				keep: changes => this.applyEditFromUs(() => this._acceptHunk(changes)),
-				undo: changes => this.applyEditFromUs(() => this._rejectHunk(changes))
+				keep: changes => this._acceptHunk(changes),
+				undo: changes => this._rejectHunk(changes)
 			} satisfies IDocumentDiff2;
 		});
 	}
@@ -94,15 +93,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []); }, 500));
 	private _editDecorations: string[] = [];
 
-	private readonly didAcceptOrRejectAllHunks = new Emitter<'acceptedAllChanges' | 'rejectedAllChanges'>();
-	public readonly onDidAcceptOrRejectAllHunks = this.didAcceptOrRejectAllHunks.event;
+	private readonly _didAcceptOrRejectAllHunks = this._register(new Emitter<ModifiedFileEntryState.Accepted | ModifiedFileEntryState.Rejected>());
+	public readonly onDidAcceptOrRejectAllHunks = this._didAcceptOrRejectAllHunks.event;
 
-	private readonly didUserEditModel = new Emitter<void>();
-	public readonly onDidUserEditModel = this.didUserEditModel.event;
+	private readonly _didUserEditModel = this._register(new Emitter<void>());
+	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
-	private _edit: StringEdit = StringEdit.empty;
-	public get edit() {
-		return this._edit;
+	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
+	public get originalToModifiedEdit() {
+		return this._originalToModifiedEdit;
 	}
 
 	constructor(
@@ -131,7 +130,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -144,7 +143,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			// EDIT and DONE
 			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this.applyEdits(ops);
 
 			if (undoEdits.length > 0) {
 				let range: Range | undefined;
@@ -180,7 +179,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// EDIT a bit, then DONE
 			const ops = textEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this._applyEdits(ops);
+			const undoEdits = this.applyEdits(ops);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
 
@@ -211,15 +210,46 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	public async applyEdits(edits: ISingleEditOperation[]) {
-		await this._applyEdits(edits);
+	public applyEdits(edits: ISingleEditOperation[]) {
+		try {
+			this._isEditFromUs = true;
+			// make the actual edit
+			let result: ISingleEditOperation[] = [];
+			TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'Chat.applyEdits' }), () => {
+				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+					result = undoEdits;
+					return null;
+				});
+			});
+			return result;
+		} finally {
+			this._isEditFromUs = false;
+		}
+	}
+
+	/**
+	 * Accepts the current modified document as the final contents.
+	 */
+	public accept() {
+		this.originalModel.setValue(this.modifiedModel.createSnapshot());
+		this._diffInfo.set(nullDocumentDiff, undefined);
+		this._originalToModifiedEdit = StringEdit.empty;
+	}
+
+	/**
+	 * Accepts the current modified document as the final contents.
+	 */
+	public reject() {
+		this.setModifiedDocValue(this.originalModel.getValue(), StringEdit.empty);
+		this._originalToModifiedEdit = StringEdit.empty;
+		this._diffInfo.set(nullDocumentDiff, undefined);
 	}
 
 	/**
 	 * Sets the value of the modified document and optionall initializes the edit.
 	 */
-	public setModifiedDocValue(value: string, edit?: StringEdit): void {
-		this._edit = edit ?? this._edit;
+	public setModifiedDocValue(value: string, edit: StringEdit): void {
+		this._originalToModifiedEdit = edit;
 		if (this.modifiedModel.getValue() !== value) {
 
 			this.modifiedModel.pushStackElement();
@@ -243,9 +273,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		const edit = offsetEditFromContentChanges(event.changes);
 
 		if (this._isEditFromUs) {
-			const e_sum = this._edit;
+			const e_sum = this._originalToModifiedEdit;
 			const e_ai = edit;
-			this._edit = e_sum.compose(e_ai);
+			this._originalToModifiedEdit = e_sum.compose(e_ai);
 		} else {
 
 			//           e_ai
@@ -263,23 +293,23 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			// e_ai - ai edits
 			// e_user - user edits
 			//
-			const e_ai = this._edit;
+			const e_ai = this._originalToModifiedEdit;
 			const e_user = edit;
 
 			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()), true);
 
 			if (e_user_r === undefined) {
 				// user edits overlaps/conflicts with AI edits
-				this._edit = e_ai.compose(e_user);
+				this._originalToModifiedEdit = e_ai.compose(e_user);
 			} else {
 				const edits = offsetEditToEditOperations(e_user_r, this.originalModel);
 				this.originalModel.applyEdits(edits);
-				this._edit = e_ai.tryRebase(e_user_r);
+				this._originalToModifiedEdit = e_ai.tryRebase(e_user_r);
 			}
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-			this.didUserEditModel.fire();
+			this._didUserEditModel.fire();
 		}
 	}
 
@@ -288,23 +318,18 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			// diffInfo should have model version ids and check them (instead of the caller doing that)
 			return false;
 		}
-		try {
-			this._isEditFromUs = true;
-			const edits: ISingleEditOperation[] = [];
-			for (const edit of change.innerChanges ?? []) {
-				const newText = this.modifiedModel.getValueInRange(edit.modifiedRange);
-				edits.push(EditOperation.replace(edit.originalRange, newText));
-			}
-			this.originalModel.pushEditOperations(null, edits, _ => null);
-			await this._updateDiffInfoSeq();
-			if (this._diffInfo.get().identical) {
-				this.didAcceptOrRejectAllHunks.fire('acceptedAllChanges');
-			}
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
-			return true;
-		} finally {
-			this._isEditFromUs = false;
+		const edits: ISingleEditOperation[] = [];
+		for (const edit of change.innerChanges ?? []) {
+			const newText = this.modifiedModel.getValueInRange(edit.modifiedRange);
+			edits.push(EditOperation.replace(edit.originalRange, newText));
 		}
+		this.originalModel.pushEditOperations(null, edits, _ => null);
+		await this._updateDiffInfoSeq();
+		if (this._diffInfo.get().identical) {
+			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Accepted);
+		}
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+		return true;
 	}
 
 	private async _rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
@@ -319,35 +344,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this.modifiedModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
-			this.didAcceptOrRejectAllHunks.fire('rejectedAllChanges');
+			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Rejected);
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
 	}
 
-
-	private applyEditFromUs<T>(action: () => T) {
-		try {
-			this._isEditFromUs = true;
-			return action();
-		} finally {
-			this._isEditFromUs = false;
-		}
-	}
-
-	private _applyEdits(edits: ISingleEditOperation[]) {
-		return this.applyEditFromUs(() => {
-			// make the actual edit
-			let result: ISingleEditOperation[] = [];
-			TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'Chat.applyEdits' }), () => {
-				this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
-					result = undoEdits;
-					return null;
-				});
-			});
-			return result;
-		});
-	}
 
 	private async _updateDiffInfoSeq() {
 		const myDiffOperationId = ++this._diffOperationIds;
@@ -392,7 +394,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
-			this._edit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+			this._originalToModifiedEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
 			return diff2;
 		}
 		return undefined;
