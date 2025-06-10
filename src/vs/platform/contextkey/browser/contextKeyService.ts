@@ -156,7 +156,7 @@ class ConfigAwareContextValuesContainer extends Context {
 
 		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
 		const configValue = this._configurationService.getValue(configKey);
-		let value: any = undefined;
+		let value: unknown = undefined;
 		switch (typeof configValue) {
 			case 'number':
 			case 'boolean':

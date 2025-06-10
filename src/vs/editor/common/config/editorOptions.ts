@@ -1027,7 +1027,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * @internal
 	 */
-	validate(input: any): V;
+	validate(input: unknown): V;
 	/**
 	 * @internal
 	 */
@@ -1069,7 +1069,7 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 		return applyUpdate(value, update);
 	}
 
-	public abstract validate(input: any): V;
+	public abstract validate(input: unknown): V;
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V {
 		return value;
@@ -1124,7 +1124,7 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 		return applyUpdate(value, update);
 	}
 
-	public validate(input: any): V {
+	public validate(input: unknown): V {
 		return this.defaultValue;
 	}
 
@@ -1149,7 +1149,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 		return applyUpdate(value, update);
 	}
 
-	public validate(input: any): V {
+	public validate(input: unknown): V {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
@@ -1164,7 +1164,7 @@ class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, 
 /**
  * @internal
  */
-export function boolean(value: any, defaultValue: boolean): boolean {
+export function boolean(value: unknown, defaultValue: boolean): boolean {
 	if (typeof value === 'undefined') {
 		return defaultValue;
 	}
@@ -1185,7 +1185,7 @@ class EditorBooleanOption<K extends EditorOption> extends SimpleEditorOption<K, 
 		super(id, name, defaultValue, schema);
 	}
 
-	public override validate(input: any): boolean {
+	public override validate(input: unknown): boolean {
 		return boolean(input, this.defaultValue);
 	}
 }
@@ -1193,7 +1193,7 @@ class EditorBooleanOption<K extends EditorOption> extends SimpleEditorOption<K, 
 /**
  * @internal
  */
-export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+export function clampedInt<T>(value: unknown, defaultValue: T, minimum: number, maximum: number): number | T {
 	if (typeof value === 'undefined') {
 		return defaultValue;
 	}
@@ -1208,7 +1208,7 @@ export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maxi
 
 class EditorIntOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
 
-	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+	public static clampedInt<T>(value: unknown, defaultValue: T, minimum: number, maximum: number): number | T {
 		return clampedInt(value, defaultValue, minimum, maximum);
 	}
 
@@ -1227,14 +1227,14 @@ class EditorIntOption<K extends EditorOption> extends SimpleEditorOption<K, numb
 		this.maximum = maximum;
 	}
 
-	public override validate(input: any): number {
+	public override validate(input: unknown): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
 /**
  * @internal
  */
-export function clampedFloat<T extends number>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+export function clampedFloat<T extends number>(value: unknown, defaultValue: T, minimum: number, maximum: number): number | T {
 	if (typeof value === 'undefined') {
 		return defaultValue;
 	}
@@ -1254,7 +1254,7 @@ class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, nu
 		return n;
 	}
 
-	public static float(value: any, defaultValue: number): number {
+	public static float(value: unknown, defaultValue: number): number {
 		if (typeof value === 'number') {
 			return value;
 		}
@@ -1276,14 +1276,14 @@ class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, nu
 		this.validationFn = validationFn;
 	}
 
-	public override validate(input: any): number {
+	public override validate(input: unknown): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
 
 class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, string> {
 
-	public static string(value: any, defaultValue: string): string {
+	public static string(value: unknown, defaultValue: string): string {
 		if (typeof value !== 'string') {
 			return defaultValue;
 		}
@@ -1298,7 +1298,7 @@ class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, s
 		super(id, name, defaultValue, schema);
 	}
 
-	public override validate(input: any): string {
+	public override validate(input: unknown): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
@@ -1333,7 +1333,7 @@ class EditorStringEnumOption<K extends EditorOption, V extends string> extends S
 		this._allowedValues = allowedValues;
 	}
 
-	public override validate(input: any): V {
+	public override validate(input: unknown): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
@@ -1354,7 +1354,7 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 		this._convert = convert;
 	}
 
-	public validate(input: any): V {
+	public validate(input: unknown): V {
 		if (typeof input !== 'string') {
 			return this.defaultValue;
 		}
@@ -1365,7 +1365,7 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 	}
 }
 
-function stringArray(value: any, defaultValue: string[]): string[] {
+function stringArray(value: unknown, defaultValue: string[]): string[] {
 	if (!Array.isArray(value)) {
 		return defaultValue;
 	}
@@ -1410,7 +1410,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		);
 	}
 
-	public validate(input: any): AccessibilitySupport {
+	public validate(input: unknown): AccessibilitySupport {
 		switch (input) {
 			case 'auto': return AccessibilitySupport.Unknown;
 			case 'off': return AccessibilitySupport.Disabled;
@@ -1477,7 +1477,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, IEditorComm
 		);
 	}
 
-	public validate(_input: any): EditorCommentsOptions {
+	public validate(_input: unknown): EditorCommentsOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -1795,7 +1795,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 		);
 	}
 
-	public validate(_input: any): EditorFindOptions {
+	public validate(_input: unknown): EditorFindOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -1850,7 +1850,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 		);
 	}
 
-	public validate(input: any): string {
+	public validate(input: unknown): string {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
@@ -1904,7 +1904,7 @@ export class EditorFontVariations extends BaseEditorOption<EditorOption.fontVari
 		);
 	}
 
-	public validate(input: any): string {
+	public validate(input: unknown): string {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
@@ -1996,7 +1996,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public override validate(input: any): number {
+	public override validate(input: unknown): number {
 		const r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
@@ -2044,7 +2044,7 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string,
 		);
 	}
 
-	public validate(input: any): string {
+	public validate(input: unknown): string {
 		if (input === 'normal' || input === 'bold') {
 			return input;
 		}
@@ -2174,7 +2174,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 		);
 	}
 
-	public validate(_input: any): GoToLocationOptions {
+	public validate(_input: unknown): GoToLocationOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -2282,7 +2282,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		);
 	}
 
-	public validate(_input: any): EditorHoverOptions {
+	public validate(_input: unknown): EditorHoverOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -2881,7 +2881,7 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 		);
 	}
 
-	public validate(input: any): 'simple' | 'advanced' {
+	public validate(input: unknown): 'simple' | 'advanced' {
 		return stringSet<'simple' | 'advanced'>(input, 'simple', ['simple', 'advanced']);
 	}
 
@@ -2946,7 +2946,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		);
 	}
 
-	public validate(_input: any): EditorLightbulbOptions {
+	public validate(_input: unknown): EditorLightbulbOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3019,7 +3019,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		);
 	}
 
-	public validate(_input: any): EditorStickyScrollOptions {
+	public validate(_input: unknown): EditorStickyScrollOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3120,7 +3120,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		);
 	}
 
-	public validate(_input: any): EditorInlayHintsOptions {
+	public validate(_input: unknown): EditorInlayHintsOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3148,7 +3148,7 @@ class EditorLineDecorationsWidth extends BaseEditorOption<EditorOption.lineDecor
 		super(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10);
 	}
 
-	public validate(input: any): number {
+	public validate(input: unknown): number {
 		if (typeof input === 'string' && /^\d+(\.\d+)?ch$/.test(input)) {
 			const multiple = parseFloat(input.substring(0, input.length - 2));
 			return -multiple; // negative numbers signal a multiple
@@ -3371,7 +3371,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		);
 	}
 
-	public validate(_input: any): EditorMinimapOptions {
+	public validate(_input: unknown): EditorMinimapOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3463,7 +3463,7 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddin
 		);
 	}
 
-	public validate(_input: any): InternalEditorPaddingOptions {
+	public validate(_input: unknown): InternalEditorPaddingOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3524,7 +3524,7 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 		);
 	}
 
-	public validate(_input: any): InternalParameterHintOptions {
+	public validate(_input: unknown): InternalParameterHintOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -3560,7 +3560,7 @@ class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, strin
 		super(EditorOption.placeholder, 'placeholder', undefined);
 	}
 
-	public validate(input: any): string | undefined {
+	public validate(input: unknown): string | undefined {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
@@ -3635,7 +3635,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		this.defaultValue = defaults;
 	}
 
-	public validate(input: any): InternalQuickSuggestionsOptions {
+	public validate(input: unknown): InternalQuickSuggestionsOptions {
 		if (typeof input === 'boolean') {
 			// boolean -> all on/off
 			const value = input ? 'on' : 'off';
@@ -3714,7 +3714,7 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 		);
 	}
 
-	public validate(lineNumbers: any): InternalEditorRenderLineNumbersOptions {
+	public validate(lineNumbers: unknown): InternalEditorRenderLineNumbersOptions {
 		let renderType: RenderLineNumbersType = this.defaultValue.renderType;
 		let renderFn: ((lineNumber: number) => string) | null = this.defaultValue.renderFn;
 
@@ -3797,7 +3797,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 		);
 	}
 
-	public validate(input: any): IRulerOption[] {
+	public validate(input: unknown): IRulerOption[] {
 		if (Array.isArray(input)) {
 			const rulers: IRulerOption[] = [];
 			for (const _element of input) {
@@ -3837,7 +3837,7 @@ class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMa
 		);
 	}
 
-	public validate(_input: any): IMarkdownString | undefined {
+	public validate(_input: unknown): IMarkdownString | undefined {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -4029,7 +4029,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 		);
 	}
 
-	public validate(_input: any): InternalEditorScrollbarOptions {
+	public validate(_input: unknown): InternalEditorScrollbarOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -4219,7 +4219,7 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 		return result;
 	}
 
-	public validate(_input: any): InternalUnicodeHighlightOptions {
+	public validate(_input: unknown): InternalUnicodeHighlightOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -4414,7 +4414,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		);
 	}
 
-	public validate(_input: any): InternalInlineSuggestOptions {
+	public validate(_input: unknown): InternalInlineSuggestOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -4489,7 +4489,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		);
 	}
 
-	public validate(_input: any): InternalBracketPairColorizationOptions {
+	public validate(_input: unknown): InternalBracketPairColorizationOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -4607,7 +4607,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 		);
 	}
 
-	public validate(_input: any): InternalGuidesOptions {
+	public validate(_input: unknown): InternalGuidesOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -5078,7 +5078,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 		);
 	}
 
-	public validate(_input: any): InternalSuggestOptions {
+	public validate(_input: unknown): InternalSuggestOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -5166,7 +5166,7 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 		);
 	}
 
-	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+	public validate(input: unknown): Readonly<Required<ISmartSelectOptions>> {
 		if (!input || typeof input !== 'object') {
 			return this.defaultValue;
 		}
@@ -5209,7 +5209,7 @@ class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLo
 		);
 	}
 
-	public validate(input: any): string[] {
+	public validate(input: unknown): string[] {
 		if (typeof input === 'string') {
 			input = [input];
 		}
@@ -5281,7 +5281,7 @@ class WrappingIndentOption extends BaseEditorOption<EditorOption.wrappingIndent,
 		);
 	}
 
-	public validate(input: any): WrappingIndent {
+	public validate(input: unknown): WrappingIndent {
 		switch (input) {
 			case 'none': return WrappingIndent.None;
 			case 'same': return WrappingIndent.Same;
@@ -5386,7 +5386,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 		);
 	}
 
-	public validate(_input: any): EditorDropIntoEditorOptions {
+	public validate(_input: unknown): EditorDropIntoEditorOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -5453,7 +5453,7 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 		);
 	}
 
-	public validate(_input: any): EditorPasteAsOptions {
+	public validate(_input: unknown): EditorPasteAsOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}

@@ -73,7 +73,7 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 	}
 }
 
-function format(args: any, verbose: boolean = false): string {
+function format(args: unknown[], verbose: boolean = false): string {
 	let result = '';
 
 	for (let i = 0; i < args.length; i++) {
@@ -326,8 +326,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 	error(message: string | Error, ...args: any[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (message instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = message.stack;
+				const array = [message.stack, ...args];
 				this.log(LogLevel.Error, format(array));
 			} else {
 				this.log(LogLevel.Error, format([message, ...args]));

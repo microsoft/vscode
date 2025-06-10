@@ -463,7 +463,7 @@ suite('Types', () => {
 			suite('any', () => {
 				test('item', () => {
 					assert.doesNotThrow(() => {
-						const item: any = '1';
+						const item: unknown = '1';
 						const list: ('1' | '2')[] = ['2', '1'];
 
 						assert(
@@ -491,7 +491,7 @@ suite('Types', () => {
 
 				test('both', () => {
 					assert.doesNotThrow(() => {
-						const item: any = '12';
+						const item: unknown = '12';
 						const list: any[] = ['14.25', '7', '12'];
 
 						assert(
@@ -729,7 +729,7 @@ suite('Types', () => {
 			suite('any', () => {
 				test('item', () => {
 					assert.throws(() => {
-						const item: any = '1';
+						const item: unknown = '1';
 						const list: ('1' | '2' | '3' | '4')[] = ['3', '4'];
 
 						assert(
@@ -753,7 +753,7 @@ suite('Types', () => {
 
 				test('both', () => {
 					assert.throws(() => {
-						const item: any = '12';
+						const item: unknown = '12';
 						const list: any[] = ['14.25', '7', '15'];
 
 						assert(
@@ -765,7 +765,7 @@ suite('Types', () => {
 
 				test('empty', () => {
 					assert.throws(() => {
-						const item: any = '25';
+						const item: unknown = '25';
 						const list: any[] = [];
 
 						assert(

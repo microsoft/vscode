@@ -21,7 +21,7 @@ const sinonTestFn = sinonTest(sinon);
 
 class TestTelemetryAppender implements ITelemetryAppender {
 
-	public events: any[];
+	public events: { eventName: string; data?: unknown }[];
 	public isDisposed: boolean;
 
 	constructor() {
@@ -29,7 +29,7 @@ class TestTelemetryAppender implements ITelemetryAppender {
 		this.isDisposed = false;
 	}
 
-	public log(eventName: string, data?: any): void {
+	public log(eventName: string, data?: unknown): void {
 		this.events.push({ eventName, data });
 	}
 
@@ -220,7 +220,7 @@ suite('TelemetryService', () => {
 			const errorTelemetry = new ErrorTelemetry(service);
 
 
-			const e: any = new Error('This is a test.');
+			const e = new Error('This is a test.');
 			// for Phantom
 			if (!e.stack) {
 				e.stack = 'blah';
@@ -306,7 +306,7 @@ suite('TelemetryService', () => {
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		const personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
-		const dangerousFilenameError: any = new Error('dangerousFilename');
+		const dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
@@ -329,7 +329,7 @@ suite('TelemetryService', () => {
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
 		const errorTelemetry = new ErrorTelemetry(service);
 
-		let dangerousFilenameError: any = new Error('dangerousFilename');
+		let dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
