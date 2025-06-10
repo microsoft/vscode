@@ -506,13 +506,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
 	let path = uri.fsPath;
-	pathSeparator = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
+	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
 	// Ensure folders end with the path separator to differentiate presentation from files
-	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(pathSeparator)) {
-		path += pathSeparator;
+	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(sep)) {
+		path += sep;
 	}
 	// Ensure drive is capitalized on Windows
-	if (pathSeparator === '\\' && path.match(/^[a-zA-Z]:\\/)) {
+	if (sep === '\\' && path.match(/^[a-zA-Z]:\\/)) {
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
 	}
 	return path;
