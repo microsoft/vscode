@@ -107,6 +107,7 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	const pendingUpdates = pendingNotebookCellModelUpdates.get(notebook) ?? new Set<Thenable<void>>();
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
 	const edit = new WorkspaceEdit();
+	const notebookEdits: NotebookEdit[] = [];
 	updates.forEach(({ cell, metadata }) => {
 		const newMetadata = { ...cell.metadata, ...metadata };
 		if (!metadata.execution_count && newMetadata.execution_count) {
@@ -115,8 +116,9 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 		if (!metadata.attachments && newMetadata.attachments) {
 			delete newMetadata.attachments;
 		}
-		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata))]);
+		notebookEdits.push(NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata)));
 	});
+	edit.set(notebook.uri, notebookEdits);
 	const promise = workspace.applyEdit(edit).then(noop, noop);
 	pendingUpdates.add(promise);
 	const clean = () => cleanup(notebook, promise);
