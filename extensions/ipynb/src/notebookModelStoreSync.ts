@@ -103,10 +103,42 @@ function cleanup(notebook: NotebookDocument, promise: PromiseLike<void>) {
 		}
 	}
 }
+async function applyEditWithRetry(notebook: NotebookDocument, notebookEdits: NotebookEdit[], retries: number = 3): Promise<boolean> {
+	for (let attempt = 1; attempt <= retries; attempt++) {
+		const edit = new WorkspaceEdit();
+		edit.set(notebook.uri, notebookEdits);
+		
+		try {
+			const success = await workspace.applyEdit(edit);
+			if (success) {
+				return true;
+			}
+			
+			console.warn(`Failed to apply notebook metadata edit (attempt ${attempt}/${retries}) for ${notebook.uri.toString()}. Document version mismatch or other conflict.`);
+			
+			if (attempt < retries) {
+				// Wait a bit before retrying, with exponential backoff
+				await new Promise(resolve => setTimeout(resolve, 50 * Math.pow(2, attempt - 1)));
+			}
+		} catch (error) {
+			console.error(`Error applying notebook metadata edit (attempt ${attempt}/${retries}) for ${notebook.uri.toString()}:`, error);
+			
+			if (attempt < retries) {
+				await new Promise(resolve => setTimeout(resolve, 50 * Math.pow(2, attempt - 1)));
+			} else {
+				throw error;
+			}
+		}
+	}
+	
+	console.error(`Failed to apply notebook metadata edit after ${retries} attempts for ${notebook.uri.toString()}. This may result in inconsistent notebook state.`);
+	return false;
+}
+
 function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell: NotebookCell; metadata: CellMetadata & { vscode?: { languageId: string } } }[]) {
 	const pendingUpdates = pendingNotebookCellModelUpdates.get(notebook) ?? new Set<Thenable<void>>();
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
-	const edit = new WorkspaceEdit();
+	
 	const notebookEdits: NotebookEdit[] = [];
 	updates.forEach(({ cell, metadata }) => {
 		const newMetadata = { ...cell.metadata, ...metadata };
@@ -118,8 +150,18 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 		}
 		notebookEdits.push(NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata)));
 	});
-	edit.set(notebook.uri, notebookEdits);
-	const promise = workspace.applyEdit(edit).then(noop, noop);
+	
+	const promise = applyEditWithRetry(notebook, notebookEdits).then(
+		(success) => {
+			if (!success) {
+				console.warn(`Notebook metadata update failed after retries for ${notebook.uri.toString()}. Some cells may have inconsistent metadata.`);
+			}
+		},
+		(error) => {
+			console.error(`Critical error during notebook metadata update for ${notebook.uri.toString()}:`, error);
+		}
+	);
+	
 	pendingUpdates.add(promise);
 	const clean = () => cleanup(notebook, promise);
 	promise.then(clean, clean);
