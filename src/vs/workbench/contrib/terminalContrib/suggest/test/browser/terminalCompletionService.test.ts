@@ -36,7 +36,8 @@ interface IAssertionCommandLineConfig {
 /**
  * Assert the set of completions exist exactly, including their order.
  */
-function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig, noAlterations?: boolean) {
+function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig, pathSep?: string) {
+	const sep = pathSep ?? pathSeparator;
 	assert.deepStrictEqual(
 		actual?.map(e => ({
 			label: e.label,
@@ -45,8 +46,8 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 			replacementIndex: e.replacementIndex,
 			replacementLength: e.replacementLength,
 		})), expected.map(e => ({
-			label: noAlterations ? e.label : e.label.replaceAll('/', pathSeparator),
-			detail: noAlterations ? e.detail : e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
+			label: e.label.replaceAll('/', sep),
+			detail: e.detail ? e.detail.replaceAll('/', sep) : '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
 			replacementIndex: expectedConfig.replacementIndex,
 			replacementLength: expectedConfig.replacementLength,
@@ -646,7 +647,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './bar/', detail: 'C:\\Users\\foo\\bar\\' },
 				{ label: './baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
 				{ label: './../', detail: 'C:\\Users\\' }
-			], { replacementIndex: 0, replacementLength: 2 }, true);
+			], { replacementIndex: 0, replacementLength: 2 }, '/');
 		});
 
 		test('resolveResources with cwd as Windows path (absolute)', async () => {
@@ -670,7 +671,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '/c/Users/foo/', detail: 'C:\\Users\\foo\\' },
 				{ label: '/c/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
 				{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
-			], { replacementIndex: 0, replacementLength: 13 }, true);
+			], { replacementIndex: 0, replacementLength: 13 }, '/');
 		});
 	});
 });
