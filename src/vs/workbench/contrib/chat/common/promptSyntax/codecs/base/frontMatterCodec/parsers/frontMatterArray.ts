@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../../../../../../base/common/assert.js';
-import { PartialFrontMatterValue } from './frontMatterValue.js';
+import { type PartialFrontMatterValue } from './frontMatterValue.js';
 import { FrontMatterArray } from '../tokens/frontMatterArray.js';
 import { assertDefined } from '../../../../../../../../../base/common/types.js';
 import { VALID_INTER_RECORD_SPACING_TOKENS } from '../constants.js';
@@ -13,6 +13,7 @@ import { FrontMatterSequence } from '../tokens/frontMatterSequence.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { Comma, LeftBracket, RightBracket } from '../../simpleCodec/tokens/tokens.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { type FrontMatterParserFactory } from './frontMatterParserFactory.js';
 
 /**
  * List of tokens that can go in-between array items
@@ -41,6 +42,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 	private arrayItemAllowed = true;
 
 	constructor(
+		private readonly factory: FrontMatterParserFactory,
 		private readonly startToken: LeftBracket,
 	) {
 		super([startToken]);
@@ -127,7 +129,7 @@ export class PartialFrontMatterArray extends ParserBase<TSimpleDecoderToken, Par
 		// is an array item value is allowed at this position, create a new
 		// value parser and start the value parsing process using it
 		if (this.arrayItemAllowed === true) {
-			this.currentValueParser = new PartialFrontMatterValue(
+			this.currentValueParser = this.factory.createValue(
 				(currentToken) => {
 					// comma or a closing square bracket must stop the parsing
 					// process of the value represented by a generic sequence of tokens
