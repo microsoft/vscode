@@ -165,6 +165,8 @@ function splitMultilineString(source: nbformat.MultilineString): string[] {
 
 function getReferencedAttachmentNames(source: string): Set<string> {
 	const filenames = new Set<string>();
+	// Match: ![...](attachment:filename) or ![...](<attachment:filename>)
+	// Uses non-greedy match to stop at first ) or > that ends the link
 	const re = /!\[.*?\]\(<?attachment:(.*?)>?\)/gm;
 
 	let match;
