@@ -35,7 +35,7 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
-	issuerGlobs?: ReadonlyArray<string>;
+	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
 export interface IAuthenticationCreateSessionOptions {
@@ -46,10 +46,10 @@ export interface IAuthenticationCreateSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer URI to use for this creation request. If passed in, first we validate that
-	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 * The authorization server URI to use for this creation request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
 }
 
 export interface IAuthenticationGetSessionsOptions {
@@ -59,10 +59,10 @@ export interface IAuthenticationGetSessionsOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer URI to use for this request. If passed in, first we validate that
-	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 * The authorization server URI to use for this request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
 }
 
 export interface AllowedExtension {
@@ -82,7 +82,7 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -189,10 +189,10 @@ export interface IAuthenticationService {
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	/**
-	 * Gets a provider id for a specified issuer
-	 * @param issuer The issuer url that this provider is responsible for
+	 * Gets a provider id for a specified authorization server
+	 * @param authorizationServer The authorization server url that this provider is responsible for
 	 */
-	getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
@@ -204,7 +204,7 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -301,10 +301,10 @@ export interface IAuthenticationProviderSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer that is being asked about. If this is passed in, the provider should
-	 * attempt to return sessions that are only related to this issuer.
+	 * The authorization server that is being asked about. If this is passed in, the provider should
+	 * attempt to return sessions that are only related to this authorization server.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
 }
 
 /**
@@ -322,9 +322,9 @@ export interface IAuthenticationProvider {
 	readonly label: string;
 
 	/**
-	 * The resolved issuers. These can still contain globs, but should be concrete URIs
+	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
 	 */
-	readonly issuers?: ReadonlyArray<URI>;
+	readonly authorizationServers?: ReadonlyArray<URI>;
 
 	/**
 	 * Indicates whether the authentication provider supports multiple accounts.

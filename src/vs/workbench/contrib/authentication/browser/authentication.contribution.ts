@@ -54,7 +54,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 				return [
 					auth.label,
 					auth.id,
-					(auth.issuerGlobs ?? []).join(',\n')
+					(auth.authorizationServerGlobs ?? []).join(',\n')
 				];
 			});
 

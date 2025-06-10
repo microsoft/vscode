@@ -21,6 +21,7 @@ import { DeferredPromise, raceCancellationError } from '../../../base/common/asy
 import { IExtHostProgress } from '../common/extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { URI } from '../../../base/common/uri.js';
 
 interface IOAuthResult {
 	code: string;
@@ -60,7 +61,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 	private _state = randomBytes(16).toString('base64');
 	private _port: number | undefined;
 
-	constructor(private readonly _logger: ILogger) {
+	constructor(private readonly _logger: ILogger, private readonly _appUri: URI) {
 		const deferredPromise = new DeferredPromise<IOAuthResult>();
 		this._resultPromise = deferredPromise.p;
 
@@ -114,7 +115,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 	}
 
 	private _sendSuccessPage(res: http.ServerResponse): void {
-		const html = getHtml();
+		const html = getHtml(this._appUri);
 		res.writeHead(200, {
 			'Content-Type': 'text/html',
 			'Content-Length': Buffer.byteLength(html, 'utf8')
@@ -200,6 +201,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
 		proxy: MainThreadAuthenticationShape,
+		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
@@ -213,6 +215,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			extHostProgress,
 			loggerService,
 			proxy,
+			authorizationServer,
 			serverMetadata,
 			resourceMetadata,
 			clientId,
@@ -223,7 +226,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		// Prepend Node-specific flows to the existing flows
 		if (!initData.remote.isRemote) {
 			// If we are not in a remote environment, we can use the loopback server for authentication
-			this._createFlows.push({
+			this._createFlows.unshift({
 				label: nls.localize('loopback', "Loopback Server"),
 				handler: (scopes, progress, token) => this._createWithLoopbackServer(scopes, progress, token)
 			});
@@ -241,6 +244,16 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
 
+		// Generate a random state value to prevent CSRF
+		const nonce = this.generateRandomString(32);
+		const callbackUri = URI.parse(`${this._initData.environment.appUriScheme}://dynamicauthprovider/${this.authorizationServer.authority}/redirect?nonce=${nonce}`);
+		let appUri: URI;
+		try {
+			appUri = await this._extHostUrls.createAppUri(callbackUri);
+		} catch (error) {
+			throw new Error(`Failed to create external URI: ${error}`);
+		}
+
 		// Prepare the authorization request URL
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
 		authorizationUrl.searchParams.append('client_id', this.clientId);
@@ -257,7 +270,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		}
 
 		// Create and start the loopback server
-		const server = new LoopbackAuthServer(this._logger);
+		const server = new LoopbackAuthServer(this._logger, appUri);
 		try {
 			await server.start();
 		} catch (err) {
@@ -269,6 +282,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		authorizationUrl.searchParams.set('state', server.state);
 
 		const promise = server.waitForOAuthResponse();
+		// Set up a Uri Handler but it's just to redirect not to handle the code
+		void this._proxy.$waitForUriHandler(appUri);
 
 		try {
 			// Open the browser for user authorization
@@ -467,7 +482,7 @@ export class NodeExtHostAuthentication extends ExtHostAuthentication implements 
 	}
 }
 
-function getHtml() {
+function getHtml(appUri: URI) {
 	return `<!DOCTYPE html>
 <html lang="en">
 
@@ -595,6 +610,11 @@ function getHtml() {
 				.textContent = decodeURIComponent(error);
 			document.querySelector('body')
 				.classList.add('error');
+		} else {
+			// Redirect to the app URI after a 1-second delay to allow page to load
+			setTimeout(function() {
+				window.location.href = '${appUri.toString(true)}';
+			}, 1000);
 		}
 	</script>
 </body>

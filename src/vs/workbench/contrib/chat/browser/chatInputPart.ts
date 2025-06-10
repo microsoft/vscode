@@ -17,7 +17,6 @@ import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { logExecutionTime } from '../../../../base/common/decorators/logTime.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -77,7 +76,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatModel.js';
-import { ChatMode2, IChatMode, validateChatMode2 } from '../common/chatModes.js';
+import { ChatMode2, IChatMode, IChatModeService, isBuiltinChatMode, validateChatMode2 } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -94,7 +93,7 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
-import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
+import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
@@ -193,11 +192,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// prompt files may have nested child references to other prompt
 		// files that are resolved asynchronously, hence we need to wait
 		// for the entire prompt instruction tree to be processed
-		await logExecutionTime('instructions tree resolve',
-			this.promptInstructionsAttachmentsPart
-				.allSettled.bind(this.promptInstructionsAttachmentsPart),
-			this.logService.trace.bind(this.logService),
-		);
+		this.promptInstructionsAttachmentsPart
+			.allSettled.bind(this.promptInstructionsAttachmentsPart);
 
 		contextArr
 			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
@@ -401,6 +397,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 		this._onDidLoadInputState = this._register(new Emitter<any>());
@@ -434,6 +431,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;
+
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this._indexOfLastOpenedContext = -1;
+		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, observableFromEvent(this, this.onDidChangeCurrentChatMode, () => this.currentMode)));
@@ -489,6 +490,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.accessibilityService.alert(this._currentLanguageModel.metadata.name);
 			}
 		}));
+		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -585,7 +587,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentChatMode.fire();
 
 		if (storeSelection) {
-			this.storageService.store(GlobalLastChatModeKey, mode, StorageScope.APPLICATION, StorageTarget.USER);
+			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 
@@ -660,6 +662,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
+	private async validateCurrentChatMode() {
+		const currentMode = this._currentMode;
+		if (isBuiltinChatMode(currentMode)) {
+			return;
+		}
+
+		const modes = await this.chatModeService.getModesAsync();
+		const validMode = modes.custom?.find(mode => mode.id === currentMode.id);
+		if (!validMode) {
+			this.setChatMode2(ChatMode2.Agent);
+			return;
+		}
+
+		this.setChatMode2(validMode);
+	}
+
 	initForNewChatModel(state: IChatViewState, modelIsEmpty: boolean): void {
 		this.history = this.loadHistory();
 		this.history.add({
@@ -676,7 +694,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (state.inputState?.chatMode) {
-			this.setChatMode(state.inputState.chatMode);
+			if (typeof state.inputState.chatMode === 'string') {
+				this.setChatMode(state.inputState.chatMode);
+			} else {
+				this.setChatMode2(state.inputState.chatMode);
+				this.validateCurrentChatMode();
+			}
 		} else {
 			const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
 			if (isChatMode(persistedMode)) {
@@ -908,7 +931,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	validateCurrentMode(): void {
+	validateAgentMode(): void {
 		if (!this.agentService.hasToolsAgent && this._currentMode.kind === ChatMode.Agent) {
 			this.setChatMode(ChatMode.Edit);
 		}
@@ -1470,7 +1493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				arg: { sessionId: chatEditingSession.chatSessionId },
 			},
 			buttonConfigProvider: (action) => {
-				if (action.id === ChatEditingShowChangesAction.ID || action.id === ChatEditingRemoveAllFilesAction.ID || action.id === ViewPreviousEditsAction.Id) {
+				if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
 					return { showIcon: true, showLabel: false, isSecondary: true };
 				}
 				return undefined;

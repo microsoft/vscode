@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from './uri.js';
 import { assert } from './assert.js';
 
 /**
@@ -106,7 +105,7 @@ export function assertType(condition: unknown, type?: string): asserts condition
  *
  * @see {@link assertDefined} for a similar utility that leverages TS assertion functions to narrow down the type of `arg` to be non-nullable.
  */
-export function assertIsDefined<T>(arg: T | null | undefined): NonNullable<T> {
+export function assertReturnsDefined<T>(arg: T | null | undefined): NonNullable<T> {
 	assert(
 		arg !== null && arg !== undefined,
 		'Argument is `undefined` or `null`.',
@@ -138,7 +137,7 @@ export function assertIsDefined<T>(arg: T | null | undefined): NonNullable<T> {
  * console.log(someValue.length); // now type of `someValue` is `string`
  * ```
  *
- * @see {@link assertIsDefined} for a similar utility but without assertion.
+ * @see {@link assertReturnsDefined} for a similar utility but without assertion.
  * @see {@link https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#assertion-functions typescript-3-7.html#assertion-functions}
  */
 export function assertDefined<T>(value: T, error: string | NonNullable<Error>): asserts value is NonNullable<T> {
@@ -152,10 +151,10 @@ export function assertDefined<T>(value: T, error: string | NonNullable<Error>): 
 /**
  * Asserts that each argument passed in is neither undefined nor null.
  */
-export function assertAllDefined<T1, T2>(t1: T1 | null | undefined, t2: T2 | null | undefined): [T1, T2];
-export function assertAllDefined<T1, T2, T3>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined): [T1, T2, T3];
-export function assertAllDefined<T1, T2, T3, T4>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined, t4: T4 | null | undefined): [T1, T2, T3, T4];
-export function assertAllDefined(...args: (unknown | null | undefined)[]): unknown[] {
+export function assertReturnsAllDefined<T1, T2>(t1: T1 | null | undefined, t2: T2 | null | undefined): [T1, T2];
+export function assertReturnsAllDefined<T1, T2, T3>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined): [T1, T2, T3];
+export function assertReturnsAllDefined<T1, T2, T3, T4>(t1: T1 | null | undefined, t2: T2 | null | undefined, t3: T3 | null | undefined, t4: T4 | null | undefined): [T1, T2, T3, T4];
+export function assertReturnsAllDefined(...args: (unknown | null | undefined)[]): unknown[] {
 	const result = [];
 
 	for (let i = 0; i < args.length; i++) {
@@ -342,8 +341,3 @@ export type DeepPartial<T> = {
  * Represents a type that is a partial version of a given type `T`, except a subset.
  */
 export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;
-
-/**
- * Type for an `object` with its `value` property being a {@link URI}.
- */
-export type WithUriValue<T extends object> = T & { value: URI };

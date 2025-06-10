@@ -63,6 +63,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 			if (uri?.scheme) {
 				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
 				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
 			}
 		}
 	});

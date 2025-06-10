@@ -11,7 +11,7 @@ import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { LogLevel } from '../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
@@ -148,8 +148,9 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initDataService: IExtHostInitDataService,
+		@ILogService logService: ILogService,
 	) {
-		super(extHostRpc, initDataService);
+		super(extHostRpc, logService, initDataService);
 	}
 
 	private nodeServers = new Map<number, {

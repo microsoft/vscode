@@ -339,7 +339,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
 				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
 
-				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
+				if (!diffEntry.modified.isEmpty) {
 					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: chatDiffWholeLineAddDecoration
@@ -552,7 +552,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		const targetRange = decorations[newIndex];
 		const targetPosition = next ? targetRange.getStartPosition() : targetRange.getEndPosition();
 		this._editor.setPosition(targetPosition);
-		this._editor.revealPositionInCenter(targetPosition);
+		this._editor.revealPositionInCenter(targetRange.getStartPosition().delta(-1));
 		this._editor.focus();
 
 		return true;

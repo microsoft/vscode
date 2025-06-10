@@ -1036,7 +1036,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	findEditors(resource: URI, options?: IFindEditorOptions): EditorInput[] {
 		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
-		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+		return this.getEditors(options?.order ?? EditorsOrder.SEQUENTIAL).filter(editor => {
 			if (editor.resource && isEqual(editor.resource, canonicalResource)) {
 				return true;
 			}

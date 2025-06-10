@@ -6,7 +6,7 @@
 // *********************************************************************
 // *                                                                   *
 // *  We need this to redirect to node_modules from the remote-folder. *
-// *  This ONLY applies  when running out of source.                   *
+// *  This ONLY applies when running out of source.                   *
 // *                                                                   *
 // *********************************************************************
 

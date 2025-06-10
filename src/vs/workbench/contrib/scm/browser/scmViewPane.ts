@@ -1561,6 +1561,7 @@ class SCMInputWidgetEditorOptions {
 		return {
 			...getSimpleEditorOptions(this.configurationService),
 			...this.getEditorOptions(),
+			allowVariableLineHeights: false,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
 			formatOnType: true,
