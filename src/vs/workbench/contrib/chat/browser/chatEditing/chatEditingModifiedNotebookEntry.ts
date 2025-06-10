@@ -554,17 +554,17 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		// For all cells that were edited, send the `isLastEdits` flag.
-		const finishPreviousCells = () => {
-			this.editedCells.forEach(uri => {
+		const finishPreviousCells = async () => {
+			await Promise.all(Array.from(this.editedCells).map(async (uri) => {
 				const cell = this.modifiedModel.cells.find(cell => isEqual(cell.uri, uri));
 				const cellEntry = cell && this.cellEntryMap.get(cell.uri);
-				cellEntry?.acceptAgentEdits([], true, responseModel);
-			});
+				await cellEntry?.acceptAgentEdits([], true, responseModel);
+			}));
 			this.editedCells.clear();
 		};
 
-		this._applyEditsSync(async () => {
-			edits.map((edit, idx) => {
+		this._applyEdits(async () => {
+			await Promise.all(edits.map(async (edit, idx) => {
 				const last = isLastEdits && idx === edits.length - 1;
 				if (TextEdit.isTextEdit(edit)) {
 					// Possible we're getting the raw content for the notebook.
@@ -578,14 +578,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							finishPreviousCells();
 							this.editedCells.add(resource);
 						}
-						cellEntry?.acceptAgentEdits([edit], last, responseModel);
+						await cellEntry?.acceptAgentEdits([edit], last, responseModel);
 					}
 				} else {
 					// If we notebook edits, its impossible to get text edits for the notebook uri.
 					this.newNotebookEditGenerator = undefined;
 					this.acceptNotebookEdit(edit);
 				}
-			});
+			}));
 		});
 
 		// If the last edit for a cell was sent, then handle it
