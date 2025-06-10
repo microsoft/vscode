@@ -205,6 +205,22 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			toJSON: () => { return {}; }
 		};
 
+		// Register drag handles for markdown cells, similar to code cells
+		// focusIndicatorLeft covers the left margin area and should be draggable
+		const dragHandles = [focusIndicatorLeft.domNode];
+		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandles, () => {
+			// Use the current editor if available (edit mode), otherwise create a minimal drag image
+			const editor = templateData.currentEditor;
+			if (editor) {
+				return new CodeCellDragImageRenderer().getDragImage(templateData, editor, 'markdown');
+			} else {
+				// In preview mode, create a simple drag image
+				const dragImage = document.createElement('div');
+				dragImage.textContent = '1 cell';
+				return dragImage;
+			}
+		});
+
 		return templateData;
 	}
 
