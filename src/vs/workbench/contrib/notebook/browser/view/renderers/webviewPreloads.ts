@@ -1611,7 +1611,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				
+
 				// Build clipboard data with both image and text formats
 				const clipboardData: Record<string, any> = {
 					'image/png': new Promise((resolve) => {
