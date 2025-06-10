@@ -26,7 +26,7 @@ import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachme
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
-import { openPanelChatAndGetWidget } from './mcpCommands.js';
+import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 export class McpResourcePickHelper {
 	public static sep(server: IMcpServer): IQuickPickSeparator {
