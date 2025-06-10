@@ -143,6 +143,17 @@ export async function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { type, newArgs, envMixin };
+		} else if (shell === 'cmd.exe') {
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsCmd);
+			}
+			if (!newArgs) {
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			return { type, newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
@@ -327,6 +338,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 enum ShellIntegrationExecutable {
 	WindowsPwsh = 'windows-pwsh',
 	WindowsPwshLogin = 'windows-pwsh-login',
+	WindowsCmd = 'windows-cmd',
 	Pwsh = 'pwsh',
 	PwshLogin = 'pwsh-login',
 	Zsh = 'zsh',
@@ -340,6 +352,7 @@ const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map(
 // The try catch swallows execution policy errors in the case of the archive distributable
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsCmd, ['/K', '{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.cmd']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
