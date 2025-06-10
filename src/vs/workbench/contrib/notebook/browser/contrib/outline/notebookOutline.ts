@@ -582,6 +582,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
 			collapseByDefault: this._target === OutlineTarget.Breadcrumbs || (this._target === OutlineTarget.OutlinePane && this._configurationService.getValue(OutlineConfigKeys.collapseItems) === OutlineConfigCollapseItemsValues.Collapsed),
 			expandOnlyOnTwistieClick: true,
+			// Explicitly disable multi-selection to match behavior of text file outline view
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
 			identityProvider: { getId: element => element.cell.uri.toString() },

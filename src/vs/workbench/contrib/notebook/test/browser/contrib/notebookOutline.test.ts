@@ -187,4 +187,15 @@ suite('Notebook Outline', function () {
 			assert.strictEqual(symbolsCached, true);
 		});
 	});
+
+	test('Notebook outline disables multi-selection support', async function () {
+		await withNotebookOutline([
+			['# Header 1', 'markdown', CellKind.Markup],
+			['a = 1', 'python', CellKind.Code]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			// Verify that multipleSelectionSupport is explicitly disabled in configuration
+			assert.strictEqual(outline.config.options.multipleSelectionSupport, false, 'Notebook outline should have multi-selection disabled to match text file outline behavior');
+		});
+	});
 });
