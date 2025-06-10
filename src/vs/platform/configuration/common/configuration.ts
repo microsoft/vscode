@@ -13,11 +13,12 @@ import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
-export function is[a-zA-Z0-9_]+(thing: unknown): thing is IConfigurationOverrides {
+export function isConfigurationOverrides(thing: unknown): thing is IConfigurationOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& thing !== null
+		&& (!(thing as any).overrideIdentifier || typeof (thing as any).overrideIdentifier === 'string')
+		&& (!(thing as any).resource || (thing as any).resource instanceof URI);
 }
 
 export interface IConfigurationOverrides {
@@ -25,12 +26,13 @@ export interface IConfigurationOverrides {
 	resource?: URI | null;
 }
 
-export function is[a-zA-Z0-9_]+(thing: unknown): thing is IConfigurationUpdateOverrides {
+export function isConfigurationUpdateOverrides(thing: unknown): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
-		&& !thing.overrideIdentifier
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& thing !== null
+		&& (!(thing as any).overrideIdentifiers || Array.isArray((thing as any).overrideIdentifiers))
+		&& !(thing as any).overrideIdentifier
+		&& (!(thing as any).resource || (thing as any).resource instanceof URI);
 }
 
 export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
