@@ -23,14 +23,13 @@ $Global:__VSCodeState = @{
 	IsWindows10 = $false
 }
 
-# Store the nonce in our state object and unset the global
+# Store the nonce in script scope and unset the global
 $Global:__VSCodeState.Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
 $Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
-# Handle environment variable reporting
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
 if ($__vscode_shell_env_reporting) {
