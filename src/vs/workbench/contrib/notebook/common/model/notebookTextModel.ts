@@ -23,7 +23,7 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
-import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookMapper, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { INotebookExecutionStateService } from '../notebookExecutionStateService.js';
 import { CellMetadataEdit, MoveCellEdit, SpliceCellsEdit } from './cellEdit.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
@@ -241,12 +241,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this.viewType;
 	}
 
+	get mapper() {
+		return this._mapper;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly uri: URI,
 		cells: ICellDto2[],
 		metadata: NotebookDocumentMetadata,
 		options: TransientOptions,
+		private _mapper: NotebookMapper | undefined,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -441,7 +446,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
 	}
 
-	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
+	reset({ cells, metadata, mapper }: NotebookData, transientOptions: TransientOptions): void {
+		if (this._mapper) {
+			this._mapper.dispose();
+		}
+		this._mapper = mapper;
 		this.transientOptions = transientOptions;
 		const executions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this.uri);
 		const executingCellHandles = executions.filter(exe => exe.state === NotebookCellExecutionState.Executing).map(exe => exe.cellHandle);
@@ -498,7 +507,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void {
-		this.reset(snapshot.cells, snapshot.metadata, transientOptions ?? this.transientOptions);
+		this.reset(snapshot, transientOptions ?? this.transientOptions);
 	}
 
 	static computeEdits(model: NotebookTextModel, cells: ICellDto2[], executingHandles: number[] = []): ICellEditOperation[] {

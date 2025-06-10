@@ -307,7 +307,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		}
 
 		this._notebookLogService.info('WorkingCopyModel', 'Notebook content updated from file system - ' + this._notebookModel.uri.toString());
-		this._notebookModel.reset(data.cells, data.metadata, serializer.options);
+		this._notebookModel.reset(data, serializer.options);
 	}
 
 	async getNotebookSerializer(): Promise<INotebookSerializer> {

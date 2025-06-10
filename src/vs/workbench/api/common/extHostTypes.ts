@@ -3894,6 +3894,20 @@ export class NotebookRange {
 	}
 }
 
+export enum NotebookCellPart {
+	SOURCE = 1,
+	METADATA = 2,
+}
+
+export class NotebookRange2 extends Range {
+	constructor(
+		readonly cell: number,
+		readonly part?: NotebookCellPart,
+		range?: Range) {
+		super(range?.start ?? new Position(0, 0), range?.end ?? new Position(0, 0));
+	}
+}
+
 export class NotebookCellData {
 
 	static validate(data: NotebookCellData): void {

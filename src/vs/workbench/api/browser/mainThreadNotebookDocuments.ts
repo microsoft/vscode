@@ -142,7 +142,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 			// apply content changes... slightly HACKY -> this triggers a change event
 			if (options.content) {
 				const data = NotebookDto.fromNotebookDataDto(options.content);
-				ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+				ref.object.notebook.reset(data, ref.object.notebook.transientOptions);
 			}
 			return ref.object.notebook.uri;
 		} else {

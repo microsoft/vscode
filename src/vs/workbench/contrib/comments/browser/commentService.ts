@@ -12,7 +12,9 @@ import { Range, IRange } from '../../../../editor/common/core/range.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICommentThreadChangedEvent } from '../common/commentModel.js';
 import { CommentMenus } from './commentMenus.js';
+import { NotebookTextModel } from '../../notebook/common/model/notebookTextModel.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
@@ -190,7 +192,8 @@ export class CommentService extends Disposable implements ICommentService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super();
 		this._handleConfiguration();
@@ -245,6 +248,13 @@ export class CommentService extends Disposable implements ICommentService {
 			if (!this._commentingRangeResources.has(model.uri.toString())) {
 				this.getDocumentComments(model.uri);
 			}
+		}));
+		this._register(this.notebookService.onDidAddNotebookDocument(async notebook => {
+			await Promise.all((await this.getDocumentComments(notebook.uri))
+				.filter((info): info is ICommentInfo => !!info)
+				.flatMap(info => {
+					return info.threads.map(thread => this.maybeMapNotebookComments(thread, notebook));
+				}));
 		}));
 	}
 
@@ -419,12 +429,34 @@ export class CommentService extends Disposable implements ICommentService {
 		return menu;
 	}
 
-	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void {
+	async updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>) {
+		await Promise.all(event.added.map(thread => {
+			if (!thread.resource) {
+				return undefined;
+			}
+			const model = this.notebookService.getNotebookTextModel(URI.parse(thread.resource));
+			if (!model) {
+				return undefined;
+			}
+			return this.maybeMapNotebookComments(thread, model);
+		}));
 		const control = this._commentControls.get(ownerId);
 		if (control) {
 			const evt: ICommentThreadChangedEvent = Object.assign({}, event, { uniqueOwner: ownerId, ownerLabel: control.label, owner: control.owner });
 			this.updateModelThreads(evt);
 		}
+	}
+
+	private async maybeMapNotebookComments(thread: CommentThread, notebookTextModel: NotebookTextModel) {
+		if (!notebookTextModel.mapper || !thread.range) {
+			return;
+		}
+		const notebookRange = await notebookTextModel.mapper.toNotebookRange(thread.range);
+		if (!notebookRange) {
+			return;
+		}
+		thread.range = notebookRange;
+		thread.resource = notebookTextModel.cells[notebookRange.cell].uri.toString();
 	}
 
 	updateNotebookComments(ownerId: string, event: CommentThreadChangedEvent<ICellRange>): void {

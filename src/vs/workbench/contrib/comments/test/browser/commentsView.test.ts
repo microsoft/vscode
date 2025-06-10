@@ -16,11 +16,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -119,7 +122,12 @@ suite('Comments View', function () {
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const onDidAddNotebookDocument = new Emitter<NotebookTextModel>();
+		disposables.add(onDidAddNotebookDocument);
 		instantiationService = workbenchInstantiationService({}, disposables);
+		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
+		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IContextViewService, {});

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IRange } from '../../../../editor/common/core/range.js';
+
+
 /**
  * [start, end]
  */
@@ -108,4 +111,14 @@ export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
 
 export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
 	return other.start >= range.start && other.end <= range.end;
+}
+
+export enum NotebookCellPart {
+	SOURCE = 1,
+	METADATA = 2,
+}
+
+export interface INotebookRange2 extends IRange {
+	readonly cell: number;
+	readonly part?: NotebookCellPart;
 }
