@@ -123,7 +123,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 		}
 
 		if (idx >= editor.getLength() - 1) {
-			// We're in the last cell, check if we can move down within the cell
+			// We're in the last cell, check if we can move cursor to end of line
 			const targetCell = (context.cell ?? context.selectedCells?.[0]);
 			const foundEditor: ICodeEditor | undefined = targetCell ? findTargetCellEditor(context, targetCell) : undefined;
 			
@@ -135,16 +135,22 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					const lastLineNumber = model.getLineCount();
 					const lastColumnNumber = model.getLineMaxColumn(lastLineNumber);
 					
-					// If we're not at the last position in the document, execute normal cursor down
-					if (currentPosition.lineNumber < lastLineNumber || 
-						(currentPosition.lineNumber === lastLineNumber && currentPosition.column < lastColumnNumber)) {
+					// If we're on the last line but not at the end, move to end of line
+					if (currentPosition.lineNumber === lastLineNumber && currentPosition.column < lastColumnNumber) {
+						foundEditor.setPosition({ lineNumber: lastLineNumber, column: lastColumnNumber });
+						foundEditor.revealPosition({ lineNumber: lastLineNumber, column: lastColumnNumber });
+						return;
+					}
+					
+					// If we're not on the last line, try normal cursor down behavior
+					if (currentPosition.lineNumber < lastLineNumber) {
 						EditorExtensionsRegistry.getEditorCommand('cursorDown').runCommand(accessor, {});
 						return;
 					}
 				}
 			}
 			
-			// If we reach here, we're already at the bottom-right of the last cell, so do nothing
+			// If we reach here, we're already at the end of the last line, so do nothing
 			return;
 		}
 

@@ -66,23 +66,22 @@ suite('Notebook Arrow Navigation', () => {
 				assert.strictEqual(lastLineNumber, 3);
 				assert.strictEqual(lastColumnNumber, 6);
 				
-				// Verify middle of last line should trigger cursorDown
+				// Verify middle of last line should move cursor to end of line
 				const middleOfLastLine = { lineNumber: 3, column: 3 }; // Middle of 'line3'
-				const shouldExecuteCursorDown = middleOfLastLine.lineNumber < lastLineNumber || 
-					(middleOfLastLine.lineNumber === lastLineNumber && middleOfLastLine.column < lastColumnNumber);
-				assert.strictEqual(shouldExecuteCursorDown, true);
+				const shouldMoveToEndOfLine = middleOfLastLine.lineNumber === lastLineNumber && 
+					middleOfLastLine.column < lastColumnNumber;
+				assert.strictEqual(shouldMoveToEndOfLine, true);
 				
-				// Verify end of last line should not trigger cursorDown
+				// Verify end of last line should do nothing
 				const endOfLastLine = { lineNumber: 3, column: 6 }; // End of 'line3'
-				const shouldNotExecuteCursorDown = endOfLastLine.lineNumber < lastLineNumber || 
-					(endOfLastLine.lineNumber === lastLineNumber && endOfLastLine.column < lastColumnNumber);
-				assert.strictEqual(shouldNotExecuteCursorDown, false);
+				const shouldDoNothing = endOfLastLine.lineNumber === lastLineNumber && 
+					endOfLastLine.column === lastColumnNumber;
+				assert.strictEqual(shouldDoNothing, true);
 				
-				// Verify middle of non-last line should trigger cursorDown
+				// Verify middle of non-last line should execute cursorDown
 				const middleOfFirstLine = { lineNumber: 1, column: 3 }; // Middle of 'line1'
-				const shouldExecuteCursorDownFromFirstLine = middleOfFirstLine.lineNumber < lastLineNumber || 
-					(middleOfFirstLine.lineNumber === lastLineNumber && middleOfFirstLine.column < lastColumnNumber);
-				assert.strictEqual(shouldExecuteCursorDownFromFirstLine, true);
+				const shouldExecuteCursorDown = middleOfFirstLine.lineNumber < lastLineNumber;
+				assert.strictEqual(shouldExecuteCursorDown, true);
 			});
 	});
 });
