@@ -57,12 +57,12 @@ export const enum ContextKeyExprType {
 export interface IContextKeyExprMapper {
 	mapDefined(key: string): ContextKeyExpression;
 	mapNot(key: string): ContextKeyExpression;
-	mapEquals(key: string, value: any): ContextKeyExpression;
-	mapNotEquals(key: string, value: any): ContextKeyExpression;
-	mapGreater(key: string, value: any): ContextKeyExpression;
-	mapGreaterEquals(key: string, value: any): ContextKeyExpression;
-	mapSmaller(key: string, value: any): ContextKeyExpression;
-	mapSmallerEquals(key: string, value: any): ContextKeyExpression;
+	mapEquals(key: string, value: ContextKeyValue): ContextKeyExpression;
+	mapNotEquals(key: string, value: ContextKeyValue): ContextKeyExpression;
+	mapGreater(key: string, value: ContextKeyValue): ContextKeyExpression;
+	mapGreaterEquals(key: string, value: ContextKeyValue): ContextKeyExpression;
+	mapSmaller(key: string, value: ContextKeyValue): ContextKeyExpression;
+	mapSmallerEquals(key: string, value: ContextKeyValue): ContextKeyExpression;
 	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
 	mapIn(key: string, valueKey: string): ContextKeyInExpr;
 	mapNotIn(key: string, valueKey: string): ContextKeyNotInExpr;
@@ -587,10 +587,10 @@ export abstract class ContextKeyExpr {
 	public static has(key: string): ContextKeyExpression {
 		return ContextKeyDefinedExpr.create(key);
 	}
-	public static equals(key: string, value: any): ContextKeyExpression {
+	public static equals(key: string, value: ContextKeyValue): ContextKeyExpression {
 		return ContextKeyEqualsExpr.create(key, value);
 	}
-	public static notEquals(key: string, value: any): ContextKeyExpression {
+	public static notEquals(key: string, value: ContextKeyValue): ContextKeyExpression {
 		return ContextKeyNotEqualsExpr.create(key, value);
 	}
 	public static regex(key: string, value: RegExp): ContextKeyExpression {
@@ -637,7 +637,7 @@ export abstract class ContextKeyExpr {
 }
 
 
-export function validateWhenClauses(whenClauses: string[]): any {
+export function validateWhenClauses(whenClauses: string[]): unknown {
 
 	const parser = new Parser({ regexParsingWithErrorRecovery: false }); // we run with no recovery to guide users to use correct regexes
 
@@ -827,7 +827,7 @@ export class ContextKeyDefinedExpr implements IContextKeyExpression {
 
 export class ContextKeyEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, value: ContextKeyValue, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		if (typeof value === 'boolean') {
 			return (value ? ContextKeyDefinedExpr.create(key, negated) : ContextKeyNotExpr.create(key, negated));
 		}
@@ -1023,7 +1023,7 @@ export class ContextKeyNotInExpr implements IContextKeyExpression {
 
 export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, value: ContextKeyValue, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		if (typeof value === 'boolean') {
 			if (value) {
 				return ContextKeyNotExpr.create(key, negated);

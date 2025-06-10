@@ -13,7 +13,7 @@ import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
-export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
+export function is[a-zA-Z0-9_]+(thing: unknown): thing is IConfigurationOverrides {
 	return thing
 		&& typeof thing === 'object'
 		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
@@ -25,7 +25,7 @@ export interface IConfigurationOverrides {
 	resource?: URI | null;
 }
 
-export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
+export function is[a-zA-Z0-9_]+(thing: unknown): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
 		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
@@ -310,10 +310,10 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
-export function getConfigurationValue<T>(config: any, settingPath: string): T | undefined;
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue: T): T;
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T | undefined {
-	function accessSetting(config: any, path: string[]): any {
+export function getConfigurationValue<T>(config: unknown, settingPath: string): T | undefined;
+export function getConfigurationValue<T>(config: unknown, settingPath: string, defaultValue: T): T;
+export function getConfigurationValue<T>(config: unknown, settingPath: string, defaultValue?: T): T | undefined {
+	function accessSetting(config: unknown, path: string[]): any {
 		let current = config;
 		for (const component of path) {
 			if (typeof current !== 'object' || current === null) {

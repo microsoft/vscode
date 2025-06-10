@@ -221,7 +221,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	private getContentsForOverrideIdentifer(identifier: string): any {
 		let contentsForIdentifierOnly: IStringDictionary<any> | null = null;
 		let contents: IStringDictionary<any> | null = null;
-		const mergeContents = (contentsToMerge: any) => {
+		const mergeContents = (contentsToMerge: unknown) => {
 			if (contentsToMerge) {
 				if (contents) {
 					this.mergeContents(contents, contentsToMerge);
@@ -272,7 +272,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	private updateValue(key: string, value: any, add: boolean): void {
+	private updateValue(key: string, value: unknown, add: boolean): void {
 		addToValueTree(this.contents, key, value, e => this.logService.error(e));
 		add = add || this.keys.indexOf(key) === -1;
 		if (add) {
@@ -354,7 +354,7 @@ export class ConfigurationModelParser {
 		const previousParents: any[] = [];
 		const parseErrors: json.ParseError[] = [];
 
-		function onValue(value: any) {
+		function onValue(value: unknown) {
 			if (Array.isArray(currentParent)) {
 				(<any[]>currentParent).push(value);
 			} else if (currentProperty !== null) {
@@ -731,7 +731,7 @@ export class Configuration {
 		return consolidateConfigurationModel.getValue(section);
 	}
 
-	updateValue(key: string, value: any, overrides: IConfigurationUpdateOverrides = {}): void {
+	updateValue(key: string, value: unknown, overrides: IConfigurationUpdateOverrides = {}): void {
 		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
