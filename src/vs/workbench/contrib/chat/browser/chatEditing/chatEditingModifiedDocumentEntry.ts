@@ -32,7 +32,7 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingModifiedTextModel } from './chatEditingModifiedTextModel.js';
+import { ChatEditingModifiedTextModelService } from './chatEditingModifiedTextModelService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 
@@ -52,7 +52,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	readonly originalURI: URI;
-	private readonly modifiedTextModel: ChatEditingModifiedTextModel;
+	private readonly modifiedTextModel: ChatEditingModifiedTextModelService;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -98,7 +98,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			)
 		);
 
-		this.modifiedTextModel = this._register(instantiationService.createInstance(ChatEditingModifiedTextModel,
+		this.modifiedTextModel = this._register(instantiationService.createInstance(ChatEditingModifiedTextModelService,
 			this.originalModel, this.modifiedModel, this._stateObs));
 
 		this._register(this.modifiedTextModel.onHunkAction(action => {

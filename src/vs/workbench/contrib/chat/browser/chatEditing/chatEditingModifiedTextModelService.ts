@@ -35,7 +35,7 @@ import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
 
-export class ChatEditingModifiedTextModel extends Disposable {
+export class ChatEditingModifiedTextModelService extends Disposable {
 
 	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
@@ -202,7 +202,7 @@ export class ChatEditingModifiedTextModel extends Disposable {
 					});
 
 					this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, [{
-						options: ChatEditingModifiedTextModel._atomicEditDecorationOptions,
+						options: ChatEditingModifiedTextModelService._atomicEditDecorationOptions,
 						range
 					}]);
 
@@ -222,7 +222,7 @@ export class ChatEditingModifiedTextModel extends Disposable {
 			const newDecorations: IModelDeltaDecoration[] = [
 				// decorate pending edit (region)
 				{
-					options: ChatEditingModifiedTextModel._pendingEditDecorationOptions,
+					options: ChatEditingModifiedTextModelService._pendingEditDecorationOptions,
 					range: new Range(maxLineNumber + 1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
 				}
 			];
@@ -230,7 +230,7 @@ export class ChatEditingModifiedTextModel extends Disposable {
 			if (maxLineNumber > 0) {
 				// decorate last edit
 				newDecorations.push({
-					options: ChatEditingModifiedTextModel._lastEditDecorationOptions,
+					options: ChatEditingModifiedTextModelService._lastEditDecorationOptions,
 					range: new Range(maxLineNumber, 1, maxLineNumber, Number.MAX_SAFE_INTEGER)
 				});
 			}

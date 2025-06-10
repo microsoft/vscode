@@ -19,7 +19,7 @@ import { NotebookCellTextModel } from '../../../../notebook/common/model/noteboo
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
-import { ChatEditingModifiedTextModel } from '../chatEditingModifiedTextModel.js';
+import { ChatEditingModifiedTextModelService } from '../chatEditingModifiedTextModelService.js';
 
 
 /**
@@ -49,7 +49,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 	private readonly initialContent: string;
-	private readonly modifiedTextModel: ChatEditingModifiedTextModel;
+	private readonly modifiedTextModel: ChatEditingModifiedTextModelService;
 	constructor(
 		public readonly notebookUri: URI,
 		public readonly cell: NotebookCellTextModel,
@@ -62,7 +62,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this.modifiedTextModel = this._register(this.instantiationService.createInstance(ChatEditingModifiedTextModel, this.originalModel, this.modifiedModel, this.state));
+		this.modifiedTextModel = this._register(this.instantiationService.createInstance(ChatEditingModifiedTextModelService, this.originalModel, this.modifiedModel, this.state));
 
 		this._register(this.modifiedTextModel.onHunkAction(action => {
 			this.revertMarkdownPreviewState();
