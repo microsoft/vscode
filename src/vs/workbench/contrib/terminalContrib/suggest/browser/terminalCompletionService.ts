@@ -17,7 +17,7 @@ import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminal
 import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { gitBashPathToWindows } from './terminalGitBashHelpers.js';
+import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -282,7 +282,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			case 'absolute': {
 				if (shellType === WindowsShellType.GitBash) {
-					lastWordFolderResource = URI.file(gitBashPathToWindows(lastWordFolder, this._processEnv.SystemDrive));
+					lastWordFolderResource = URI.file(gitBashToWindowsPath(lastWordFolder, this._processEnv.SystemDrive));
 				} else {
 					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
 				}
