@@ -298,8 +298,8 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		if (parsedArgs.status) {
 			await sendToPipe({
 				type: 'status'
-			}, verbose).then((res: string) => {
-				console.log(res);
+			}, verbose).then((res: string | null) => {
+				console.log(res || '');
 			}).catch(e => {
 				console.error('Error when requesting status:', e);
 			});
@@ -407,7 +407,7 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string | null> {
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}
@@ -444,7 +444,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
 			res.on('end', () => {
 				const content = chunks.join('');
 				try {
-					const obj = JSON.parse(content);
+					const obj = JSON.parse(content) as string | null;
 					if (res.statusCode === 200) {
 						resolve(obj);
 					} else {
@@ -466,7 +466,7 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(message: string, err: any): void {
+function fatal(message: string, err: unknown): void {
 	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);
