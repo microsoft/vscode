@@ -172,7 +172,7 @@ suite('AbstractKeybindingService', () => {
 					showMessageCalls.push({ sev: Severity.Warning, message });
 					return new NoOpNotification();
 				},
-				error: (message: any) => {
+				error: (message: unknown) => {
 					showMessageCalls.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
 				},

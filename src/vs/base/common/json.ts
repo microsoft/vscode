@@ -1013,7 +1013,7 @@ export function getNodePath(node: Node): JSONPath {
 /**
  * Evaluates the JavaScript object of the given JSON DOM node
  */
-export function getNodeValue(node: Node): any {
+export function getNodeValue(node: Node): unknown {
 	switch (node.type) {
 		case 'array':
 			return node.children!.map(getNodeValue);

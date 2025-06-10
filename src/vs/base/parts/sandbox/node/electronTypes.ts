@@ -40,7 +40,7 @@ export interface MessagePortMain extends NodeJS.EventEmitter {
 }
 
 export interface MessageEvent {
-	data: any;
+	data: unknown;
 	ports: MessagePortMain[];
 }
 

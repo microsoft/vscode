@@ -137,13 +137,13 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 
 		const errorRunner = this._register(new RunOnceScheduler(sendPendingErrorNow, 0));
 
-		const sendErrorSoon = (err: any) => {
+		const sendErrorSoon = (err: unknown) => {
 			errorRunner.cancel();
 			pendingErrorEvent = err;
 			errorRunner.schedule();
 		};
 
-		const sendErrorNow = (err: any) => {
+		const sendErrorNow = (err: unknown) => {
 			errorRunner.cancel();
 			pendingErrorEvent = err;
 			sendPendingErrorNow();

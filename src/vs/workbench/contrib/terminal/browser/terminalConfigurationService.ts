@@ -51,7 +51,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		this._onConfigChanged.fire();
 	}
 
-	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
+	private _normalizeFontWeight(input: unknown, defaultWeight: FontWeight): FontWeight {
 		if (input === 'normal' || input === 'bold') {
 			return input;
 		}

@@ -135,8 +135,8 @@ type ErrorWithCode = Error & {
 };
 
 export function transformErrorForSerialization(error: Error): SerializedError;
-export function transformErrorForSerialization(error: any): any;
-export function transformErrorForSerialization(error: any): any {
+export function transformErrorForSerialization(error: unknown): unknown;
+export function transformErrorForSerialization(error: unknown): unknown {
 	if (error instanceof Error) {
 		const { name, message, cause } = error;
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;

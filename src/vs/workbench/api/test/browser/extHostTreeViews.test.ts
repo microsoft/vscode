@@ -743,7 +743,7 @@ suite('ExtHostTreeView', function () {
 		};
 	}
 
-	function getTreeElement(element: string): any {
+	function getTreeElement(element: string): unknown {
 		let parent = tree;
 		for (let i = 0; i < element.length; i++) {
 			parent = parent[element.substring(0, i + 1)];

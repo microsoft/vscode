@@ -274,7 +274,7 @@ namespace MarkedHighlight {
 		};
 	}
 
-	function updateToken(token: any) {
+	function updateToken(token: unknown) {
 		return (code: string) => {
 			if (typeof code === 'string' && code !== token.text) {
 				token.escaped = true;

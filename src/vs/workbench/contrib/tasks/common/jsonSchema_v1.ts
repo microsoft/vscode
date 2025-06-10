@@ -74,7 +74,7 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 	delete definitions[key];
 });
 
-function fixReferences(literal: any) {
+function fixReferences(literal: unknown) {
 	if (Array.isArray(literal)) {
 		literal.forEach(fixReferences);
 	} else if (typeof literal === 'object') {

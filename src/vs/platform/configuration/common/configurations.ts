@@ -218,7 +218,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const previousParents: any[] = [];
 		const parseErrors: json.ParseError[] = [];
 
-		function onValue(value: any) {
+		function onValue(value: unknown) {
 			if (Array.isArray(currentParent)) {
 				(<any[]>currentParent).push(value);
 			} else if (currentProperty !== null) {

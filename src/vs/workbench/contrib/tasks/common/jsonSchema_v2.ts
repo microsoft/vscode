@@ -15,7 +15,7 @@ import * as ConfigurationResolverUtils from '../../../services/configurationReso
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 import { getAllCodicons } from '../../../../base/common/codicons.js';
 
-function fixReferences(literal: any) {
+function fixReferences(literal: unknown) {
 	if (Array.isArray(literal)) {
 		literal.forEach(fixReferences);
 	} else if (typeof literal === 'object') {

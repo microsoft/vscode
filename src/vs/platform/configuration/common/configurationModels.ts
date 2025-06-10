@@ -183,7 +183,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			return this;
 		}
 
-		const contents: any = {};
+		const contents: unknown = {};
 		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
 
 			let contentsForKey = this.contents[key];
@@ -348,9 +348,9 @@ export class ConfigurationModelParser {
 	}
 
 	private doParseContent(content: string): any {
-		let raw: any = {};
+		let raw: unknown = {};
 		let currentProperty: string | null = null;
-		let currentParent: any = [];
+		let currentParent: unknown = [];
 		const previousParents: any[] = [];
 		const parseErrors: json.ParseError[] = [];
 
@@ -419,7 +419,7 @@ export class ConfigurationModelParser {
 		if (!options?.scopes && !options?.skipRestricted && !options?.exclude?.length) {
 			return { raw: properties, restricted: [], hasExcludedProperties };
 		}
-		const raw: any = {};
+		const raw: unknown = {};
 		const restricted: string[] = [];
 		for (const key in properties) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key) && filterOverriddenProperties) {
@@ -471,7 +471,7 @@ export class ConfigurationModelParser {
 		const overrides: IOverrides[] = [];
 		for (const key of Object.keys(raw)) {
 			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-				const overrideRaw: any = {};
+				const overrideRaw: unknown = {};
 				for (const keyInOverrideRaw in raw[key]) {
 					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
 				}

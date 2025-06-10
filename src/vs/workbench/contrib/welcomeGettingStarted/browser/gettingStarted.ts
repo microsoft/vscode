@@ -514,7 +514,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getHiddenCategories(): Set<string> {
-		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]')));
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.PROFILE, '[]') as unknown));
 	}
 
 	private setHiddenCategories(hidden: string[]) {
@@ -1297,7 +1297,7 @@ export class GettingStartedPage extends EditorPane {
 			const commandURI = URI.parse(command);
 
 			// execute as command
-			let args: any = [];
+			let args: unknown = [];
 			try {
 				args = parse(decodeURIComponent(commandURI.query));
 			} catch {
@@ -2152,7 +2152,7 @@ export class GettingStartedInputSerializer implements IEditorSerializer {
 
 		return instantiationService.invokeFunction(accessor => {
 			try {
-				const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
+				const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput) as unknown;
 				return new GettingStartedInput({ selectedCategory, selectedStep });
 			} catch { }
 			return new GettingStartedInput({});
