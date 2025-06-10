@@ -32,3 +32,4 @@ import '../terminalContrib/sendSignal/browser/terminal.sendSignal.contribution.j
 import '../terminalContrib/suggest/browser/terminal.suggest.contribution.js';
 import '../terminalContrib/chat/browser/terminal.initialHint.contribution.js';
 import '../terminalContrib/wslRecommendation/browser/terminal.wslRecommendation.contribution.js';
+import '../terminalContrib/nushellRecommendation/browser/terminal.nushellRecommendation.contribution.js';

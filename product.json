@@ -82,5 +82,16 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
-	]
+	],
+	"exeBasedExtensionTips": {
+		"nushell": {
+			"friendlyName": "Nushell",
+			"recommendations": {
+				"thenuprojectcontributors.nushell": {
+					"name": "Nushell",
+					"important": true
+				}
+			}
+		}
+	}
 }
