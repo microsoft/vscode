@@ -143,7 +143,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
-
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd ?? terminal.shellIntegration.cwd, env: terminal.shellIntegration?.env?.value, });
 			}
 			return result.items;
