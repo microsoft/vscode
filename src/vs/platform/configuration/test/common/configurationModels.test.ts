@@ -128,7 +128,7 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('b.c', 1);
 
-		const expected: any = {};
+		const expected: unknown = {};
 		expected['a'] = { 'b': 1 };
 		expected['f'] = 1;
 		expected['b'] = Object.create(null);

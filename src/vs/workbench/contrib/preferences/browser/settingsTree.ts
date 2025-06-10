@@ -741,7 +741,7 @@ const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template
 
 export interface ISettingChangeEvent {
 	key: string;
-	value: any; // undefined => reset/unconfigure
+	value: unknown; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
 	manualReset: boolean;
 	scope: ConfigurationScope | undefined;

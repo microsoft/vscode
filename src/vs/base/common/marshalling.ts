@@ -11,8 +11,8 @@ export function stringify(obj: unknown): string {
 	return JSON.stringify(obj, replacer);
 }
 
-export function parse(text: string): any {
-	let data = JSON.parse(text);
+export function parse(text: string): unknown {
+	let data = JSON.parse(text) as unknown;
 	data = revive(data);
 	return data;
 }

@@ -325,7 +325,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			if (state === State.WaitingForAuth) {
 				let msg1: HandshakeMessage;
 				try {
-					msg1 = JSON.parse(raw.toString()) as HandshakeMessage;
+					msg1 = JSON.parse(raw.toString() as unknown) as HandshakeMessage;
 				} catch (err) {
 					return rejectWebSocketConnection(`Malformed first message`);
 				}
@@ -365,7 +365,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 				let msg2: HandshakeMessage;
 				try {
-					msg2 = JSON.parse(raw.toString()) as HandshakeMessage;
+					msg2 = JSON.parse(raw.toString() as unknown) as HandshakeMessage;
 				} catch (err) {
 					return rejectWebSocketConnection(`Malformed second message`);
 				}
@@ -701,7 +701,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	}
 
 	const unloggedErrors: any[] = [];
-	initUnexpectedErrorHandler((error: any) => {
+	initUnexpectedErrorHandler((error: unknown) => {
 		unloggedErrors.push(error);
 		console.error(error);
 	});

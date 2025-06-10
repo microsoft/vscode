@@ -269,7 +269,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		endColumn: 0
 	};
 
-	function onValue(value: any, offset: number, length: number) {
+	function onValue(value: unknown, offset: number, length: number) {
 		if (Array.isArray(currentParent)) {
 			(<any[]>currentParent).push(value);
 		} else if (currentProperty) {

@@ -80,7 +80,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 /**
  * Returns an error string if the value is invalid and can't be displayed in the settings UI for the given type.
  */
-export function getInvalidTypeError(value: any, type: undefined | string | string[]): string | undefined {
+export function getInvalidTypeError(value: unknown, type: undefined | string | string[]): string | undefined {
 	if (typeof type === 'undefined') {
 		return;
 	}
@@ -93,7 +93,7 @@ export function getInvalidTypeError(value: any, type: undefined | string | strin
 	return;
 }
 
-function valueValidatesAsType(value: any, type: string): boolean {
+function valueValidatesAsType(value: unknown, type: string): boolean {
 	const valueType = typeof value;
 	if (type === 'boolean') {
 		return valueType === 'boolean';

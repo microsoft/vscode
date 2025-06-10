@@ -22,7 +22,7 @@ type WebViewDragEvent = {
 }
 
 export type FromWebviewMessage = {
-	'onmessage': { message: any; transfer?: ArrayBuffer[] };
+	'onmessage': { message: unknown; transfer?: ArrayBuffer[] };
 	'did-click-link': { uri: string };
 	'did-scroll': { scrollYPercentage: number };
 	'did-focus': void;
@@ -58,12 +58,12 @@ interface UpdateContentEvent {
 
 export type ToWebviewMessage = {
 	'focus': void;
-	'message': { message: any; transfer?: ArrayBuffer[] };
+	'message': { message: unknown; transfer?: ArrayBuffer[] };
 	'execCommand': string;
 	'did-load-resource':
 	| { id: number; status: 401 | 404; path: string }
 	| { id: number; status: 304; path: string; mime: string; mtime: number | undefined }
-	| { id: number; status: 200; path: string; mime: string; data: any; etag: string | undefined; mtime: number | undefined }
+	| { id: number; status: 200; path: string; mime: string; data: unknown; etag: string | undefined; mtime: number | undefined }
 	;
 	'did-load-localhost': {
 		id: string;

@@ -17,7 +17,7 @@ suite('CDP Accessibility Domain', () => {
 		return { type, value };
 	}
 
-	function createAXProperty(name: string, value: any, type: AXValueType = 'string'): AXProperty {
+	function createAXProperty(name: string, value: unknown, type: AXValueType = 'string'): AXProperty {
 		return {
 			name: name as any,
 			value: createAXValue(type, value)

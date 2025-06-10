@@ -991,7 +991,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const storageValue = this._storageService.get(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
-				const values: string[] = JSON.parse(storageValue);
+				const values: string[] = JSON.parse(storageValue) as unknown;
 				if (Array.isArray(values)) {
 					for (const value of values) {
 						this._recentlyUsedTasksV1.set(value, value);
@@ -1042,7 +1042,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const storageValue = this._storageService.get(AbstractTaskService.RecentlyUsedTasks_KeyV2, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
-				const values: [string, string][] = JSON.parse(storageValue);
+				const values: [string, string][] = JSON.parse(storageValue) as unknown;
 				if (Array.isArray(values)) {
 					for (const value of values) {
 						this._recentlyUsedTasks.set(value[0], value[1]);
@@ -1065,7 +1065,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
-				const values: [string, string][] = JSON.parse(storageValue);
+				const values: [string, string][] = JSON.parse(storageValue) as unknown;
 				if (Array.isArray(values)) {
 					for (const value of values) {
 						this._persistentTasks.set(value[0], value[1]);
@@ -1079,7 +1079,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _getFolderFromTaskKey(key: string): { folder: string | undefined; isWorkspaceFile: boolean | undefined } {
-		const keyValue: { folder: string | undefined; id: string | undefined } = JSON.parse(key);
+		const keyValue: { folder: string | undefined; id: string | undefined } = JSON.parse(key) as unknown;
 		return {
 			folder: keyValue.folder, isWorkspaceFile: keyValue.id?.endsWith(TaskSourceKind.WorkspaceFile)
 		};
@@ -1106,7 +1106,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const entry of storedTasks.entries()) {
 			try {
 				const key = entry[0];
-				const task = JSON.parse(entry[1]);
+				const task = JSON.parse(entry[1]) as unknown;
 				const folderInfo = this._getFolderFromTaskKey(key);
 				this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
 				addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
@@ -1698,7 +1698,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any, source?: string): Promise<void> | undefined {
+	private _writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: unknown, source?: string): Promise<void> | undefined {
 		let target: ConfigurationTarget | undefined = undefined;
 		switch (source) {
 			case TaskSourceKind.User: target = ConfigurationTarget.USER; break;

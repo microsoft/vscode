@@ -48,7 +48,7 @@ const nullEvent = new class {
 	topic!: string;
 	name!: string;
 	description!: string;
-	data: any;
+	data: unknown;
 
 	startTime!: Date;
 	stopTime!: Date;

@@ -192,7 +192,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		try {
 			await requestPromise;
 			assert.fail('Expected error was not thrown');
-		} catch (e: any) {
+		} catch (e: unknown) {
 			assert.strictEqual(e.message, 'MPC -32601: Resource not found');
 			assert.strictEqual(e.code, MCP.METHOD_NOT_FOUND);
 		}

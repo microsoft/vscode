@@ -381,7 +381,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration: any = {};
+		const targetWorkspaceConfiguration: unknown = {};
 		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {

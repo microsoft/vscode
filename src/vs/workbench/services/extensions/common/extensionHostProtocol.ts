@@ -82,7 +82,7 @@ export interface IStaticWorkspaceData {
 }
 
 export interface MessagePortLike {
-	postMessage(message: any, transfer?: any[]): void;
+	postMessage(message: unknown, transfer?: any[]): void;
 	addEventListener(type: 'message', listener: (e: any) => unknown): void;
 	removeEventListener(type: 'message', listener: (e: any) => unknown): void;
 	start(): void;

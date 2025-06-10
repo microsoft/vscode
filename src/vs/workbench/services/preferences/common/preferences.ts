@@ -62,7 +62,7 @@ export interface ISetting {
 	range: IRange;
 	key: string;
 	keyRange: IRange;
-	value: any;
+	value: unknown;
 	valueRange: IRange;
 	description: string[];
 	descriptionIsMarkdown?: boolean;

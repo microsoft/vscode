@@ -125,7 +125,7 @@ suite('snapshot', () => {
 	});
 
 	test('formats object nicely', async () => {
-		const circular: any = {};
+		const circular: unknown = {};
 		circular.a = circular;
 
 		await assertSnapshot([

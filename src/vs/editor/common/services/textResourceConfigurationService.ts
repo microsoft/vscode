@@ -37,7 +37,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
 	}
 
-	updateValue(resource: URI | undefined, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI | undefined, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		const language = resource ? this.getLanguage(resource, null) : null;
 		const configurationValue = this.configurationService.inspect(key, { resource, overrideIdentifier: language });
 		if (configurationTarget === undefined) {

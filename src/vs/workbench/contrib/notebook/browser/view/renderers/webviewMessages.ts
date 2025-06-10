@@ -60,7 +60,7 @@ export interface IScrollToRevealMessage extends BaseToWebviewMessage {
 
 export interface IWheelMessage extends BaseToWebviewMessage {
 	readonly type: 'did-scroll-wheel';
-	readonly payload: any;
+	readonly payload: unknown;
 }
 
 export interface IScrollAckMessage extends BaseToWebviewMessage {

@@ -100,10 +100,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: unknown, arg3?: any, arg4?: any, options?: any): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 

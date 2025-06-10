@@ -51,7 +51,7 @@ function string(prop: any, defValue: string): string {
 
 
 function arrayToHash(array: string[]): { [name: string]: true } {
-	const result: any = {};
+	const result: unknown = {};
 	for (const e of array) {
 		result[e] = true;
 	}

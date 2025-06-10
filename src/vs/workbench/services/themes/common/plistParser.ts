@@ -26,7 +26,7 @@ const enum State {
 /**
  * A very fast plist parser
  */
-export function parse(content: string): any {
+export function parse(content: string): unknown {
 	return _parse(content, null, null);
 }
 
@@ -109,7 +109,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	let state = State.ROOT_STATE;
 
-	let cur: any = null;
+	let cur: unknown = null;
 	const stateStack: State[] = [];
 	const objStack: any[] = [];
 	let curKey: string | null = null;

@@ -37,7 +37,7 @@ export enum ChatErrorLevel {
 }
 
 export interface IChatResponseErrorDetailsConfirmationButton {
-	data: any;
+	data: unknown;
 	label: string;
 	isSecondary?: boolean;
 }
@@ -220,7 +220,7 @@ export interface IChatNotebookEdit {
 export interface IChatConfirmation {
 	title: string;
 	message: string;
-	data: any;
+	data: unknown;
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';

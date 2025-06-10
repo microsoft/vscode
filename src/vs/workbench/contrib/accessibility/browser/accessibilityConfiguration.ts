@@ -946,7 +946,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			const delayWarning = getDelaysFromConfig(accessor, 'warningAtPosition');
 			const volume = getVolumeFromConfig(accessor);
 			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
-			const result: [key: string, { value: any }][] = [];
+			const result: [key: string, { value: unknown }][] = [];
 			if (!!volume) {
 				result.push(['accessibility.signalOptions.volume', { value: volume }]);
 			}

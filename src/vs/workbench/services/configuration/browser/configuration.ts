@@ -79,7 +79,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 					if (localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
 						const content = await this.configurationCache.read(this.cacheKey);
 						if (content) {
-							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
+							this.cachedConfigurationDefaultsOverrides = JSON.parse(content) as unknown;
 						}
 					}
 				} catch (error) { /* ignore */ }
@@ -606,7 +606,7 @@ class CachedRemoteUserConfiguration extends Disposable {
 	async reload(): Promise<ConfigurationModel> {
 		try {
 			const content = await this.configurationCache.read(this.key);
-			const parsed: { content: string } = JSON.parse(content);
+			const parsed: { content: string } = JSON.parse(content) as unknown;
 			if (parsed.content) {
 				this.parser.parse(parsed.content, this.parseOptions);
 				this.configurationModel = this.parser.configurationModel;
@@ -852,7 +852,7 @@ class CachedWorkspaceConfiguration {
 		try {
 			const key = this.getKey(workspaceIdentifier);
 			const contents = await this.configurationCache.read(key);
-			const parsed: { content: string } = JSON.parse(contents);
+			const parsed: { content: string } = JSON.parse(contents) as unknown;
 			if (parsed.content) {
 				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(key.key, this.logService);
 				this.workspaceConfigurationModelParser.parse(parsed.content, configurationParseOptions);
@@ -943,7 +943,7 @@ class CachedFolderConfiguration {
 	async loadConfiguration(): Promise<ConfigurationModel> {
 		try {
 			const contents = await this.configurationCache.read(this.key);
-			const { content: configurationContents }: { content: IStringDictionary<string> } = JSON.parse(contents.toString());
+			const { content: configurationContents }: { content: IStringDictionary<string> } = JSON.parse(contents.toString() as unknown);
 			if (configurationContents) {
 				for (const key of Object.keys(configurationContents)) {
 					if (key === FOLDER_SETTINGS_NAME) {
@@ -962,7 +962,7 @@ class CachedFolderConfiguration {
 	}
 
 	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
-		const content: any = {};
+		const content: unknown = {};
 		if (settingsContent) {
 			content[FOLDER_SETTINGS_NAME] = settingsContent;
 		}

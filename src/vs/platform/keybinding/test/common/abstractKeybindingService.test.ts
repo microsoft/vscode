@@ -105,7 +105,7 @@ suite('AbstractKeybindingService', () => {
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
 	let currentContextValue: IContext | null = null;
 	let executeCommandCalls: { commandId: string; args: any[] }[] = null!;
-	let showMessageCalls: { sev: Severity; message: any }[] = null!;
+	let showMessageCalls: { sev: Severity; message: unknown }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
 

@@ -56,7 +56,7 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 		return Promise.resolve(parsed.toObject());
 	}
 
-	resolveWithInteraction(folder: any, config: any, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	resolveWithInteraction(folder: any, config: unknown, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		const parsed = ConfigurationResolverExpression.parse(config);
 		// For testing, we simulate interaction by returning a map with some variables
 		const result = new Map<string, string>();

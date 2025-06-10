@@ -407,7 +407,7 @@ export namespace MarkdownString {
 		if (!part) {
 			return part;
 		}
-		let data: any;
+		let data: unknown;
 		try {
 			data = parse(part);
 		} catch (e) {

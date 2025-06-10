@@ -12,10 +12,10 @@ export class LazyPromise implements Promise<any> {
 	private _actualErr: ((err?: any) => any) | null;
 
 	private _hasValue: boolean;
-	private _value: any;
+	private _value: unknown;
 
 	protected _hasErr: boolean;
-	protected _err: any;
+	protected _err: unknown;
 
 	constructor() {
 		this._actual = null;

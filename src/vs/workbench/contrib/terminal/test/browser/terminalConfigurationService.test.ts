@@ -54,7 +54,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 		});
 	});
 
-	function createTerminalConfigationService(config: any, linuxDistro?: LinuxDistro): ITerminalConfigurationService {
+	function createTerminalConfigationService(config: unknown, linuxDistro?: LinuxDistro): ITerminalConfigurationService {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.set(IConfigurationService, new TestConfigurationService(config));
 		const terminalConfigurationService = store.add(instantiationService.createInstance(TestTerminalConfigurationService));

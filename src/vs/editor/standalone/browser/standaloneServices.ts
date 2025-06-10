@@ -681,7 +681,7 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+	public updateValue(key: string, value: unknown, arg3?: any, arg4?: any): Promise<void> {
 		return this.updateValues([[key, value]]);
 	}
 
@@ -763,7 +763,7 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		return this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 	}
 }

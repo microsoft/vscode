@@ -212,7 +212,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	}
 
 	private parse(content: string): any {
-		let raw: any = {};
+		let raw: unknown = {};
 		let currentProperty: string | null = null;
 		let currentParent: any = [];
 		const previousParents: any[] = [];

@@ -292,7 +292,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string: stringOptions, boolean: booleanOptions, alias });
 
-	const cleanedArgs: any = {};
+	const cleanedArgs: unknown = {};
 	const remainingArgs: any = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617

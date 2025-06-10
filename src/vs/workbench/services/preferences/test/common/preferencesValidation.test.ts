@@ -466,7 +466,7 @@ suite('Preferences Validation', () => {
 	});
 
 	test('getInvalidTypeError', () => {
-		function testInvalidTypeError(value: any, type: string | string[], shouldValidate: boolean) {
+		function testInvalidTypeError(value: unknown, type: string | string[], shouldValidate: boolean) {
 			const message = `value: ${value}, type: ${JSON.stringify(type)}, expected: ${shouldValidate ? 'valid' : 'invalid'}`;
 			if (shouldValidate) {
 				assert.ok(!getInvalidTypeError(value, type), message);

@@ -327,7 +327,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: any, collector?: ExtensionMessageCollector): value is IRawLanguageExtensionPoint {
+function isValidLanguageExtensionPoint(value: unknown, collector?: ExtensionMessageCollector): value is IRawLanguageExtensionPoint {
 	if (!value) {
 		collector?.error(localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;

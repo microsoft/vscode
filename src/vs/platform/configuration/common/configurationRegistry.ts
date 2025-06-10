@@ -251,12 +251,12 @@ export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchem
 };
 
 export interface IConfigurationDefaultOverride {
-	readonly value: any;
+	readonly value: unknown;
 	readonly source?: IExtensionInfo;  // Source of the default override
 }
 
 export interface IConfigurationDefaultOverrideValue {
-	readonly value: any;
+	readonly value: unknown;
 	readonly source?: ConfigurationDefaultValueSource;
 }
 
@@ -523,7 +523,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		return { value: defaultValue, source };
 	}
 
-	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: any, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
 		const property = this.configurationProperties[propertyKey];
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;

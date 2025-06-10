@@ -120,7 +120,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	/**
 	 * scopeValue || defaultValue, for rendering convenience.
 	 */
-	value: any;
+	value: unknown;
 
 	/**
 	 * The value in the current settings scope.

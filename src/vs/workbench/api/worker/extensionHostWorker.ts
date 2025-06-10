@@ -20,7 +20,7 @@ import { URI } from '../../../base/common/uri.js';
 
 //#region --- Define, capture, and override some globals
 
-declare function postMessage(data: any, transferables?: Transferable[]): void;
+declare function postMessage(data: unknown, transferables?: Transferable[]): void;
 declare const name: string; // https://developer.mozilla.org/en-US/docs/Web/API/DedicatedWorkerGlobalScope/name
 declare type _Fetch = typeof fetch;
 
@@ -215,7 +215,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	return new Promise<IRendererConnection>(resolve => {
 		const once = protocol.onMessage(raw => {
 			once.dispose();
-			const initData = <IExtensionHostInitData>JSON.parse(raw.toString());
+			const initData = <IExtensionHostInitData>JSON.parse(raw.toString() as unknown);
 			protocol.send(createMessageOfType(MessageType.Initialized));
 			resolve({ protocol, initData });
 		});

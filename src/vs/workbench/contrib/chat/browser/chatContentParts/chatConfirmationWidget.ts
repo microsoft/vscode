@@ -23,7 +23,7 @@ export interface IChatConfirmationButton {
 	label: string;
 	isSecondary?: boolean;
 	tooltip?: string;
-	data: any;
+	data: unknown;
 	disabled?: boolean;
 	onDidChangeDisablement?: Event<boolean>;
 	moreActions?: IChatConfirmationButton[];

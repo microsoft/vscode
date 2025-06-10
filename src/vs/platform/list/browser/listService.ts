@@ -650,7 +650,7 @@ export interface IOpenResourceOptions {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
 	element: any;
-	payload: any;
+	payload: unknown;
 }
 
 export interface IOpenEvent<T> {

@@ -176,7 +176,7 @@ export interface JSONVisitor {
 	/**
 	 * Invoked when a literal value is encountered. The offset and length represent the location of the literal value.
 	 */
-	onLiteralValue?: (value: any, offset: number, length: number) => void;
+	onLiteralValue?: (value: unknown, offset: number, length: number) => void;
 
 	/**
 	 * Invoked when a comma or colon separator is encountered. The offset and length represent the location of the separator.
@@ -784,7 +784,7 @@ export function getLocation(text: string, position: number): Location {
 				previousNode = undefined;
 				segments.pop();
 			},
-			onLiteralValue: (value: any, offset: number, length: number) => {
+			onLiteralValue: (value: unknown, offset: number, length: number) => {
 				if (position < offset) {
 					throw earlyReturnException;
 				}
@@ -843,7 +843,7 @@ export function getLocation(text: string, position: number): Location {
  * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  * Therefore always check the errors list to find out if the input was valid.
  */
-export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): any {
+export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): unknown {
 	let currentProperty: string | null = null;
 	let currentParent: any = [];
 	const previousParents: any[] = [];
@@ -1167,7 +1167,7 @@ export function visit(text: string, visitor: JSONVisitor, options: ParseOptions 
 			case SyntaxKind.NumericLiteral: {
 				let value = 0;
 				try {
-					value = JSON.parse(_scanner.getTokenValue());
+					value = JSON.parse(_scanner.getTokenValue() as unknown);
 					if (typeof value !== 'number') {
 						handleError(ParseErrorCode.InvalidNumberFormat);
 						value = 0;

@@ -22,7 +22,7 @@ import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING
 export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _isFirstLoad = true;
-	private readonly _firstLoadPendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
+	private readonly _firstLoadPendingMessages = new Set<{ readonly message: unknown; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -359,7 +359,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public onFatalError = this._onFatalError.event;
 
-	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
+	public async postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {
 			return this._webview.value.postMessage(message, transfer);
 		}

@@ -438,7 +438,7 @@ function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]
 	return { index: targetTree.length - 1, insertAfter: true };
 }
 
-function insertAtLocation(content: string, key: string, value: any, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): string {
+function insertAtLocation(content: string, key: string, value: unknown, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): string {
 	let edits: Edit[];
 	/* Insert at the end */
 	if (location.index === -1) {
@@ -449,7 +449,7 @@ function insertAtLocation(content: string, key: string, value: any, location: In
 	return applyEdits(content, edits);
 }
 
-function getEditToInsertAtLocation(content: string, key: string, value: any, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): Edit[] {
+function getEditToInsertAtLocation(content: string, key: string, value: unknown, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): Edit[] {
 	const newProperty = `${JSON.stringify(key)}: ${JSON.stringify(value)}`;
 	const eol = getEOL(formattingOptions, content);
 	const node = tree[location.index];
@@ -604,7 +604,7 @@ function parseSettings(content: string): INode[] {
 				});
 			}
 		},
-		onLiteralValue: (value: any, offset: number, length: number) => {
+		onLiteralValue: (value: unknown, offset: number, length: number) => {
 			if (hierarchyLevel === 0) {
 				nodes.push({
 					startOffset,

@@ -60,7 +60,7 @@ export const Extensions = {
 
 export type ConfigurationValue = { value: any | undefined /* Remove */ };
 export type ConfigurationKeyValuePairs = [string, ConfigurationValue][];
-export type ConfigurationMigrationFn = (value: any, valueAccessor: (key: string) => any) => ConfigurationValue | ConfigurationKeyValuePairs | Promise<ConfigurationValue | ConfigurationKeyValuePairs>;
+export type ConfigurationMigrationFn = (value: unknown, valueAccessor: (key: string) => any) => ConfigurationValue | ConfigurationKeyValuePairs | Promise<ConfigurationValue | ConfigurationKeyValuePairs>;
 export type ConfigurationMigration = { key: string; migrateFn: ConfigurationMigrationFn };
 
 export interface IConfigurationMigrationRegistry {
@@ -159,7 +159,7 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		}
 	}
 
-	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<any>, value: any, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
+	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<any>, value: unknown, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
 		const valueAccessor = (key: string) => {
 			const inspectData = this.configurationService.inspect(key, { resource });
 			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;

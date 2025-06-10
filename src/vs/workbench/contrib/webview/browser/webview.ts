@@ -172,7 +172,7 @@ export interface WebviewExtensionDescription {
 }
 
 export interface WebviewMessageReceivedEvent {
-	readonly message: any;
+	readonly message: unknown;
 	readonly transfer?: readonly ArrayBuffer[];
 }
 
@@ -243,7 +243,7 @@ export interface IWebview extends IDisposable {
 
 	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 
-	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
+	postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
 	focus(): void;
 	reload(): void;

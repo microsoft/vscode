@@ -5,7 +5,7 @@
 
 import { NewWorkerMessage, TerminateWorkerMessage } from '../common/polyfillNestedWorker.protocol.js';
 
-declare function postMessage(data: any, transferables?: Transferable[]): void;
+declare function postMessage(data: unknown, transferables?: Transferable[]): void;
 
 declare type MessageEventHandler = ((ev: MessageEvent<any>) => any) | null;
 
@@ -22,7 +22,7 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 		// onmessage
 		Object.defineProperties(globalThis, {
 			'postMessage': {
-				value(data: any, transferOrOptions?: any) {
+				value(data: unknown, transferOrOptions?: any) {
 					port.postMessage(data, transferOrOptions);
 				}
 			},
@@ -61,7 +61,7 @@ export class NestedWorker extends EventTarget implements Worker {
 	onerror: ((this: AbstractWorker, ev: ErrorEvent) => any) | null = null;
 
 	readonly terminate: () => void;
-	readonly postMessage: (message: any, options?: any) => void;
+	readonly postMessage: (message: unknown, options?: any) => void;
 
 	constructor(nativePostMessage: typeof postMessage, stringOrUrl: string | URL, options?: WorkerOptions) {
 		super();

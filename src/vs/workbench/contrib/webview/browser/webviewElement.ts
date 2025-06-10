@@ -136,7 +136,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	private _messagePort?: MessagePort;
-	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
+	private readonly _messageHandlers = new Map<string, Set<(data: unknown, e: MessageEvent) => void>>();
 
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
 	public readonly checkImeCompletionState = true;
@@ -376,7 +376,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	public postMessage(message: any, transfer?: ArrayBuffer[]): Promise<boolean> {
+	public postMessage(message: unknown, transfer?: ArrayBuffer[]): Promise<boolean> {
 		return this._send('message', { message, transfer });
 	}
 

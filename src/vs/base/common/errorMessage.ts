@@ -8,7 +8,7 @@ import * as types from './types.js';
 import * as nls from '../../nls.js';
 import { IAction } from './actions.js';
 
-function exceptionToErrorMessage(exception: any, verbose: boolean): string {
+function exceptionToErrorMessage(exception: unknown, verbose: boolean): string {
 	if (verbose && (exception.stack || exception.stacktrace)) {
 		return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), stackToString(exception.stack) || stackToString(exception.stacktrace));
 	}

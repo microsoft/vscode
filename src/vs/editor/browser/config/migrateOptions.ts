@@ -19,7 +19,7 @@ export class EditorSettingMigration {
 
 	constructor(
 		public readonly key: string,
-		public readonly migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void
+		public readonly migrate: (value: unknown, read: ISettingsReader, write: ISettingsWriter) => void
 	) { }
 
 	apply(options: any): void {
@@ -54,7 +54,7 @@ export class EditorSettingMigration {
 	}
 }
 
-function registerEditorSettingMigration(key: string, migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void): void {
+function registerEditorSettingMigration(key: string, migrate: (value: unknown, read: ISettingsReader, write: ISettingsWriter) => void): void {
 	EditorSettingMigration.items.push(new EditorSettingMigration(key, migrate));
 }
 

@@ -11,7 +11,7 @@ export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
-	readonly metadata: any;
+	readonly metadata: unknown;
 }
 
 export interface IProductWalkthrough {

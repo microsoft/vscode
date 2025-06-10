@@ -609,7 +609,7 @@ function _assignProperties<T>(this: void, target: T | undefined, source: T | und
 	}
 	for (const meta of properties) {
 		const property = meta.property;
-		let value: any;
+		let value: unknown;
 		if (meta.type !== undefined) {
 			value = meta.type.assignProperties(target[property], source[property]);
 		} else {
@@ -631,7 +631,7 @@ function _fillProperties<T>(this: void, target: T | undefined, source: T | undef
 	}
 	for (const meta of properties!) {
 		const property = meta.property;
-		let value: any;
+		let value: unknown;
 		if (meta.type) {
 			value = meta.type.fillProperties(target[property], source[property]);
 		} else if (target[property] === undefined) {
@@ -660,7 +660,7 @@ function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undef
 		if (target[property] !== undefined) {
 			continue;
 		}
-		let value: any;
+		let value: unknown;
 		if (meta.type) {
 			value = meta.type.fillDefaults(target[property], context);
 		} else {
