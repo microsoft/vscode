@@ -107,6 +107,7 @@ export class NotebookStickyScroll extends Disposable {
 	private notebookCellOutlineReference?: IReference<NotebookCellOutlineDataSource>;
 
 	private readonly _layoutDisposableStore = this._register(new DisposableStore());
+	private readonly scrollDelayer = this._register(new Delayer(100));
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -240,11 +241,12 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
-			const d = new Delayer(100);
-			d.trigger(() => {
-				d.dispose();
+			this.scrollDelayer.trigger(() => {
+				if (!this.notebookCellOutlineReference?.object) {
+					return;
+				}
 
-				const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
+				const computed = computeContent(this.notebookEditor, this.notebookCellList, this.notebookCellOutlineReference.object.entries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(computed, this.currentStickyLines)) {
 					this.updateContent(computed);
 				} else {
