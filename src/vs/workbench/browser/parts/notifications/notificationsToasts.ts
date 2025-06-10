@@ -16,14 +16,14 @@ import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../c
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { INotificationsToastController } from './notificationsCommands.js';
+import { getSeverityPrefix, INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IntervalCounter } from '../../../../base/common/async.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
@@ -200,11 +200,14 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
+				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
+				const severityPrefix = getSeverityPrefix(item.severity);
+				const messageWithSeverity = `${severityPrefix}${item.message.raw}`;
 
 				if (!item.source) {
-					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
+					return localize('notificationAriaLabel', "{0}, notification", messageWithSeverity);
 				}
-				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
+				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, item.source);
 			})()
 		});
 		itemDisposables.add(notificationList);
@@ -289,7 +292,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		disposables.add(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 		// Install Timers to Purge Notification
-		let purgeTimeoutHandle: any;
+		let purgeTimeoutHandle: Timeout;
 		let listener: IDisposable;
 
 		const hideAfterTimeout = () => {
@@ -608,7 +611,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Update visibility in DOM
-		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
+		const notificationsToastsContainer = assertReturnsDefined(this.notificationsToastsContainer);
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {

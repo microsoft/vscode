@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITransaction, IObservable, observableValue, autorun, transaction } from '../../../../../../base/common/observable.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit } from '../../../../../../editor/common/core/offsetEdit.js';
+import { StringEdit } from '../../../../../../editor/common/core/edits/stringEdit.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../../editor/common/model/textModel.js';
-import { OffsetEdits } from '../../../../../../editor/common/model/textModelOffsetEdit.js';
+import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../../editor/common/model/textModelStringEdit.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -37,7 +36,7 @@ import { pendingRewriteMinimap } from '../chatEditingModifiedFileEntry.js';
  * Most of the code has been borrowed from there, as a cell is effectively a document.
  * Hence most of the same functionality applies.
  */
-export class ChatEditingNotebookCellEntry extends ObservableDisposable {
+export class ChatEditingNotebookCellEntry extends Disposable {
 	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
 		description: 'chat-last-edit',
@@ -60,7 +59,11 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	});
 
 
-	private _edit: OffsetEdit = OffsetEdit.empty;
+	public get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
+
+	private _edit: StringEdit = StringEdit.empty;
 	private _isEditFromUs: boolean = false;
 	public get isEditFromUs(): boolean {
 		return this._isEditFromUs;
@@ -126,7 +129,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
-		const edit = OffsetEdits.fromContentChanges(event.changes);
+		const edit = offsetEditFromContentChanges(event.changes);
 
 		if (this._isEditFromUs) {
 			const e_sum = this._edit;
@@ -159,7 +162,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 				// user edits overlaps/conflicts with AI edits
 				this._edit = e_ai.compose(e_user);
 			} else {
-				const edits = OffsetEdits.asEditOperations(e_user_r, this.originalModel);
+				const edits = offsetEditToEditOperations(e_user_r, this.originalModel);
 				this.originalModel.applyEdits(edits);
 				this._edit = e_ai.tryRebase(e_user_r);
 			}
@@ -357,7 +360,7 @@ export class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
-			this._edit = OffsetEdits.fromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+			this._edit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
 		}
 	}
 }

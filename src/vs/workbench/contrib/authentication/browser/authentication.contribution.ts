@@ -19,6 +19,9 @@ import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry,
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
 import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
+import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
+import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -42,6 +45,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 		const headers = [
 			localize('authenticationlabel', "Label"),
 			localize('authenticationid', "ID"),
+			localize('authenticationMcpAuthorizationServers', "MCP Authorization Servers")
 		];
 
 		const rows: IRowData[][] = authentication
@@ -50,6 +54,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 				return [
 					auth.label,
 					auth.id,
+					(auth.authorizationServerGlobs ?? []).join(',\n')
 				];
 			});
 
@@ -117,6 +122,9 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
+		this._register(registerAction2(ManageTrustedMcpServersForAccountAction));
+		this._register(registerAction2(ManageAccountPreferencesForMcpServerAction));
+		this._register(registerAction2(RemoveDynamicAuthenticationProvidersAction));
 	}
 
 	private _clearPlaceholderMenuItem(): void {

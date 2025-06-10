@@ -27,7 +27,7 @@ import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js'
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { IProductService } from '../../product/common/productService.js';
-import { join } from 'path';
+import { join } from '../../../base/common/path.js';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
@@ -420,6 +420,10 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			pty.input(data);
 		}
+	}
+	@traceRpc
+	async sendSignal(id: number, signal: string): Promise<void> {
+		return this._throwIfNoPty(id).sendSignal(signal);
 	}
 	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
@@ -855,6 +859,12 @@ class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		return this._terminalProcess.input(data);
+	}
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+		return this._terminalProcess.sendSignal(signal);
 	}
 	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);

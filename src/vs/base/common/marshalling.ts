@@ -7,7 +7,7 @@ import { VSBuffer } from './buffer.js';
 import { URI, UriComponents } from './uri.js';
 import { MarshalledId } from './marshallingIds.js';
 
-export function stringify(obj: any): string {
+export function stringify(obj: unknown): string {
 	return JSON.stringify(obj, replacer);
 }
 

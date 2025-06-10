@@ -89,14 +89,19 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
-		const quickDiffOriginalResources = await Promise.all(providers.map(async provider => {
+		const quickDiffOriginalResources = await Promise.allSettled(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const originalResource = scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined;
 			return { provider, originalResource };
 		}));
 
 		const quickDiffs: QuickDiff[] = [];
-		for (const { provider, originalResource } of quickDiffOriginalResources) {
+		for (const quickDiffOriginalResource of quickDiffOriginalResources) {
+			if (quickDiffOriginalResource.status === 'rejected') {
+				continue;
+			}
+
+			const { provider, originalResource } = quickDiffOriginalResource.value;
 			if (!originalResource) {
 				continue;
 			}

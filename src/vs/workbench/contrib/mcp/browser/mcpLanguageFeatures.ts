@@ -177,7 +177,9 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			}
 
 			const range = Range.fromPositions(model.getPositionAt(node.children[0].offset));
-			switch (read(server.connectionState).state) {
+			const canDebug = !!server.readDefinitions().get().server?.devMode?.debug;
+			const state = read(server.connectionState).state;
+			switch (state) {
 				case McpConnectionState.Kind.Error:
 					lenses.lenses.push({
 						range,
@@ -194,6 +196,16 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							arguments: [server.definition.id],
 						},
 					});
+					if (canDebug) {
+						lenses.lenses.push({
+							range,
+							command: {
+								id: McpCommandIds.RestartServer,
+								title: localize('mcp.debug', "Debug"),
+								arguments: [server.definition.id, { debug: true }],
+							},
+						});
+					}
 					break;
 				case McpConnectionState.Kind.Starting:
 					lenses.lenses.push({
@@ -234,15 +246,19 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
-					}, {
-						range,
-						command: {
-							id: '',
-							title: localize('server.toolCount', '{0} tools', read(server.tools).length),
-						},
 					});
+					if (canDebug) {
+						lenses.lenses.push({
+							range,
+							command: {
+								id: McpCommandIds.RestartServer,
+								title: localize('mcp.debug', "Debug"),
+								arguments: [server.definition.id, { debug: true }],
+							},
+						});
+					}
 					break;
-				case McpConnectionState.Kind.Stopped: {
+				case McpConnectionState.Kind.Stopped:
 					lenses.lenses.push({
 						range,
 						command: {
@@ -251,17 +267,52 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							arguments: [server.definition.id],
 						},
 					});
-					const toolCount = read(server.tools).length;
-					if (toolCount) {
+					if (canDebug) {
 						lenses.lenses.push({
 							range,
 							command: {
-								id: '',
-								title: localize('server.toolCountCached', '{0} cached tools', toolCount),
-							}
+								id: McpCommandIds.StartServer,
+								title: localize('mcp.debug', "Debug"),
+								arguments: [server.definition.id, { debug: true }],
+							},
 						});
 					}
+			}
+
+
+			if (state !== McpConnectionState.Kind.Error) {
+				const toolCount = read(server.tools).length;
+				if (toolCount) {
+					lenses.lenses.push({
+						range,
+						command: {
+							id: '',
+							title: localize('server.toolCount', '{0} tools', toolCount),
+						}
+					});
 				}
+
+
+				const promptCount = read(server.prompts).length;
+				if (promptCount) {
+					lenses.lenses.push({
+						range,
+						command: {
+							id: McpCommandIds.StartPromptForServer,
+							title: localize('server.promptcount', '{0} prompts', promptCount),
+							arguments: [server],
+						}
+					});
+				}
+
+				lenses.lenses.push({
+					range,
+					command: {
+						id: McpCommandIds.ServerOptions,
+						title: localize('mcp.server.more', 'More...'),
+						arguments: [server.definition.id],
+					}
+				});
 			}
 		}
 

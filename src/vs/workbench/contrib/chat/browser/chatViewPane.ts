@@ -23,10 +23,11 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
@@ -47,8 +48,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
-	private defaultParticipantRegistrationFailed = false;
-	private didUnregisterProvider = false;
 
 	private _restoringSession: Promise<void> | undefined;
 
@@ -112,22 +111,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							try {
 								this._widget.setVisible(false);
 								await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
-								this.defaultParticipantRegistrationFailed = false;
-								this.didUnregisterProvider = false;
-								this._onDidChangeViewWelcomeState.fire();
 							} finally {
 								this.widget.setVisible(wasVisible);
 							}
 						});
 					this._restoringSession.finally(() => this._restoringSession = undefined);
 				}
-			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
-				// Model is initialized, and the default agent disappeared, so show welcome view
-				this.didUnregisterProvider = true;
 			}
 
 			this._onDidChangeViewWelcomeState.fire();
 		}));
+
+		// Location context key
+		ChatContextKeys.panelLocation.bindTo(contextKeyService).set(viewDescriptorService.getViewLocationById(options.id) ?? ViewContainerLocation.AuxiliaryBar);
 	}
 
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
@@ -161,8 +157,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
-		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed);
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed}`);
+		const hasDefaultAgent = this.chatAgentService.getDefaultAgent(this.chatOptions.location) !== undefined; // only false when Hide Copilot has run and unregistered the setup agents
+		const shouldShow = !hasCoreAgent && (!hasDefaultAgent || !this._widget?.viewModel && noPersistedSessions);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} hasDefaultAgent=${hasDefaultAgent} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions}`);
 		return !!shouldShow;
 	}
 
@@ -225,14 +222,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._widget.render(parent);
 
 			const info = this.getTransferredOrPersistedSessionInfo();
-			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {
-				// Render the welcome view if provider registration fails, eg when signed out. This activates for any session, but the problem is the same regardless
-				if (e.reason === 'initializationFailed') {
-					this.defaultParticipantRegistrationFailed = true;
-					disposeListener?.dispose();
-					this._onDidChangeViewWelcomeState.fire();
-				}
-			}));
 			const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
 			await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);

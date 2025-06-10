@@ -565,14 +565,23 @@ export enum RunOnOptions {
 	folderOpen = 2
 }
 
+export const enum InstancePolicy {
+	terminateNewest = 'terminateNewest',
+	terminateOldest = 'terminateOldest',
+	prompt = 'prompt',
+	warn = 'warn',
+	silent = 'silent'
+}
+
 export interface IRunOptions {
 	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
 	instanceLimit?: number;
+	instancePolicy?: InstancePolicy;
 }
 
 export namespace RunOptions {
-	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1 };
+	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1, instancePolicy: InstancePolicy.prompt };
 }
 
 export abstract class CommonTask {
@@ -1194,7 +1203,7 @@ export interface ITaskProblemMatcherEndedEvent extends ITaskCommon {
 }
 
 export interface ITaskGeneralEvent extends ITaskCommon {
-	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
+	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
 	terminalId: number | undefined;
 }
 
@@ -1261,11 +1270,19 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors, task: Task, terminalId?: number): ITaskGeneralEvent {
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors, task: Task, terminalId?: number): ITaskGeneralEvent {
 		return {
 			...common(task),
 			kind,
 			terminalId,
+		};
+	}
+
+	export function problemMatcherEnded(task: Task, hasErrors: boolean, terminalId?: number): ITaskProblemMatcherEndedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.ProblemMatcherEnded,
+			hasErrors,
 		};
 	}
 

@@ -14,7 +14,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './media/paneviewlet.css';
 import * as nls from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -347,7 +347,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	readonly onDidBlurView = this._onDidBlurView.event;
 
 	get onDidSashChange(): Event<number> {
-		return assertIsDefined(this.paneview).onDidSashChange;
+		return assertReturnsDefined(this.paneview).onDidSashChange;
 	}
 
 	get panes(): ViewPane[] {
@@ -887,7 +887,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const paneItem: IViewPaneItem = { pane, disposable: store };
 
 		this.paneItems.splice(index, 0, paneItem);
-		assertIsDefined(this.paneview).addPane(pane, size, index);
+		assertReturnsDefined(this.paneview).addPane(pane, size, index);
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
@@ -1041,7 +1041,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.lastFocusedPane = undefined;
 		}
 
-		assertIsDefined(this.paneview).removePane(pane);
+		assertReturnsDefined(this.paneview).removePane(pane);
 		const [paneItem] = this.paneItems.splice(index, 1);
 		paneItem.disposable.dispose();
 
@@ -1065,7 +1065,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const [paneItem] = this.paneItems.splice(fromIndex, 1);
 		this.paneItems.splice(toIndex, 0, paneItem);
 
-		assertIsDefined(this.paneview).movePane(from, to);
+		assertReturnsDefined(this.paneview).movePane(from, to);
 
 		this.viewContainerModel.move(fromViewDescriptor.id, toViewDescriptor.id);
 
@@ -1073,11 +1073,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	resizePane(pane: ViewPane, size: number): void {
-		assertIsDefined(this.paneview).resizePane(pane, size);
+		assertReturnsDefined(this.paneview).resizePane(pane, size);
 	}
 
 	getPaneSize(pane: ViewPane): number {
-		return assertIsDefined(this.paneview).getPaneSize(pane);
+		return assertReturnsDefined(this.paneview).getPaneSize(pane);
 	}
 
 	private updateViewHeaders(): void {

@@ -25,6 +25,7 @@ import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from './tokens/tokenArray.js';
 import { IEditorModel } from './editorCommon.js';
+import { TextModelEditReason } from './textModelEditReason.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -219,7 +220,7 @@ export interface IModelDecorationOptions {
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
-	 * If set, the decoration will override the line height of the lines it spans.
+	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
 	 */
 	lineHeight?: number | null;
 	/**
@@ -1350,6 +1351,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+
+	/**
+	 * Sets the reason for all text model edits done in the callback.
+	 * @internal
+	*/
+	editWithReason<T>(editReason: TextModelEditReason, cb: () => T): T;
 }
 
 /**

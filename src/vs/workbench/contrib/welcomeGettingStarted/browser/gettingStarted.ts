@@ -18,12 +18,12 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
+import { ILink, LinkedText, parseLinkedText } from '../../../../base/common/linkedText.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isMacintosh, OS } from '../../../../base/common/platform.js';
+import { OS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/gettingStarted.css';
@@ -63,7 +63,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
-import { NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
+import { copilotSettingsMessage, NEW_WELCOME_EXPERIENCE, startEntries } from '../common/gettingStartedContent.js';
 import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -158,6 +158,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesSlide!: HTMLElement;
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
+	private nextButton!: HTMLButtonElement;
 	private webview!: IWebviewElement;
 
 	private layoutMarkdown: (() => void) | undefined;
@@ -276,7 +277,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertReturnsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
 						badgeelement.setAttribute('aria-checked', 'true');
@@ -412,7 +413,7 @@ export class GettingStartedPage extends EditorPane {
 				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
 					this.commandService.executeCommand(OpenFolderViaWorkspaceAction.ID);
 				} else {
-					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+					this.commandService.executeCommand('workbench.action.files.openFolder');
 				}
 				break;
 			}
@@ -490,7 +491,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private toggleStepCompletion(argument: string) {
-		const stepToggle = assertIsDefined(this.currentWalkthrough?.steps.find(step => step.id === argument));
+		const stepToggle = assertReturnsDefined(this.currentWalkthrough?.steps.find(step => step.id === argument));
 		if (stepToggle.done) {
 			this.gettingStartedService.deprogressStep(argument);
 		} else {
@@ -530,7 +531,7 @@ export class GettingStartedPage extends EditorPane {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
-		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
+		const stepToExpand = assertReturnsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
 		if (!forceRebuild && this.currentMediaComponent === stepId) { return; }
 		this.currentMediaComponent = stepId;
@@ -774,7 +775,7 @@ export class GettingStartedPage extends EditorPane {
 					// No steps around... just ignore.
 					return;
 				}
-				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
+				id = assertReturnsDefined(stepElement.getAttribute('data-step-id'));
 			}
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				if (node.getAttribute('data-step-id') !== id) {
@@ -1215,7 +1216,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const stats = this.getWalkthroughCompletionStats(category);
 
-			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			const bar = assertReturnsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + stats.stepsComplete);
 			bar.setAttribute('aria-valuemax', '' + stats.stepsTotal);
@@ -1272,7 +1273,7 @@ export class GettingStartedPage extends EditorPane {
 			const gettingStartedSize = Math.floor(fullSize.width / 2);
 
 			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-			this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
 		}
 
 		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
@@ -1504,6 +1505,20 @@ export class GettingStartedPage extends EditorPane {
 				prevButton.removeAttribute('tabindex');
 			}
 		}
+
+		// Update next button text for final slide
+		if (this.nextButton) {
+			const isLastSlide = newIndex === steps.length - 1;
+			const textNode = this.nextButton.firstChild as Text;
+			if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+				textNode.textContent = isLastSlide
+					? localize('last', "Start coding")
+					: localize('next', "Next");
+			}
+			this.nextButton.setAttribute('aria-label', isLastSlide
+				? localize('lastStep', "Start coding")
+				: localize('nextStep', "Next"));
+		}
 	}
 
 	private buildNewCategorySlide(categoryID: string, selectedStep?: string) {
@@ -1616,6 +1631,10 @@ export class GettingStartedPage extends EditorPane {
 					const descElement = $('.multi-step-action');
 					this.buildMarkdownDescription(descElement, [linkedText]);
 					multiStepContainer.appendChild(descElement);
+					const actionMessage = $('span.action-message');
+					const updatedText = parseLinkedText(copilotSettingsMessage);
+					this.buildMarkdownDescription(actionMessage, [updatedText]);
+					multiStepContainer.appendChild(actionMessage);
 				}
 
 				textContent.appendChild(multiStepContainer);
@@ -1649,11 +1668,11 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		// Add next button
-		const nextButton = $('button.button-link.navigation.next', {
+		this.nextButton = $('button.button-link.navigation.next', {
 			'aria-label': localize('nextStep', "Next"),
 		}, localize('next', "Next"), $('span.codicon.codicon-arrow-right'));
 
-		navigationContainer.appendChild(nextButton);
+		navigationContainer.appendChild(this.nextButton);
 		this.detailsPageDisposables.add(addDisposableListener(prevButton, 'click', () => {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex > 0) {
@@ -1661,7 +1680,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
-		this.detailsPageDisposables.add(addDisposableListener(nextButton, 'click', () => {
+		this.detailsPageDisposables.add(addDisposableListener(this.nextButton, 'click', () => {
 			const currentIndex = this.getCurrentSlideIndex(allSlides);
 			if (currentIndex < allSlides.length - 1) {
 				this.selectStepByIndex(currentIndex + 1, allSlides.map(s => s.steps[0]), 1);
@@ -2075,7 +2094,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private setSlide(toEnable: 'details' | 'categories', firstLaunch: boolean = false) {
-		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
+		const slideManager = assertReturnsDefined(this.container.querySelector('.gettingStarted'));
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
 			slideManager.classList.add('showCategories');

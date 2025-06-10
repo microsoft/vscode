@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// fake definition so that the valid layers check won't trip on this
 declare const globalThis: { performance: { now(): number } };
-
 const performanceNow = globalThis.performance.now.bind(globalThis.performance);
 
 export class StopWatch {

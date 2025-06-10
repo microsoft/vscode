@@ -7,20 +7,20 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { Text } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Text } from '../../../../common/promptSyntax/codecs/base/textToken.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
-import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
-import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
-import { TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
-import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
-import { TestSimpleDecoder } from '../../../../../../../editor/test/common/codecs/simpleDecoder.test.js';
+import { TestDecoder } from './base/utils/testDecoder.js';
+import { Word } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/word.js';
+import { NewLine } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/newLine.js';
+import { type TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
+import { TestSimpleDecoder } from './base/simpleDecoder.test.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
-import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
-import { Colon, Dash, DoubleQuote, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
-import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
+import { CarriageReturn } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/carriageReturn.js';
+import { FrontMatterHeader } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { Colon, Dash, DoubleQuote, Space, Tab, VerticalTab } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
+import { MarkdownExtensionsDecoder } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/markdownExtensionsDecoder.js';
+import { FrontMatterMarker, TMarkerToken } from '../../../../common/promptSyntax/codecs/base/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
  * Type for supported end-of-line tokens.
@@ -30,7 +30,7 @@ type TEndOfLine = '\n' | '\r\n';
 /**
  * End-of-line utility class for convenience.
  */
-class TestEndOfLine extends Text<NewLine | CarriageReturn> {
+class TestEndOfLine extends Text<(NewLine | CarriageReturn)[]> {
 	/**
 	 * Create a new instance with provided end-of line type and
 	 * a starting position.
@@ -74,7 +74,7 @@ class TestEndOfLine extends Text<NewLine | CarriageReturn> {
 			),
 		));
 
-		return TestEndOfLine.fromTokens(tokens);
+		return new TestEndOfLine(tokens);
 	}
 }
 
@@ -126,7 +126,7 @@ class TestFrontMatterMarker extends FrontMatterMarker {
 				lineNumber,
 				columnNumber,
 			);
-			tokens.push(...endOfLineTokens.tokens);
+			tokens.push(...endOfLineTokens.children);
 		}
 
 		return TestFrontMatterMarker.fromTokens(tokens);
@@ -148,9 +148,9 @@ suite('MarkdownExtensionsDecoder', () => {
 		return new Array(dashCount).fill('-').join('');
 	};
 
-	suite('• Front Matter header', () => {
-		suite('• successful cases', () => {
-			test('• produces expected tokens', async () => {
+	suite('Front Matter header', () => {
+		suite('successful cases', () => {
+			test('produces expected tokens', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -180,11 +180,11 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 4, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
-								...TestEndOfLine.create(newLine, 2, 12).tokens,
+								...TestEndOfLine.create(newLine, 2, 12).children,
 								new Space(new Range(3, 1, 3, 2)),
 								new Space(new Range(3, 2, 3, 3)),
 								new Dash(new Range(3, 3, 3, 4)),
@@ -194,7 +194,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(3, 10, 3, 11)),
 								new Word(new Range(3, 11, 3, 11 + 5), 'value'),
 								new VerticalTab(new Range(3, 16, 3, 17)),
-								...TestEndOfLine.create(newLine, 3, 17).tokens,
+								...TestEndOfLine.create(newLine, 3, 17).children,
 							]),
 							endMarker,
 						),
@@ -206,7 +206,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• can contain dashes in the header contents', async () => {
+			test('can contain dashes in the header contents', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -246,14 +246,14 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 5, 1 + markerLength + newLine.length),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Word(new Range(2, 1, 2, 1 + 9), 'variables'),
 								new Colon(new Range(2, 10, 2, 11)),
 								new Space(new Range(2, 11, 2, 12)),
-								...TestEndOfLine.create(newLine, 2, 12).tokens,
+								...TestEndOfLine.create(newLine, 2, 12).children,
 								// dashes inside the header
 								...TestFrontMatterMarker.create(dashesLength, 3, newLine).dashTokens,
-								...TestEndOfLine.create(newLine, 3, dashesLength + 1).tokens,
+								...TestEndOfLine.create(newLine, 3, dashesLength + 1).children,
 								// -
 								new Space(new Range(4, 1, 4, 2)),
 								new Space(new Range(4, 2, 4, 3)),
@@ -264,7 +264,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(4, 10, 4, 11)),
 								new Word(new Range(4, 11, 4, 11 + 5), 'value'),
 								new Tab(new Range(4, 16, 4, 17)),
-								...TestEndOfLine.create(newLine, 4, 17).tokens,
+								...TestEndOfLine.create(newLine, 4, 17).children,
 							]),
 							endMarker,
 						),
@@ -276,7 +276,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• can be at the end of the file', async () => {
+			test('can be at the end of the file', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -307,7 +307,7 @@ suite('MarkdownExtensionsDecoder', () => {
 						new FrontMatterHeader(
 							new Range(1, 1, 3, 1 + markerLength),
 							startMarker,
-							Text.fromTokens([
+							new Text([
 								new Tab(new Range(2, 1, 2, 2)),
 								new Word(new Range(2, 2, 2, 2 + 11), 'description'),
 								new Colon(new Range(2, 13, 2, 14)),
@@ -317,7 +317,7 @@ suite('MarkdownExtensionsDecoder', () => {
 								new Space(new Range(2, 18, 2, 19)),
 								new Word(new Range(2, 19, 2, 19 + 11), 'description'),
 								new DoubleQuote(new Range(2, 30, 2, 31)),
-								...TestEndOfLine.create(newLine, 2, 31).tokens,
+								...TestEndOfLine.create(newLine, 2, 31).children,
 							]),
 							endMarker,
 						),
@@ -326,8 +326,8 @@ suite('MarkdownExtensionsDecoder', () => {
 			});
 		});
 
-		suite('• failure cases', () => {
-			test('• fails if header starts not on the first line', async () => {
+		suite('failure cases', () => {
+			test('fails if header starts not on the first line', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -366,7 +366,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• fails if header markers do not match (start marker is longer)', async () => {
+			test('fails if header markers do not match (start marker is longer)', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);
@@ -404,7 +404,7 @@ suite('MarkdownExtensionsDecoder', () => {
 				);
 			});
 
-			test('• fails if header markers do not match (end marker is longer)', async () => {
+			test('fails if header markers do not match (end marker is longer)', async () => {
 				const test = disposables.add(
 					new TestMarkdownExtensionsDecoder(),
 				);

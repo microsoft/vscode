@@ -17,13 +17,13 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 export class FilePromptParser extends BasePromptParser<FilePromptContentProvider> {
 	constructor(
 		uri: URI,
-		options: Partial<IPromptParserOptions> = {},
-		@IInstantiationService initService: IInstantiationService,
+		options: Partial<IPromptParserOptions>,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILogService logService: ILogService,
 	) {
-		const contentsProvider = initService.createInstance(FilePromptContentProvider, uri, options);
-		super(contentsProvider, options, initService, workspaceService, logService);
+		const contentsProvider = instantiationService.createInstance(FilePromptContentProvider, uri, options);
+		super(contentsProvider, options, instantiationService, workspaceService, logService);
 
 		this._register(contentsProvider);
 	}
@@ -31,7 +31,7 @@ export class FilePromptParser extends BasePromptParser<FilePromptContentProvider
 	/**
 	 * Returns a string representation of this object.
 	 */
-	public override toString() {
+	public override toString(): string {
 		return `file-prompt:${this.uri.path}`;
 	}
 }

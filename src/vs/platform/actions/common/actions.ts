@@ -71,6 +71,7 @@ export class MenuId {
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
 	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
@@ -126,6 +127,8 @@ export class MenuId {
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
 	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
 	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
+	static readonly SCMHistoryItemChatContext = new MenuId('SCMHistoryItemChatContext');
+	static readonly SCMHistoryItemChangeContext = new MenuId('SCMHistoryItemChangeContext');
 	static readonly SCMHistoryItemHover = new MenuId('SCMHistoryItemHover');
 	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
 	static readonly SCMQuickDiffDecorations = new MenuId('SCMQuickDiffDecorations');
@@ -234,6 +237,7 @@ export class MenuId {
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatModelPicker = new MenuId('ChatModelPicker');
+	static readonly ChatModePicker = new MenuId('ChatModePicker');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
 	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
 	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
@@ -247,6 +251,11 @@ export class MenuId {
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
+	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
+	static readonly ChatExplorerMenu = new MenuId('ChatExplorerMenu');
+	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
+	static readonly ChatTerminalMenu = new MenuId('ChatTerminalMenu');
+	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
