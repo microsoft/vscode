@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { exec } from 'child_process';
+import { exec, spawn as childProcessSpawn } from 'child_process';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -85,6 +85,47 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['node', GeneralShellType.Node],
 
 ]);
+
+/**
+ * Detects if the given shell executable is actually bash by running a quick command.
+ * This is useful for cases where sh is a wrapper around bash, especially for dynamic
+ * shell type detection when users switch shells during a session.
+ */
+async function isShActuallyBash(shellExecutable: string): Promise<boolean> {
+	try {
+		return new Promise<boolean>((resolve) => {
+			// Use a simple command that bash supports but minimal sh might not handle the same way
+			const child = childProcessSpawn(shellExecutable, ['-c', 'echo $BASH_VERSION 2>/dev/null || echo ""'], {
+				stdio: ['pipe', 'pipe', 'pipe'],
+				timeout: 1000
+			});
+
+			let output = '';
+			child.stdout.on('data', (data) => {
+				output += data.toString();
+			});
+
+			child.on('close', (code) => {
+				// If we get a BASH_VERSION output, it's bash
+				const trimmedOutput = output.trim();
+				resolve(trimmedOutput.length > 0 && !trimmedOutput.includes('not found') && !trimmedOutput.includes('command not found'));
+			});
+
+			child.on('error', () => {
+				resolve(false);
+			});
+
+			// Fallback timeout
+			setTimeout(() => {
+				child.kill();
+				resolve(false);
+			}, 1000);
+		});
+	} catch {
+		return false;
+	}
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -120,6 +161,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
+	private _originalShellType: TerminalShellType | undefined = undefined;
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
@@ -150,6 +192,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		@IProductService private readonly _productService: IProductService
 	) {
 		super();
+		
+		// Initialize the original shell type based on the shell launch config
+		if (this.shellLaunchConfig.executable) {
+			const shellBasename = path.basename(this.shellLaunchConfig.executable);
+			this._originalShellType = posixShellTypeMap.get(shellBasename) || generalShellTypeMap.get(shellBasename);
+		}
+		
 		let name: string;
 		if (isWindows) {
 			name = path.basename(this.shellLaunchConfig.executable || '');
@@ -338,12 +387,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _setupTitlePolling(ptyProcess: IPty) {
 		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => this._sendProcessTitle(ptyProcess));
+		setTimeout(() => this._sendProcessTitle(ptyProcess).catch(err => 
+			this._logService.trace('TerminalProcess#_setupTitlePolling: Error in _sendProcessTitle', err)
+		));
 		// Setup polling for non-Windows, for Windows `process` doesn't change
 		if (!isWindows) {
 			this._titleInterval = setInterval(() => {
 				if (this._currentTitle !== ptyProcess.process) {
-					this._sendProcessTitle(ptyProcess);
+					this._sendProcessTitle(ptyProcess).catch(err => 
+						this._logService.trace('TerminalProcess#_setupTitlePolling: Error in _sendProcessTitle', err)
+					);
 				}
 			}, 200);
 		}
@@ -411,7 +464,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		});
 	}
 
-	private _sendProcessTitle(ptyProcess: IPty): void {
+	private async _sendProcessTitle(ptyProcess: IPty): Promise<void> {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -431,7 +484,28 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			let shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			
+			// Special handling for 'sh' - check if it's actually bash
+			if (sanitizedTitle === 'sh' && !isWindows) {
+				// If the original shell was bash and the current process is 'sh', 
+				// check if 'sh' is actually bash (common on macOS and some Linux systems)
+				if (this._originalShellType === PosixShellType.Bash || 
+					(this.shellLaunchConfig.executable && path.basename(this.shellLaunchConfig.executable) === 'bash')) {
+					
+					// Try to detect if sh is actually bash
+					try {
+						const shIsBash = await isShActuallyBash('/bin/sh');
+						if (shIsBash) {
+							shellTypeValue = PosixShellType.Bash;
+							this._logService.debug('TerminalProcess#_sendProcessTitle: Detected sh is actually bash');
+						}
+					} catch (error) {
+						this._logService.trace('TerminalProcess#_sendProcessTitle: Failed to detect if sh is bash', error);
+					}
+				}
+			}
+			
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
 	}
