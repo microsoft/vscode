@@ -280,7 +280,9 @@ export async function getCompletionItemsFromSpecs(
 		const labels = new Set(items.map((i) => typeof i.label === 'string' ? i.label : i.label.label));
 		for (const command of availableCommands) {
 			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
-			if (!labels.has(commandTextLabel)) {
+			// Remove any file extension for matching on Windows
+			const labelWithoutExtension = isWindows ? commandTextLabel.replace(/\.[^ ]+$/, '') : commandTextLabel;
+			if (!labels.has(labelWithoutExtension)) {
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
 					currentCommandString,
