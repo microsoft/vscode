@@ -538,9 +538,11 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
  *   "/d/bar" => "D:\\bar"
  */
 export function gitBashPathToWindows(path: string): string {
+	// Dynamically determine the system drive (default to 'C:' if not set)
+	const systemDrive = (process.env.SystemDrive || 'C:').toUpperCase();
 	// Handle root "/"
 	if (path === '/') {
-		return 'C:\\';
+		return `${systemDrive}\\`;
 	}
 	const match = path.match(/^\/([a-zA-Z])(\/.*)?$/);
 	if (match) {
