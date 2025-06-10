@@ -584,9 +584,9 @@ export class RemoteAuthorityResolverError extends Error {
 
 	public readonly _message: string | undefined;
 	public readonly _code: RemoteAuthorityResolverErrorCode;
-	public readonly _detail: any;
+	public readonly _detail: unknown;
 
-	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
+	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: unknown) {
 		super(message);
 
 		this._message = message;
