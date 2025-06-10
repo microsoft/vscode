@@ -259,7 +259,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 	let overrideSetting: ISetting | null = null;
 
 	let currentProperty: string | null = null;
-	let currentParent: any = [];
+	let currentParent: unknown = [];
 	const previousParents: any[] = [];
 	let settingsPropertyIndex: number = -1;
 	const range = {

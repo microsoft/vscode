@@ -58,7 +58,7 @@ suite('Objects', () => {
 
 	test('mixin - array', function () {
 
-		const foo: any = {};
+		const foo: unknown = {};
 		objects.mixin(foo, { bar: [1, 2, 3] });
 
 		assert(foo.bar);
@@ -125,7 +125,7 @@ suite('Objects', () => {
 
 		const result = objects.safeStringify(circular);
 
-		assert.deepStrictEqual(JSON.parse(result), {
+		assert.deepStrictEqual(JSON.parse(result) as unknown, {
 			a: 42,
 			b: '[Circular]',
 			c: [

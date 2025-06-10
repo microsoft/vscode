@@ -12,7 +12,7 @@ import { ServiceCollection } from '../../common/serviceCollection.js';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
-	service: any;
+	service: unknown;
 }
 
 const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
@@ -72,7 +72,7 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return stubObject;
 	}
 
-	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: any): T | sinon.SinonStub;
+	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: unknown): T | sinon.SinonStub;
 	public stubPromise<T, V>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stubPromise<T, V>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
 	public stubPromise(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub | sinon.SinonSpy {

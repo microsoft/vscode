@@ -21,7 +21,7 @@ export interface IWebWorker extends IDisposable {
 }
 
 let webWorkerWarningLogged = false;
-export function logOnceWebWorkerWarning(err: any): void {
+export function logOnceWebWorkerWarning(err: unknown): void {
 	if (!isWeb) {
 		// running tests
 		return;
@@ -56,7 +56,7 @@ class ReplyMessage {
 		public readonly vsWorker: number,
 		public readonly seq: string,
 		public readonly res: any,
-		public readonly err: any
+		public readonly err: unknown
 	) { }
 }
 class SubscribeEventMessage {
@@ -87,8 +87,8 @@ class UnsubscribeEventMessage {
 export type Message = RequestMessage | ReplyMessage | SubscribeEventMessage | EventMessage | UnsubscribeEventMessage;
 
 interface IMessageReply {
-	resolve: (value?: any) => void;
-	reject: (error?: any) => void;
+	resolve: (value?: unknown) => void;
+	reject: (error?: unknown) => void;
 }
 
 interface IMessageHandler {

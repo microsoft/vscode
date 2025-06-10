@@ -843,7 +843,7 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: unknown,
 		private negated: ContextKeyExpression | null
 	) {
 	}
@@ -1042,7 +1042,7 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: unknown,
 		private negated: ContextKeyExpression | null
 	) {
 	}
@@ -1160,7 +1160,7 @@ export class ContextKeyNotExpr implements IContextKeyExpression {
 	}
 }
 
-function withFloatOrStr<T extends ContextKeyExpression>(value: any, callback: (value: number | string) => T): T | ContextKeyFalseExpr {
+function withFloatOrStr<T extends ContextKeyExpression>(value: unknown, callback: (value: number | string) => T): T | ContextKeyFalseExpr {
 	if (typeof value === 'string') {
 		const n = parseFloat(value);
 		if (!isNaN(n)) {
@@ -1175,7 +1175,7 @@ function withFloatOrStr<T extends ContextKeyExpression>(value: any, callback: (v
 
 export class ContextKeyGreaterExpr implements IContextKeyExpression {
 
-	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, _value: unknown, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		return withFloatOrStr(_value, (value) => new ContextKeyGreaterExpr(key, value, negated));
 	}
 
@@ -1234,7 +1234,7 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 
 export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, _value: unknown, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		return withFloatOrStr(_value, (value) => new ContextKeyGreaterEqualsExpr(key, value, negated));
 	}
 
@@ -1293,7 +1293,7 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 
 export class ContextKeySmallerExpr implements IContextKeyExpression {
 
-	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, _value: unknown, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		return withFloatOrStr(_value, (value) => new ContextKeySmallerExpr(key, value, negated));
 	}
 
@@ -1353,7 +1353,7 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 
 export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+	public static create(key: string, _value: unknown, negated: ContextKeyExpression | null = null): ContextKeyExpression {
 		return withFloatOrStr(_value, (value) => new ContextKeySmallerEqualsExpr(key, value, negated));
 	}
 

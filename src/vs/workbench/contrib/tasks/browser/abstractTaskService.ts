@@ -2116,7 +2116,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					resolve(result);
 				}
 			};
-			const error = (error: any) => {
+			const error = (error: unknown) => {
 				try {
 					if (!isCancellationError(error)) {
 						if (error && Types.isString(error.message)) {

@@ -186,9 +186,9 @@ export interface IConfigurationService {
 	 * @param value The new value
 	 */
 	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
+	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -243,7 +243,7 @@ export function toValuesTree(properties: { [qualifiedKey: string]: any }, confli
 	return root;
 }
 
-export function addToValueTree(settingsTreeRoot: any, key: string, value: any, conflictReporter: (message: string) => void): void {
+export function addToValueTree(settingsTreeRoot: any, key: string, value: unknown, conflictReporter: (message: string) => void): void {
 	const segments = key.split('.');
 	const last = segments.pop()!;
 

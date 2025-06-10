@@ -845,7 +845,7 @@ export function getLocation(text: string, position: number): Location {
  */
 export function parse(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): unknown {
 	let currentProperty: string | null = null;
-	let currentParent: any = [];
+	let currentParent: unknown = [];
 	const previousParents: any[] = [];
 
 	function onValue(value: unknown) {

@@ -1464,7 +1464,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 		return this.configurationService.inspect<T>(section, { resource });
 	}
 
-	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		return this.configurationService.updateValue(key, value);
 	}
 }
@@ -1672,7 +1672,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			}
 
 			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-				const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
+				const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput) as unknown;
 
 				return new TestFileEditorInput(URI.parse(testInput.resource), serializerInputId!);
 			}
