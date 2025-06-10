@@ -575,7 +575,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						// If we get cell edits, its impossible to get text edits for the notebook uri.
 						this.newNotebookEditGenerator = undefined;
 						if (!this.editedCells.has(resource)) {
-							finishPreviousCells();
+							await finishPreviousCells();
 							this.editedCells.add(resource);
 						}
 						await cellEntry?.acceptAgentEdits([edit], last, responseModel);
@@ -590,7 +590,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		// If the last edit for a cell was sent, then handle it
 		if (isLastEdits) {
-			finishPreviousCells();
+			await finishPreviousCells();
 		}
 
 		// isLastEdits can be true for cell Uris, but when its true for Cells edits.
@@ -605,14 +605,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			notebookEdits.forEach(edit => this.acceptNotebookEdit(edit));
 		}
 
-		transaction((tx) => {
+		transaction(async (tx) => {
 			this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 			this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 			if (!isLastEdits) {
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
 			} else {
-				finishPreviousCells();
+				await finishPreviousCells();
 				this.editedCells.clear();
 				this._resetEditsState(tx);
 				this._rewriteRatioObs.set(1, tx);
