@@ -410,7 +410,7 @@ registerAction2(class extends MarkersViewAction {
 
 		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
-			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
+			await clipboardService.writeText(markers.map(m => m.marker.message.toString()).join('\n'));
 		}
 	}
 });

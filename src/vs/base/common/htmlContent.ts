@@ -16,6 +16,7 @@ export interface MarkdownStringTrustedOptions {
 
 export interface IMarkdownString {
 	readonly value: string;
+	readonly plainTextValue?: string;
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
@@ -31,6 +32,7 @@ export const enum MarkdownStringTextNewlineStyle {
 export class MarkdownString implements IMarkdownString {
 
 	public value: string;
+	public plainTextValue?: string;
 	public isTrusted?: boolean | MarkdownStringTrustedOptions;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
@@ -46,9 +48,10 @@ export class MarkdownString implements IMarkdownString {
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean; plainTextValue?: string } = false,
 	) {
 		this.value = value;
+		this.plainTextValue = value;
 		if (typeof this.value !== 'string') {
 			throw illegalArgument('value');
 		}

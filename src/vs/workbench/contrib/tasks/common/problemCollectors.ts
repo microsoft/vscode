@@ -292,7 +292,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		let existingMarker;
 		if (!markersPerResource.has(key)) {
 			markersPerResource.set(key, marker);
-		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (existingMarker.message.length < marker.message.length) && isWindows) {
+		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (existingMarker.message.toString().length < marker.message.toString().length) && isWindows) {
 			// Most likely https://github.com/microsoft/vscode/issues/77475
 			// Heuristic dictates that when the key is the same and message is smaller, we have hit this limitation.
 			markersPerResource.set(key, marker);
