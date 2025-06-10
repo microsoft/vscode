@@ -9,7 +9,6 @@ import { Code, findElement } from './code';
 import { Editors } from './editors';
 import { Editor } from './editor';
 import { IElement } from './driver';
-import { Quality } from './application';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET}`;
@@ -133,7 +132,7 @@ export class Debug extends Viewlet {
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		const selector = this.code.quality === Quality.Stable ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
+		const selector = !this.code.editContextEnabled ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
 		await this.code.waitForActiveElement(selector);
 		await this.code.waitForSetValue(selector, text);
 
