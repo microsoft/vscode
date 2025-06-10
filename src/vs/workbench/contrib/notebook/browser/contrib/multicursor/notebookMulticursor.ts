@@ -545,6 +545,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return; // should not happen
 			}
 
+			// Check if all matches are already covered by selections to avoid infinite looping
+			const allMatches = notebookTextModel.findMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
+			const totalMatches = allMatches.reduce((sum, cellMatch) => sum + cellMatch.matches.length, 0);
+			const totalSelections = this.trackedCells.reduce((sum, trackedCell) => sum + trackedCell.matchSelections.length, 0);
+			
+			if (totalSelections >= totalMatches) {
+				// All matches are already selected, make this a no-op like in regular editors
+				return;
+			}
+
 			const findResult = notebookTextModel.findNextMatch(
 				this.word,
 				{ cellIndex: index, position: focusedCell.getSelections()[focusedCell.getSelections().length - 1].getEndPosition() },
