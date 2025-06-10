@@ -11,12 +11,12 @@ import { PromptDescriptionMetadata } from './metadata/index.js';
 import { type TInstructionsMetadata } from './instructionsHeader.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
+import { ObjectStream } from '../../codecs/base/utils/objectStream.js';
 import { PromptMetadataError, PromptMetadataWarning, type TDiagnostic } from './diagnostics.js';
-import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
-import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
-import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
+import { SimpleToken } from '../../codecs/base/simpleCodec/tokens/tokens.js';
+import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
+import { FrontMatterHeader } from '../../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { FrontMatterDecoder, type TFrontMatterToken } from '../../codecs/base/frontMatterCodec/frontMatterDecoder.js';
 
 /**
  * A metadata utility class "dehydrated" into a plain data object with

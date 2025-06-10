@@ -18,7 +18,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { installCountIcon, starEmptyIcon, starFullIcon, starHalfIcon } from '../../extensions/browser/extensionsIcons.js';
-import { IMcpServerContainer, IWorkbenchMcpServer } from '../common/mcpTypes.js';
+import { IMcpServerContainer, IWorkbenchMcpServer, mcpServerIcon } from '../common/mcpTypes.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -40,6 +40,71 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 		}
 	}));
 	return disposables;
+}
+
+export class McpServerIconWidget extends McpServerWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+	private readonly element: HTMLElement;
+	private readonly iconElement: HTMLImageElement;
+	private readonly defaultIconElement: HTMLElement;
+
+	private iconUrl: string | undefined;
+
+	constructor(
+		container: HTMLElement,
+	) {
+		super();
+		this.element = dom.append(container, dom.$('.extension-icon'));
+
+		this.iconElement = dom.append(this.element, dom.$('img.icon', { alt: '' }));
+		this.iconElement.style.display = 'none';
+
+		this.defaultIconElement = dom.append(this.element, dom.$(ThemeIcon.asCSSSelector(mcpServerIcon)));
+		this.defaultIconElement.style.display = 'none';
+
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.iconUrl = undefined;
+		this.iconElement.src = '';
+		this.iconElement.style.display = 'none';
+		this.defaultIconElement.style.display = 'none';
+		this.disposables.clear();
+	}
+
+	render(): void {
+		if (!this.mcpServer) {
+			this.clear();
+			return;
+		}
+
+		if (this.mcpServer.iconUrl) {
+			this.iconElement.style.display = 'inherit';
+			this.defaultIconElement.style.display = 'none';
+			if (this.iconUrl !== this.mcpServer.iconUrl) {
+				this.iconUrl = this.mcpServer.iconUrl;
+				this.disposables.add(dom.addDisposableListener(this.iconElement, 'error', () => {
+					this.iconElement.style.display = 'none';
+					this.defaultIconElement.style.display = 'inherit';
+				}, { once: true }));
+				this.iconElement.src = this.iconUrl;
+				if (!this.iconElement.complete) {
+					this.iconElement.style.visibility = 'hidden';
+					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+				} else {
+					this.iconElement.style.visibility = 'inherit';
+				}
+			}
+		} else {
+			this.iconUrl = undefined;
+			this.iconElement.style.display = 'none';
+			this.iconElement.src = '';
+			this.defaultIconElement.style.display = 'inherit';
+		}
+	}
 }
 
 export class PublisherWidget extends McpServerWidget {

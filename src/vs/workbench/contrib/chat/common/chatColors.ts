@@ -57,3 +57,13 @@ export const chatEditedFileForeground = registerColor(
 export const chatRequestCodeBorder = registerColor('chat.requestCodeBorder', { dark: '#004972B8', light: '#0e639c40', hcDark: null, hcLight: null }, localize('chat.requestCodeBorder', 'Border color of code blocks within the chat request bubble.'), true);
 
 export const chatRequestBubbleBackground = registerColor('chat.requestBubbleBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('chat.requestBubbleBackground', "Background color of the chat request bubble."), true);
+
+export const chatLinesAddedForeground = registerColor(
+	'chat.linesAddedForeground',
+	{ dark: '#54B054', light: '#107C10', hcDark: '#54B054', hcLight: '#107C10' },
+	localize('chat.linesAddedForeground', 'Foreground color of lines added in chat code block pill.'), true);
+
+export const chatLinesRemovedForeground = registerColor(
+	'chat.linesRemovedForeground',
+	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
+	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);

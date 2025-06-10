@@ -101,58 +101,6 @@ abstract class WorkingSetAction extends EditingSessionAction {
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
-registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
-	constructor() {
-		super({
-			id: 'chatEditing.removeFileFromWorkingSet',
-			title: localize2('removeFileFromWorkingSet', 'Remove File'),
-			icon: Codicon.close,
-			precondition: ChatContextKeys.requestInProgress.negate(),
-			menu: [{
-				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
-				order: 5,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
-
-		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === ModifiedFileEntryState.Modified);
-		if (pendingEntries.length > 0) {
-			// Ask for confirmation if there are any pending edits
-			const file = pendingEntries.length > 1
-				? localize('chat.editing.removeFile.confirmationmanyFiles', "{0} files", pendingEntries.length)
-				: basename(pendingEntries[0].modifiedURI);
-			const confirmation = await dialogService.confirm({
-				title: localize('chat.editing.removeFile.confirmation.title', "Remove {0} from working set?", file),
-				message: localize('chat.editing.removeFile.confirmation.message', "This will remove {0} from your working set and undo the edits made to it. Do you want to proceed?", file),
-				primaryButton: localize('chat.editing.removeFile.confirmation.primaryButton', "Yes"),
-				type: 'info'
-			});
-			if (!confirmation.confirmed) {
-				return;
-			}
-		}
-
-		// Remove from working set
-		await currentEditingSession.reject(...uris);
-		currentEditingSession.remove(...uris);
-
-		// Remove from chat input part
-		for (const uri of uris) {
-			chatWidget.attachmentModel.delete(uri.toString());
-		}
-
-		// Clear all related file suggestions
-		if (chatWidget.attachmentModel.fileAttachments.length === 0) {
-			chatWidget.input.relatedFiles?.clear();
-		}
-	}
-});
-
 registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 	constructor() {
 		super({
@@ -327,41 +275,6 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	await currentEditingSession.reject();
 	return true;
 }
-
-// TODO@roblourens this may be obsolete?
-export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
-	static readonly ID = 'chatEditing.clearWorkingSet';
-
-	constructor() {
-		super({
-			id: ChatEditingRemoveAllFilesAction.ID,
-			title: localize('clearWorkingSet', 'Clear Working Set'),
-			icon: Codicon.clearAll,
-			tooltip: localize('clearWorkingSet', 'Clear Working Set'),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate()),
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: hasAppliedChatEditsContextKey.negate()
-				}
-			]
-		});
-	}
-
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
-		// Remove all files from working set
-		const uris = [...editingSession.entries.get()].map((e) => e.modifiedURI);
-		editingSession.remove(...uris);
-
-		// Remove all file attachments
-		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
-		const attachmentIdsToRemove = fileAttachments.map(attachment => attachment.toString());
-		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
-	}
-}
-registerAction2(ChatEditingRemoveAllFilesAction);
 
 export class ChatEditingShowChangesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.viewChanges';
