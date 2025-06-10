@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { env as processEnv } from '../../../../../base/common/process.js';
@@ -190,7 +190,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return completionItems;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
 				}
@@ -202,7 +202,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore, shellType?: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
 		const useWindowsStylePath = resourceRequestConfig.pathSeparator === '\\';
 		if (useWindowsStylePath) {
 			// for tests, make sure the right path separator is used
@@ -248,7 +248,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// The _complete_ folder of the last word. For example if the last word is `./src/file`,
-		// this will be `./src/`. This also always ends in the path separator if it is not the empty
+		// this will be `./src/`. this also always ends in the path separator if it is not the empty
 		// string and path separators are normalized on Windows.
 		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
 		if (useWindowsStylePath) {
@@ -280,7 +280,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				break;
 			}
 			case 'absolute': {
-				lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+				if (shellType === WindowsShellType.GitBash) {
+					lastWordFolderResource = URI.file(gitBashPathToWindows(lastWordFolder));
+				} else {
+					lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
+				}
 				break;
 			}
 			case 'relative': {
@@ -349,7 +353,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder),
+				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -394,7 +398,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind),
+				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -420,8 +424,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 										}
 										const useRelative = config === 'relative';
 										const kind = TerminalCompletionItemKind.Folder;
-										const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind);
-										const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind)}` : `CDPATH`;
+										const label = useRelative ? basename(child.resource.fsPath) : getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType);
+										const detail = useRelative ? `CDPATH ${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType)}` : `CDPATH`;
 										resourceCompletions.push({
 											label,
 											provider,
@@ -453,7 +457,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder),
+				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -478,7 +482,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: '~',
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(homeResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder),
+				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(homeResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -500,8 +504,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind): string {
+function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
 	let path = uri.fsPath;
+	pathSeparator = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
 	// Ensure folders end with the path separator to differentiate presentation from files
 	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(pathSeparator)) {
 		path += pathSeparator;
@@ -522,4 +527,40 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;
+}
+
+/**
+ * Converts a Git Bash absolute path to a Windows absolute path.
+ * Examples:
+ *   "/"      => "C:\\"
+ *   "/c/"    => "C:\\"
+ *   "/c/Users/foo" => "C:\\Users\\foo"
+ *   "/d/bar" => "D:\\bar"
+ */
+export function gitBashPathToWindows(path: string): string {
+	// Handle root "/"
+	if (path === '/') {
+		return 'C:\\';
+	}
+	const match = path.match(/^\/([a-zA-Z])(\/.*)?$/);
+	if (match) {
+		const drive = match[1].toUpperCase();
+		const rest = match[2] ? match[2].replace(/\//g, '\\') : '\\';
+		return `${drive}:${rest}`;
+	}
+	// Fallback: just replace slashes
+	return path.replace(/\//g, '\\');
+}
+
+/**
+ *
+ * @param path A Windows-style absolute path (e.g., "C:\Users\foo").
+ * Converts it to a Git Bash-style absolute path (e.g., "/c/Users/foo").
+ * @returns The Git Bash-style absolute path.
+ */
+export function windowsToGitBashPath(path: string): string {
+	// Convert Windows path (e.g. C:\Users\foo) to Git Bash path (e.g. /c/Users/foo)
+	return path
+		.replace(/^[a-zA-Z]:\\/, match => `/${match[0].toLowerCase()}/`)
+		.replace(/\\/g, '/');
 }
