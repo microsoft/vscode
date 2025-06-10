@@ -172,7 +172,12 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 					// by default match `word` against the `label`
 					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match && word !== '') {
-						continue; // NO match
+						//TODO: why is this needed?
+						if (item.textLabel.startsWith(word)) {
+							item.score = FuzzyScore.Default; // match the start of the label
+						} else {
+							continue; // NO match
+						}
 					}
 					// Use default sorting when word is empty
 					item.score = match || FuzzyScore.Default;
