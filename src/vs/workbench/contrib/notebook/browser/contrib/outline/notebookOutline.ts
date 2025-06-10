@@ -741,7 +741,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			...options,
 			override: this._editor.input?.editorId,
 			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
-			selection: entry.position,
+			selection: entry.range,
 			viewState: undefined,
 		};
 		await this._editorService.openEditor({

@@ -187,4 +187,33 @@ suite('Notebook Outline', function () {
 			assert.strictEqual(symbolsCached, true);
 		});
 	});
+
+	test('Reveal uses range for selection highlighting', async function () {
+		await withNotebookOutline([
+			['# Test heading', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, async (outline, editor) => {
+			const entries = outline.entries;
+			assert.strictEqual(entries.length, 1);
+			
+			const entry = entries[0];
+			assert.ok(entry.range, 'Entry should have a range');
+			
+			// Mock the editor service to capture the reveal options
+			let capturedOptions: any = null;
+			const originalEditorService = (outline as any)._editorService;
+			(outline as any)._editorService = {
+				openEditor: async (input: any, group: any) => {
+					capturedOptions = input.options;
+					return originalEditorService.openEditor(input, group);
+				}
+			};
+			
+			// Call reveal
+			await outline.reveal(entry, {}, false);
+			
+			// Verify that the selection is set to the entry's range
+			assert.ok(capturedOptions, 'Options should be captured');
+			assert.deepStrictEqual(capturedOptions.selection, entry.range, 'Selection should be the entry range, not just position');
+		});
+	});
 });
