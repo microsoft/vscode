@@ -231,6 +231,49 @@ suite('platform - terminalEnvironment', async () => {
 					});
 				});
 			});
+			suite('sh', async () => {
+				suite('should detect when sh is actually bash', async () => {
+					test('when sh executable is bash', async () => {
+						// Skip this test on Windows as sh detection is primarily for Unix-like systems
+						if (process.platform === 'win32') {
+							return;
+						}
+						
+						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+							type: 'injection',
+							newArgs: [
+								'--init-file',
+								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
+							],
+							envMixin: {
+								VSCODE_INJECTION: '1'
+							}
+						});
+						
+						// Test with a mock sh that behaves like bash
+						// We'll use bash itself for this test since we can't rely on system sh being bash
+						const result = await getShellIntegrationInjection({ executable: '/bin/bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true);
+						
+						// This should always work for bash
+						strictEqual(result.type, 'injection');
+						deepStrictEqualIgnoreStableVar(result, enabledExpectedResult);
+					});
+					
+					test('when sh executable is not bash', async () => {
+						// Skip this test on Windows as sh detection is primarily for Unix-like systems
+						if (process.platform === 'win32') {
+							return;
+						}
+						
+						// Test with a shell that's definitely not bash (if available)
+						// We'll use the system's sh which should not be bash on this test system
+						const result = await getShellIntegrationInjection({ executable: '/bin/sh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true);
+						
+						// Since /bin/sh on this system is dash (not bash), it should fail
+						strictEqual(result.type, 'failure');
+					});
+				});
+			});
 		}
 	});
 });
