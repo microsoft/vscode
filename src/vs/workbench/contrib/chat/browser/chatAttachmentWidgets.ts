@@ -81,6 +81,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	) {
 		super();
 		this.element = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
+		this.attachClearButton();
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverDelegate, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
@@ -213,8 +214,6 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, range);
-
-		this.attachClearButton();
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string, hoverDelegate: IHoverDelegate) {
@@ -296,8 +295,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -422,8 +419,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -470,8 +465,6 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
-
-		this.attachClearButton();
 	}
 }
 
@@ -518,8 +511,6 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		if (hoverContent) {
 			this._register(hoverService.setupManagedHover(hoverDelegate, this.element, hoverContent, { trapFocus: true }));
 		}
-
-		this.attachClearButton();
 	}
 
 
@@ -563,7 +554,6 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, undefined);
-		this.attachClearButton();
 	}
 	getAriaLabel(attachment: INotebookOutputVariableEntry): string {
 		return localize('chat.NotebookImageAttachment', "Attached Notebook output, {0}", attachment.name);
@@ -656,8 +646,6 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				}
 			});
 		}));
-
-		this.attachClearButton();
 	}
 }
 
@@ -695,8 +683,6 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 				this._openAttachment(attachment);
 			}
 		}));
-
-		this.attachClearButton();
 	}
 
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
