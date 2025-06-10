@@ -112,6 +112,52 @@ suite('Notebook Folding', () => {
 		);
 	});
 
+	test('Folding based on HTML header tags', async function () {
+		await withTestNotebook(
+			[
+				['<h1>HTML Header 1</h1>', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['<h2>HTML Header 2.1</h2>', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['<h2>HTML Header 2.2</h2>', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+			],
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
+				foldingController.attachViewModel(viewModel);
+
+				assert.strictEqual(foldingController.regions.findRange(1), 0);
+				assert.strictEqual(foldingController.regions.findRange(2), 0);
+				assert.strictEqual(foldingController.regions.findRange(3), 1);
+				assert.strictEqual(foldingController.regions.findRange(4), 1);
+				assert.strictEqual(foldingController.regions.findRange(5), 1);
+				assert.strictEqual(foldingController.regions.findRange(6), 2);
+				assert.strictEqual(foldingController.regions.findRange(7), 2);
+			}
+		);
+	});
+
+	test('Mixed markdown and HTML headers prefer markdown', async function () {
+		await withTestNotebook(
+			[
+				['# Markdown Header 1\n<h2>HTML Header</h2>', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['<h2>HTML Only Header</h2>', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+			],
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
+				foldingController.attachViewModel(viewModel);
+
+				// Should create folding regions based on headers
+				assert.strictEqual(foldingController.regions.length, 2);
+				assert.strictEqual(foldingController.regions.findRange(1), 0); // First cell with markdown header should create region
+				assert.strictEqual(foldingController.regions.findRange(3), 1); // Third cell with HTML header should create region
+			}
+		);
+	});
+
 	test('Folding', async function () {
 		await withTestNotebook(
 			[

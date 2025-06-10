@@ -106,6 +106,33 @@ suite('Notebook Outline', function () {
 		});
 	});
 
+	test('HTML header tags in outline', async function () {
+		await withNotebookOutline([
+			['<h1>HTML Header</h1>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'HTML Header');
+		});
+
+		await withNotebookOutline([
+			['<h2 class="test">HTML Header with attributes</h2>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'HTML Header with attributes');
+		});
+
+		// Test that markdown headers take precedence over HTML headers
+		await withNotebookOutline([
+			['# Markdown Header\n<h2>HTML Header</h2>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Markdown Header');
+		});
+	});
+
 	test('Notebook falsely detects "empty cells"', async function () {
 		await withNotebookOutline([
 			['  的时代   ', 'md', CellKind.Markup]

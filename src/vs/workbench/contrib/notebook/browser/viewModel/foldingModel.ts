@@ -313,11 +313,27 @@ export function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: num
 }
 
 export function* getMarkdownHeadersInCell(cellContent: string): Iterable<{ readonly depth: number; readonly text: string }> {
+	// First try to find markdown headers
+	let hasMarkdownHeaders = false;
 	for (const token of marked.lexer(cellContent, { gfm: true })) {
 		if (token.type === 'heading') {
+			hasMarkdownHeaders = true;
 			yield {
 				depth: token.depth,
 				text: renderMarkdownAsPlaintext({ value: token.raw }).trim()
+			};
+		}
+	}
+	
+	// If no markdown headers found, try to find HTML headers as fallback
+	if (!hasMarkdownHeaders) {
+		const match = cellContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
+		if (match) {
+			const level = parseInt(match[1]);
+			const text = match[2].trim();
+			yield {
+				depth: level,
+				text: text
 			};
 		}
 	}
