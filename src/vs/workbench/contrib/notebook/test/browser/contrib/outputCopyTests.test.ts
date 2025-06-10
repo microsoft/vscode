@@ -18,11 +18,9 @@ suite('Cell Output Clipboard Tests', () => {
 
 	class ClipboardService {
 		private _clipboardContent = '';
-		
 		public get clipboardContent() {
 			return this._clipboardContent;
 		}
-		
 		public async writeText(value: string) {
 			this._clipboardContent = value;
 		}
