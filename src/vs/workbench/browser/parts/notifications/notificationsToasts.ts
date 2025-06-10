@@ -16,9 +16,9 @@ import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../c
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { getSeverityPrefix, INotificationsToastController } from './notificationsCommands.js';
+import { INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { Severity, NotificationsFilter, NotificationPriority, withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -200,14 +200,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
-				// Add severity prefix to match WCAG 4.1.3 Status Messages requirements
-				const severityPrefix = getSeverityPrefix(item.severity);
-				const messageWithSeverity = `${severityPrefix}${item.message.raw}`;
-
 				if (!item.source) {
-					return localize('notificationAriaLabel', "{0}, notification", messageWithSeverity);
+					return withSeverityPrefix(localize('notificationAriaLabel', "{0}, notification", item.message.raw), item.severity);
 				}
-				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", messageWithSeverity, item.source);
+
+				return withSeverityPrefix(localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source), item.severity);
 			})()
 		});
 		itemDisposables.add(notificationList);
