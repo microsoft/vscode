@@ -61,7 +61,13 @@ export class TokenStyle implements Readonly<TokenStyleData> {
 }
 
 export namespace TokenStyle {
-	export function toJSONObject(style: TokenStyle): any {
+	export function toJSONObject(style: TokenStyle): {
+		_foreground: string | null;
+		_bold: boolean | null;
+		_underline: boolean | null;
+		_italic: boolean | null;
+		_strikethrough: boolean | null;
+	} {
 		return {
 			_foreground: style.foreground === undefined ? null : Color.Format.CSS.formatHexA(style.foreground, true),
 			_bold: style.bold === undefined ? null : style.bold,
@@ -70,16 +76,17 @@ export namespace TokenStyle {
 			_strikethrough: style.strikethrough === undefined ? null : style.strikethrough,
 		};
 	}
-	export function fromJSONObject(obj: any): TokenStyle | undefined {
-		if (obj) {
-			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
-			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
+	export function fromJSONObject(obj: unknown): TokenStyle | undefined {
+		if (obj && typeof obj === 'object' && obj !== null) {
+			const objTyped = obj as Record<string, unknown>;
+			const boolOrUndef = (b: unknown): boolean | undefined => (typeof b === 'boolean') ? b : undefined;
+			const colorOrUndef = (s: unknown): Color | undefined => (typeof s === 'string') ? Color.fromHex(s) : undefined;
 			return new TokenStyle(
-				colorOrUndef(obj._foreground),
-				boolOrUndef(obj._bold),
-				boolOrUndef(obj._underline),
-				boolOrUndef(obj._strikethrough),
-				boolOrUndef(obj._italic)
+				colorOrUndef(objTyped._foreground),
+				boolOrUndef(objTyped._bold),
+				boolOrUndef(objTyped._underline),
+				boolOrUndef(objTyped._strikethrough),
+				boolOrUndef(objTyped._italic)
 			);
 		}
 		return undefined;
