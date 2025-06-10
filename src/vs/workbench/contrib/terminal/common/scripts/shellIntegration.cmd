@@ -29,3 +29,13 @@ echo $e]633;P;HasRichCommandDetection=False$e\
 
 REM Report this is Windows
 echo $e]633;P;IsWindows=true$e\
+
+REM Report environment variables if enabled (basic support)
+if defined VSCODE_SHELL_ENV_REPORTING (
+	for %%v in (%VSCODE_SHELL_ENV_REPORTING:,= %) do (
+		if defined %%v (
+			call echo $e]633;EnvSingleEntry;%%v;%%%%v%%;%VSCODE_NONCE%$e\
+		)
+	)
+	set VSCODE_SHELL_ENV_REPORTING=
+)
