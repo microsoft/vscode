@@ -64,4 +64,10 @@ export interface IClipboardService {
 	 * image, an empty buffer is returned.
 	 */
 	readImage(): Promise<Uint8Array>;
+
+	/**
+	 * Writes multiple formats to the clipboard simultaneously.
+	 * Each entry in the map represents a mime type and its associated data.
+	 */
+	writeMultipleFormats?(formats: Map<string, Uint8Array | string>): Promise<void>;
 }
