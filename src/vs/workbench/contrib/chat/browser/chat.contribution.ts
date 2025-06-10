@@ -302,13 +302,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
 			default: true,
-			tags: ['preview'],
 			policy: {
 				name: 'ChatAgentExtensionTools',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
-				previewFeature: true,
-				defaultValue: false
 			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
