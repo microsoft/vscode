@@ -248,7 +248,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// The _complete_ folder of the last word. For example if the last word is `./src/file`,
-		// this will be `./src/`. this also always ends in the path separator if it is not the empty
+		// this will be `./src/`. This also always ends in the path separator if it is not the empty
 		// string and path separators are normalized on Windows.
 		let lastWordFolder = lastSlashIndex === -1 ? '' : lastWord.slice(0, lastSlashIndex + 1);
 		if (useWindowsStylePath) {
