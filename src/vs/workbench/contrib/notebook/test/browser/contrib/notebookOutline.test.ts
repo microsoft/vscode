@@ -188,5 +188,4 @@ suite('Notebook Outline', function () {
 		});
 	});
 
-
 });
