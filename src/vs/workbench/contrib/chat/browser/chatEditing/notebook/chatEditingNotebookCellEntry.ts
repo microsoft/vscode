@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction, autorun } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { StringEdit } from '../../../../../../editor/common/core/edits/stringEdit.js';
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { offsetEditFromLineRangeMapping } from '../../../../../../editor/common/model/textModelStringEdit.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
@@ -19,7 +17,7 @@ import { NotebookCellTextModel } from '../../../../notebook/common/model/noteboo
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
-import { ChatEditingModifiedTextModelService } from '../chatEditingModifiedTextModelService.js';
+import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 
 /**
@@ -32,16 +30,15 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		return this._store.isDisposed;
 	}
 
-	private _edit: StringEdit = StringEdit.empty;
 	public get isEditFromUs(): boolean {
-		return this.modifiedTextModel.isEditFromUs;
+		return this.textModelChangeService.isEditFromUs;
 	}
 
 	public get allEditsAreFromUs(): boolean {
-		return this.modifiedTextModel.allEditsAreFromUs;
+		return this.textModelChangeService.allEditsAreFromUs;
 	}
 	public get diffInfo(): IObservable<IDocumentDiff> {
-		return this.modifiedTextModel.diffInfo;
+		return this.textModelChangeService.diffInfo;
 	}
 	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
 	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
@@ -49,7 +46,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 	private readonly initialContent: string;
-	private readonly modifiedTextModel: ChatEditingModifiedTextModelService;
+	private readonly textModelChangeService: ChatEditingTextModelChangeService;
 	constructor(
 		public readonly notebookUri: URI,
 		public readonly cell: NotebookCellTextModel,
@@ -62,9 +59,9 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this.modifiedTextModel = this._register(this.instantiationService.createInstance(ChatEditingModifiedTextModelService, this.originalModel, this.modifiedModel, this.state));
+		this.textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
 
-		this._register(this.modifiedTextModel.onHunkAction(action => {
+		this._register(this.textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this.revertMarkdownPreviewState();
 			if (action === 'acceptedAllChanges') {
 				this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
@@ -73,24 +70,10 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 			}
 		}));
 
-		this._register(autorun(r => {
-			const diffInfo = this.modifiedTextModel.diffInfo.read(r);
-			if (this.state.get() !== ModifiedFileEntryState.Modified) {
-				return;
-			}
-			// If the diff has changed, then recompute the edit
-			this._edit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diffInfo.changes);
-		}));
-
-
-		this._register(this.modifiedModel.onDidChangeContent(e => {
-			this._edit = this.modifiedTextModel.mirrorEdits(e, this._edit);
-
-			if (!this.modifiedTextModel.isEditFromUs) {
-				const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-				if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
-					this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
-				}
+		this._register(this.textModelChangeService.onDidUserEditModel(() => {
+			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
 
@@ -100,11 +83,11 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		if (this.modifiedModel.isDisposed()) {
 			return;
 		}
-		this.modifiedTextModel.clearCurrentEditLineDecoration();
+		this.textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
 	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		const { maxLineNumber } = await this.modifiedTextModel.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
+		const { maxLineNumber } = await this.textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
 			if (!isLastEdits) {
@@ -133,10 +116,10 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 	}
 
 	public async keep(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this.modifiedTextModel.diffInfo.get().keep(change);
+		return this.textModelChangeService.diffInfo.get().keep(change);
 	}
 
 	public async undo(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this.modifiedTextModel.diffInfo.get().undo(change);
+		return this.textModelChangeService.diffInfo.get().undo(change);
 	}
 }
