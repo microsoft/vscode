@@ -2067,8 +2067,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				await this.run(task, undefined, TaskRunSource.User); // check if this is really needed.
-				// await this.run(task);
+				// await this.run(task, undefined, TaskRunSource.User); // check if this is really needed.
+				await this.run(task);
 			} catch {
 				// eat the error, we don't care about it here
 			}
