@@ -41,7 +41,7 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 		if (config.languagePack) {
 			try {
 				const content = await this.fileService.readFile(URI.file(config.languagePack.translationsConfigFile));
-				return JSON.parse(content.value.toString());
+				return JSON.parse(content.value.toString()) as Translations;
 			} catch (err) { /* Ignore error */ }
 		}
 		return Object.create(null);
