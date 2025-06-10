@@ -189,9 +189,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
 			this.onProcessReady(e => {
-				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid, this.shellLaunchConfig.executable));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
+				
+				// Fire initial shell type if we have it immediately
+				if (this._windowsShellHelper.shellType) {
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._windowsShellHelper.shellType });
+				}
 			});
 		}
 		this._register(toDisposable(() => {
