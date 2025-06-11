@@ -225,8 +225,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		for (let i = 0; i < this._renderedStickyLines.length; i++) {
 			if (i < rebuildFromIndex) {
 				const renderedLine = this._renderedStickyLines[i];
-				top += renderedLine.height;
 				renderedStickyLines.push(this._updatePosition(renderedLine, top, renderedLine.lineNumber === lastLineNumber));
+				top += renderedLine.height;
 			} else {
 				const renderedLine = this._renderedStickyLines[i];
 				renderedLine.lineNumberDomNode.remove();
