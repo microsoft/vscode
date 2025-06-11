@@ -131,6 +131,15 @@ suite('Notebook Outline', function () {
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Markdown Header');
 		});
+
+		// Test multiline HTML headers in outline
+		await withNotebookOutline([
+			['<h1> testing\n\nsecond line </h1>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'testing\n\nsecond line');
+		});
 	});
 
 	test('Notebook falsely detects "empty cells"', async function () {
