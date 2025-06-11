@@ -538,5 +538,62 @@
 		"addLabel": "info-needed",
 		"removeLabel": "~confirmation-needed",
 		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
+	},
+		{
+		"type": "label",
+		"name": "~chat-rate-limiting",
+		"removeLabel": "~chat-rate-limiting",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2627. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-request-failed",
+		"removeLabel": "~chat-request-failed",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/4332. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-rai-content-filters",
+		"removeLabel": "~chat-rai-content-filters",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2625. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-public-code-blocking",
+		"removeLabel": "~chat-public-code-blocking",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2626. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-lm-unavailable",
+		"removeLabel": "~chat-lm-unavailable",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode-copilot-release/issues/2116. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~chat-authentication",
+		"removeLabel": "~chat-authentication",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/11078, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
+		"assign": ["TylerLeonhardt"]
+	},
+	{
+		"type": "label",
+		"name": "~chat-no-response-returned",
+		"removeLabel": "~chat-no-response-returned",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode-copilot-release/issues/7034. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	}
 ]

@@ -331,6 +331,7 @@ export class MarkupCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
+				allowVariableLineHeights: false,
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
