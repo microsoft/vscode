@@ -725,28 +725,20 @@ suite('TerminalCompletionService', () => {
 
 						return createFileStat(resource, undefined, undefined, undefined, processedChildren as any);
 					},
+					async resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
+						if (resource.path.includes('symlink-file')) {
+							return URI.file('/target/actual-file.txt');
+						}
+						return undefined;
+					}
 				});
 
-				// Mock the symlink resolution by replacing the _resolveSymlinkTarget method
-				const originalResolveSymlinkTarget = (terminalCompletionService as any)._resolveSymlinkTarget;
-				(terminalCompletionService as any)._resolveSymlinkTarget = async (uri: URI) => {
-					if (uri.path.includes('symlink-file')) {
-						return '/target/actual-file.txt';
-					}
-					return undefined;
-				};
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
 
-				try {
-					const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
-
-					// Find the symlink completion
-					const symlinkCompletion = result?.find(c => c.label === 'symlink-file');
-					assert.ok(symlinkCompletion, 'Symlink completion should be found');
-					assert.strictEqual(symlinkCompletion.symlinkTarget, '/target/actual-file.txt', 'Symlink target should be resolved');
-				} finally {
-					// Restore original method
-					(terminalCompletionService as any)._resolveSymlinkTarget = originalResolveSymlinkTarget;
-				}
+				// Find the symlink completion
+				const symlinkCompletion = result?.find(c => c.label === 'symlink-file');
+				assert.ok(symlinkCompletion, 'Symlink completion should be found');
+				assert.strictEqual(symlinkCompletion.symlinkTarget, '/target/actual-file.txt', 'Symlink target should be resolved');
 			});
 		});
 	}
