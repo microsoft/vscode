@@ -15,10 +15,10 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IChatWidget } from '../chat.js';
-import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
+import { IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
@@ -220,9 +220,6 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 		Range.isIRange(obj.range) &&
 		'data' in obj;
 }
-
-ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
-
 
 
 

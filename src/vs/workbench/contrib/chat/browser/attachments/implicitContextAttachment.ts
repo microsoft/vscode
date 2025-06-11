@@ -24,7 +24,7 @@ import { FileKind, IFileService } from '../../../../../platform/files/common/fil
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
