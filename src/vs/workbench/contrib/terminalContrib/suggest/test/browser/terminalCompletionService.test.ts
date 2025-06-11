@@ -724,6 +724,12 @@ suite('TerminalCompletionService', () => {
 						});
 
 						return createFileStat(resource, undefined, undefined, undefined, processedChildren as any);
+					},
+					async resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
+						if (resource.path.includes('symlink-file')) {
+							return URI.file('/target/actual-file.txt');
+						}
+						return undefined;
 					}
 				});
 
@@ -732,9 +738,7 @@ suite('TerminalCompletionService', () => {
 				// Find the symlink completion
 				const symlinkCompletion = result?.find(c => c.label === 'symlink-file');
 				assert.ok(symlinkCompletion, 'Symlink completion should be found');
-				// Note: symlinkTarget will be undefined in browser test environment since Node.js-specific 
-				// symlink resolution module may not be available. This is expected behavior.
-				// In a Node.js environment, this would resolve to the actual symlink target.
+				assert.strictEqual(symlinkCompletion.symlinkTarget, '/target/actual-file.txt', 'Symlink target should be resolved');
 			});
 		});
 	}

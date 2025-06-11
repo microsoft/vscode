@@ -255,6 +255,14 @@ export interface IFileService {
 	watch(resource: URI, options?: IWatchOptionsWithoutCorrelation): IDisposable;
 
 	/**
+	 * Resolves the target of a symbolic link.
+	 * 
+	 * @param resource The URI of the symbolic link
+	 * @returns The URI of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+	 */
+	resolveSymlinkTarget(resource: URI): Promise<URI | undefined>;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
@@ -759,6 +767,21 @@ export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemPr
 
 export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
+}
+
+export interface IFileSystemProviderWithSymlinkResolutionCapability extends IFileSystemProvider {
+
+	/**
+	 * Resolves the target of a symbolic link.
+	 * 
+	 * @param resource The URI of the symbolic link
+	 * @returns The URI of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+	 */
+	resolveSymlinkTarget(resource: URI): Promise<URI | undefined>;
+}
+
+export function hasSymlinkResolutionCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithSymlinkResolutionCapability {
+	return typeof (provider as IFileSystemProviderWithSymlinkResolutionCapability).resolveSymlinkTarget === 'function';
 }
 
 export enum FileSystemProviderErrorCode {
