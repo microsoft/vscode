@@ -131,7 +131,15 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const { prefixLeftOffset } = maxPrefixTrim;
 			const { requiredWidth } = modifiedLines;
 
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
+			const originalLineHeights = this._editor.observeLineHeightsForLineRange(edit.originalRange).read(reader);
+			const modifiedLineHeights = (() => {
+				const lineHeights = originalLineHeights.slice(0, edit.modifiedRange.length);
+				while (lineHeights.length < edit.modifiedRange.length) {
+					lineHeights.push(originalLineHeights[originalLineHeights.length - 1]);
+				}
+				return lineHeights;
+			})();
+
 			const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 			const verticalScrollbarWidth = this._editor.layoutInfoVerticalScrollbarWidth.read(reader);
 			const scrollLeft = this._editor.scrollLeft.read(reader);
@@ -159,7 +167,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				originalLinesOverlay.left,
 				originalLinesOverlay.bottom,
 				originalLinesOverlay.width,
-				edit.modifiedRange.length * lineHeight
+				modifiedLineHeights.reduce((sum, h) => sum + h, 0)
 			);
 			const background = Rect.hull([originalLinesOverlay, modifiedLinesOverlay]);
 
@@ -172,6 +180,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				background,
 				lowerBackground,
 				lowerText,
+				modifiedLineHeights,
 				minContentWidthRequired: prefixLeftOffset + maxLineWidth + verticalScrollbarWidth,
 			};
 		});
@@ -204,10 +213,9 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				const layoutProps = layout.read(reader);
 				const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 
-				const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
-				modifiedLineElements.lines.forEach(l => {
+				modifiedLineElements.lines.forEach((l, i) => {
 					l.style.width = `${layoutProps.lowerText.width}px`;
-					l.style.height = `${lineHeight}px`;
+					l.style.height = `${layoutProps.modifiedLineHeights[i]}px`;
 					l.style.position = 'relative';
 				});
 

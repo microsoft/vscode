@@ -71,6 +71,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const res = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false).withScrollBeyondLastColumn(0), [], this._line, true);
 			this._line.style.width = `${res.minWidthInPx}px`;
 		});
+		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._edit.range.getStartPosition());
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -81,7 +82,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				return undefined;
 			}
 
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = modifiedLineHeight.read(reader);
 			const scrollLeft = this._editor.scrollLeft.read(reader);
 			const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 

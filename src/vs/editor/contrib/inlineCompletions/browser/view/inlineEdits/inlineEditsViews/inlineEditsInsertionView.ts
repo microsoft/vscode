@@ -13,7 +13,6 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
@@ -54,13 +53,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	});
 
 	private readonly _trimVertically = derived(this, reader => {
-		const text = this._state.read(reader)?.text;
+		const state = this._state.read(reader);
+		const text = state?.text;
 		if (!text || text.trim() === '') {
 			return { topOffset: 0, bottomOffset: 0, linesTop: 0, linesBottom: 0 };
 		}
 
 		// Adjust for leading/trailing newlines
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const lineHeight = this._editor.getLineHeightForPosition(new Position(state.lineNumber, 1));
 		const eol = this._editor.getModel()!.getEOL();
 		let linesTop = 0;
 		let linesBottom = 0;

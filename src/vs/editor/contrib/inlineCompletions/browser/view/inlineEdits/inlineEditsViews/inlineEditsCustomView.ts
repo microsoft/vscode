@@ -136,7 +136,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);
 
 			const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(startLineNumber).read(reader);
 			const scrollTop = this._editorObs.scrollTop.read(reader);
 			const scrollLeft = this._editorObs.scrollLeft.read(reader);
 
