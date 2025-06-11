@@ -736,12 +736,30 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this.delayerRecomputeActive.trigger(() => { this.recomputeActive(); });
 	}
 
-	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean, select: boolean = true): Promise<void> {
+		// Determine the appropriate selection range based on the select parameter
+		let selection: IRange | undefined;
+		if (entry.range) {
+			if (select) {
+				// Use the full range for highlighting (e.g., entire function when double-clicking)
+				selection = entry.range;
+			} else {
+				// Use just the selection range for cursor positioning (e.g., function name when single-clicking)
+				// If selectionRange is not available, collapse to start of range
+				selection = entry.selectionRange || {
+					startLineNumber: entry.range.startLineNumber,
+					startColumn: entry.range.startColumn,
+					endLineNumber: entry.range.startLineNumber,
+					endColumn: entry.range.startColumn
+				};
+			}
+		}
+
 		const notebookEditorOptions: INotebookEditorOptions = {
 			...options,
 			override: this._editor.input?.editorId,
 			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
-			selection: entry.position,
+			selection,
 			viewState: undefined,
 		};
 		await this._editorService.openEditor({
