@@ -55,7 +55,7 @@ export class TextModelChangeRecorder extends Disposable {
 						sourceId: 'TextModel.setChangeReason',
 						source: source,
 						time: Date.now(),
-						modelUri: tm.uri.toString(),
+						modelUri: tm.uri,
 						modelVersion: tm.getVersionId(),
 					};
 					setTimeout(() => {
