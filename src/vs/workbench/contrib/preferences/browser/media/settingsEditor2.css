@@ -40,13 +40,13 @@
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
 	position: absolute;
-	right: 46px;
+	right: 48px;
 	top: 0px;
-	margin: 4px 0px;
+	margin: 2.5px 0px;
 }
 
 .settings-editor > .settings-header > .search-container.with-ai-toggle > .settings-count-widget {
-	right: 65px;
+	right: 69px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
