@@ -98,7 +98,7 @@ suite('TerminalCompletionService', () => {
 	let configurationService: TestConfigurationService;
 	let capabilities: TerminalCapabilityStore;
 	let validResources: URI[];
-	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean }[];
+	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[];
 	let terminalCompletionService: TerminalCompletionService;
 	const provider = 'testProvider';
 
@@ -677,4 +677,87 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+
+	suite('symlink classification', () => {
+		test('should classify symlink to file as File', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.file('/test'),
+				filesRequested: true,
+				foldersRequested: false,
+				pathSeparator
+			};
+			validResources = [
+				URI.file('/test'),
+				URI.file('/test/symlink-to-file.txt')
+			];
+			childResources = [
+				{ resource: URI.file('/test/symlink-to-file.txt'), isFile: true, isSymbolicLink: true }
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cat ', 4, provider, capabilities);
+
+			assert.ok(result, 'Should return completions');
+			const symlinkToFile = result.find(c => c.label === 'symlink-to-file.txt');
+			assert.ok(symlinkToFile, 'Should find symlink to file');
+			assert.strictEqual(symlinkToFile.kind, TerminalCompletionItemKind.File, 'Symlink to file should be classified as File');
+			assert.strictEqual(symlinkToFile.isSymbolicLink, true, 'Symlink to file should have isSymbolicLink set to true');
+		});
+
+		test('should classify symlink to directory as Folder', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.file('/test'),
+				filesRequested: false,
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [
+				URI.file('/test'),
+				URI.file('/test/symlink-to-dir')
+			];
+			childResources = [
+				{ resource: URI.file('/test/symlink-to-dir'), isDirectory: true, isSymbolicLink: true }
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
+
+			assert.ok(result, 'Should return completions');
+			// Find the symlink to directory (should have trailing slash)
+			const symlinkToDir = result.find(c => c.label === 'symlink-to-dir/');
+			assert.ok(symlinkToDir, 'Should find symlink to directory');
+			assert.strictEqual(symlinkToDir.kind, TerminalCompletionItemKind.Folder, 'Symlink to directory should be classified as Folder');
+			assert.strictEqual(symlinkToDir.isSymbolicLink, true, 'Symlink to directory should have isSymbolicLink set to true');
+		});
+
+		test('should include both regular files and symlinks when files are requested', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.file('/test'),
+				filesRequested: true,
+				foldersRequested: false,
+				pathSeparator
+			};
+			validResources = [
+				URI.file('/test'),
+				URI.file('/test/regular-file.txt'),
+				URI.file('/test/symlink-to-file.txt')
+			];
+			childResources = [
+				{ resource: URI.file('/test/regular-file.txt'), isFile: true },
+				{ resource: URI.file('/test/symlink-to-file.txt'), isFile: true, isSymbolicLink: true }
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cat ', 4, provider, capabilities);
+
+			assert.ok(result, 'Should return completions');
+			
+			const regularFile = result.find(c => c.label === 'regular-file.txt');
+			const symlinkFile = result.find(c => c.label === 'symlink-to-file.txt');
+			
+			assert.ok(regularFile, 'Should find regular file');
+			assert.ok(symlinkFile, 'Should find symlink file');
+			assert.strictEqual(regularFile.kind, TerminalCompletionItemKind.File, 'Regular file should be classified as File');
+			assert.strictEqual(symlinkFile.kind, TerminalCompletionItemKind.File, 'Symlink to file should be classified as File');
+			assert.strictEqual(regularFile.isSymbolicLink, undefined, 'Regular file should not have isSymbolicLink set');
+			assert.strictEqual(symlinkFile.isSymbolicLink, true, 'Symlink to file should have isSymbolicLink set to true');
+		});
+	});
 });

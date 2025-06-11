@@ -37,7 +37,7 @@ import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompl
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
-import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon } from './terminalSymbolIcons.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymlinkFileIcon, terminalSymbolSymlinkFolderIcon } from './terminalSymbolIcons.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -308,7 +308,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
-				completion.icon = this._kindToIconMap.get(completion.kind);
+				// Use symlink-specific icons if the completion is a symbolic link
+				if (completion.isSymbolicLink) {
+					if (completion.kind === TerminalCompletionItemKind.File) {
+						completion.icon = terminalSymbolSymlinkFileIcon;
+					} else if (completion.kind === TerminalCompletionItemKind.Folder) {
+						completion.icon = terminalSymbolSymlinkFolderIcon;
+					} else {
+						completion.icon = this._kindToIconMap.get(completion.kind);
+					}
+				} else {
+					completion.icon = this._kindToIconMap.get(completion.kind);
+				}
 				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
 			}
 		}
