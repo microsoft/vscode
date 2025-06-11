@@ -151,10 +151,10 @@ export class SimpleSuggestDetailsWidget {
 		}
 
 		// Add symlink target information if available
-		const terminalCompletion = item.completion as any;
-		if (terminalCompletion.symlinkTarget) {
+		if ('symlinkTarget' in item.completion && (item.completion as any).symlinkTarget) {
 			const originalDetail = detail || '';
-			const symlinkInfo = `${originalDetail}${originalDetail ? ' → ' : ''}${terminalCompletion.symlinkTarget}`;
+			const symlinkTarget = (item.completion as any).symlinkTarget;
+			const symlinkInfo = `${originalDetail}${originalDetail ? ' -> ' : ''}${symlinkTarget}`;
 			detail = symlinkInfo;
 		}
 

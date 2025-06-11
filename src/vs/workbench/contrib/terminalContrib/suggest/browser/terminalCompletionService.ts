@@ -522,10 +522,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	 */
 	private async _resolveSymlinkTarget(symlinkUri: URI): Promise<string | undefined> {
 		try {
-			// For local files, we can use Node.js fs.readlink
+			// For local files, we can use Node.js fs.realpath to get the resolved target
 			if (symlinkUri.scheme === 'file') {
 				const fs = await import('fs');
-				const target = await fs.promises.readlink(symlinkUri.fsPath);
+				const target = await fs.promises.realpath(symlinkUri.fsPath);
 				return target;
 			}
 			// For remote files, we don't have a way to resolve symlink targets yet
