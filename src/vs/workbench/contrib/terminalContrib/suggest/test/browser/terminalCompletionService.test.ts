@@ -675,6 +675,80 @@ suite('TerminalCompletionService', () => {
 					{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
 				], { replacementIndex: 0, replacementLength: 13 }, '/');
 			});
+			});
+		});
+
+		suite('symlink support', () => {
+			test('should include symlink target information in completions', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///test'),
+					pathSeparator,
+					filesRequested: true,
+					foldersRequested: true
+				};
+
+				validResources = [URI.parse('file:///test')];
+
+				// Create mock children including a symbolic link
+				childResources = [
+					{ resource: URI.parse('file:///test/regular-file.txt'), isFile: true },
+					{ resource: URI.parse('file:///test/symlink-file'), isFile: true },
+					{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
+				];
+
+				// Mock file service to include symlink information
+				instantiationService.stub(IFileService, {
+					async stat(resource) {
+						if (!validResources.map(e => e.path).includes(resource.path)) {
+							throw new Error('Doesn\'t exist');
+						}
+						return createFileStat(resource);
+					},
+					async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata> {
+						const children = childResources.filter(child => {
+							const childFsPath = child.resource.path.replace(/\/$/, '');
+							const parentFsPath = resource.path.replace(/\/$/, '');
+							return (
+								childFsPath.startsWith(parentFsPath) &&
+								count(childFsPath, '/') === count(parentFsPath, '/') + 1
+							);
+						});
+						
+						// Create file stats with symlink support
+						const processedChildren = children.map(child => {
+							const stat = createFileStat(child.resource, false, child.isFile, child.isDirectory);
+							if (child.resource.path.includes('symlink-file')) {
+								// Override the isSymbolicLink property for the symlink
+								return { ...stat, isSymbolicLink: true };
+							}
+							return stat;
+						});
+						
+						return createFileStat(resource, undefined, undefined, undefined, processedChildren as any);
+					},
+				});
+
+				// Mock the symlink resolution by replacing the _resolveSymlinkTarget method
+				const originalResolveSymlinkTarget = (terminalCompletionService as any)._resolveSymlinkTarget;
+				(terminalCompletionService as any)._resolveSymlinkTarget = async (uri: URI) => {
+					if (uri.path.includes('symlink-file')) {
+						return '/target/actual-file.txt';
+					}
+					return undefined;
+				};
+
+				try {
+					const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
+
+					// Find the symlink completion
+					const symlinkCompletion = result?.find(c => c.label === 'symlink-file');
+					assert.ok(symlinkCompletion, 'Symlink completion should be found');
+					assert.strictEqual(symlinkCompletion.symlinkTarget, '/target/actual-file.txt', 'Symlink target should be resolved');
+				} finally {
+					// Restore original method
+					(terminalCompletionService as any)._resolveSymlinkTarget = originalResolveSymlinkTarget;
+				}
+			});
 		});
 	}
 });
