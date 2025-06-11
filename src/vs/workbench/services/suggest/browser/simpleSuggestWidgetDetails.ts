@@ -150,6 +150,14 @@ export class SimpleSuggestDetailsWidget {
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
 
+		// Add symlink target information if available
+		const terminalCompletion = item.completion as any;
+		if (terminalCompletion.symlinkTarget) {
+			const originalDetail = detail || '';
+			const symlinkInfo = `${originalDetail}${originalDetail ? ' → ' : ''}${terminalCompletion.symlinkTarget}`;
+			detail = symlinkInfo;
+		}
+
 		if (!explainMode && !canExpandCompletionItem(item)) {
 			this.clearContents();
 			return;

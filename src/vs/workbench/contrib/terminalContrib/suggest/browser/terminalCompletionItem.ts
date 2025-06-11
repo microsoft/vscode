@@ -69,6 +69,12 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * If this completion represents a symbolic link, this contains the target path
+	 * that the symlink points to.
+	 */
+	symlinkTarget?: string;
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {

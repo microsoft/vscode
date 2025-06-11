@@ -395,13 +395,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 			}
 
+			// Try to resolve symlink target for symbolic links
+			let symlinkTarget: string | undefined;
+			if (child.isSymbolicLink) {
+				try {
+					symlinkTarget = await this._resolveSymlinkTarget(child.resource);
+				} catch (error) {
+					// Ignore errors resolving symlink targets - they may be dangling links
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
 				kind,
 				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementLength: lastWord.length,
+				symlinkTarget
 			});
 		}
 
@@ -502,6 +513,28 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 	private _getHomeDir(useWindowsStylePath: boolean, capabilities: ITerminalCapabilityStore): string | undefined {
 		return useWindowsStylePath ? this._getEnvVar('USERPROFILE', capabilities) : this._getEnvVar('HOME', capabilities);
+	}
+
+	/**
+	 * Resolve the target path of a symbolic link.
+	 * @param symlinkUri The URI of the symbolic link
+	 * @returns The target path that the symlink points to, or undefined if resolution fails
+	 */
+	private async _resolveSymlinkTarget(symlinkUri: URI): Promise<string | undefined> {
+		try {
+			// For local files, we can use Node.js fs.readlink
+			if (symlinkUri.scheme === 'file') {
+				const fs = await import('fs');
+				const target = await fs.promises.readlink(symlinkUri.fsPath);
+				return target;
+			}
+			// For remote files, we don't have a way to resolve symlink targets yet
+			// This could be extended in the future to support remote symlinks
+			return undefined;
+		} catch (error) {
+			// Return undefined if we can't resolve the symlink target
+			return undefined;
+		}
 	}
 }
 
