@@ -46,7 +46,7 @@ export class Notebook {
 
 		await this.code.waitForElement(editor);
 
-		const editContext = `${editor} .native-edit-context`;
+		const editContext = `${editor} ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
 		await this.code.waitForActiveElement(editContext);
 
 		await this.code.waitForTypeInEditor(editContext, text);

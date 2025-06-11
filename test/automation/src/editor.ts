@@ -106,7 +106,7 @@ export class Editor {
 	}
 
 	private _editContextSelector() {
-		return '.native-edit-context';
+		return !this.code.editContextEnabled ? 'textarea' : '.native-edit-context';
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
