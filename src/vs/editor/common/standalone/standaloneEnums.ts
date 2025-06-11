@@ -214,7 +214,7 @@ export enum EditorOption {
 	domReadOnly = 37,
 	dragAndDrop = 38,
 	dropIntoEditor = 39,
-	experimentalEditContextEnabled = 40,
+	editContext = 40,
 	emptySelectionClipboard = 41,
 	experimentalGpuAcceleration = 42,
 	experimentalWhitespaceRendering = 43,
@@ -333,7 +333,7 @@ export enum EditorOption {
 	defaultColorDecorators = 156,
 	colorDecoratorsActivatedOn = 157,
 	inlineCompletionsAccessibilityVerbose = 158,
-	effectiveExperimentalEditContextEnabled = 159
+	effectiveEditContext = 159
 }
 
 /**
