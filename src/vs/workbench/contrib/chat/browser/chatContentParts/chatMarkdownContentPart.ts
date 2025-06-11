@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -24,6 +27,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -37,6 +41,7 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
@@ -46,6 +51,8 @@ import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { MarkedKatexSupport } from './markedKatexSupport.js';
+import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
 
@@ -55,6 +62,68 @@ export interface IChatMarkdownContentPartOptions {
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 	private static idPool = 0;
+
+	private static tempSanitizerRule = new Lazy(() => {
+		// Create a CSSStyleDeclaration object via a style sheet rule
+		const styleSheet = new CSSStyleSheet();
+		styleSheet.insertRule(`.temp{}`);
+		const rule = styleSheet.cssRules[0];
+		if (!(rule instanceof CSSStyleRule)) {
+			throw new Error('Invalid CSS rule');
+		}
+		return rule.style;
+	});
+
+	private static sanitizeStyles(styleString: string, allowedProperties: readonly string[]): string {
+		const style = this.tempSanitizerRule.value;
+		style.cssText = styleString;
+
+		const sanitizedProps = [];
+
+		for (let i = 0; i < style.length; i++) {
+			const prop = style[i];
+			if (allowedProperties.includes(prop)) {
+				const value = style.getPropertyValue(prop);
+				// Allow through lists of numbers with units or bare words like 'block'
+				// Main goal is to block things like 'url()'.
+				if (/^(([\d\.\-]+\w*\s?)+|\w+)$/.test(value)) {
+					sanitizedProps.push(`${prop}: ${value}`);
+				}
+			}
+		}
+
+		return sanitizedProps.join('; ');
+	}
+
+	private static sanitizeKatexStyles(styleString: string): string {
+		const allowedProperties = [
+			'display',
+			'position',
+			'font-family',
+			'font-style',
+			'font-weight',
+			'font-size',
+			'height',
+			'width',
+			'margin',
+			'padding',
+			'top',
+			'left',
+			'right',
+			'bottom',
+			'vertical-align',
+			'transform',
+			'border',
+			'color',
+			'white-space',
+			'text-align',
+			'line-height',
+			'float',
+			'clear',
+		];
+		return this.sanitizeStyles(styleString, allowedProperties);
+	}
+
 	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
@@ -75,6 +144,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -91,13 +161,37 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
+		const markedExtensions = configurationService.getValue<boolean>(ChatConfiguration.EnableMath)
+			? coalesce([MarkedKatexSupport.getExtension(context.container, {
+				throwOnError: false
+			})])
+			: [];
+
 		// Don't set to 'false' for responses, respect defaults
-		const markedOpts = isRequestVM(element) ? {
+		const markedOpts: MarkedOptions = isRequestVM(element) || true ? {
 			gfm: true,
 			breaks: true,
-		} : undefined;
+			markedExtensions,
+		} : {
+			markedExtensions,
+		};
 
 		const result = this._register(renderer.render(markdown.content, {
+			sanitizerOptions: {
+				allowedTags: [
+					...dom.basicMarkupHtmlTags,
+					...dom.trustedMathMlTags,
+				],
+				customAttrSanitizer: (attrName, attrValue) => {
+					if (attrName === 'class') {
+						return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
+					} else if (attrName === 'style') {
+						return ChatMarkdownContentPart.sanitizeKatexStyles(attrValue);
+					}
+
+					return false;
+				},
+			},
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
@@ -212,6 +306,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
+		result.element.classList.add('chat-markdown-part');
 		this.domNode = result.element;
 	}
 
@@ -306,7 +401,7 @@ function codeblockHasClosingBackticks(str: string): boolean {
 	return !!str.match(/\n```+$/);
 }
 
-class CollapsedCodeBlock extends Disposable {
+export class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
 
