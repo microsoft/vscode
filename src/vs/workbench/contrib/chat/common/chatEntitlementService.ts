@@ -947,7 +947,7 @@ export class ChatEntitlementContext extends Disposable {
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY)) {
-				this.update({ hidden: this.isUserConfiguredDisabled() === true });
+				this.update({ hidden: this.isUserConfiguredDisabled() === true }, true /* from event */);
 			}
 		}));
 	}
@@ -987,10 +987,10 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	update(context: { installed: boolean; disabled: boolean }): Promise<void>;
-	update(context: { hidden: boolean }): Promise<void>;
+	update(context: { hidden: boolean }, fromEvent?: boolean): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { installed?: boolean; disabled?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }, fromEvent?: boolean): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean') {
@@ -1005,7 +1005,9 @@ export class ChatEntitlementContext extends Disposable {
 		if (typeof context.hidden === 'boolean') {
 			this._state.hidden = context.hidden;
 
-			this.configurationService.updateValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY, context.hidden); // no need to await, will trigger change event that is handled
+			if (!fromEvent) {
+				this.configurationService.updateValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY, context.hidden); // no need to await, will trigger change event that is handled
+			}
 		}
 
 		if (typeof context.later === 'boolean') {
