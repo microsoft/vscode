@@ -28,8 +28,6 @@ type entryDesc = {
 	kind: SymbolKind;
 };
 
-
-
 export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
 
 export interface INotebookOutlineEntryFactory {

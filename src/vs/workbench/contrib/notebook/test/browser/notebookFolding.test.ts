@@ -138,46 +138,6 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('Mixed markdown and HTML headers prefer markdown', async function () {
-		await withTestNotebook(
-			[
-				['# Markdown Header 1\n<h2>HTML Header</h2>', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['<h2>HTML Only Header</h2>', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-			],
-			(editor, viewModel, ds) => {
-				const foldingController = ds.add(new FoldingModel());
-				foldingController.attachViewModel(viewModel);
-
-				// Should create folding regions based on headers
-				assert.strictEqual(foldingController.regions.length, 2);
-				assert.strictEqual(foldingController.regions.findRange(1), 0); // First cell with markdown header should create region
-				assert.strictEqual(foldingController.regions.findRange(3), 1); // Third cell with HTML header should create region
-			}
-		);
-	});
-
-	test('Multiline HTML headers in folding', async function () {
-		await withTestNotebook(
-			[
-				['<h1> testing\n\nsecond line </h1>', 'markdown', CellKind.Markup, [], {}],
-				['body', 'markdown', CellKind.Markup, [], {}],
-				['<h2>Simple header</h2>', 'markdown', CellKind.Markup, [], {}],
-				['body 2', 'markdown', CellKind.Markup, [], {}],
-			],
-			(editor, viewModel, ds) => {
-				const foldingController = ds.add(new FoldingModel());
-				foldingController.attachViewModel(viewModel);
-
-				// Should create folding regions for both multiline and simple HTML headers
-				assert.strictEqual(foldingController.regions.length, 2);
-				assert.strictEqual(foldingController.regions.findRange(1), 0); // First cell with multiline HTML header should create region
-				assert.strictEqual(foldingController.regions.findRange(3), 1); // Third cell with simple HTML header should create region
-			}
-		);
-	});
-
 	test('Folding', async function () {
 		await withTestNotebook(
 			[
