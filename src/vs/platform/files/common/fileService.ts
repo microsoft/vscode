@@ -1230,38 +1230,6 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	async resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
-		// Only support symlink resolution for local files
-		if (resource.scheme !== Schemas.file) {
-			return undefined;
-		}
-
-		try {
-			// Dynamic import to avoid issues in web environments
-			const { realpath } = await import('../../../base/node/extpath.js');
-			const resolvedPath = await realpath(resource.fsPath);
-			return URI.file(resolvedPath);
-		} catch (error) {
-			// Return undefined if we can't resolve the symlink target
-			// This handles cases like:
-			// - File is not a symlink
-			// - Dangling symlinks
-			// - Permission errors
-			// - Environment doesn't support Node.js operations
-			return undefined;
-		}
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		for (const [, watcher] of this.activeWatchers) {
-			dispose(watcher.disposable);
-		}
-
-		this.activeWatchers.clear();
-	}
-
 	//#endregion
 
 	//#region Helpers

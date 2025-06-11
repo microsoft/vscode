@@ -522,10 +522,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	 */
 	private async _resolveSymlinkTarget(symlinkUri: URI): Promise<string | undefined> {
 		try {
-			const targetUri = await this._fileService.resolveSymlinkTarget(symlinkUri);
+			// Use dynamic import to conditionally load Node.js-specific functionality
+			const { resolveSymlinkTarget } = await import('../../../../../base/node/extpath.js');
+			const targetUri = await resolveSymlinkTarget(symlinkUri);
 			return targetUri?.fsPath;
 		} catch (error) {
 			// Return undefined if we can't resolve the symlink target
+			// This handles cases like:
+			// - File is not a symlink
+			// - Dangling symlinks  
+			// - Permission errors
+			// - Web environment where Node.js modules are not available
 			return undefined;
 		}
 	}

@@ -8,7 +8,9 @@ import { CancellationToken } from '../common/cancellation.js';
 import { basename, dirname, join, normalize, sep } from '../common/path.js';
 import { isLinux } from '../common/platform.js';
 import { rtrim } from '../common/strings.js';
+import { URI } from '../common/uri.js';
 import { Promises } from './pfs.js';
+import { Schemas } from '../common/network.js';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
@@ -105,4 +107,29 @@ export function realpathSync(path: string): string {
 
 function normalizePath(path: string): string {
 	return rtrim(normalize(path), sep);
+}
+
+/**
+ * Resolves the target of a symbolic link from a URI.
+ * 
+ * @param resource The URI of the symbolic link (must be a file:// URI)
+ * @returns The URI of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+ */
+export async function resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
+	// Only support local file URIs
+	if (resource.scheme !== Schemas.file) {
+		return undefined;
+	}
+
+	try {
+		const resolvedPath = await realpath(resource.fsPath);
+		return URI.file(resolvedPath);
+	} catch (error) {
+		// Return undefined if we can't resolve the symlink target
+		// This handles cases like:
+		// - File is not a symlink
+		// - Dangling symlinks
+		// - Permission errors
+		return undefined;
+	}
 }
