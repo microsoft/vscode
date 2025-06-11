@@ -324,7 +324,7 @@ export function* getMarkdownHeadersInCell(cellContent: string): Iterable<{ reado
 			};
 		}
 	}
-	
+
 	// If no markdown headers found, try to find HTML headers as fallback
 	if (!hasMarkdownHeaders) {
 		const match = cellContent.match(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/i);
