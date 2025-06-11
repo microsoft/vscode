@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Event as ElectronEvent } from 'electron';
+import { app, Event as ElectronEvent } from 'electron/main';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';

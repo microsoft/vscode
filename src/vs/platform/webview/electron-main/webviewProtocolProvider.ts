@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol } from 'electron';
+import { protocol } from 'electron/main';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';

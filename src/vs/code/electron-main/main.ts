@@ -5,7 +5,7 @@
 
 import '../../platform/update/common/update.config.contribution.js';
 
-import { app, dialog } from 'electron';
+import { app, dialog } from 'electron/main';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';

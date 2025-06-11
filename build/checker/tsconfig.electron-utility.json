@@ -9,6 +9,7 @@
 		"../../src/vscode-dts/vscode.proposed.*.d.ts",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../node_modules/@types/trusted-types/index.d.ts",
+		"../../node_modules/electron/electron.d.ts",
 	],
 	"exclude": [
 		"../../src/**/test/**",

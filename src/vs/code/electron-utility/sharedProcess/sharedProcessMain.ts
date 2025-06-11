@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hostname, release } from 'os';
-import { MessagePortMain, MessageEvent } from '../../../base/parts/sandbox/node/electronTypes.js';
+import { MessagePortMain, MessageEvent, UtilityNodeJSProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -152,7 +152,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			}
 		};
 		process.once('exit', onExit);
-		once(process.parentPort, SharedProcessLifecycle.exit, onExit);
+		once((process as UtilityNodeJSProcess).parentPort, SharedProcessLifecycle.exit, onExit);
 	}
 
 	async init(): Promise<void> {
@@ -528,22 +528,22 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 
 	try {
 		const sharedProcess = new SharedProcessMain(configuration);
-		process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
+		(process as UtilityNodeJSProcess).parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
 		// await initialization and signal this back to electron-main
 		await sharedProcess.init();
 
-		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+		(process as UtilityNodeJSProcess).parentPort.postMessage(SharedProcessLifecycle.initDone);
 	} catch (error) {
-		process.parentPort.postMessage({ error: error.toString() });
+		(process as UtilityNodeJSProcess).parentPort.postMessage({ error: error.toString() });
 	}
 }
 
 const handle = setTimeout(() => {
-	process.parentPort.postMessage({ warning: '[SharedProcess] did not receive configuration within 30s...' });
+	(process as UtilityNodeJSProcess).parentPort.postMessage({ warning: '[SharedProcess] did not receive configuration within 30s...' });
 }, 30000);
 
-process.parentPort.once('message', (e: Electron.MessageEvent) => {
+(process as UtilityNodeJSProcess).parentPort.once('message', (e: MessageEvent) => {
 	clearTimeout(handle);
 	main(e.data as ISharedProcessConfiguration);
 });

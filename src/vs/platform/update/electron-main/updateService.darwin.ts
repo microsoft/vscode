@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as electron from 'electron';
+import { autoUpdater } from 'electron/main';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
@@ -22,10 +22,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	private readonly disposables = new DisposableStore();
 
-	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
-	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
+	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(autoUpdater, 'error', (_, message) => message); }
+	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(autoUpdater, 'update-not-available'); }
+	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(autoUpdater, 'update-available'); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -82,7 +82,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		}
 		const url = createUpdateURL(assetID, quality, this.productService);
 		try {
-			electron.autoUpdater.setFeedURL({ url });
+			autoUpdater.setFeedURL({ url });
 		} catch (e) {
 			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);
@@ -99,8 +99,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.setState(State.CheckingForUpdates(explicit));
 
 		const url = explicit ? this.url : `${this.url}?bg=true`;
-		electron.autoUpdater.setFeedURL({ url });
-		electron.autoUpdater.checkForUpdates();
+		autoUpdater.setFeedURL({ url });
+		autoUpdater.checkForUpdates();
 	}
 
 	private onUpdateAvailable(): void {
@@ -138,7 +138,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-		electron.autoUpdater.quitAndInstall();
+		autoUpdater.quitAndInstall();
 	}
 
 	dispose(): void {

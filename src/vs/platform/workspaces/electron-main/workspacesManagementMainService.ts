@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import electron from 'electron';
+import { BrowserWindow } from 'electron/main';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { parse } from '../../../base/common/json.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -281,7 +281,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-			}, electron.BrowserWindow.getFocusedWindow() ?? undefined);
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return false;
 		}

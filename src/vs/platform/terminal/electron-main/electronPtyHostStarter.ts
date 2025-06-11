@@ -12,7 +12,7 @@ import { IReconnectConstants, TerminalSettingId } from '../common/terminal.js';
 import { IPtyHostConnection, IPtyHostStarter } from '../node/ptyHost.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
-import { IpcMainEvent } from 'electron';
+import { IpcMainEvent } from 'electron/main';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';

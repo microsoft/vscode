@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import { BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, FileFilter, dialog } from 'electron/main';
 import { Queue } from '../../../base/common/async.js';
 import { hash } from '../../../base/common/hash.js';
 import { mnemonicButtonLabel } from '../../../base/common/labels.js';
@@ -24,14 +24,14 @@ export interface IDialogMainService {
 
 	readonly _serviceBrand: undefined;
 
-	pickFileFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined>;
-	pickFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined>;
-	pickFile(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined>;
-	pickWorkspace(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined>;
+	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
+	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
+	pickFile(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
+	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
 
-	showMessageBox(options: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue>;
-	showSaveDialog(options: electron.SaveDialogOptions, window?: electron.BrowserWindow): Promise<electron.SaveDialogReturnValue>;
-	showOpenDialog(options: electron.OpenDialogOptions, window?: electron.BrowserWindow): Promise<electron.OpenDialogReturnValue>;
+	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue>;
+	showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue>;
+	showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue>;
 }
 
 interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
@@ -40,7 +40,7 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 
 	readonly title: string;
 	readonly buttonLabel?: string;
-	readonly filters?: electron.FileFilter[];
+	readonly filters?: FileFilter[];
 }
 
 export class DialogMainService implements IDialogMainService {
@@ -48,8 +48,8 @@ export class DialogMainService implements IDialogMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly windowFileDialogLocks = new Map<number, Set<number>>();
-	private readonly windowDialogQueues = new Map<number, Queue<electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>>();
-	private readonly noWindowDialogueQueue = new Queue<electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>();
+	private readonly windowDialogQueues = new Map<number, Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>>();
+	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -57,19 +57,19 @@ export class DialogMainService implements IDialogMainService {
 	) {
 	}
 
-	pickFileFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
+	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
 		return this.doPick({ ...options, pickFolders: true, pickFiles: true, title: localize('open', "Open") }, window);
 	}
 
-	pickFolder(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
+	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
 		return this.doPick({ ...options, pickFolders: true, title: localize('openFolder', "Open Folder") }, window);
 	}
 
-	pickFile(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
+	pickFile(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
 		return this.doPick({ ...options, pickFiles: true, title: localize('openFile', "Open File") }, window);
 	}
 
-	pickWorkspace(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
+	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
 		const title = localize('openWorkspaceTitle', "Open Workspace from File");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")).withMnemonic;
 		const filters = WORKSPACE_FILTER;
@@ -77,10 +77,10 @@ export class DialogMainService implements IDialogMainService {
 		return this.doPick({ ...options, pickFiles: true, title, filters, buttonLabel }, window);
 	}
 
-	private async doPick(options: IInternalNativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
+	private async doPick(options: IInternalNativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
 
 		// Ensure dialog options
-		const dialogOptions: electron.OpenDialogOptions = {
+		const dialogOptions: OpenDialogOptions = {
 			title: options.title,
 			buttonLabel: options.buttonLabel,
 			filters: options.filters,
@@ -105,7 +105,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		// Show Dialog
-		const result = await this.showOpenDialog(dialogOptions, (window || electron.BrowserWindow.getFocusedWindow()) ?? undefined);
+		const result = await this.showOpenDialog(dialogOptions, (window || BrowserWindow.getFocusedWindow()) ?? undefined);
 		if (result && result.filePaths && result.filePaths.length > 0) {
 			return result.filePaths;
 		}
@@ -113,14 +113,14 @@ export class DialogMainService implements IDialogMainService {
 		return undefined;
 	}
 
-	private getWindowDialogQueue<T extends electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>(window?: electron.BrowserWindow): Queue<T> {
+	private getWindowDialogQueue<T extends MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>(window?: BrowserWindow): Queue<T> {
 
 		// Queue message box requests per window so that one can show
 		// after the other.
 		if (window) {
 			let windowDialogQueue = this.windowDialogQueues.get(window.id);
 			if (!windowDialogQueue) {
-				windowDialogQueue = new Queue<electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>();
+				windowDialogQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 				this.windowDialogQueues.set(window.id, windowDialogQueue);
 			}
 
@@ -130,15 +130,15 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	showMessageBox(rawOptions: electron.MessageBoxOptions, window?: electron.BrowserWindow): Promise<electron.MessageBoxReturnValue> {
-		return this.getWindowDialogQueue<electron.MessageBoxReturnValue>(window).queue(async () => {
+	showMessageBox(rawOptions: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
+		return this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
 			const { options, buttonIndeces } = massageMessageBoxOptions(rawOptions, this.productService);
 
-			let result: electron.MessageBoxReturnValue | undefined = undefined;
+			let result: MessageBoxReturnValue | undefined = undefined;
 			if (window) {
-				result = await electron.dialog.showMessageBox(window, options);
+				result = await dialog.showMessageBox(window, options);
 			} else {
-				result = await electron.dialog.showMessageBox(options);
+				result = await dialog.showMessageBox(options);
 			}
 
 			return {
@@ -148,7 +148,7 @@ export class DialogMainService implements IDialogMainService {
 		});
 	}
 
-	async showSaveDialog(options: electron.SaveDialogOptions, window?: electron.BrowserWindow): Promise<electron.SaveDialogReturnValue> {
+	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
 
 		// Prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
@@ -159,12 +159,12 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		try {
-			return await this.getWindowDialogQueue<electron.SaveDialogReturnValue>(window).queue(async () => {
-				let result: electron.SaveDialogReturnValue;
+			return await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
+				let result: SaveDialogReturnValue;
 				if (window) {
-					result = await electron.dialog.showSaveDialog(window, options);
+					result = await dialog.showSaveDialog(window, options);
 				} else {
-					result = await electron.dialog.showSaveDialog(options);
+					result = await dialog.showSaveDialog(options);
 				}
 
 				result.filePath = this.normalizePath(result.filePath);
@@ -190,7 +190,7 @@ export class DialogMainService implements IDialogMainService {
 		return paths.map(path => this.normalizePath(path));
 	}
 
-	async showOpenDialog(options: electron.OpenDialogOptions, window?: electron.BrowserWindow): Promise<electron.OpenDialogReturnValue> {
+	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
 
 		// Ensure the path exists (if provided)
 		if (options.defaultPath) {
@@ -209,12 +209,12 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		try {
-			return await this.getWindowDialogQueue<electron.OpenDialogReturnValue>(window).queue(async () => {
-				let result: electron.OpenDialogReturnValue;
+			return await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
+				let result: OpenDialogReturnValue;
 				if (window) {
-					result = await electron.dialog.showOpenDialog(window, options);
+					result = await dialog.showOpenDialog(window, options);
 				} else {
-					result = await electron.dialog.showOpenDialog(options);
+					result = await dialog.showOpenDialog(options);
 				}
 
 				result.filePaths = this.normalizePaths(result.filePaths);
@@ -226,7 +226,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	private acquireFileDialogLock(options: electron.SaveDialogOptions | electron.OpenDialogOptions, window?: electron.BrowserWindow): IDisposable | undefined {
+	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable | undefined {
 
 		// If no window is provided, allow as many dialogs as
 		// needed since we consider them not modal per window

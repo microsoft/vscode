@@ -742,7 +742,7 @@ export default tseslint.config(
 				{
 					'paths': [
 						{
-							'name': 'electron',
+							'name': 'electron/utility',
 							'allowImportNames': [
 								'net',
 								'system-preferences',
@@ -842,7 +842,9 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasElectron',
 					'allow': [
-						'electron'
+						'electron/main',
+						'electron/common',
+						'electron/utility',
 					]
 				},
 				{
@@ -1239,8 +1241,20 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}',
+					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,server-cli.ts,server-main.ts}',
 					'restrictions': [
+						'vs/**/common/*',
+						'vs/**/node/*',
+						'vs/nls.js',
+						'src/*.js',
+						'*' // node.js
+					]
+				},
+				{
+					'target': 'src/main.ts',
+					'restrictions': [
+						'electron/main',
+						'electron/common',
 						'vs/**/common/*',
 						'vs/**/node/*',
 						'vs/nls.js',

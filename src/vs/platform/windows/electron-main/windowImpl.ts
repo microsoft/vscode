@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, screen, Point, Event as ElectronEvent, WebContents, TouchBar, TouchBarSegmentedControl, SegmentedControlSegment, Rectangle } from 'electron/main';
+import { nativeImage, NativeImage } from 'electron/common';
 import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -53,7 +54,7 @@ export interface IWindowCreationOptions {
 	readonly isExtensionTestHost?: boolean;
 }
 
-interface ITouchBarSegment extends electron.SegmentedControlSegment {
+interface ITouchBarSegment extends SegmentedControlSegment {
 	readonly id: string;
 }
 
@@ -118,9 +119,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private maximizedWindowState: IWindowState | undefined;
 
-	protected _win: electron.BrowserWindow | null = null;
+	protected _win: BrowserWindow | null = null;
 	get win() { return this._win; }
-	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
+	protected setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 
 		// Window Events
@@ -174,9 +175,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Setup windows/linux system context menu so it only is allowed over the app icon
 		if ((isWindows || isLinux) && useCustomTitleStyle) {
-			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))(e => {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: ElectronEvent, point: Point) => ({ event, point }))(e => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.screenToDipPoint(e.point);
+				const cursorPos = screen.screenToDipPoint(e.point);
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
@@ -212,7 +213,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// Handles the display-added event on Windows RDP multi-monitor scenarios.
 			// This helps restore maximized windows to their correct monitor after RDP reconnection.
 			// Refs https://github.com/electron/electron/issues/47016
-			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: ElectronEvent, display: Display) => ({ event, display }))((e) => {
 				this.onDisplayAdded(e.display);
 			}));
 		}
@@ -236,7 +237,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		super();
 	}
 
-	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
+	protected applyState(state: IWindowState, hasMultipleDisplays = screen.getAllDisplays().length > 0): void {
 
 		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -323,7 +324,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Notify:
 				if (isMacintosh) {
-					electron.app.dock?.bounce('informational');
+					app.dock?.bounce('informational');
 				} else if (isWindows) {
 					// On Windows, this just flashes the taskbar icon, which is desired
 					// https://github.com/electron/electron/issues/2867
@@ -333,7 +334,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Force:
 				if (isMacintosh) {
-					electron.app.focus({ steal: true });
+					app.focus({ steal: true });
 				}
 				this.doFocusWindow();
 				break;
@@ -501,7 +502,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#endregion
 
-	abstract matches(webContents: electron.WebContents): boolean;
+	abstract matches(webContents: WebContents): boolean;
 
 	override dispose(): void {
 		super.dispose();
@@ -531,7 +532,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private _id: number;
 	get id(): number { return this._id; }
 
-	protected override _win: electron.BrowserWindow;
+	protected override _win: BrowserWindow;
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -568,7 +569,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
-	private readonly touchBarGroups: electron.TouchBarSegmentedControl[] = [];
+	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
 
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
@@ -626,7 +627,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
-			this._win = new electron.BrowserWindow(options);
+			this._win = new BrowserWindow(options);
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
@@ -727,7 +728,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// unloading a window that should not be confused
 		// with the DOM way.
 		// (https://github.com/microsoft/vscode/issues/122736)
-		this._register(Event.fromNodeEventEmitter<electron.Event>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
+		this._register(Event.fromNodeEventEmitter<ElectronEvent>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
 
 		// Remember that we loaded
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-finish-load')(() => {
@@ -1039,7 +1040,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
 				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
-				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
 	}
@@ -1195,7 +1196,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
-		configuration.accessibilitySupport = electron.app.isAccessibilitySupportEnabled();
+		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.continueOn = this.environmentMainService.continueOn;
@@ -1246,9 +1247,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// fullscreen gets special treatment
 		if (this.isFullScreen) {
-			let display: electron.Display | undefined;
+			let display: Display | undefined;
 			try {
-				display = electron.screen.getDisplayMatching(this.getBounds());
+				display = screen.getDisplayMatching(this.getBounds());
 			} catch (error) {
 				// Electron has weird conditions under which it throws errors
 				// e.g. https://github.com/microsoft/vscode/issues/100334 when
@@ -1293,7 +1294,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let bounds: electron.Rectangle;
+			let bounds: Rectangle;
 			if (mode === WindowMode.Normal) {
 				bounds = this.getBounds();
 			} else {
@@ -1322,7 +1323,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			// Window dimensions
 			try {
-				const displays = electron.screen.getAllDisplays();
+				const displays = screen.getAllDisplays();
 				hasMultipleDisplays = displays.length > 1;
 
 				state = WindowStateValidator.validateWindowState(this.logService, state, displays);
@@ -1336,7 +1337,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return [state || defaultWindowState(), hasMultipleDisplays];
 	}
 
-	getBounds(): electron.Rectangle {
+	getBounds(): Rectangle {
 		const [x, y] = this._win.getPosition();
 		const [width, height] = this._win.getSize();
 
@@ -1485,16 +1486,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.touchBarGroups.push(groupTouchBar);
 		}
 
-		this._win.setTouchBar(new electron.TouchBar({ items: this.touchBarGroups }));
+		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(items: ISerializableCommandAction[] = []): electron.TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ISerializableCommandAction[] = []): TouchBarSegmentedControl {
 
 		// Group Segments
 		const segments = this.createTouchBarGroupSegments(items);
 
 		// Group Control
-		const control = new electron.TouchBar.TouchBarSegmentedControl({
+		const control = new TouchBar.TouchBarSegmentedControl({
 			segments,
 			mode: 'buttons',
 			segmentStyle: 'automatic',
@@ -1508,9 +1509,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: electron.NativeImage | undefined;
+			let icon: NativeImage | undefined;
 			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === Schemas.file) {
-				icon = electron.nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
+				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;
 				}
@@ -1577,7 +1578,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.jsCallStackMap.clear();
 	}
 
-	matches(webContents: electron.WebContents): boolean {
+	matches(webContents: WebContents): boolean {
 		return this._win?.webContents.id === webContents.id;
 	}
 

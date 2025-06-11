@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { app, BrowserWindow, WebContents, shell } from 'electron';
+import { app, BrowserWindow, WebContents } from 'electron/main';
+import { shell } from 'electron/common';
 import { addUNCHostToAllowlist } from '../../../base/node/unc.js';
 import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from '../../../base/common/arrays.js';

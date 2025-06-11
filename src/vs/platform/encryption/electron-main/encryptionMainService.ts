@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { safeStorage as safeStorageElectron, app } from 'electron';
+import { safeStorage as safeStorageElectron, app } from 'electron/main';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from '../common/encryptionService.js';
 import { ILogService } from '../../log/common/log.js';

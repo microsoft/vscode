@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, JumpListCategory, JumpListItem } from 'electron';
+import { app, JumpListCategory, JumpListItem } from 'electron/main';
 import { coalesce } from '../../../base/common/arrays.js';
 import { ThrottledDelayer } from '../../../base/common/async.js';
 import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';

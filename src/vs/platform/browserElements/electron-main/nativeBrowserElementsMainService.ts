@@ -6,7 +6,7 @@
 import { BrowserType, IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
-import { BrowserWindow, webContents } from 'electron';
+import { BrowserWindow, webContents } from 'electron/main';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';

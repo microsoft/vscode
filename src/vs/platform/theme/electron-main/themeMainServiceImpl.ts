@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import { nativeTheme } from 'electron/main';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -84,29 +84,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			electron.nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
+			nativeTheme.themeSource = 'system'; // only with `system` we can detect the system color scheme
 		} else {
 			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
 				case 'dark':
-					electron.nativeTheme.themeSource = 'dark';
+					nativeTheme.themeSource = 'dark';
 					break;
 				case 'light':
-					electron.nativeTheme.themeSource = 'light';
+					nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
 					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
-						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
-						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
-						default: electron.nativeTheme.themeSource = 'system';
+						case ThemeTypeSelector.VS: nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: nativeTheme.themeSource = 'dark'; break;
+						default: nativeTheme.themeSource = 'system';
 					}
 					break;
 				default:
-					electron.nativeTheme.themeSource = 'system';
+					nativeTheme.themeSource = 'system';
 					break;
 			}
 		}
@@ -116,29 +116,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// high contrast is reflected by the shouldUseInvertedColorScheme property
 		if (isWindows) {
-			if (electron.nativeTheme.shouldUseHighContrastColors) {
+			if (nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
-				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
 		}
 
 		// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set,
 		// reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
 		else if (isMacintosh) {
-			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
-				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
+			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
+				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		}
 
 		// ubuntu gnome seems to have 3 states, light dark and high contrast
 		else if (isLinux) {
-			if (electron.nativeTheme.shouldUseHighContrastColors) {
+			if (nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
 
 		return {
-			dark: electron.nativeTheme.shouldUseDarkColors,
+			dark: nativeTheme.shouldUseDarkColors,
 			highContrast: false
 		};
 	}

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import { IpcMainEvent, ipcMain as ElectronIpcMain, IpcMainInvokeEvent } from 'electron/main';
 import { onUnexpectedError } from '../../../common/errors.js';
 import { Event } from '../../../common/event.js';
 import { VSCODE_AUTHORITY } from '../../../common/network.js';
 
-type ipcMainListener = (event: electron.IpcMainEvent, ...args: any[]) => void;
+type ipcMainListener = (event: IpcMainEvent, ...args: any[]) => void;
 
 class ValidatedIpcMain implements Event.NodeEventEmitter {
 
@@ -25,7 +25,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		// Remember the wrapped listener so that later we can
 		// properly implement `removeListener`.
-		const wrappedListener = (event: electron.IpcMainEvent, ...args: any[]) => {
+		const wrappedListener = (event: IpcMainEvent, ...args: any[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -33,7 +33,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		this.mapListenerToWrapper.set(listener, wrappedListener);
 
-		electron.ipcMain.on(channel, wrappedListener);
+		ElectronIpcMain.on(channel, wrappedListener);
 
 		return this;
 	}
@@ -43,7 +43,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * only the next time a message is sent to `channel`, after which it is removed.
 	 */
 	once(channel: string, listener: ipcMainListener): this {
-		electron.ipcMain.once(channel, (event: electron.IpcMainEvent, ...args: any[]) => {
+		ElectronIpcMain.once(channel, (event: IpcMainEvent, ...args: any[]) => {
 			if (this.validateEvent(channel, event)) {
 				listener(event, ...args);
 			}
@@ -68,8 +68,8 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * are serialized and only the `message` property from the original error is
 	 * provided to the renderer process. Please refer to #24427 for details.
 	 */
-	handle(channel: string, listener: (event: electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown>): this {
-		electron.ipcMain.handle(channel, (event: electron.IpcMainInvokeEvent, ...args: any[]) => {
+	handle(channel: string, listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<unknown>): this {
+		ElectronIpcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: any[]) => {
 			if (this.validateEvent(channel, event)) {
 				return listener(event, ...args);
 			}
@@ -84,7 +84,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	 * Removes any handler for `channel`, if present.
 	 */
 	removeHandler(channel: string): this {
-		electron.ipcMain.removeHandler(channel);
+		ElectronIpcMain.removeHandler(channel);
 
 		return this;
 	}
@@ -96,14 +96,14 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 	removeListener(channel: string, listener: ipcMainListener): this {
 		const wrappedListener = this.mapListenerToWrapper.get(listener);
 		if (wrappedListener) {
-			electron.ipcMain.removeListener(channel, wrappedListener);
+			ElectronIpcMain.removeListener(channel, wrappedListener);
 			this.mapListenerToWrapper.delete(listener);
 		}
 
 		return this;
 	}
 
-	private validateEvent(channel: string, event: electron.IpcMainEvent | electron.IpcMainInvokeEvent): boolean {
+	private validateEvent(channel: string, event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 		if (!channel || !channel.startsWith('vscode:')) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because the channel is unknown.`);
 			return false; // unexpected channel

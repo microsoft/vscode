@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { shell } from 'electron';
+import { shell } from 'electron/common';
 import { localize } from '../../../nls.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { Emitter } from '../../../base/common/event.js';
