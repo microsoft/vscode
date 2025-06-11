@@ -483,7 +483,8 @@ configurationRegistry.registerConfiguration({
 		'chat.hideGettingStarted': {
 			type: 'boolean',
 			description: nls.localize('chat.hideGettingStarted', "Hide the getting started UI elements for setting up Chat. This setting has no effect when Copilot extensions are installed."),
-			default: false
+			default: false,
+			tags: ['experimental'],
 		},
 	}
 });
