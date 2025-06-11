@@ -1743,7 +1743,7 @@ export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
-	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: unknown } | { outcome: DeferredOutcome.Resolved; value: T };
 
 	public get isRejected() {
 		return this.outcome?.outcome === DeferredOutcome.Rejected;
