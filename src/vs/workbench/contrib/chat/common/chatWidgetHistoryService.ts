@@ -9,7 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
-import { IChatRequestVariableEntry } from './chatModel.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatMode } from './chatModes.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';

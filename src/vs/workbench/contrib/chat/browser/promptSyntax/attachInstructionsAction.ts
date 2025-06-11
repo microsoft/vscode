@@ -24,7 +24,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax
 import { compare } from '../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry } from '../../common/chatModel.js';
+import { IPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';

@@ -27,6 +27,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -75,7 +76,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatMode2, IChatMode, IChatModeService, isBuiltinChatMode, validateChatMode2 } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
@@ -137,7 +138,6 @@ export interface IWorkingSetEntry {
 const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
-	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
 	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
@@ -427,7 +427,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
 		this._currentMode = ChatMode2.Ask;
-		this.inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
+		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;

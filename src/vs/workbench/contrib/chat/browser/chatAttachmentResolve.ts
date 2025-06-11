@@ -24,7 +24,8 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
 import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension, IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatVariableEntries.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 

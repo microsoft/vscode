@@ -10,7 +10,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,8 +21,7 @@ import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undo
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 
@@ -317,23 +315,4 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	abstract resetToInitialContent(): void;
 
 	abstract initialContent: string;
-}
-
-export interface IModifiedEntryTelemetryInfo {
-	readonly agentId: string | undefined;
-	readonly command: string | undefined;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly result: IChatAgentResult | undefined;
-}
-
-export interface ISnapshotEntry {
-	readonly resource: URI;
-	readonly languageId: string;
-	readonly snapshotUri: URI;
-	readonly original: string;
-	readonly current: string;
-	readonly originalToCurrentEdit: StringEdit;
-	readonly state: ModifiedFileEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
 }
