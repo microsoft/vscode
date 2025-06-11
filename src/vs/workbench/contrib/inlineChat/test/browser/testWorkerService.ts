@@ -14,6 +14,7 @@ import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js
 import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer.js';
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {
@@ -29,6 +30,8 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 	}
 
 	override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+
+		await timeout(0);
 
 		const originalModel = this._modelService.getModel(original);
 		const modifiedModel = this._modelService.getModel(modified);
