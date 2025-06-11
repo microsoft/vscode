@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
+import { $, Dimension, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -30,7 +30,7 @@ import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { computeSize, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { computeSize, FilterType, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -42,7 +42,6 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ExtensionFeaturesTab } from './extensionFeaturesTab.js';
@@ -73,23 +72,21 @@ import {
 } from './extensionsActions.js';
 import { Delegate } from './extensionsList.js';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from './extensionsViewer.js';
-import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from './extensionsWidgets.js';
+import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, PublisherWidget, onClick, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
-import { IExplorerService } from '../../files/browser/files.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
 import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -156,16 +153,9 @@ interface IActiveElement {
 }
 
 interface IExtensionEditorTemplate {
-	iconContainer: HTMLElement;
-	icon: HTMLImageElement;
 	name: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
-	publisher: HTMLElement;
-	publisherDisplayName: HTMLElement;
-	resource: HTMLElement;
-	installCount: HTMLElement;
-	rating: HTMLElement;
 	description: HTMLElement;
 	actionsAndStatusContainer: HTMLElement;
 	extensionActionBar: ActionBar;
@@ -257,10 +247,6 @@ export class ExtensionEditor extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
@@ -285,7 +271,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, iconContainer);
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -302,29 +288,34 @@ export class ExtensionEditor extends EditorPane {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
-		publisher.setAttribute('role', 'button');
-		const publisherDisplayName = append(publisher, $('.publisher-name'));
-		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
+		const subTitleEntryContainers: HTMLElement[] = [];
 
-		const resource = append(append(subtitle, $('.subtitle-entry.resource')), $('', { tabIndex: 0 }));
-		resource.setAttribute('role', 'button');
+		const publisherContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(publisherContainer);
+		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, publisherContainer, false);
 
-		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { tabIndex: 0 }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
-		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
+		const extensionKindContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(extensionKindContainer);
+		const extensionKindWidget = this.instantiationService.createInstance(ExtensionKindIndicatorWidget, extensionKindContainer, false);
 
-		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
-		rating.setAttribute('role', 'link'); // #132645
-		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
+		const installCountContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(installCountContainer);
+		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCountContainer, false);
 
-		const sponsorWidget = this.instantiationService.createInstance(SponsorWidget, append(subtitle, $('.subtitle-entry')));
+		const ratingsContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(ratingsContainer);
+		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratingsContainer, false);
+
+		const sponsorContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(sponsorContainer);
+		const sponsorWidget = this.instantiationService.createInstance(SponsorWidget, sponsorContainer);
 
 		const widgets: ExtensionWidget[] = [
+			iconWidget,
 			remoteBadge,
 			versionWidget,
-			verifiedPublisherWidget,
+			publisherWidget,
+			extensionKindWidget,
 			installCountWidget,
 			ratingsWidget,
 			sponsorWidget,
@@ -438,20 +429,23 @@ export class ExtensionEditor extends EditorPane {
 			content,
 			description,
 			header,
-			icon,
-			iconContainer,
-			installCount,
 			name,
 			navbar,
 			preview,
-			publisher,
-			publisherDisplayName,
-			resource,
-			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
+				let lastNonEmptySubtitleEntryContainer;
+				for (const subTitleEntryElement of subTitleEntryContainers) {
+					subTitleEntryElement.classList.remove('last-non-empty');
+					if (subTitleEntryElement.children.length > 0) {
+						lastNonEmptySubtitleEntryContainer = subTitleEntryElement;
+					}
+				}
+				if (lastNonEmptySubtitleEntryContainer) {
+					lastNonEmptySubtitleEntryContainer.classList.add('last-non-empty');
+				}
 			},
 			set gallery(gallery: IGalleryExtension | null) {
 				versionWidget.gallery = gallery;
@@ -548,9 +542,6 @@ export class ExtensionEditor extends EditorPane {
 		template.gallery = gallery;
 		template.manifest = null;
 
-		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
-		template.icon.src = extension.iconUrl;
-
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
 		template.name.classList.toggle('deprecated', !!extension.deprecationInfo);
@@ -559,41 +550,8 @@ export class ExtensionEditor extends EditorPane {
 
 		template.description.textContent = extension.description;
 
-		// subtitle
-		template.publisher.classList.toggle('clickable', !!extension.url);
-		template.publisherDisplayName.textContent = extension.publisherDisplayName;
-		template.publisher.parentElement?.classList.toggle('hide', !!extension.resourceExtension || extension.local?.source === 'resource');
-		this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.publisher, localize('publisher', "Publisher ({0})", extension.publisher)));
-
-		const location = extension.resourceExtension?.location ?? (extension.local?.source === 'resource' ? extension.local?.location : undefined);
-		template.resource.parentElement?.classList.toggle('hide', !location);
-		if (location) {
-			const workspaceFolder = this.contextService.getWorkspaceFolder(location);
-			if (workspaceFolder && extension.isWorkspaceScoped) {
-				template.resource.parentElement?.classList.add('clickable');
-				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
-				template.resource.textContent = localize('workspace extension', "Workspace Extension");
-				this.transientDisposables.add(onClick(template.resource, () => {
-					this.viewsService.openView(EXPLORER_VIEW_ID, true).then(() => this.explorerService.select(location, true));
-				}));
-			} else {
-				template.resource.parentElement?.classList.remove('clickable');
-				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
-				template.resource.textContent = localize('local extension', "Local Extension");
-			}
-		}
-
-		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
-		template.rating.parentElement?.classList.toggle('hide', !extension.url);
-		template.rating.classList.toggle('clickable', !!extension.url);
-
 		if (extension.url) {
 			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
-			this.transientDisposables.add(onClick(template.publisher, () => this.extensionsWorkbenchService.openSearch(`publisher:"${extension.publisherDisplayName}"`)));
-		}
-
-		if (extension.ratingUrl) {
-			this.transientDisposables.add(onClick(template.rating, () => this.openerService.open(URI.parse(extension.ratingUrl!))));
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
@@ -1067,6 +1025,7 @@ class AdditionalDetailsWidget extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super();
 		this.render(extension);
@@ -1096,10 +1055,17 @@ class AdditionalDetailsWidget extends Disposable {
 			const categoriesContainer = append(container, $('.categories-container.additional-details-element'));
 			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
 			const categoriesElement = append(categoriesContainer, $('.categories'));
-			for (const category of extension.categories) {
-				this.disposables.add(onClick(append(categoriesElement, $('span.category', { tabindex: '0' }, category)),
-					() => this.extensionsWorkbenchService.openSearch(`@category:"${category}"`)));
-			}
+			this.extensionGalleryManifestService.getExtensionGalleryManifest()
+				.then(manifest => {
+					const hasCategoryFilter = manifest?.capabilities.extensionQuery.filtering?.some(({ name }) => name === FilterType.Category);
+					for (const category of extension.categories) {
+						const categoryElement = append(categoriesElement, $('span.category', { tabindex: '0' }, category));
+						if (hasCategoryFilter) {
+							categoryElement.classList.add('clickable');
+							this.disposables.add(onClick(categoryElement, () => this.extensionsWorkbenchService.openSearch(`@category:"${category}"`)));
+						}
+					}
+				});
 		}
 	}
 
@@ -1108,7 +1074,7 @@ class AdditionalDetailsWidget extends Disposable {
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
 		}
-		if (extension.url && extension.supportUrl) {
+		if (extension.supportUrl) {
 			try {
 				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
@@ -1118,7 +1084,7 @@ class AdditionalDetailsWidget extends Disposable {
 				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
 			} catch (error) {/* Ignore */ }
 		}
-		if (extension.url && extension.licenseUrl) {
+		if (extension.licenseUrl) {
 			try {
 				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
@@ -1336,14 +1302,12 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category.clickable:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
 	}
 
 	const buttonForegroundColor = theme.getColor(buttonForeground);
 	if (buttonForegroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category.clickable:hover { color: ${buttonForegroundColor}; }`);
 	}
 
 });

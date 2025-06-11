@@ -22,7 +22,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
-					when: ChatContextKeys.responseIsFiltered.toNegated(),
+					when: ChatContextKeys.responseIsFiltered.negate(),
 					group: 'copy',
 				}
 			});
@@ -54,7 +54,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
-					when: ChatContextKeys.responseIsFiltered.toNegated(),
+					when: ChatContextKeys.responseIsFiltered.negate(),
 					group: 'copy',
 				}
 			});

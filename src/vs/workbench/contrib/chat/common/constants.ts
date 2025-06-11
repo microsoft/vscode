@@ -4,13 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 export enum ChatConfiguration {
-	UnifiedChatView = 'chat.experimental.unifiedChatView',
+	UseFileStorage = 'chat.useFileStorage',
+	AgentEnabled = 'chat.agent.enabled',
+	Edits2Enabled = 'chat.edits2.enabled',
+	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 }
 
 export enum ChatMode {
-	Chat = 'chat',
+	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
+}
+
+export function modeToString(mode: ChatMode) {
+	switch (mode) {
+		case ChatMode.Agent:
+			return 'Agent';
+		case ChatMode.Edit:
+			return 'Edit';
+		case ChatMode.Ask:
+		default:
+			return 'Ask';
+	}
+}
+
+export function validateChatMode(mode: unknown): ChatMode | undefined {
+	switch (mode) {
+		case ChatMode.Ask:
+		case ChatMode.Edit:
+		case ChatMode.Agent:
+			return mode as ChatMode;
+		default:
+			return undefined;
+	}
+}
+
+export function isChatMode(mode: unknown): mode is ChatMode {
+	return !!validateChatMode(mode);
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -20,7 +50,6 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -30,7 +59,6 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}

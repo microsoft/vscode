@@ -8,6 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -22,10 +23,12 @@ import { isIOS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsWidgets.css';
@@ -170,7 +173,8 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	constructor(
 		private container: HTMLElement,
 		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+		@IContextViewService protected readonly contextViewService: IContextViewService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -262,7 +266,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 
 
 		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, styles, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+			useCustomDrawn: !hasNativeContextMenu(this.configurationService) || !(isIOS && BrowserFeatures.pointerEvents)
 		});
 		return selectBox;
 	}
@@ -459,9 +463,10 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 		container: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IHoverService protected readonly hoverService: IHoverService
+		@IHoverService protected readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	protected getEmptyItem(): TListDataItem {
@@ -506,19 +511,18 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 	private dragDetails: ListSettingWidgetDragDetails<TListDataItem> | undefined;
 
-	private getDragImage(item: TListDataItem): HTMLElement {
-		const dragImage = $('.monaco-drag-image');
-		dragImage.textContent = item.value.data;
-		return dragImage;
-	}
-
 	protected renderItem(item: TListDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
 		const siblingElement = DOM.append(rowElement, $('.setting-list-sibling'));
 
 		valueElement.textContent = item.value.data.toString();
-		siblingElement.textContent = item.sibling ? `when: ${item.sibling}` : null;
+		if (item.sibling) {
+			siblingElement.textContent = `when: ${item.sibling}`;
+		} else {
+			siblingElement.textContent = null;
+			valueElement.classList.add('no-sibling');
+		}
 
 		this.addDragAndDrop(rowElement, item, idx);
 		return { rowElement, keyElement: valueElement, valueElement: siblingElement };
@@ -539,13 +543,8 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 				item,
 				itemIndex: idx
 			};
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
-				const dragImage = this.getDragImage(item);
-				rowElement.ownerDocument.body.appendChild(dragImage);
-				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => dragImage.remove(), 0);
-			}
+
+			applyDragImage(ev, rowElement, item.value.data);
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
 			if (!this.dragDetails) {
@@ -928,8 +927,9 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	override setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
@@ -1325,8 +1325,9 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(container, themeService, contextViewService);
+		super(container, themeService, contextViewService, configurationService);
 	}
 
 	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {

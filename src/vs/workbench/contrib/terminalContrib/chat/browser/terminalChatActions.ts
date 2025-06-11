@@ -6,12 +6,13 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
@@ -35,6 +36,11 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.hasChatAgent
 	),
+	menu: {
+		id: MenuId.ChatTerminalMenu,
+		group: 'copilot',
+		order: 1
+	},
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;

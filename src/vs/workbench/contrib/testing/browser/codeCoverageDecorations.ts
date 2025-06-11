@@ -113,6 +113,12 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			reader => !!fileCoverage.read(reader)?.file.perTestData?.size,
 		));
 
+		this._register(bindContextKey(
+			TestingContextKeys.hasCoverageInFile,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file,
+		));
+
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c) {
@@ -718,7 +724,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 			icon: testingCoverageReport,
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.hasCoverageInFile, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
 			]
 		});
 	}
@@ -744,7 +750,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.isTestCoverageOpen, group: 'coverage@1' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@1' },
 			]
 		});
 	}
@@ -771,7 +777,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(
-						TestingContextKeys.isTestCoverageOpen,
+						TestingContextKeys.hasCoverageInFile,
 						TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true),
 						TestingContextKeys.hasPerTestCoverage,
 						ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),

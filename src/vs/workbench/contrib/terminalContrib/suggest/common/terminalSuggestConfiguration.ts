@@ -44,7 +44,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: /*Legacy - was this when experimental*/boolean | {
+	quickSuggestions: {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
@@ -77,6 +77,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: {
 			'terminal-suggest': true,
 			'pwsh-shell-integration': true,
+			'lsp': true,
 		},
 		tags: ['preview'],
 	},

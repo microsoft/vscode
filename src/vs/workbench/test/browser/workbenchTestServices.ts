@@ -32,7 +32,7 @@ import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IHistoryService } from '../../services/history/common/history.js';
 import { IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from '../../../platform/window/common/window.js';
+import { MenuBarVisibility, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IRectangle } from '../../../platform/window/common/window.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -123,7 +123,7 @@ import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreati
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
-import { assertIsDefined, upcast } from '../../../base/common/types.js';
+import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -183,6 +183,8 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { ITreeSitterLibraryService } from '../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../editor/test/common/services/testTreeSitterLibraryService.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -310,6 +312,7 @@ export function workbenchInstantiationService(
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+	instantiationService.stub(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : disposables.add(new TestFileService());
 	instantiationService.stub(IFileService, fileService);
@@ -736,7 +739,7 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 	}
 
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
 }
 
@@ -966,7 +969,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> { return true; }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> { return true; }
+	closeAllEditors(options?: ICloseAllEditorsOptions): any { return true; }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
@@ -1369,6 +1372,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	}
 
 	startupKind!: StartupKind;
+	willShutdown = false;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
@@ -1576,7 +1580,7 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
@@ -2204,6 +2208,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareDidUpdateExtensionMetadata = Event.None;
 	onDidChangeProfile = Event.None;
 	onDidEnableExtensions = Event.None;
+	preferPreReleases = true;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2246,7 +2251,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 		throw new Error('Method not implemented.');
 	}
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
-	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
+	toggleApplicationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
 	getInstalledWorkspaceExtensionLocations(): URI[] { throw new Error('Method not implemented.'); }

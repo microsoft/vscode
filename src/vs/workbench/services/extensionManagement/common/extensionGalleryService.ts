@@ -15,6 +15,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { AbstractExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export class WorkbenchExtensionGalleryService extends AbstractExtensionGalleryService {
 	constructor(
@@ -28,8 +29,9 @@ export class WorkbenchExtensionGalleryService extends AbstractExtensionGallerySe
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
-		super(storageService, assignmentService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
+		super(storageService, assignmentService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
 	}
 }
 

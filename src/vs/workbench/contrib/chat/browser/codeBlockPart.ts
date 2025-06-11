@@ -64,11 +64,13 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { IMarkdownVulnerability } from '../common/annotations.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
-import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 
 const $ = dom.$;
 
@@ -87,6 +89,8 @@ export interface ICodeBlockData {
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
+
+	readonly chatSessionId: string;
 }
 
 /**
@@ -133,6 +137,8 @@ export interface ICodeBlockActionContext {
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
+
+	chatSessionId: string | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -140,6 +146,7 @@ export interface ICodeBlockRenderOptions {
 	verticalPadding?: number;
 	reserveWidth?: number;
 	editorOptions?: IEditorOptions;
+	maxHeightInLines?: number;
 }
 
 const defaultCodeblockPadding = 10;
@@ -208,6 +215,7 @@ export class CodeBlockPart extends Disposable {
 			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			overflowWidgetsDomNode,
+			tabFocusMode: true,
 			...this.getEditorOptionsFromConfig(),
 		});
 
@@ -312,6 +320,8 @@ export class CodeBlockPart extends Disposable {
 				GlyphHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
+				SuggestController.ID,
+				SnippetController2.ID,
 				ColorDetector.ID,
 				LinkDetector.ID,
 
@@ -339,7 +349,6 @@ export class CodeBlockPart extends Disposable {
 		const toolbarElt = this.toolbar.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
 		} else {
 			toolbarElt.style.display = '';
 		}
@@ -362,9 +371,15 @@ export class CodeBlockPart extends Disposable {
 
 	layout(width: number): void {
 		const contentHeight = this.getContentHeight();
+
+		let height = contentHeight;
+		if (this.currentCodeBlockData?.renderOptions?.maxHeightInLines) {
+			height = Math.min(contentHeight, this.editor.getOption(EditorOption.lineHeight) * this.currentCodeBlockData?.renderOptions?.maxHeightInLines);
+		}
+
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width, height: contentHeight });
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
 		this.updatePaddingForLayout();
 	}
 
@@ -394,12 +409,17 @@ export class CodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.layout(width);
 		this.editor.updateOptions({
 			...this.getEditorOptionsFromConfig(),
-			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
 		});
-		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Toolbar for code block {0}", data.codeBlockIndex + 1));
+		if (!this.editor.getOption(EditorOption.ariaLabel)) {
+			// Don't override the ariaLabel if it was set by the editor options
+			this.editor.updateOptions({
+				ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
+			});
+		}
+		this.layout(width);
+		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
 		if (data.renderOptions?.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
 		} else {
@@ -440,6 +460,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
+			chatSessionId: data.chatSessionId
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
@@ -693,7 +714,7 @@ export class CodeCompareBlockPart extends Disposable {
 		const toolbarElt = this.toolbar.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+			toolbarElt.ariaLabel = localize('chat.codeBlock.toolbar', 'Code block toolbar');
 		} else {
 			toolbarElt.style.display = '';
 		}

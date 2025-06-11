@@ -33,9 +33,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -158,7 +159,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -424,11 +426,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				order: 0,
 				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
-				icon: {
+				icon: iconStr ? {
 					type: 'image',
-					path: iconStr
-						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
-						: DefaultIconPath
+					path: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
+				} : {
+					icon: extensionDefaultIcon,
+					type: 'icon'
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
@@ -444,7 +447,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		if (hadLastFoucs && sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
 				owner: 'lramos15';
-				comment: 'When a walkthrthrough is opened upon extension installation';
+				comment: 'When a walkthrough is opened upon extension installation';
 				id: {
 					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
 					owner: 'lramos15';
@@ -455,7 +458,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, {
+				inactive: this.layoutService.hasFocus(Parts.EDITOR_PART) // do not steal the active editor away
+			});
 		}
 	}
 
@@ -496,6 +501,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				};
 			})
 			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
+			.filter(category => category.id !== 'NewWelcomeExperience')
 			.map(category => this.resolveWalkthrough(category));
 
 		return categoriesWithCompletion;

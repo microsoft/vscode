@@ -117,4 +117,5 @@ export interface ITaskSystem {
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
+	getFirstInstance(task: Task): Task | undefined;
 }

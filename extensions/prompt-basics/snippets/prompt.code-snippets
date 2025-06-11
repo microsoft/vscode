@@ -1,0 +1,13 @@
+{
+	"fileTemplate": {
+		"prefix": "New Reusable Chat Prompt",
+		"body": [
+			"---",
+			"mode: ${1|ask,edit,agent|}",
+			"---",
+			"${2:Expected output and any relevant constraints for this task.}",
+		],
+		"description": "Prompts define reusable and task-specific steps for automating Chat workflows.",
+		"isFileTemplate": true,
+	}
+}

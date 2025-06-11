@@ -43,8 +43,8 @@ export class ColorPickerHeader extends Disposable {
 		this._originalColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
-		this._register(themeService.onDidColorThemeChange(e => {
-			this.backgroundColor = e.theme.getColor(editorHoverBackground) || Color.white;
+		this._register(themeService.onDidColorThemeChange(theme => {
+			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
 
 		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));

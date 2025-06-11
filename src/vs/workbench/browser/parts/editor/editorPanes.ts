@@ -18,7 +18,7 @@ import { EditorPane } from './editorPane.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from './editor.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from './editorPlaceholder.js';
 import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -317,7 +317,7 @@ export class EditorPanes extends Disposable {
 			return WorkspaceTrustRequiredPlaceholderEditor.DESCRIPTOR;
 		}
 
-		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
+		return assertReturnsDefined(this.editorPanesRegistry.getEditorPane(editor));
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
@@ -337,7 +337,7 @@ export class EditorPanes extends Disposable {
 		this.doSetActiveEditorPane(editorPane);
 
 		// Show editor
-		const container = assertIsDefined(editorPane.getContainer());
+		const container = assertReturnsDefined(editorPane.getContainer());
 		this.editorPanesParent.appendChild(container);
 		show(container);
 
@@ -371,7 +371,21 @@ export class EditorPanes extends Disposable {
 			// right `window` can be determined in floating window cases.
 			this.editorPanesParent.appendChild(editorPaneContainer);
 
-			editorPane.create(editorPaneContainer);
+			try {
+				editorPane.create(editorPaneContainer);
+			} catch (error) {
+
+				// At this point the editor pane container is not healthy
+				// and as such, we remove it from the pane parent and hide
+				// it so that we have a chance to show an error placeholder.
+				// Not doing so would result in multiple `.editor-instance`
+				// lingering around in the DOM.
+
+				editorPaneContainer.remove();
+				hide(editorPaneContainer);
+
+				throw error;
+			}
 		}
 
 		return editorPane;

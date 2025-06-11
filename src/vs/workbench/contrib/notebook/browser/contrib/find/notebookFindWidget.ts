@@ -15,12 +15,15 @@ import { FindMatch } from '../../../../../../editor/common/model.js';
 import { MATCHES_LIMIT } from '../../../../../../editor/contrib/find/browser/findModel.js';
 import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
+import { FindWidgetSearchHistory } from '../../../../../../editor/contrib/find/browser/findWidgetSearchHistory.js';
+import { ReplaceWidgetHistory } from '../../../../../../editor/contrib/find/browser/replaceWidgetHistory.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotebookFindFilters } from './findFilters.js';
 import { FindModel } from './findModel.js';
 import { SimpleFindReplaceWidget } from './notebookFindReplaceWidget.js';
@@ -91,8 +94,12 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		const findSearchHistory = FindWidgetSearchHistory.getOrCreate(storageService);
+		const replaceHistory = ReplaceWidgetHistory.getOrCreate(storageService);
+
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor, findSearchHistory, replaceHistory);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -357,7 +364,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

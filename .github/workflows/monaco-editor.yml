@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - release/*
+permissions: {}
 
 jobs:
   main:
@@ -19,6 +20,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -65,7 +68,7 @@ jobs:
         run: npm run monaco-compile-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-esm
+        run: npm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco

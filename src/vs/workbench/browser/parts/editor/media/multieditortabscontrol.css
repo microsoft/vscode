@@ -104,6 +104,7 @@
 	height: var(--editor-group-tab-height);
 	box-sizing: border-box;
 	padding-left: 10px;
+	outline-offset: -2px;
 }
 
 /* Tab Background Color in/active group/tab */
@@ -298,10 +299,6 @@
 	bottom: 0;
 	height: 1px;
 	background-color: var(--tab-border-bottom-color);
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom:focus > .tab-border-bottom-container {
-	background-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top:not(:focus) > .tab-border-top-container {

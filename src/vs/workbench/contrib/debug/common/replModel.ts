@@ -12,7 +12,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDebugConfiguration, IDebugSession, IExpression, INestingReplElement, IReplElement, IReplElementSource, IStackFrame } from './debug.js';
 import { ExpressionContainer } from './debugModel.js';
 
-const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
 const getUniqueId = () => `topReplElement:${topReplElementCounter++}`;
 
@@ -343,8 +342,9 @@ export class ReplModel {
 			lastElement.addChild(newElement);
 		} else {
 			this.replElements.push(newElement);
-			if (this.replElements.length > MAX_REPL_LENGTH) {
-				this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+			const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+			if (this.replElements.length > config.console.maximumLines) {
+				this.replElements.splice(0, this.replElements.length - config.console.maximumLines);
 			}
 		}
 		this._onDidChangeElements.fire(newElement);

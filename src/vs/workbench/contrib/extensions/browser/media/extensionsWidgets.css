@@ -3,6 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.extension-icon .icon {
+	width: 42px;
+	height: 42px;
+	padding-right: 14px;
+	flex-shrink: 0;
+	object-fit: contain;
+}
+
+.extension-icon .codicon {
+	padding-right: 14px;
+	font-size: 42px !important;
+}
+
 .extension-sync-ignored.hide {
 	display: none;
 }
@@ -31,12 +44,12 @@
 	opacity: .75;
 }
 
-.extension-verified-publisher {
+.verified-publisher {
 	display: flex;
 	align-items: center;
 }
 
-.extension-verified-publisher > .extension-verified-publisher-domain {
+.verified-publisher > .extension-verified-publisher-domain {
 	padding-left: 2px;
 	color: var(--vscode-extensionIcon-verifiedForeground);
 	text-decoration: var(--text-link-decoration);
