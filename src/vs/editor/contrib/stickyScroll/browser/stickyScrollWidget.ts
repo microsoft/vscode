@@ -144,9 +144,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromIndexCandidate?: number): void {
-		const stateAndPreviousStateUndefined = !this._state && !state;
-		const stateDefinedAndEqualsPreviousState = this._state && this._state.equals(state);
-		if (stateAndPreviousStateUndefined || stateDefinedAndEqualsPreviousState) {
+		const currentStateAndPreviousStateUndefined = !this._state && !state;
+		const currentStateDefinedAndEqualsPreviousState = this._state && this._state.equals(state);
+		if (currentStateAndPreviousStateUndefined || currentStateDefinedAndEqualsPreviousState) {
 			return;
 		}
 		const data = this._findRenderingData(state);
@@ -159,20 +159,21 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _findRenderingData(state: StickyScrollWidgetState | undefined): { lineNumbers: number[]; lastLineRelativePosition: number } {
-		let lastLineRelativePosition;
-		let lineNumbers: number[];
-		const futureWidgetHeight = this._getHeightOfLines(state);
-		if (state && futureWidgetHeight > 0) {
-			lastLineRelativePosition = state.lastLineRelativePosition;
-			lineNumbers = [...state.startLineNumbers];
-			if (state.showEndForLine !== null) {
-				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
-			}
-		} else {
-			lastLineRelativePosition = 0;
-			lineNumbers = [];
+		if (!state) {
+			return { lineNumbers: [], lastLineRelativePosition: 0 };
 		}
-		return { lineNumbers, lastLineRelativePosition };
+		const candidateLineNumbers = [...state.startLineNumbers];
+		if (state.showEndForLine !== null) {
+			candidateLineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
+		}
+		let totalHeight = 0;
+		for (let i = 0; i < candidateLineNumbers.length; i++) {
+			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+		}
+		if (totalHeight === 0) {
+			return { lineNumbers: [], lastLineRelativePosition: 0 };
+		}
+		return { lineNumbers: candidateLineNumbers, lastLineRelativePosition: state.lastLineRelativePosition };
 	}
 
 	private _findIndexToRebuildFrom(previousLineNumbers: number[], newLineNumbers: number[], rebuildFromLineCandidate?: number): number {
@@ -250,17 +251,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getHeightOfLines(state: StickyScrollWidgetState | undefined): number {
-		if (!state) {
-			return 0;
-		}
-		let totalHeight = 0;
-		for (let i = 0; i < state.startLineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(state.startLineNumbers[i], 1));
-		}
-		return totalHeight + state.lastLineRelativePosition;
-	}
-
 	private _clearWidget(): void {
 		for (let i = 0; i < this._renderedStickyLines.length; i++) {
 			const stickyLine = this._renderedStickyLines[i];
@@ -275,6 +265,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		this._height = height;
+
 		if (this._height === 0) {
 			this._rootDomNode.style.display = 'none';
 		} else {
@@ -283,6 +274,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._linesDomNodeScrollable.style.height = `${this._height}px`;
 			this._rootDomNode.style.height = `${this._height}px`;
 		}
+
 		this._onDidChangeStickyScrollHeight.fire({ height: this._height });
 	}
 
