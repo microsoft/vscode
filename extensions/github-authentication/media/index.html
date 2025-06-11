@@ -15,8 +15,7 @@
 	</a>
 	<div class="message-container">
 		<div class="message">
-			<div class="success-title">You are signed in!</div>
-			<div class="success-subtitle">Taking you back to VS Code...</div>
+			You are signed in now and can close this page.
 		</div>
 		<div class="error-message">
 			An error occurred while signing in:
@@ -31,18 +30,6 @@
 				.textContent = decodeURIComponent(error);
 			document.querySelector('body')
 				.classList.add('error');
-		} else {
-			// Success case - redirect back to VS Code after a brief delay
-			setTimeout(function() {
-				// Try to redirect back to VS Code using the protocol scheme
-				// Use a simple redirect approach that should work with most browsers
-				try {
-					window.location.href = 'vscode://github-authentication/success';
-				} catch (e) {
-					// If protocol redirect fails, update the message
-					document.querySelector('.success-subtitle').textContent = 'You can close this page now.';
-				}
-			}, 1500); // 1.5 second delay to let user see the success message
 		}
 	</script>
 </body>

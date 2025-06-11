@@ -43,19 +43,6 @@ body {
 .message {
 	font-weight: 300;
 	font-size: 1.4rem;
-	text-align: center;
-}
-
-.success-title {
-	font-size: 1.6rem;
-	font-weight: 400;
-	margin-bottom: 0.5rem;
-}
-
-.success-subtitle {
-	font-size: 1.2rem;
-	font-weight: 300;
-	opacity: 0.8;
 }
 
 body.error .message {
@@ -68,10 +55,8 @@ body.error .error-message {
 
 .error-message {
 	display: none;
-	max-width: 800px;
 	font-weight: 300;
 	font-size: 1.3rem;
-	text-align: center;
 }
 
 .error-text {
