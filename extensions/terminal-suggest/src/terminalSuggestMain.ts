@@ -58,6 +58,7 @@ for (const spec of upstreamSpecs) {
 const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
 	[TerminalShellType.Bash, getBashGlobals],
 	[TerminalShellType.Zsh, getZshGlobals],
+	[TerminalShellType.GitBash, getBashGlobals], // Git Bash is a bash shell
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
 	[TerminalShellType.Fish, getFishGlobals],
 	[TerminalShellType.PowerShell, getPwshGlobals],
@@ -72,7 +73,11 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		if (!shellType) {
 			return;
 		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: shellType };
+		let execShellType = shellType;
+		if (shellType === TerminalShellType.GitBash) {
+			execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
+		}
+		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedGlobals.set(shellType, normalizedCommands);
