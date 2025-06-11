@@ -512,7 +512,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const entry of this._entriesObs.get()) {
 			const snapshotEntry = entries.get(entry.modifiedURI);
 			if (!snapshotEntry) {
-				entry.resetToInitialContent();
+				await entry.resetToInitialContent();
 				entry.dispose();
 			}
 		}
@@ -522,7 +522,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const snapshotEntry of entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
-			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
+			await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 			entriesArr.push(entry);
 		}
 

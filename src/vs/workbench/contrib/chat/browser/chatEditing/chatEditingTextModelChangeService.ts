@@ -84,8 +84,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				...value,
 				originalModel: this.originalModel,
 				modifiedModel: this.modifiedModel,
-				keep: changes => this._acceptHunk(changes),
-				undo: changes => this._rejectHunk(changes)
+				keep: changes => this._keepHunk(changes),
+				undo: changes => this._undoHunk(changes)
 			} satisfies IDocumentDiff2;
 		});
 	}
@@ -100,9 +100,6 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
 	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
-	public get originalToModifiedEdit() {
-		return this._originalToModifiedEdit;
-	}
 
 	constructor(
 		private readonly originalModel: ITextModel,
@@ -143,7 +140,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			// EDIT and DONE
 			const minimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this.modifiedModel.uri, textEdits) ?? textEdits;
 			const ops = minimalEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this.applyEdits(ops);
+			const undoEdits = this._applyEdits(ops);
 
 			if (undoEdits.length > 0) {
 				let range: Range | undefined;
@@ -179,7 +176,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// EDIT a bit, then DONE
 			const ops = textEdits.map(TextEdit.asEditOperation);
-			const undoEdits = this.applyEdits(ops);
+			const undoEdits = this._applyEdits(ops);
 			maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 			rewriteRatio = Math.min(1, maxLineNumber / this.modifiedModel.getLineCount());
 
@@ -210,7 +207,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	public applyEdits(edits: ISingleEditOperation[]) {
+	private _applyEdits(edits: ISingleEditOperation[]) {
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit
@@ -228,46 +225,42 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	/**
-	 * Accepts the current modified document as the final contents.
+	 * Keeps the current modified document as the final contents.
 	 */
-	public accept() {
+	public keep() {
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._originalToModifiedEdit = StringEdit.empty;
 	}
 
 	/**
-	 * Accepts the current modified document as the final contents.
+	 * Undoes the current modified document as the final contents.
 	 */
-	public reject() {
-		this.setModifiedDocValue(this.originalModel.getValue(), StringEdit.empty);
+	public undo() {
+		this.modifiedModel.pushStackElement();
+		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))]);
+		this.modifiedModel.pushStackElement();
 		this._originalToModifiedEdit = StringEdit.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
 	}
 
-	/**
-	 * Sets the value of the modified document and optionall initializes the edit.
-	 */
-	public setModifiedDocValue(value: string, edit: StringEdit): void {
-		this._originalToModifiedEdit = edit;
-		if (this.modifiedModel.getValue() !== value) {
-
+	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
+		let didChange = false;
+		if (newOriginal !== undefined) {
+			this.originalModel.setValue(newOriginal);
+			didChange = true;
+		}
+		if (newModified !== undefined && this.modifiedModel.getValue() !== newModified) {
+			// NOTE that this isn't done via `setValue` so that the undo stack is preserved
 			this.modifiedModel.pushStackElement();
-			const edit = EditOperation.replace(this.modifiedModel.getFullModelRange(), value);
-
-			this.applyEdits([edit]);
-			this.updateDiffInfo();
+			this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), newModified))]);
 			this.modifiedModel.pushStackElement();
+			didChange = true;
+		}
+		if (didChange) {
+			await this._updateDiffInfoSeq();
 		}
 	}
-
-	public setOriginalDocValue(newValue: string | ITextSnapshot): void {
-		this.originalModel.setValue(newValue);
-	}
-	public async updateDiffInfo() {
-		await this._updateDiffInfoSeq();
-	}
-
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
 		const edit = offsetEditFromContentChanges(event.changes);
@@ -313,7 +306,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}
 	}
 
-	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _keepHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			// diffInfo should have model version ids and check them (instead of the caller doing that)
 			return false;
@@ -332,7 +325,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return true;
 	}
 
-	private async _rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _undoHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			return false;
 		}
@@ -369,6 +362,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		if (this.state.get() !== ModifiedFileEntryState.Modified) {
 			this._diffInfo.set(nullDocumentDiff, undefined);
+			this._originalToModifiedEdit = StringEdit.empty;
 			return nullDocumentDiff;
 		}
 

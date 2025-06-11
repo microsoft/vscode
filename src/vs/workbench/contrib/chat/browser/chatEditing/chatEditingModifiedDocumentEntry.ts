@@ -8,7 +8,6 @@ import { ITransaction, autorun, transaction } from '../../../../../base/common/o
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -141,7 +140,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.modifiedModel.getLanguageId() === snapshot.languageId &&
 			this.originalModel.getValue() === snapshot.original &&
 			this.modifiedModel.getValue() === snapshot.current &&
-			this._textModelChangeService.originalToModifiedEdit.equals(snapshot.originalToCurrentEdit) &&
 			this.state.get() === snapshot.state;
 	}
 
@@ -152,24 +150,20 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
-			originalToCurrentEdit: this._textModelChangeService.originalToModifiedEdit,
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
 	}
 
-	restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
+	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
-		this._textModelChangeService.setOriginalDocValue(snapshot.original);
-		if (restoreToDisk) {
-			this._textModelChangeService.setModifiedDocValue(snapshot.current, snapshot.originalToCurrentEdit);
-		}
-		this._textModelChangeService.updateDiffInfo();
+		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
 	}
 
-	resetToInitialContent() {
-		this._textModelChangeService.setModifiedDocValue(this.initialContent, StringEdit.empty);
+	async resetToInitialContent() {
+		await this._textModelChangeService.resetDocumentValues(undefined, this.initialContent);
 	}
+
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
 		return this._textModelChangeService.areOriginalAndModifiedIdentical();
 	}
@@ -211,7 +205,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 
 	protected override async _doAccept(): Promise<void> {
-		this._textModelChangeService.accept();
+		this._textModelChangeService.keep();
 		this._multiDiffEntryDelegate.collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
@@ -238,7 +232,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			}
 			this._onDidDelete.fire();
 		} else {
-			this._textModelChangeService.reject();
+			this._textModelChangeService.undo();
 			if (this._textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
