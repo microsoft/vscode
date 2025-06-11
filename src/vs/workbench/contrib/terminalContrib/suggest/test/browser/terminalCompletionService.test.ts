@@ -675,7 +675,6 @@ suite('TerminalCompletionService', () => {
 					{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
 				], { replacementIndex: 0, replacementLength: 13 }, '/');
 			});
-			});
 		});
 
 		suite('symlink support', () => {
