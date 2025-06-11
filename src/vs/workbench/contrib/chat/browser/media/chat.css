@@ -33,7 +33,9 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .header.hidden {
+.interactive-item-container .header.hidden,
+.interactive-item-container .header .avatar-container.hidden,
+.interactive-item-container .header .username.hidden {
 	display: none;
 }
 
@@ -1629,6 +1631,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 
 	code {
 		font-size: 11px;

@@ -83,6 +83,8 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 
 const $ = dom.$;
 
+const COPILOT_USERNAME = 'GitHub Copilot';
+
 interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	/**
@@ -438,6 +440,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
+
+		templateData.username.textContent = element.username;
+		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME);
+		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 
 		dom.hide(templateData.requestHover);
 		dom.clearNode(templateData.detail);
