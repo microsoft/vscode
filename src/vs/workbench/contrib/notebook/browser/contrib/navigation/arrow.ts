@@ -8,11 +8,12 @@ import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
+import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContextKey, IsWindowsContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -21,7 +22,7 @@ import { InlineChatController } from '../../../../inlineChat/browser/inlineChatC
 import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from '../../controller/chat/notebookChatContext.js';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from '../../controller/coreActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
-import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from '../../../common/notebookCommon.js';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../../common/notebookCommon.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK } from '../../../common/notebookContextKeys.js';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
@@ -116,14 +117,18 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
+		const contextKeyService = accessor.get(IContextKeyService);
 
 		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
-		if (idx >= editor.getLength() - 1) {
-			// We're in the last cell, check if we can move cursor to end of line
+		// Check cursor line boundary context - only move to end of line when on 'start' or 'none'
+		const cursorLineBoundary = contextKeyService.getContextKeyValue<'none' | 'start' | 'end' | 'both'>(NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.key);
+		
+		// Handle end-of-line movement for any cell when on last line and not at end
+		if (cursorLineBoundary === 'start' || cursorLineBoundary === 'none') {
 			const targetCell = (context.cell ?? context.selectedCells?.[0]);
 			const foundEditor: ICodeEditor | undefined = targetCell ? findTargetCellEditor(context, targetCell) : undefined;
 			
@@ -137,20 +142,18 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					
 					// If we're on the last line but not at the end, move to end of line
 					if (currentPosition.lineNumber === lastLineNumber && currentPosition.column < lastColumnNumber) {
-						foundEditor.setPosition({ lineNumber: lastLineNumber, column: lastColumnNumber });
-						foundEditor.revealPosition({ lineNumber: lastLineNumber, column: lastColumnNumber });
-						return;
-					}
-					
-					// If we're not on the last line, try normal cursor down behavior
-					if (currentPosition.lineNumber < lastLineNumber) {
-						EditorExtensionsRegistry.getEditorCommand('cursorDown').runCommand(accessor, {});
+						// Use the cell's setSelections method to move cursor to end of line
+						const newSelection = new Selection(lastLineNumber, lastColumnNumber, lastLineNumber, lastColumnNumber);
+						activeCell.setSelections([newSelection]);
 						return;
 					}
 				}
 			}
-			
-			// If we reach here, we're already at the end of the last line, so do nothing
+		}
+
+		// If we're in the last cell, handle according to existing behavior
+		if (idx >= editor.getLength() - 1) {
+			// We're in the last cell, return and do nothing (preserving existing behavior)
 			return;
 		}
 
