@@ -712,7 +712,7 @@ suite('TerminalCompletionService', () => {
 								count(childFsPath, '/') === count(parentFsPath, '/') + 1
 							);
 						});
-						
+
 						// Create file stats with symlink support
 						const processedChildren = children.map(child => {
 							const stat = createFileStat(child.resource, false, child.isFile, child.isDirectory);
@@ -722,7 +722,7 @@ suite('TerminalCompletionService', () => {
 							}
 							return stat;
 						});
-						
+
 						return createFileStat(resource, undefined, undefined, undefined, processedChildren as any);
 					},
 				});
