@@ -21,14 +21,13 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -202,8 +201,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	get id() {
 		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
-
+			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
 			return variable.id;
 		}
 
@@ -222,7 +220,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	get name(): string {
 		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
+			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
 
 			return variable.name;
 		}
@@ -240,7 +238,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 	get modelDescription(): string {
 		if (this.prompt !== undefined) {
-			const variable = toChatVariable(this.prompt, true);
+			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
 
 			return variable.modelDescription;
 		}
@@ -300,7 +298,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	public async toBaseEntries(): Promise<readonly IChatRequestFileEntry[]> {
+	public async toBaseEntries(): Promise<readonly IChatRequestVariableEntry[]> {
 		// chat variable for non-prompt file attachment
 		if (this.prompt === undefined) {
 			return [{
@@ -319,16 +317,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return [
 			// add all valid child references in the prompt
 			...this.prompt.allValidReferences.map((link) => {
-				return toChatVariable(link, false);
+				return toPromptFileVariableEntry(link.uri, false);
 			}),
 			// and then the root prompt reference itself
-			toChatVariable({
-				uri: this.prompt.uri,
-				// the attached file must have been a prompt file therefore
-				// we force that assumption here; this makes sure that prompts
-				// in untitled documents can be also attached to the chat input
-				isPromptFile: true,
-			}, true),
+			toPromptFileVariableEntry(this.prompt.uri, true)
 		];
 	}
 

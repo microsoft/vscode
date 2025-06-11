@@ -24,12 +24,13 @@ import { INSTRUCTIONS_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax
 import { compare } from '../../../../../base/common/strings.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { dirname } from '../../../../../base/common/resources.js';
-import { IPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { IPromptFileVariableEntry, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -117,7 +118,7 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		if (skipSelectionDialog && resource) {
-			widget.attachmentModel.promptInstructions.add(resource);
+			widget.attachmentModel.addPromptFiles([resource]);
 			widget.focusInput();
 			return;
 		}
@@ -130,7 +131,7 @@ class AttachInstructionsAction extends Action2 {
 		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
-			widget.attachmentModel.promptInstructions.add(result.promptFile);
+			widget.attachmentModel.addPromptFiles([result.promptFile]);
 			widget.focusInput();
 		}
 	}
@@ -224,11 +225,12 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		return widget.attachmentModel.promptInstructions.featureEnabled;
+		return PromptsConfig.enabled(this.configurationService);
 	}
 
 	asPicker(): { readonly placeholder: string; readonly picks: Promise<ChatContextPick[]> } {
@@ -256,12 +258,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 				result.push({
 					label: getCleanPromptName(uri),
 					asAttachment: (): IPromptFileVariableEntry => {
-						return {
-							kind: 'promptFile',
-							id: uri.toString(),
-							value: uri,
-							name: this.labelService.getUriBasenameLabel(uri),
-						};
+						return toPromptFileVariableEntry(uri, true);
 					}
 				});
 			}
