@@ -82,7 +82,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 				return links && { links };
 			}
 		}));
-		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService)));
+		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService, this._logService)));
 	}
 
 	public override dispose(): void {
@@ -240,7 +240,8 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 		workerManager: WorkerManager,
 		configurationService: ITextResourceConfigurationService,
 		modelService: IModelService,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly logService: ILogService
 	) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
@@ -285,6 +286,9 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 		const word = model.getWordAtPosition(position);
 		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
+
+		// Trace logging about the word and replace/insert ranges
+		this.logService.trace('[WordBasedCompletionItemProvider]', `word: "${word?.word || ''}", wordDef: "${wordDefRegExp}", replace: [${replace.toString()}], insert: [${insert.toString()}]`);
 
 		const client = await this._workerManager.withWorker();
 		const data = await client.textualSuggest(models, word?.word, wordDefRegExp);

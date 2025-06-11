@@ -96,7 +96,7 @@ import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
-import { ChatWidgetService } from './chatWidget.js';
+import { ChatWidget, ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
 import './contrib/chatInputCompletions.js';
@@ -110,6 +110,7 @@ import product from '../../../../platform/product/common/product.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -302,13 +303,10 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
 			default: true,
-			tags: ['preview'],
 			policy: {
 				name: 'ChatAgentExtensionTools',
 				minimumVersion: '1.99',
 				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions."),
-				previewFeature: true,
-				defaultValue: false
 			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
@@ -765,3 +763,5 @@ registerPromptFileContributions();
 
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
+
+ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

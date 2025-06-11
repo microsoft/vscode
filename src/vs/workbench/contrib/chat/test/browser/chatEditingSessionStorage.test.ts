@@ -15,10 +15,9 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
-import { ISnapshotEntry } from '../../browser/chatEditing/chatEditingModifiedFileEntry.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../browser/chatEditing/chatEditingTextModelContentProviders.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();

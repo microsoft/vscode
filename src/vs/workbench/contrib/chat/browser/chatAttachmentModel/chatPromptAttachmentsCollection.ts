@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 
 /**
  * Prefix for all prompt instruction variable IDs.

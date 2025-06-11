@@ -14,17 +14,16 @@ import { IThemeService } from '../../../../../../../platform/theme/common/themeS
 import { IEditorMouseEvent, IViewZoneChangeAccessor } from '../../../../../../browser/editorBrowser.js';
 import { EditorMouseEvent } from '../../../../../../browser/editorDom.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
-import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
+import { Range } from '../../../../../../common/core/range.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { Range } from '../../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { IModelDecorationOptions, TrackedRangeStickiness } from '../../../../../../common/model.js';
-import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
-import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
@@ -132,7 +131,15 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const { prefixLeftOffset } = maxPrefixTrim;
 			const { requiredWidth } = modifiedLines;
 
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
+			const originalLineHeights = this._editor.observeLineHeightsForLineRange(edit.originalRange).read(reader);
+			const modifiedLineHeights = (() => {
+				const lineHeights = originalLineHeights.slice(0, edit.modifiedRange.length);
+				while (lineHeights.length < edit.modifiedRange.length) {
+					lineHeights.push(originalLineHeights[originalLineHeights.length - 1]);
+				}
+				return lineHeights;
+			})();
+
 			const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 			const verticalScrollbarWidth = this._editor.layoutInfoVerticalScrollbarWidth.read(reader);
 			const scrollLeft = this._editor.scrollLeft.read(reader);
@@ -160,7 +167,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				originalLinesOverlay.left,
 				originalLinesOverlay.bottom,
 				originalLinesOverlay.width,
-				edit.modifiedRange.length * lineHeight
+				modifiedLineHeights.reduce((sum, h) => sum + h, 0)
 			);
 			const background = Rect.hull([originalLinesOverlay, modifiedLinesOverlay]);
 
@@ -173,6 +180,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				background,
 				lowerBackground,
 				lowerText,
+				modifiedLineHeights,
 				minContentWidthRequired: prefixLeftOffset + maxLineWidth + verticalScrollbarWidth,
 			};
 		});
@@ -205,10 +213,9 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				const layoutProps = layout.read(reader);
 				const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 
-				const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
-				modifiedLineElements.lines.forEach(l => {
+				modifiedLineElements.lines.forEach((l, i) => {
 					l.style.width = `${layoutProps.lowerText.width}px`;
-					l.style.height = `${lineHeight}px`;
+					l.style.height = `${layoutProps.modifiedLineHeights[i]}px`;
 					l.style.position = 'relative';
 				});
 
