@@ -354,7 +354,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
+				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType, stat.isSymbolicLink ? await resolveRealPath(lastWordFolderResource, this._fileService) : undefined),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -367,10 +367,26 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
+			let isSymlink = false;
 			if (foldersRequested && child.isDirectory) {
 				kind = TerminalCompletionItemKind.Folder;
 			} else if (filesRequested && child.isFile) {
 				kind = TerminalCompletionItemKind.File;
+			} else if (child.isSymbolicLink) {
+				// get realpath of symlink to determine if it is a file or folder
+				try {
+					const realStat = await this._fileService.resolve(child.resource, { resolveSingleChildDescendants: true });
+					if (realStat?.isDirectory) {
+						kind = TerminalCompletionItemKind.Folder;
+						isSymlink = true;
+					} else if (realStat?.isFile) {
+						kind = TerminalCompletionItemKind.File;
+						isSymlink = true;
+					}
+				} catch {
+					// Ignore errors resolving symlinks
+				}
+
 			}
 			if (kind === undefined) {
 				continue;
@@ -399,9 +415,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
+				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType, isSymlink ? await resolveRealPath(child.resource, this._fileService) : undefined),
 				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementLength: lastWord.length,
 			});
 		}
 
@@ -433,7 +449,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 											kind,
 											detail,
 											replacementIndex: cursorPosition - lastWord.length,
-											replacementLength: lastWord.length
+											replacementLength: lastWord.length,
 										});
 									}
 								}
@@ -485,7 +501,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind: TerminalCompletionItemKind.Folder,
 				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(homeResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length
+				replacementLength: lastWord.length,
+				isSymlink: false
 			});
 		}
 
@@ -505,7 +522,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
+function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType, realPath?: string): string {
 	let path = uri.fsPath;
 	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
 	// Ensure folders end with the path separator to differentiate presentation from files
@@ -516,7 +533,7 @@ function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompleti
 	if (sep === '\\' && path.match(/^[a-zA-Z]:\\/)) {
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
 	}
-	return path;
+	return realPath ? path + ' -> ' + realPath : path;
 }
 
 /**
@@ -531,4 +548,13 @@ function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<Termina
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;
+}
+
+async function resolveRealPath(resource: URI, fileService: IFileService): Promise<string | undefined> {
+	try {
+		const stat = await fileService.resolve(resource, { resolveTo: [], resolveSingleChildDescendants: false, resolveMetadata: true });
+		return stat?.resource?.fsPath;
+	} catch {
+		return undefined;
+	}
 }

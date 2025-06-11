@@ -69,6 +69,11 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * Whether the completion is a symlink.
+	 */
+	isSymlink?: boolean;
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {
