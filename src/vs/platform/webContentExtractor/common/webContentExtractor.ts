@@ -23,6 +23,7 @@ export interface IWebContentExtractorService {
 export interface ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
 	readImage(uri: URI, token: CancellationToken): Promise<VSBuffer | undefined>;
+	chatImageUploader(binaryData: Uint8Array, name: string, mimeType: string | undefined, token: string | undefined): Promise<string>;
 }
 
 /**
@@ -39,6 +40,9 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 }
 
 export class NullSharedWebContentExtractorService implements ISharedWebContentExtractorService {
+	chatImageUploader(binaryData: Uint8Array, name: string, mimeType: string | undefined, token: string | undefined): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
 	_serviceBrand: undefined;
 	readImage(_uri: URI, _token: CancellationToken): Promise<VSBuffer | undefined> {
 		throw new Error('Not implemented');

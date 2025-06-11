@@ -29,6 +29,9 @@ import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContex
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -62,6 +65,10 @@ export class ChatDragAndDrop extends Themable {
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(themeService);
 
@@ -235,7 +242,7 @@ export class ChatDragAndDrop extends Themable {
 		const editorDragData = extractEditorsDropData(e);
 		if (editorDragData.length > 0) {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
-				return resolveEditorAttachContext(editorInput, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService);
+				return resolveEditorAttachContext(editorInput, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService, this.authenticationService, this.configurationService, this.authenticationExtensionsService, this.productService, this.webContentExtractorService);
 			})));
 		}
 
@@ -244,8 +251,7 @@ export class ChatDragAndDrop extends Themable {
 			const uriList = UriList.parse(internal);
 			if (uriList.length) {
 				return coalesce(await Promise.all(
-					uriList.map(uri => resolveEditorAttachContext({ resource: URI.parse(uri) }, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService))
-				));
+					uriList.map(uri => resolveEditorAttachContext({ resource: URI.parse(uri) }, this.fileService, this.editorService, this.textModelService, this.extensionService, this.dialogService, this.authenticationService, this.configurationService, this.authenticationExtensionsService, this.productService, this.webContentExtractorService))));
 			}
 		}
 
