@@ -2065,7 +2065,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
 			this._terminalService, this._terminalGroupService, this._outputService, this._paneCompositeService, this._viewsService, this._markerService,
-			this._modelService, this._configurationResolverService,
+			this._modelService, this._configurationService, this._configurationResolverService,
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,

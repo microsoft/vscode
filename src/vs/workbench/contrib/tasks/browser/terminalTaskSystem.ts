@@ -19,6 +19,7 @@ import * as Types from '../../../../base/common/types.js';
 import * as nls from '../../../../nls.js';
 
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
@@ -226,6 +227,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _viewsService: IViewsService,
 		private _markerService: IMarkerService,
 		private _modelService: IModelService,
+		private _configurationService: IConfigurationService,
 		private _configurationResolverService: IConfigurationResolverService,
 		private _contextService: IWorkspaceContextService,
 		private _environmentService: IWorkbenchEnvironmentService,
@@ -1211,6 +1213,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
+
+			// Check if we're using an automation profile with custom args.
+			// If so, we should respect those args and not add default shell arguments.
+			let automationProfileWithArgs = false;
+			if (!shellSpecified && platform === Platform.Platform.Windows) {
+				const osKey = this._getOsKey(os);
+				const automationProfile = this._configurationService.getValue(`terminal.integrated.automationProfile.${osKey}`);
+				if (automationProfile && 
+					automationProfile.path === defaultProfile.path && 
+					automationProfile.args && 
+					Array.isArray(automationProfile.args) && 
+					automationProfile.args.length > 0) {
+					automationProfileWithArgs = true;
+				}
+			}
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1244,7 +1261,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						toAdd.push('-c');
 					}
 				} else {
-					if (!shellSpecified) {
+					if (!shellSpecified && !automationProfileWithArgs) {
 						toAdd.push('/d', '/c');
 					}
 				}
@@ -1921,6 +1938,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		return undefined;
+	}
+
+	private _getOsKey(os: Platform.OperatingSystem): string {
+		switch (os) {
+			case Platform.OperatingSystem.Linux: return 'linux';
+			case Platform.OperatingSystem.Macintosh: return 'osx';
+			case Platform.OperatingSystem.Windows: return 'windows';
+		}
 	}
 
 	private _appendOutput(output: string): void {
