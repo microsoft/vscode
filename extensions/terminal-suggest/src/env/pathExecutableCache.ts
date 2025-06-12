@@ -112,12 +112,10 @@ export class PathExecutableCache implements vscode.Disposable {
 				try {
 					const lstat = await fs.lstat(resource.fsPath);
 					if (lstat.isSymbolicLink()) {
-						// If the file is a symlink, resolve the target if needed
 						try {
-							const realPath = await fs.realpath(resource.fsPath);
-							kind = await isExecutable(realPath, this._cachedWindowsExeExtensions) ? vscode.TerminalCompletionItemKind.Method : vscode.TerminalCompletionItemKind.File;
-							formattedPath = resource.fsPath + ' -> ' + realPath;
-							console.log(file, formattedPath);
+							const symlinkRealPath = await fs.realpath(resource.fsPath);
+							kind = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions) ? vscode.TerminalCompletionItemKind.Method : vscode.TerminalCompletionItemKind.File;
+							formattedPath = resource.fsPath + ' -> ' + symlinkRealPath;
 						} catch {
 						}
 					}
@@ -125,11 +123,12 @@ export class PathExecutableCache implements vscode.Disposable {
 					// Ignore errors for unreadable files
 				}
 				formattedPath = formattedPath ?? getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
-				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, this._cachedWindowsExeExtensions)) {
+				if (!labels.has(file) && kind === vscode.TerminalCompletionItemKind.Method || fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, this._cachedWindowsExeExtensions)) {
 					result.add({ label: file, documentation: formattedPath, kind: kind ?? vscode.TerminalCompletionItemKind.Method });
 					labels.add(file);
 				}
 				formattedPath = '';
+				kind = undefined;
 			}
 			return result;
 		} catch (e) {
