@@ -13,7 +13,7 @@ import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
-import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, DEFAULT_AUTH_FLOW_PORT, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -477,8 +477,9 @@ export class NodeExtHostAuthentication extends ExtHostAuthentication implements 
 		extHostUrls: IExtHostUrlsService,
 		extHostProgress: IExtHostProgress,
 		extHostLoggerService: ILoggerService,
+		extHostLogService: ILogService
 	) {
-		super(extHostRpc, initData, extHostWindow, extHostUrls, extHostProgress, extHostLoggerService);
+		super(extHostRpc, initData, extHostWindow, extHostUrls, extHostProgress, extHostLoggerService, extHostLogService);
 	}
 }
 

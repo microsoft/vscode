@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +21,7 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -361,32 +362,30 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 
-		const store = new DisposableStore();
-
-		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
-		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
-		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
-			store.add(Event.once(this.onDidRegisterAuthenticationProvider)(e => {
-				if (e.id === providerId) {
-					provider = this._authenticationProviders.get(providerId);
-					if (provider) {
-						resolve(provider);
-					} else {
-						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
-					}
-				}
-			}));
-		});
-
-		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
-			const handle = setTimeout(() => {
-				reject('Timed out waiting for authentication provider to register');
-			}, 5000);
-
-			store.add(toDisposable(() => clearTimeout(handle)));
-		});
-
-		return Promise.race([didRegister, didTimeout]).finally(() => store.dispose());
+		const store = this._register(new DisposableStore());
+		try {
+			const result = await raceTimeout(
+				Event.toPromise(
+					Event.filter(
+						this.onDidRegisterAuthenticationProvider,
+						e => e.id === providerId,
+						store
+					),
+					store
+				),
+				5000
+			);
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
+			}
+			provider = this._authenticationProviders.get(result.id);
+			if (provider) {
+				return provider;
+			}
+			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+		} finally {
+			store.dispose();
+		}
 	}
 }
 
