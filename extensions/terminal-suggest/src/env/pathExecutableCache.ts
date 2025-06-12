@@ -121,11 +121,11 @@ export class PathExecutableCache implements vscode.Disposable {
 						try {
 							const symlinkRealPath = await fs.realpath(resource.fsPath);
 							const isExec = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions);
-							kind = isExec ? vscode.TerminalCompletionItemKind.Method : vscode.TerminalCompletionItemKind.File;
-							formattedPath = `${resource.fsPath} -> ${symlinkRealPath}`;
 							if (!isExec) {
 								continue;
 							}
+							kind = vscode.TerminalCompletionItemKind.Method;
+							formattedPath = `${resource.fsPath} -> ${symlinkRealPath}`;
 						} catch {
 							continue;
 						}
