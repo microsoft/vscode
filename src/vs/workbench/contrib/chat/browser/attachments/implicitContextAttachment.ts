@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -22,7 +24,8 @@ import { FileKind, IFileService } from '../../../../../platform/files/common/fil
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatWidgetService } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
@@ -41,6 +44,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -67,10 +71,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const ariaLabel = localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
-		const title = `${currentFileHint}\n${uriLabel}`;
+		const currentFile = localize('openEditor', "Suggested context (current file)");
+		const title = `${currentFile}\n${uriLabel}`;
 
 		const icon = this.attachment.isPromptFile
 			? ThemeIcon.fromId(Codicon.bookmark.id)
@@ -88,6 +90,15 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
 			this.convertToRegularAttachment();
+		}));
+
+		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.convertToRegularAttachment();
+			}
 		}));
 
 		// Context menu
@@ -118,5 +129,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
 		this.attachmentModel.addFile(file);
+		this.chatWidgetService.lastFocusedWidget?.focusInput();
 	}
 }

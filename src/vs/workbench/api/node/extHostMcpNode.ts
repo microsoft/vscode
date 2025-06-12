@@ -7,20 +7,23 @@ import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { parseEnvFile } from '../../../base/common/envfile.js';
-import { URI } from '../../../base/common/uri.js';
+import { untildify } from '../../../base/common/labels.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
-import { LogLevel } from '../../../platform/log/common/log.js';
+import { findExecutable } from '../../../base/node/processes.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
-import { findExecutable } from '../../../base/node/processes.js';
-import { untildify } from '../../../base/common/labels.js';
+import * as path from '../../../base/common/path.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initDataService: IExtHostInitDataService,
+		@ILogService logService: ILogService,
 	) {
-		super(extHostRpc);
+		super(extHostRpc, logService, initDataService);
 	}
 
 	private nodeServers = new Map<number, {
@@ -83,7 +86,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			const home = homedir();
-			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : home;
+			let cwd = launch.cwd ? untildify(launch.cwd, home) : home;
+			if (!path.isAbsolute(cwd)) {
+				cwd = path.join(home, cwd);
+			}
+
 			const { executable, args, shell } = await formatSubprocessArguments(
 				untildify(launch.command, home),
 				launch.args.map(a => untildify(a, home)),
@@ -94,7 +101,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			this._proxy.$onDidPublishLog(id, LogLevel.Debug, `Server command line: ${executable} ${args.join(' ')}`);
 			child = spawn(executable, args, {
 				stdio: 'pipe',
-				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
+				cwd,
 				signal: abortCtrl.signal,
 				env,
 				shell,

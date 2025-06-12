@@ -41,7 +41,8 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		| FileSystemProviderCapabilities.Readonly
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream
-		| FileSystemProviderCapabilities.FileAtomicRead;
+		| FileSystemProviderCapabilities.FileAtomicRead
+		| FileSystemProviderCapabilities.FileReadWrite;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

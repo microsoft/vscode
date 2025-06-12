@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from '../../keyboardEvent.js';
-import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import { Widget } from '../widget.js';
 import { IAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
-import { ThemeIcon } from '../../../common/themables.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import './toggle.css';
-import { isActiveElement, $, addDisposableListener, EventType } from '../../dom.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { $, addDisposableListener, EventType, isActiveElement } from '../../dom.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
 import type { IManagedHover } from '../hover/hover.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { Widget } from '../widget.js';
+import './toggle.css';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -55,36 +55,51 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
+		const title = (<IActionViewItemOptions>this.options).keybinding ?
+			`${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label;
 		this.toggle = this._register(new Toggle({
 			actionClassName: this._action.class,
 			isChecked: !!this._action.checked,
-			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
+			title,
 			notFocusable: true,
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
 			inputActiveOptionForeground: options.toggleStyles?.inputActiveOptionForeground,
 			hoverDelegate: options.hoverDelegate
 		}));
-		this._register(this.toggle.onChange(() => this._action.checked = !!this.toggle && this.toggle.checked));
+		this._register(this.toggle.onChange(() => {
+			this._action.checked = !!this.toggle && this.toggle.checked;
+		}));
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		this.element.appendChild(this.toggle.domNode);
+
+		this.updateChecked();
+		this.updateEnabled();
 	}
 
 	protected override updateEnabled(): void {
 		if (this.toggle) {
 			if (this.isEnabled()) {
 				this.toggle.enable();
+				this.element?.classList.remove('disabled');
 			} else {
 				this.toggle.disable();
+				this.element?.classList.add('disabled');
 			}
 		}
 	}
 
 	protected override updateChecked(): void {
 		this.toggle.checked = !!this._action.checked;
+	}
+
+	protected override updateLabel(): void {
+		const title = (<IActionViewItemOptions>this.options).keybinding ?
+			`${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label;
+		this.toggle.setTitle(title);
 	}
 
 	override focus(): void {
@@ -220,10 +235,12 @@ export class Toggle extends Widget {
 
 	enable(): void {
 		this.domNode.setAttribute('aria-disabled', String(false));
+		this.domNode.classList.remove('disabled');
 	}
 
 	disable(): void {
 		this.domNode.setAttribute('aria-disabled', String(true));
+		this.domNode.classList.add('disabled');
 	}
 
 	setTitle(newTitle: string): void {

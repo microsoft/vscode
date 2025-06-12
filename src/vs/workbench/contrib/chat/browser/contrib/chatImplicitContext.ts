@@ -21,12 +21,12 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
-import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
+import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
@@ -61,8 +61,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					activeEditorDisposables.add(Event.debounce(
 						Event.any(
 							codeEditor.onDidChangeModel,
-							codeEditor.onDidChangeCursorSelection,
-							codeEditor.onDidScrollChange,
 							codeEditor.onDidChangeModelLanguage),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
@@ -77,9 +75,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						if (codeEditor && codeEditor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell) {
 							activeCellDisposables.add(Event.debounce(
 								Event.any(
-									codeEditor.onDidChangeModel,
-									codeEditor.onDidChangeCursorSelection,
-									codeEditor.onDidScrollChange),
+									codeEditor.onDidChangeModel),
 								() => undefined,
 								500)(() => this.updateImplicitContext()));
 						}
@@ -301,7 +297,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
 			this.addPrompt(value);
 		}
-
 		this._onDidChangeValue.fire();
 	}
 

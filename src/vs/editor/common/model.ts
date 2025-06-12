@@ -23,7 +23,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from './tokens/tokenArray.js';
+import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditReason } from './textModelEditReason.js';
 

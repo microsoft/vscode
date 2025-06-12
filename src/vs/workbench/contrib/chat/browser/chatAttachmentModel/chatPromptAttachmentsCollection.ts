@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
-import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatRequestVariableEntry, IPromptVariableEntry, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
+import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
+import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
 
 /**
  * Prefix for all prompt instruction variable IDs.
@@ -95,6 +95,15 @@ export function isPromptFileChatVariable(
 ): variable is IPromptVariableEntry {
 	return isChatRequestFileEntry(variable)
 		&& variable.id.startsWith(PROMPT_VARIABLE_ID_PREFIX);
+}
+
+/**
+ * Adds the provided `newReference` to the list of chat variables if it is not already present.
+ */
+export function addPromptFileChatVariable(variables: IChatRequestVariableEntry[], newReference: URI): void {
+	if (!variables.some(variable => isPromptFileChatVariable(variable) && isEqual(IChatRequestVariableEntry.toUri(variable), newReference))) {
+		variables.push(toChatVariable({ uri: newReference, isPromptFile: true }, true));
+	}
 }
 
 /**

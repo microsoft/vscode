@@ -342,6 +342,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
 		return GitErrorCodes.DirtyWorkTree;
+	} else if (/detected dubious ownership in repository at/.test(stderr)) {
+		return GitErrorCodes.NotASafeGitRepository;
 	}
 
 	return undefined;
@@ -1282,8 +1284,8 @@ export class Repository {
 		});
 	}
 
-	async log(options?: LogOptions): Promise<Commit[]> {
-		const spawnOptions: SpawnOptions = {};
+	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
+		const spawnOptions: SpawnOptions = { cancellationToken };
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
@@ -1309,7 +1311,13 @@ export class Repository {
 		}
 
 		if (options?.author) {
-			args.push(`--author="${options.author}"`);
+			args.push(`--author=${options.author}`);
+		}
+
+		if (options?.grep) {
+			args.push(`--grep=${options.grep}`);
+			args.push('--extended-regexp');
+			args.push('--regexp-ignore-case');
 		}
 
 		if (typeof options?.maxParents === 'number') {

@@ -133,16 +133,14 @@
 	align-items: center;
 }
 
-.scm-view .monaco-list-row .monaco-tl-twistie.collapsed + .monaco-tl-contents > .history-item > .graph-container {
-	border-left-color: transparent !important;
+.scm-view .monaco-list-row .monaco-tl-twistie:not(.collapsed) + .monaco-tl-contents > .history-item > .graph-container > svg > path:last-of-type {
+	stroke-width: 3px;
 }
 
 .scm-view .monaco-list-row .history-item > .graph-container {
 	display: flex;
 	flex-shrink: 0;
 	height: 22px;
-	border-left-width: 3px;
-	border-left-style: solid;
 }
 
 .scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child {
@@ -642,8 +640,6 @@
 .scm-view .monaco-list-row .history-item-change > .graph-placeholder {
 	position: absolute;
 	height: 22px;
-	border-left-width: 3px;
-	border-left-style: solid;
 }
 
 .scm-view .monaco-list-row .history-item-change > .label-container {
@@ -659,7 +655,6 @@
 .scm-history-view .history-item-load-more {
 	display: flex;
 	height: 22px;
-	padding-left: 3px;
 }
 
 .scm-history-view .history-item-load-more .graph-placeholder {

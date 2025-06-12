@@ -6,6 +6,7 @@
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
@@ -13,7 +14,6 @@ import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { CharacterMapping, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
-import { assertIsDefined } from '../../../base/common/types.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
 
@@ -37,7 +37,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(assertIsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
+				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
 			}
 		};
 	}

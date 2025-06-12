@@ -7,19 +7,21 @@
  * Contains all MCP command IDs used in the workbench.
  */
 export const enum McpCommandIds {
-	ListServer = 'workbench.mcp.listServer',
-	ServerOptions = 'workbench.mcp.serverOptions',
-	ResetTrust = 'workbench.mcp.resetTrust',
-	ResetCachedTools = 'workbench.mcp.resetCachedTools',
 	AddConfiguration = 'workbench.mcp.addConfiguration',
-	RemoveStoredInput = 'workbench.mcp.removeStoredInput',
-	EditStoredInput = 'workbench.mcp.editStoredInput',
+	Browse = 'workbench.mcp.browseServers',
 	BrowseResources = 'workbench.mcp.browseResources',
+	ConfigureSamplingModels = 'workbench.mcp.configureSamplingModels',
+	EditStoredInput = 'workbench.mcp.editStoredInput',
+	InstallFromActivation = 'workbench.mcp.installFromActivation',
+	ListServer = 'workbench.mcp.listServer',
+	RemoveStoredInput = 'workbench.mcp.removeStoredInput',
+	ResetCachedTools = 'workbench.mcp.resetCachedTools',
+	ResetTrust = 'workbench.mcp.resetTrust',
+	RestartServer = 'workbench.mcp.restartServer',
+	ServerOptions = 'workbench.mcp.serverOptions',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowOutput = 'workbench.mcp.showOutput',
-	RestartServer = 'workbench.mcp.restartServer',
+	StartPromptForServer = 'workbench.mcp.startPromptForServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
-	InstallFromActivation = 'workbench.mcp.installFromActivation',
-	Browse = 'workbench.mcp.browseServers'
 }

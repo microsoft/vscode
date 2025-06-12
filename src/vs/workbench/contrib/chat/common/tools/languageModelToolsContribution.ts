@@ -136,6 +136,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 
 export interface IRawToolSetContribution {
 	name: string;
+	/**
+	 * @deprecated
+	 */
 	referenceName?: string;
 	description: string;
 	icon?: string;
@@ -161,11 +164,7 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 			required: ['name', 'description', 'tools'],
 			properties: {
 				name: {
-					description: localize('toolSetName', "A name for this tool set."),
-					type: 'string',
-				},
-				referenceName: {
-					description: localize('toolSetReferenceName', "A name that users can use to reference this tool set. Name must not contain whitespace."),
+					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -178,8 +177,9 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					type: 'string'
 				},
 				tools: {
-					description: localize('toolSetTools', "An array of tool or tool set names that are part of this set."),
+					markdownDescription: localize('toolSetTools', "A list of tools or tool sets to include in this tool set. Cannot be empty and must reference tools by their `toolReferenceName`."),
 					type: 'array',
+					minItems: 1,
 					items: {
 						type: 'string'
 					}
@@ -316,7 +316,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const toolSets: ToolSet[] = [];
 
 					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName);
+						const toolObj = languageModelToolsService.getToolByName(toolName, true);
 						if (toolObj) {
 							tools.push(toolObj);
 							continue;
@@ -339,8 +339,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					const obj = languageModelToolsService.createToolSet(
 						source,
 						toToolSetKey(extension.description.identifier, toolSet.name),
-						toolSet.name,
-						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, toolReferenceName: toolSet.referenceName, description: toolSet.description }
+						toolSet.referenceName ?? toolSet.name,
+						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
 					);
 
 					transaction(tx => {
