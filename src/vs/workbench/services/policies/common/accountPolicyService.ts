@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { equals } from '../../../../base/common/objects.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
@@ -40,11 +41,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	}
 
 	private _update(updatedPolicy: IAccountPolicy): void {
-		const allKeys = new Set([
-			...Object.keys(this.accountPolicy),
-			...Object.keys(updatedPolicy)
-		]) as Set<keyof IAccountPolicy>;
-		if ([...allKeys].some(key => this.accountPolicy[key] !== updatedPolicy[key])) {
+		if (!equals(this.accountPolicy, updatedPolicy)) {
 			this.accountPolicy = updatedPolicy;
 			this._updatePolicyDefinitions(this.policyDefinitions);
 		}
