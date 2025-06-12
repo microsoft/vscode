@@ -785,10 +785,6 @@ export interface IFileSystemProviderWithSymlinkResolutionCapability extends IFil
 	resolveSymlinkTarget(resource: URI): Promise<IStat | undefined>;
 }
 
-export function hasSymlinkResolutionCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithSymlinkResolutionCapability {
-	return typeof (provider as IFileSystemProviderWithSymlinkResolutionCapability).resolveSymlinkTarget === 'function';
-}
-
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',
