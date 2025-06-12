@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -38,55 +37,47 @@ import { TestSecretStorageService } from '../../../../platform/secrets/test/comm
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { DynamicAuthenticationProviderStorageService } from '../../../services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 
 suite('MainThreadAuthentication', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let disposables: DisposableStore;
 	let mainThreadAuthentication: MainThreadAuthentication;
 	let instantiationService: TestInstantiationService;
 	let rpcProtocol: TestRPCProtocol;
 
-	suiteSetup(async () => {
+	setup(async () => {
+		// services
+		const services = new ServiceCollection();
+		services.set(ILogService, new SyncDescriptor(NullLogService));
+		services.set(IDialogService, new SyncDescriptor(TestDialogService, [{ confirmed: true }]));
+		services.set(IStorageService, new SyncDescriptor(TestStorageService));
+		services.set(ISecretStorageService, new SyncDescriptor(TestSecretStorageService));
+		services.set(IDynamicAuthenticationProviderStorageService, new SyncDescriptor(DynamicAuthenticationProviderStorageService));
+		services.set(IQuickInputService, new SyncDescriptor(TestQuickInputService));
+		services.set(IExtensionService, new SyncDescriptor(TestExtensionService));
+		services.set(IActivityService, new SyncDescriptor(TestActivityService));
+		services.set(IRemoteAgentService, new SyncDescriptor(TestRemoteAgentService));
+		services.set(INotificationService, new SyncDescriptor(TestNotificationService));
+		services.set(IHostService, new SyncDescriptor(TestHostService));
+		services.set(IUserActivityService, new SyncDescriptor(UserActivityService));
+		services.set(IAuthenticationAccessService, new SyncDescriptor(AuthenticationAccessService));
+		services.set(IAuthenticationService, new SyncDescriptor(AuthenticationService));
+		services.set(IAuthenticationUsageService, new SyncDescriptor(AuthenticationUsageService));
+		services.set(IAuthenticationExtensionsService, new SyncDescriptor(AuthenticationExtensionsService));
+		instantiationService = disposables.add(new TestInstantiationService(services, undefined, undefined, true));
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ISecretStorageService, new TestSecretStorageService());
-		instantiationService.stub(IDynamicAuthenticationProviderStorageService, instantiationService.createInstance(DynamicAuthenticationProviderStorageService));
-		instantiationService.stub(IQuickInputService, new TestQuickInputService());
-		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IActivityService, new TestActivityService());
-		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
-		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IHostService, new TestHostService());
+		// stubs
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
-		instantiationService.stub(IUserActivityService, new UserActivityService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IProductService, TestProductService);
-		instantiationService.stub(IAuthenticationAccessService, instantiationService.createInstance(AuthenticationAccessService));
-		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
-		instantiationService.stub(IAuthenticationUsageService, instantiationService.createInstance(AuthenticationUsageService));
-		instantiationService.stub(IAuthenticationExtensionsService, instantiationService.createInstance(AuthenticationExtensionsService));
 
-		rpcProtocol = new TestRPCProtocol();
-		mainThreadAuthentication = instantiationService.createInstance(MainThreadAuthentication, rpcProtocol);
+		rpcProtocol = disposables.add(new TestRPCProtocol());
+		mainThreadAuthentication = disposables.add(instantiationService.createInstance(MainThreadAuthentication, rpcProtocol));
 		rpcProtocol.set(MainContext.MainThreadAuthentication, mainThreadAuthentication);
-	});
-
-	setup(async () => {
-		disposables = new DisposableStore();
-	});
-
-	suiteTeardown(() => {
-		instantiationService.dispose();
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('provider registration completes without errors', async () => {
