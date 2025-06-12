@@ -11,7 +11,7 @@ import {
 	getMetadataWithDefaultValues,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
-	isAuthorizationDeviceTokenErrorResponse,
+	isAuthorizationErrorResponse,
 	isAuthorizationDynamicClientRegistrationResponse,
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
@@ -138,43 +138,42 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDeviceResponse('not an object'), false);
 		});
 
-		test('isAuthorizationDeviceTokenErrorResponse should correctly identify device token error response', () => {
+		test('isAuthorizationErrorResponse should correctly identify error response', () => {
 			// Valid error response
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'authorization_pending',
 				error_description: 'The authorization request is still pending'
 			}), true);
 
 			// Valid error response with different error codes
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'slow_down',
 				error_description: 'Polling too fast'
 			}), true);
 
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'access_denied',
 				error_description: 'The user denied the request'
 			}), true);
 
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'expired_token',
 				error_description: 'The device code has expired'
 			}), true);
 
 			// Valid response with optional error_uri
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'invalid_request',
 				error_description: 'The request is missing a required parameter',
 				error_uri: 'https://example.com/error'
 			}), true);
 
 			// Invalid cases
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(null), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(undefined), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({}), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error: 'missing-description' }), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error_description: 'missing-error' }), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse('not an object'), false);
+			assert.strictEqual(isAuthorizationErrorResponse(null), false);
+			assert.strictEqual(isAuthorizationErrorResponse(undefined), false);
+			assert.strictEqual(isAuthorizationErrorResponse({}), false);
+			assert.strictEqual(isAuthorizationErrorResponse({ error_description: 'missing-error' }), false);
+			assert.strictEqual(isAuthorizationErrorResponse('not an object'), false);
 		});
 	});
 

@@ -186,7 +186,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				throw new Error('Server does not support dynamic registration');
 			}
 			try {
-				const registration = await fetchDynamicRegistration(serverMetadata.registration_endpoint, this._initData.environment.appName);
+				const registration = await fetchDynamicRegistration(serverMetadata.registration_endpoint, this._initData.environment.appName, resourceMetadata?.scopes_supported);
 				clientId = registration.client_id;
 			} catch (err) {
 				throw new Error(`Dynamic registration failed: ${err.message}`);
