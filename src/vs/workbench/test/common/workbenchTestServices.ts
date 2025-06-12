@@ -239,7 +239,7 @@ export function createFileStat(resource: URI, readonly = false, isFile?: boolean
 		readonly,
 		locked: false,
 		name: basename(resource),
-		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory))
+		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory)),
 	};
 }
 

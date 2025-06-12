@@ -63,7 +63,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileSymlinkResolution;
+
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -101,10 +103,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
+	async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
 		try {
-			const resolvedPath = await realpath(this.toFilePath(resource));
-			return URI.file(resolvedPath);
+			if (!resource.path) {
+				return;
+			}
+			const resolvedPath = await realpath(resource.path);
+			const stat = await this.stat(URI.file(resolvedPath));
+			return stat;
 		} catch (error) {
 			// Return undefined if we can't resolve the symlink target
 			// This handles cases like:

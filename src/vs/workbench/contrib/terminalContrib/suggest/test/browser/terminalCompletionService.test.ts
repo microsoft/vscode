@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
+import { FileType, IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
@@ -697,7 +697,7 @@ suite('TerminalCompletionService', () => {
 
 				// Mock file service to include symlink information
 				instantiationService.stub(IFileService, {
-					async stat(resource) {
+					async stat(resource: any) {
 						if (!validResources.map(e => e.path).includes(resource.path)) {
 							throw new Error('Doesn\'t exist');
 						}
@@ -725,9 +725,9 @@ suite('TerminalCompletionService', () => {
 
 						return createFileStat(resource, undefined, undefined, undefined, processedChildren as any);
 					},
-					async resolveSymlinkTarget(resource: URI): Promise<URI | undefined> {
+					async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
 						if (resource.path.includes('symlink-file')) {
-							return URI.file('/target/actual-file.txt');
+							return { ...createFileStat(URI.file('/target/actual-file.txt'), false, true), type: FileType.File };
 						}
 						return undefined;
 					}
@@ -738,7 +738,7 @@ suite('TerminalCompletionService', () => {
 				// Find the symlink completion
 				const symlinkCompletion = result?.find(c => c.label === 'symlink-file');
 				assert.ok(symlinkCompletion, 'Symlink completion should be found');
-				assert.strictEqual(symlinkCompletion.symlinkTarget, '/target/actual-file.txt', 'Symlink target should be resolved');
+				assert.strictEqual(symlinkCompletion.kind, TerminalCompletionItemKind.File, 'Symlink target should be resolved');
 			});
 		});
 	}

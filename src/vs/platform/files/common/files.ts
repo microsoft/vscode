@@ -256,11 +256,11 @@ export interface IFileService {
 
 	/**
 	 * Resolves the target of a symbolic link.
-	 * 
+	 *
 	 * @param resource The URI of the symbolic link
 	 * @returns The URI of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
 	 */
-	resolveSymlinkTarget(resource: URI): Promise<URI | undefined>;
+	resolveSymlinkTarget(resource: URI): Promise<IStat | undefined>;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -643,7 +643,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 17
+	FileClone = 1 << 17,
+
+	/**
+	 * Symlink resolution
+	 */
+	FileSymlinkResolution = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -773,11 +778,11 @@ export interface IFileSystemProviderWithSymlinkResolutionCapability extends IFil
 
 	/**
 	 * Resolves the target of a symbolic link.
-	 * 
+	 *
 	 * @param resource The URI of the symbolic link
-	 * @returns The URI of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+	 * @returns The Stat of the target that the symlink points to, or undefined if resolution fails or the resource is not a symlink
 	 */
-	resolveSymlinkTarget(resource: URI): Promise<URI | undefined>;
+	resolveSymlinkTarget(resource: URI): Promise<IStat | undefined>;
 }
 
 export function hasSymlinkResolutionCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithSymlinkResolutionCapability {

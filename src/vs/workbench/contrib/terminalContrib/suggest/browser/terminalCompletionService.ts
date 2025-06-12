@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { basename } from '../../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -396,10 +396,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 
 			// Try to resolve symlink target for symbolic links
-			let symlinkTarget: string | undefined;
+			let symlinkIsDirectory: boolean;
 			if (child.isSymbolicLink) {
 				try {
-					symlinkTarget = await this._resolveSymlinkTarget(child.resource);
+					symlinkIsDirectory = await this._symlinkIsDirectory(child.resource);
+					if (symlinkIsDirectory) {
+						kind = TerminalCompletionItemKind.Folder;
+					} else {
+						kind = TerminalCompletionItemKind.File;
+					}
 				} catch (error) {
 					// Ignore errors resolving symlink targets - they may be dangling links
 				}
@@ -412,7 +417,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length,
-				symlinkTarget
 			});
 		}
 
@@ -520,13 +524,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	 * @param symlinkUri The URI of the symbolic link
 	 * @returns The target path that the symlink points to, or undefined if resolution fails
 	 */
-	private async _resolveSymlinkTarget(symlinkUri: URI): Promise<string | undefined> {
+	private async _symlinkIsDirectory(symlinkUri: URI): Promise<boolean> {
 		try {
 			const targetUri = await this._fileService.resolveSymlinkTarget(symlinkUri);
-			return targetUri?.fsPath;
+			return targetUri?.type === FileType.Directory;
 		} catch (error) {
 			// Return undefined if we can't resolve the symlink target
-			return undefined;
+			return false;
 		}
 	}
 }
