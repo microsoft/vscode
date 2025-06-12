@@ -15,9 +15,10 @@ import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer.j
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 
-export class TestWorkerService extends mock<IEditorWorkerService>() {
+export class TestWorkerService extends mock<IEditorWorkerService>() implements IDisposable {
 
 	private readonly _worker = new EditorWorker();
 
@@ -25,6 +26,9 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 		super();
 	}
 
+	dispose(): void {
+		this._worker.dispose();
+	}
 	override async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean | undefined): Promise<TextEdit[] | undefined> {
 		return undefined;
 	}

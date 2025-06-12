@@ -224,6 +224,7 @@ suite('InlineChatController', function () {
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
+		store.add(instaService.get(IEditorWorkerService) as TestWorkerService);
 
 		store.add(instaService.createInstance(ChatInputBoxContentProvider));
 
