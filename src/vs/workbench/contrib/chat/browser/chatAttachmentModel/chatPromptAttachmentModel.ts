@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { PromptParser } from '../../common/promptSyntax/parsers/promptParser.js';
 import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
-import { ObservableDisposable } from '../../common/promptSyntax/utils/observableDisposable.js';
 import { IPromptContentsProvider } from '../../common/promptSyntax/contentProviders/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 /**
  * Type for a generic prompt parser object.
@@ -19,7 +18,7 @@ type TPromptParser = BasePromptParser<IPromptContentsProvider>;
 /**
  * Model for a single chat prompt instructions attachment.
  */
-export class ChatPromptAttachmentModel extends ObservableDisposable {
+export class ChatPromptAttachmentModel extends Disposable {
 	/**
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
@@ -84,22 +83,10 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 		return this.reference.topError;
 	}
 
-	/**
-	 * Event that fires when the error condition of the prompt
-	 * reference changes.
-	 *
-	 * See {@link onUpdate}.
-	 */
-	protected _onUpdate = this._register(new Emitter<void>());
-	/**
-	 * Subscribe to the event that fires when the underlying prompt
-	 * reference instance is updated.
-	 * See {@link BasePromptParser.onUpdate}.
-	 */
-	public readonly onUpdate = this._onUpdate.event;
 
 	constructor(
 		public readonly uri: URI,
+		private readonly _onUpdate: () => void,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -115,9 +102,7 @@ export class ChatPromptAttachmentModel extends ObservableDisposable {
 			)
 		);
 
-		this._register(this._reference.onUpdate(
-			this._onUpdate.fire.bind(this._onUpdate),
-		));
+		this._register(this._reference.onUpdate(() => this._onUpdate()));
 	}
 
 	/**

@@ -21,6 +21,7 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -108,6 +109,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
+	private _isDisposable: boolean = false;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
@@ -115,7 +118,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
+		this._register(toDisposable(() => this._isDisposable = true));
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
@@ -264,6 +267,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+		if (this._isDisposable) {
+			return [];
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
 			// Check if the authorization server is in the list of supported authorization servers
@@ -281,6 +288,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
 			return await authProvider.createSession(scopes, {
@@ -293,6 +304,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async removeSession(id: string, sessionId: string): Promise<void> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.removeSession(sessionId);
@@ -361,32 +376,30 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 
-		const store = new DisposableStore();
-
-		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
-		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
-		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
-			store.add(Event.once(this.onDidRegisterAuthenticationProvider)(e => {
-				if (e.id === providerId) {
-					provider = this._authenticationProviders.get(providerId);
-					if (provider) {
-						resolve(provider);
-					} else {
-						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
-					}
-				}
-			}));
-		});
-
-		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
-			const handle = setTimeout(() => {
-				reject('Timed out waiting for authentication provider to register');
-			}, 5000);
-
-			store.add(toDisposable(() => clearTimeout(handle)));
-		});
-
-		return Promise.race([didRegister, didTimeout]).finally(() => store.dispose());
+		const store = this._register(new DisposableStore());
+		try {
+			const result = await raceTimeout(
+				Event.toPromise(
+					Event.filter(
+						this.onDidRegisterAuthenticationProvider,
+						e => e.id === providerId,
+						store
+					),
+					store
+				),
+				5000
+			);
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
+			}
+			provider = this._authenticationProviders.get(result.id);
+			if (provider) {
+				return provider;
+			}
+			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+		} finally {
+			store.dispose();
+		}
 	}
 }
 

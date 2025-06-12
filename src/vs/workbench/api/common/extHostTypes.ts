@@ -584,9 +584,9 @@ export class RemoteAuthorityResolverError extends Error {
 
 	public readonly _message: string | undefined;
 	public readonly _code: RemoteAuthorityResolverErrorCode;
-	public readonly _detail: any;
+	public readonly _detail: unknown;
 
-	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
+	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: unknown) {
 		super(message);
 
 		this._message = message;
@@ -1383,19 +1383,8 @@ export class SymbolInformation {
 	}
 }
 
-@es5ClassCompat
-export class DocumentSymbol {
 
-	static validate(candidate: DocumentSymbol): void {
-		if (!candidate.name) {
-			throw new Error('name must not be falsy');
-		}
-		if (!candidate.range.contains(candidate.selectionRange)) {
-			throw new Error('selectionRange must be contained in fullRange');
-		}
-		candidate.children?.forEach(DocumentSymbol.validate);
-	}
-
+abstract class AbstractDocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
@@ -1411,11 +1400,56 @@ export class DocumentSymbol {
 		this.range = range;
 		this.selectionRange = selectionRange;
 		this.children = [];
-
-		DocumentSymbol.validate(this);
 	}
 }
 
+@es5ClassCompat
+export class DocumentSymbol extends AbstractDocumentSymbol {
+
+	static validate(candidate: DocumentSymbol): void {
+		if (!candidate.name) {
+			throw new Error('name must not be falsy');
+		}
+		if (!candidate.range.contains(candidate.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
+		}
+		candidate.children?.forEach(DocumentSymbol.validate);
+	}
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
+		super(name, detail, kind, range, selectionRange);
+		DocumentSymbol.validate(this);
+	}
+
+	static override[Symbol.hasInstance](candidate: unknown): boolean {
+		if (!isObject(candidate)) {
+			throw new TypeError();
+		}
+		return candidate instanceof AbstractDocumentSymbol
+			|| candidate instanceof SymbolInformationAndDocumentSymbol;
+	}
+}
+
+// This is a special type that's used from the `vscode.executeDocumentSymbolProvider` API
+// command which implements both shapes, vscode.SymbolInformation _and_ vscode.DocumentSymbol
+export class SymbolInformationAndDocumentSymbol extends SymbolInformation implements vscode.DocumentSymbol {
+
+	detail: string;
+	range: vscode.Range;
+	selectionRange: vscode.Range;
+	children: vscode.DocumentSymbol[];
+	override containerName: string;
+
+	constructor(name: string, kind: vscode.SymbolKind, detail: string, containerName: string, uri: URI, range: Range, selectionRange: Range, children?: SymbolInformationAndDocumentSymbol[]) {
+		super(name, kind, containerName, new Location(uri, range));
+
+		this.containerName = containerName;
+		this.detail = detail;
+		this.range = range;
+		this.selectionRange = selectionRange;
+		this.children = children ?? [];
+	}
+}
 
 export enum CodeActionTriggerKind {
 	Invoke = 1,

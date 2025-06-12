@@ -5,7 +5,6 @@
 
 import { h } from '../../../../base/browser/dom.js';
 import { assertNever } from '../../../../base/common/assert.js';
-import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
@@ -34,9 +33,9 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../common/context
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
+import { ChatMode } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -47,6 +46,7 @@ import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcp
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
+import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -135,7 +135,7 @@ export class ListMcpServerCommand extends Action2 {
 		if (!picked) {
 			// no-op
 		} else if (picked.id === '$add') {
-			commandService.executeCommand(AddConfigurationAction.ID);
+			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
 		}
@@ -454,11 +454,9 @@ export class ResetMcpCachedTools extends Action2 {
 }
 
 export class AddConfigurationAction extends Action2 {
-	static readonly ID = 'workbench.mcp.addConfiguration';
-
 	constructor() {
 		super({
-			id: AddConfigurationAction.ID,
+			id: McpCommandIds.AddConfiguration,
 			title: localize2('mcp.addConfiguration', "Add Server..."),
 			metadata: {
 				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
@@ -747,18 +745,4 @@ export class McpStartPromptingServerCommand extends Action2 {
 	}
 }
 
-export async function openPanelChatAndGetWidget(viewsService: IViewsService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
-	await viewsService.openView(ChatViewId, true);
-	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Panel);
-	if (widgets.length) {
-		return widgets[0];
-	}
 
-	const eventPromise = Event.toPromise(Event.filter(chatService.onDidAddWidget, e => e.location === ChatAgentLocation.Panel));
-
-	return await raceTimeout(
-		eventPromise,
-		10_000, // should be enough time for chat to initialize...
-		() => eventPromise.cancel(),
-	);
-}

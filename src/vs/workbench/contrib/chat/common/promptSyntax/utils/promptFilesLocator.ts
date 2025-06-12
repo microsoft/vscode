@@ -59,30 +59,46 @@ export class PromptFilesLocator extends Disposable {
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
-		const disoposables = new DisposableStore();
-		const eventEmitter = disoposables.add(new Emitter<void>());
-		const key = getPromptFileLocationsConfigKey(type);
+		const disposables = new DisposableStore();
+		const eventEmitter = disposables.add(new Emitter<void>());
+
 		const userDataFolder = this.userDataService.currentProfile.promptsHome;
 
-		let parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
-		disoposables.add(this.configService.onDidChangeConfiguration(e => {
+		const key = getPromptFileLocationsConfigKey(type);
+		let parentFolders = this.getLocalParentFolders(type);
+
+		const externalFolderWatchers = disposables.add(new DisposableStore());
+		const updateExternalFolderWatchers = () => {
+			externalFolderWatchers.clear();
+			for (const folder of parentFolders) {
+				if (!this.workspaceService.getWorkspaceFolder(folder.parent)) {
+					// if the folder is not part of the workspace, we need to watch it
+					const recursive = folder.filePattern !== undefined;
+					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
+				}
+			}
+		};
+		updateExternalFolderWatchers();
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(key)) {
-				parentFolders = this.getLocalParentFolders(type).map(folder => folder.parent);
+				parentFolders = this.getLocalParentFolders(type);
+				updateExternalFolderWatchers();
 				eventEmitter.fire();
 			}
 		}));
-		disoposables.add(this.fileService.onDidFilesChange(e => {
+		disposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.contains(userDataFolder)) {
 				eventEmitter.fire();
 				return;
 			}
-			if (parentFolders.some(folder => e.affects(folder))) {
+			if (parentFolders.some(folder => folder.filePattern !== undefined ? e.affects(folder.parent) : e.contains(folder.parent))) {
 				eventEmitter.fire();
 				return;
 			}
 		}));
-		disoposables.add(this.fileService.watch(userDataFolder));
-		return { event: eventEmitter.event, dispose: () => disoposables.dispose() };
+		disposables.add(this.fileService.watch(userDataFolder));
+
+		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}
 
 	/**

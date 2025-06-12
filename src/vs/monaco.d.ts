@@ -3837,7 +3837,7 @@ declare namespace monaco.editor {
 		/**
 		 * Sets whether the new experimental edit context should be used instead of the text area.
 		 */
-		experimentalEditContextEnabled?: boolean;
+		editContext?: boolean;
 		/**
 		 * Controls support for changing how content is pasted into the editor.
 		 */
@@ -4963,7 +4963,7 @@ declare namespace monaco.editor {
 		domReadOnly = 37,
 		dragAndDrop = 38,
 		dropIntoEditor = 39,
-		experimentalEditContextEnabled = 40,
+		editContext = 40,
 		emptySelectionClipboard = 41,
 		experimentalGpuAcceleration = 42,
 		experimentalWhitespaceRendering = 43,
@@ -5082,7 +5082,7 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 156,
 		colorDecoratorsActivatedOn = 157,
 		inlineCompletionsAccessibilityVerbose = 158,
-		effectiveExperimentalEditContextEnabled = 159,
+		effectiveEditContext = 159,
 		scrollOnMiddleClick = 160
 	}
 
@@ -5131,7 +5131,7 @@ declare namespace monaco.editor {
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
-		experimentalEditContextEnabled: IEditorOption<EditorOption.experimentalEditContextEnabled, boolean>;
+		editContext: IEditorOption<EditorOption.editContext, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off'>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
@@ -5247,7 +5247,7 @@ declare namespace monaco.editor {
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
-		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
+		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
