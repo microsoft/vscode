@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent installing more than once per session
-if (Test-Path variable:global:Script:__VSCodeState.OriginalPrompt) {
+if (Test-Path variable:Script:__VSCodeState.OriginalPrompt) {
 	return;
 }
 
