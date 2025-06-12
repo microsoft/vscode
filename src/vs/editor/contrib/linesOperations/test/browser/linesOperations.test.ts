@@ -1659,7 +1659,7 @@ suite('Editor Contrib - Line Operations', () => {
 				const moveLinesDownAction = new MoveLinesDownAction();
 				moveLinesDownAction.run(null!, editor);
 
-				let model = editor.getModel()!;
+				const model = editor.getModel()!;
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 3',
@@ -1694,7 +1694,7 @@ suite('Editor Contrib - Line Operations', () => {
 				const moveLinesUpAction = new MoveLinesUpAction();
 				moveLinesUpAction.run(null!, editor);
 
-				let model = editor.getModel()!;
+				const model = editor.getModel()!;
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 1',
@@ -1729,7 +1729,7 @@ suite('Editor Contrib - Line Operations', () => {
 				const moveLinesUpAction = new MoveLinesUpAction();
 				const moveLinesDownAction = new MoveLinesDownAction();
 
-				let model = editor.getModel()!;
+				const model = editor.getModel()!;
 
 				moveLinesUpAction.run(null!, editor); // no change since selections are already at top
 
@@ -1765,6 +1765,78 @@ suite('Editor Contrib - Line Operations', () => {
 					editor.getSelections()!.toString(), [
 						new Selection(3, 1, 3, 1),
 						new Selection(4, 1, 4, 1),
+					].toString());
+			});
+		});
+
+		test('Move non ascending selections down', () => {
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(4, 1, 4, 1),
+					new Selection(3, 1, 3, 1),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(null!, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 5',
+					'Line 3',
+					'Line 4'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(5, 1, 5, 1),
+						new Selection(4, 1, 4, 1),
+					].toString());
+			});
+		});
+
+		test('Move multiple selections per line', () => {
+			const TEXT = [
+				'Line 1',
+				'Line 2',
+				'Line 3',
+				'Line 4',
+				'Line 5'
+			];
+			withTestCodeEditor(TEXT, {}, (editor) => {
+				editor.setSelections([
+					new Selection(3, 1, 3, 1),
+					new Selection(4, 1, 4, 1),
+					new Selection(3, 2, 3, 2),
+				]);
+
+				const moveLinesDownAction = new MoveLinesDownAction();
+				moveLinesDownAction.run(null!, editor);
+
+				const model = editor.getModel()!;
+
+				assert.deepStrictEqual(model.getLinesContent(), [
+					'Line 1',
+					'Line 2',
+					'Line 5',
+					'Line 3',
+					'Line 4'
+				]);
+
+				assert.deepStrictEqual(
+					editor.getSelections()!.toString(), [
+						new Selection(4, 1, 4, 1),
+						new Selection(5, 1, 5, 1),
+						new Selection(4, 2, 4, 2),
 					].toString());
 			});
 		});

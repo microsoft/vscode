@@ -175,82 +175,82 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		const commands: ICommand[] = [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
-		let selections = editor.getSelections() || [];
-		let movingMultipleLines = false;
-		let selectionDirectionDown = true;
-		const selectionsAfterLineMove: Selection[] = []; // The same selection as before the line move, but with adjusted line numbers
+		const selections = editor.getSelections() || [];
 
-		if (selections.length > 1) {
-			// Selections can be made by both keyboard or clicking, so the order of selections is not guaranteed
-			// But it's important to process the selections in sequential line order
-			movingMultipleLines = selections[0].endLineNumber !== selections[selections.length - 1].endLineNumber;
+		// If there are multiple selections, there is some extra logic required.
+		// Selections can be made by both keyboard or clicking, so the order of selections is not guaranteed.
+		// It's important to process the selections in sequential line order
+		const distinctSelectionsPerLine: Selection[] = []; // These are the selections that will actually operated on
 
-			if (movingMultipleLines) {
-				// Stash selections while processing, set new selections +/- line-change only
-				const distinctSelectionsPerLine: Selection[] = [];
-				let lastLineNumber = 0;
+		// Same as initial selections, but with adjusted line numbers after the move
+		// These will however not be applied if it's a no-op
+		const selectionsAfterLineMove: Selection[] = [];
 
-				for (const selection of selections) {
-					const startCol = selection.getStartPosition().column;
-					const startLine = selection.getStartPosition().lineNumber;
-					const newStartLine = this.down ? startLine + 1 : startLine - 1;
+		// Stash selections while processing, set new selections with +/- line-change only
+		// Selections should not be sorted before this step
+		for (const selection of selections) {
+			const startCol = selection.getStartPosition().column;
+			const startLine = selection.getStartPosition().lineNumber;
+			const newStartLine = this.down ? startLine + 1 : startLine - 1;
 
-					const endCol = selection.getEndPosition().column;
-					const endLine = selection.getEndPosition().lineNumber;
-					const newEndLine = this.down ? endLine + 1 : endLine - 1;
+			const endCol = selection.getEndPosition().column;
+			const endLine = selection.getEndPosition().lineNumber;
+			const newEndLine = this.down ? endLine + 1 : endLine - 1;
 
-					selectionsAfterLineMove.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+			selectionsAfterLineMove.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+		}
 
-					// Work only with one selection per line
-					// if there are multiple selections in one line and we move each selection, the line would be moved multiple times
-					if (lastLineNumber !== selection.endLineNumber) {
-						distinctSelectionsPerLine.push(selection);
-						lastLineNumber = selection.endLineNumber;
-					}
-				}
+		// Sort selections by line to guarantee correct processing order of the move line command
+		selections.sort((a, b) => a.endLineNumber - b.endLineNumber);
+		let lastLineNumber = 0;
 
-				selections = distinctSelectionsPerLine;
-				// Sort selections by endLineNumber, important for processing of the move command
-				selections.sort((a, b) => a.endLineNumber - b.endLineNumber);
-
-				selectionDirectionDown = selections[0].endLineNumber < selections[selections.length - 1].endLineNumber;
-
-				editor.pushUndoStop();
-
-				if (selectionDirectionDown === this.down) {
-					selections.reverse();
-				}
+		for (const selection of selections) {
+			// Work only with one selection per line, otherwise we risk to initiate multiple moves on a line
+			if (lastLineNumber !== selection.endLineNumber) {
+				distinctSelectionsPerLine.push(selection);
+				lastLineNumber = selection.endLineNumber;
 			}
 		}
 
-		for (const selection of selections) {
+		if (this.down) {
+			// Selections are now sorted in ascending order
+			// Processing needs to be done in reversed order if we are moving lines down
+			// I.e. starting with the last selection in the bottom - otherwise we move the same line multiple times
+			distinctSelectionsPerLine.reverse();
+		}
+
+		const model = editor.getModel();
+		const lineCount = model !== null ? model.getLineCount() : 0;
+		const movingMultipleLines = distinctSelectionsPerLine.length > 1;
+
+		if (movingMultipleLines) {
+			editor.pushUndoStop();
+		}
+
+		for (const selection of distinctSelectionsPerLine) {
+			// If we are at the beginning/end of document, abort the command
+			if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === lineCount && this.down)) {
+				editor.pushUndoStop();
+				return;
+			}
+
+			// Unfortunately passing a commands array doesn't work currently with multiple lines moved
+			// Remove this branching when it is fixed along with movingMultipleLines constant
 			if (movingMultipleLines) {
-				// If we are at the beginning/end of document and multiple lines are moved, abort.
-				const model = editor.getModel();
-				const lineCount = model !== null ? model.getLineCount() : 0;
-
-				if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === lineCount && this.down)) {
-					editor.pushUndoStop();
-					return;
-				}
-
 				editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
 			} else {
 				commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
 			}
 		}
 
-		if (movingMultipleLines) {
-			if (selectionsAfterLineMove.length > 1) {
-				editor.setSelections(selectionsAfterLineMove);
-			}
-
+		if (!movingMultipleLines) {
 			editor.pushUndoStop();
+			editor.executeCommands(this.id, commands); // This will also set the selection
 		} else {
-			editor.pushUndoStop();
-			editor.executeCommands(this.id, commands);
-			editor.pushUndoStop();
+			editor.setSelections(selectionsAfterLineMove);
 		}
+
+		editor.pushUndoStop();
 	}
 }
 
