@@ -3205,7 +3205,7 @@ export namespace TerminalResourceRequestConfig {
 		return {
 			...resourceRequestConfig,
 			pathSeparator,
-			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
+			cwd: resourceRequestConfig.cwd,
 		};
 	}
 }
