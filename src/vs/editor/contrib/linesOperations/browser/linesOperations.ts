@@ -178,29 +178,40 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		let selections = editor.getSelections() || [];
 		let movingMultipleLines = false;
 		let selectionDirectionDown = true;
-		let newSelections: Selection[] = [];
+		const selectionsAfterLineMove: Selection[] = []; // The same selection as before the line move, but with adjusted line numbers
 
 		if (selections.length > 1) {
+			// Selections can be made by both keyboard or clicking, so the order of selections is not guaranteed
+			// But it's important to process the selections in sequential line order
 			movingMultipleLines = selections[0].endLineNumber !== selections[selections.length - 1].endLineNumber;
 
 			if (movingMultipleLines) {
 				// Stash selections while processing, set new selections +/- line-change only
+				const distinctSelectionsPerLine: Selection[] = [];
+				let lastLineNumber = 0;
+
 				for (const selection of selections) {
-					let startCol = selection.getStartPosition().column;
-					let startLine = selection.getStartPosition().lineNumber;
-					let newStartLine = this.down ? startLine + 1 : startLine - 1;
+					const startCol = selection.getStartPosition().column;
+					const startLine = selection.getStartPosition().lineNumber;
+					const newStartLine = this.down ? startLine + 1 : startLine - 1;
 
-					let endCol = selection.getEndPosition().column;
-					let endLine = selection.getEndPosition().lineNumber;
-					let newEndLine = this.down ? endLine + 1 : endLine - 1;
+					const endCol = selection.getEndPosition().column;
+					const endLine = selection.getEndPosition().lineNumber;
+					const newEndLine = this.down ? endLine + 1 : endLine - 1;
 
-					newSelections.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+					selectionsAfterLineMove.push(new Selection(newStartLine, startCol, newEndLine, endCol));
+
+					// Work only with one selection per line
+					// if there are multiple selections in one line and we move each selection, the line would be moved multiple times
+					if (lastLineNumber !== selection.endLineNumber) {
+						distinctSelectionsPerLine.push(selection);
+						lastLineNumber = selection.endLineNumber;
+					}
 				}
 
-				// Work only with one selection per line
-				selections = selections.filter((s, idx, arr) => {
-					return arr.map(sel => sel['endLineNumber']).indexOf(s['endLineNumber']) === idx;
-				});
+				selections = distinctSelectionsPerLine;
+				// Sort selections by endLineNumber, important for processing of the move command
+				selections.sort((a, b) => a.endLineNumber - b.endLineNumber);
 
 				selectionDirectionDown = selections[0].endLineNumber < selections[selections.length - 1].endLineNumber;
 
@@ -215,8 +226,8 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		for (const selection of selections) {
 			if (movingMultipleLines) {
 				// If we are at the beginning/end of document and multiple lines are moved, abort.
-				let model = editor.getModel();
-				let lineCount = model !== null ? model.getLineCount() : 0;
+				const model = editor.getModel();
+				const lineCount = model !== null ? model.getLineCount() : 0;
 
 				if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === lineCount && this.down)) {
 					editor.pushUndoStop();
@@ -230,8 +241,8 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		}
 
 		if (movingMultipleLines) {
-			if (newSelections.length > 1) {
-				editor.setSelections(newSelections);
+			if (selectionsAfterLineMove.length > 1) {
+				editor.setSelections(selectionsAfterLineMove);
 			}
 
 			editor.pushUndoStop();
