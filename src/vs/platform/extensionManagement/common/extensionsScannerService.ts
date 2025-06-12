@@ -200,10 +200,22 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	async scanSystemExtensions(scanOptions: SystemExtensionsScanOptions): Promise<IScannedExtension[]> {
+		this.logService.trace('[ExtensionsScannerService] scanSystemExtensions called with:', {
+			language: scanOptions.language || 'undefined',
+			checkControlFile: !!scanOptions.checkControlFile
+		});
+
 		const promises: Promise<IRelaxedScannedExtension[]>[] = [];
 		promises.push(this.scanDefaultSystemExtensions(scanOptions.language));
 		promises.push(this.scanDevSystemExtensions(scanOptions.language, !!scanOptions.checkControlFile));
 		const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
+
+		this.logService.trace('[ExtensionsScannerService] scanSystemExtensions results:', {
+			defaultSystemCount: defaultSystemExtensions.length,
+			devSystemCount: devSystemExtensions.length,
+			totalBeforeDedup: defaultSystemExtensions.length + devSystemExtensions.length
+		});
+
 		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], ExtensionType.System, { pickLatest: false });
 	}
 
@@ -414,6 +426,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private async scanDefaultSystemExtensions(language: string | undefined): Promise<IRelaxedScannedExtension[]> {
+		this.logService.trace('[ExtensionsScannerService] scanDefaultSystemExtensions called with language:', language || 'undefined');
 		this.logService.trace('Started scanning system extensions');
 		const extensionsScannerInput = await this.createExtensionScannerInput(this.systemExtensionsLocation, false, ExtensionType.System, language, true, undefined, this.getProductVersion());
 		const extensionsScanner = extensionsScannerInput.devMode ? this.extensionsScanner : this.systemExtensionsCachedScanner;
@@ -423,8 +436,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private async scanDevSystemExtensions(language: string | undefined, checkControlFile: boolean): Promise<IRelaxedScannedExtension[]> {
+		this.logService.trace('[ExtensionsScannerService] scanDevSystemExtensions called with:', {
+			language: language || 'undefined',
+			checkControlFile
+		});
+
 		const devSystemExtensionsList = this.environmentService.isBuilt ? [] : this.productService.builtInExtensions;
 		if (!devSystemExtensionsList?.length) {
+			this.logService.trace('[ExtensionsScannerService] No dev system extensions to scan');
 			return [];
 		}
 
@@ -445,6 +464,12 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 					break;
 			}
 		}
+
+		this.logService.trace('[ExtensionsScannerService] Dev system extensions to scan:', {
+			totalExtensions: devSystemExtensionsList.length,
+			locationsToScan: devSystemExtensionsLocations.length
+		});
+
 		const result = await Promise.all(devSystemExtensionsLocations.map(async location => this.extensionsScanner.scanExtension((await this.createExtensionScannerInput(location, false, ExtensionType.System, language, true, undefined, this.getProductVersion())))));
 		this.logService.trace('Scanned dev system extensions:', result.length);
 		return coalesce(result);
@@ -460,10 +485,27 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private async createExtensionScannerInput(location: URI, profile: boolean, type: ExtensionType, language: string | undefined, validate: boolean, profileScanOptions: IProfileExtensionsScanOptions | undefined, productVersion: IProductVersion): Promise<ExtensionScannerInput> {
-		const translations = await this.getTranslations(language ?? platform.language);
+		this.logService.trace('[ExtensionsScannerService] createExtensionScannerInput called with:', {
+			location: location.toString(),
+			type: type === ExtensionType.System ? 'System' : 'User',
+			language: language || 'undefined',
+			fallbackLanguage: platform.language
+		});
+
+		const finalLanguage = language ?? platform.language;
+		this.logService.trace('[ExtensionsScannerService] Getting translations for language:', finalLanguage);
+
+		const translations = await this.getTranslations(finalLanguage);
 		const mtime = await this.getMtime(location);
 		const applicationExtensionsLocation = profile && !this.uriIdentityService.extUri.isEqual(location, this.userDataProfilesService.defaultProfile.extensionsResource) ? this.userDataProfilesService.defaultProfile.extensionsResource : undefined;
 		const applicationExtensionsLocationMtime = applicationExtensionsLocation ? await this.getMtime(applicationExtensionsLocation) : undefined;
+
+		this.logService.trace('[ExtensionsScannerService] createExtensionScannerInput result:', {
+			finalLanguage,
+			hasTranslations: !!translations && Object.keys(translations).length > 0,
+			translationsCount: translations ? Object.keys(translations).length : 0
+		});
+
 		return new ExtensionScannerInput(
 			location,
 			mtime,

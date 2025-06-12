@@ -115,6 +115,17 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		languagePackId?: string
 	): Promise<IExtensionDescription[]> {
 		performance.mark('code/server/willScanExtensions');
+
+		this._logService.trace(`[RemoteExtensionsScanner] scanExtensions called with:`, {
+			language: language || 'undefined',
+			platformLanguage: platform.language,
+			finalLanguage: language ?? platform.language,
+			profileLocation: profileLocation?.toString() || 'undefined',
+			languagePackId: languagePackId || 'undefined',
+			hasWorkspaceExtensions: !!workspaceExtensionLocations?.length,
+			hasDevExtensions: !!extensionDevelopmentLocations?.length
+		});
+
 		this._logService.trace(`Scanning extensions using UI language: ${language}`);
 
 		await this._whenBuiltinExtensionsReady;
@@ -122,7 +133,10 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		const extensionDevelopmentPaths = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
 		profileLocation = profileLocation ?? this._userDataProfilesService.defaultProfile.extensionsResource;
 
-		const extensions = await this._scanExtensions(profileLocation, language ?? platform.language, workspaceExtensionLocations, extensionDevelopmentPaths, languagePackId);
+		const finalLanguage = language ?? platform.language;
+		this._logService.trace(`[RemoteExtensionsScanner] Using final language: "${finalLanguage}" (from ${language ? 'parameter' : 'platform.language'})`);
+
+		const extensions = await this._scanExtensions(profileLocation, finalLanguage, workspaceExtensionLocations, extensionDevelopmentPaths, languagePackId);
 
 		this._logService.trace('Scanned Extensions', extensions);
 		this._massageWhenConditions(extensions);
@@ -132,14 +146,30 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	private async _scanExtensions(profileLocation: URI, language: string, workspaceInstalledExtensionLocations: URI[] | undefined, extensionDevelopmentPath: string[] | undefined, languagePackId: string | undefined): Promise<IExtensionDescription[]> {
+		this._logService.trace(`[RemoteExtensionsScanner] _scanExtensions called with:`, {
+			language,
+			profileLocation: profileLocation.toString(),
+			languagePackId,
+			hasWorkspaceExtensions: !!workspaceInstalledExtensionLocations?.length,
+			hasDevExtensions: !!extensionDevelopmentPath?.length
+		});
+
 		await this._ensureLanguagePackIsInstalled(language, languagePackId);
 
+		this._logService.trace(`[RemoteExtensionsScanner] Scanning extensions with language: "${language}"`);
 		const [builtinExtensions, installedExtensions, workspaceInstalledExtensions, developedExtensions] = await Promise.all([
 			this._scanBuiltinExtensions(language),
 			this._scanInstalledExtensions(profileLocation, language),
 			this._scanWorkspaceInstalledExtensions(language, workspaceInstalledExtensionLocations),
 			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
+
+		this._logService.trace(`[RemoteExtensionsScanner] Extension scan results:`, {
+			builtinCount: builtinExtensions.length,
+			installedCount: installedExtensions.length,
+			workspaceCount: workspaceInstalledExtensions.length,
+			developedCount: developedExtensions.length
+		});
 
 		return dedupExtensions(builtinExtensions, installedExtensions, workspaceInstalledExtensions, developedExtensions, this._logService);
 	}
@@ -167,7 +197,22 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
+		this._logService.trace(`[RemoteExtensionsScanner] _scanBuiltinExtensions called with language: "${language}"`);
 		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language });
+		this._logService.trace(`[RemoteExtensionsScanner] Built-in extensions scanned: ${scannedExtensions.length} extensions`);
+
+		// Log sample of built-in extensions with their localization info
+		if (scannedExtensions.length > 0) {
+			const sampleExtensions = scannedExtensions.slice(0, 3).map(ext => ({
+				id: ext.identifier.id,
+				displayName: ext.manifest.displayName,
+				description: ext.manifest.description,
+				l10n: ext.manifest.l10n,
+				contributes: ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : []
+			}));
+			this._logService.trace(`[RemoteExtensionsScanner] Sample built-in extensions:`, sampleExtensions);
+		}
+
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
@@ -177,36 +222,57 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	private async _ensureLanguagePackIsInstalled(language: string, languagePackId: string | undefined): Promise<void> {
+		this._logService.trace(`[RemoteExtensionsScanner] _ensureLanguagePackIsInstalled called:`, {
+			language,
+			languagePackId,
+			isDefaultLanguage: language === platform.LANGUAGE_DEFAULT,
+			galleryEnabled: this._extensionGalleryService.isEnabled(),
+			LANGUAGE_DEFAULT: platform.LANGUAGE_DEFAULT
+		});
+
 		if (
 			// No need to install language packs for the default language
 			language === platform.LANGUAGE_DEFAULT ||
 			// The extension gallery service needs to be available
 			!this._extensionGalleryService.isEnabled()
 		) {
+			this._logService.trace(`[RemoteExtensionsScanner] Skipping language pack installation - early return`);
 			return;
 		}
 
 		try {
+			this._logService.trace(`[RemoteExtensionsScanner] Checking installed language packs...`);
 			const installed = await this._languagePackService.getInstalledLanguages();
-			if (installed.find(p => p.id === language)) {
+			this._logService.trace(`[RemoteExtensionsScanner] Installed language packs:`, installed.map(p => ({ id: p.id, label: p.label })));
+
+			const foundPack = installed.find(p => p.id === language);
+			if (foundPack) {
+				this._logService.trace(`[RemoteExtensionsScanner] Language Pack ${language} is already installed. Skipping language pack installation.`);
 				this._logService.trace(`Language Pack ${language} is already installed. Skipping language pack installation.`);
 				return;
+			} else {
+				this._logService.trace(`[RemoteExtensionsScanner] Language Pack ${language} not found in installed packs`);
 			}
 		} catch (err) {
 			// We tried to see what is installed but failed. We can try installing anyway.
+			this._logService.trace(`[RemoteExtensionsScanner] Error checking installed language packs:`, err);
 			this._logService.error(err);
 		}
 
 		if (!languagePackId) {
+			this._logService.trace(`[RemoteExtensionsScanner] No language pack id provided for language ${language}. Skipping language pack installation.`);
 			this._logService.trace(`No language pack id provided for language ${language}. Skipping language pack installation.`);
 			return;
 		}
 
+		this._logService.trace(`[RemoteExtensionsScanner] Installing Language Pack ${languagePackId} for language ${language}...`);
 		this._logService.trace(`Language Pack ${languagePackId} for language ${language} is not installed. It will be installed now.`);
 		try {
 			await this._extensionManagementCLI.installExtensions([languagePackId], [], { isMachineScoped: true }, true);
+			this._logService.trace(`[RemoteExtensionsScanner] Successfully installed Language Pack ${languagePackId}`);
 		} catch (err) {
 			// We tried to install the language pack but failed. We can continue without it thus using the default language.
+			this._logService.trace(`[RemoteExtensionsScanner] Failed to install Language Pack ${languagePackId}:`, err);
 			this._logService.error(err);
 		}
 	}

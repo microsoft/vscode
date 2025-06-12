@@ -37,14 +37,35 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
+		this.logService.trace(`[ExtensionsScannerService] getTranslations called with language: "${language}"`);
+		this.logService.trace(`[ExtensionsScannerService] userDataPath: ${this.nativeEnvironmentService.userDataPath}`);
+
 		const config = await getNLSConfiguration(language, this.nativeEnvironmentService.userDataPath);
+		this.logService.trace(`[ExtensionsScannerService] NLS config received:`, {
+			userLocale: config.userLocale,
+			resolvedLanguage: config.resolvedLanguage,
+			hasLanguagePack: !!config.languagePack,
+			languagePackPath: config.languagePack?.translationsConfigFile
+		});
+
 		if (config.languagePack) {
+			this.logService.trace(`[ExtensionsScannerService] Found language pack, attempting to read: ${config.languagePack.translationsConfigFile}`);
 			try {
 				const content = await this.fileService.readFile(URI.file(config.languagePack.translationsConfigFile));
-				return JSON.parse(content.value.toString());
-			} catch (err) { /* Ignore error */ }
+				const translations = JSON.parse(content.value.toString());
+				this.logService.trace(`[ExtensionsScannerService] Successfully loaded translations, keys count: ${Object.keys(translations).length}`);
+				this.logService.trace(`[ExtensionsScannerService] Translation sample (first 3 keys):`, Object.keys(translations).slice(0, 3));
+				return translations;
+			} catch (err) {
+				this.logService.trace(`[ExtensionsScannerService] Error reading language pack:`, err);
+			}
+		} else {
+			this.logService.trace(`[ExtensionsScannerService] No language pack found, returning empty translations`);
 		}
-		return Object.create(null);
+
+		const emptyTranslations = Object.create(null);
+		this.logService.trace(`[ExtensionsScannerService] Returning empty translations object`);
+		return emptyTranslations;
 	}
 
 }
