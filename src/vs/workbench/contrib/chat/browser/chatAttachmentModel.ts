@@ -10,7 +10,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachments.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
