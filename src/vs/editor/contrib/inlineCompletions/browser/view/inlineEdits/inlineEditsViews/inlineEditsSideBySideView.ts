@@ -16,7 +16,6 @@ import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
@@ -289,7 +288,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				codeRect = codeRect.withMargin(VERTICAL_PADDING, HORIZONTAL_PADDING);
 			}
 
-			const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+			const previewLineHeights = this._previewEditorObs.observeLineHeightsForLineRange(inlineEdit.modifiedLineRange).read(reader);
+			const editHeight = previewLineHeights.reduce((acc, h) => acc + h, 0);
 			const codeHeight = selectionBottom - selectionTop;
 			const previewEditorHeight = Math.max(codeHeight, editHeight);
 

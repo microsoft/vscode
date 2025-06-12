@@ -30,8 +30,6 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
-declare const ResizeObserver: any;
-
 const storageKeys = {
 	webviewState: 'webviewState',
 } as const;

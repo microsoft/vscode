@@ -19,9 +19,7 @@ type TToken = NewLine | Space | Word | Text<TToken[]>;
 /**
  * Test utility to clone a list of provided tokens.
  */
-export const cloneTokens = (
-	tokens: TToken[],
-): TToken[] => {
+export function cloneTokens(tokens: TToken[]): TToken[] {
 	const clonedTokens: TToken[] = [];
 
 	for (const token of tokens) {
@@ -65,16 +63,12 @@ export const cloneTokens = (
 	}
 
 	return clonedTokens;
-};
+}
 
 /**
  * Test utility to generate a number of random tokens.
  */
-export const randomTokens = (
-	tokenCount: number = randomInt(20, 10),
-	startLine: number = randomInt(100, 1),
-	startColumn: number = randomInt(100, 1),
-): TToken[] => {
+export function randomTokens(tokenCount: number = randomInt(20, 10), startLine: number = randomInt(100, 1), startColumn: number = randomInt(100, 1)): TToken[] {
 	const tokens = [];
 
 	let tokensLeft = tokenCount;
@@ -149,4 +143,4 @@ export const randomTokens = (
 	}
 
 	return tokens;
-};
+}

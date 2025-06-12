@@ -19,7 +19,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatMode, modeToString } from '../../common/constants.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
 

@@ -10,7 +10,7 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { PromptToolsMetadata, PromptModeMetadata } from './metadata/index.js';
 import { HeaderBase, IHeaderMetadata, type TDehydrated } from './headerBase.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../../promptTypes.js';
 import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**

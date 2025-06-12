@@ -14,9 +14,7 @@ import { randomBoolean } from '../../../../../../../../../base/test/common/testU
  * @throws if {@link maxNumber} argument is less than `2`,
  *         is equal to `NaN` or is `infinite`.
  */
-export const randomRange = (
-	maxNumber: number = 1_000,
-): Range => {
+export function randomRange(maxNumber: number = 1_000): Range {
 	assert(
 		maxNumber > 1,
 		`Max number must be greater than 1, got '${maxNumber}'.`,
@@ -38,16 +36,13 @@ export const randomRange = (
 		endLineNumber,
 		endColumnNumber,
 	);
-};
+}
 
 /**
  * Generates a random {@link Range} object that is different
  * from the provided one.
  */
-export const randomRangeNotEqualTo = (
-	differentFrom: Range,
-	maxTries: number = 10,
-): Range => {
+export function randomRangeNotEqualTo(differentFrom: Range, maxTries: number = 10): Range {
 	let retriesLeft = maxTries;
 
 	while (retriesLeft-- > 0) {
@@ -60,4 +55,4 @@ export const randomRangeNotEqualTo = (
 	throw new Error(
 		`Failed to generate a random range different from '${differentFrom}' in ${maxTries} tries.`,
 	);
-};
+}

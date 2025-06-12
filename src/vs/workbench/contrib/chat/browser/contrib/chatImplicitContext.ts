@@ -21,12 +21,12 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestFileEntry, IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/constants.js';
-import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/types.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
+import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { toChatVariable } from '../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 

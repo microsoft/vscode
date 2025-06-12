@@ -21,9 +21,7 @@ export function objectStreamFromTextModel(
 /**
  * Create a generator out of a provided text model.
  */
-const modelToGenerator = (
-	model: ITextModel,
-): Generator<VSBuffer, undefined> => {
+function modelToGenerator(model: ITextModel): Generator<VSBuffer, undefined> {
 	return (function* (): Generator<VSBuffer, undefined> {
 		const totalLines = model.getLineCount();
 		let currentLine = 1;
@@ -45,4 +43,4 @@ const modelToGenerator = (
 			currentLine++;
 		}
 	})();
-};
+}

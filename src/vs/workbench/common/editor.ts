@@ -5,7 +5,7 @@
 
 import { localize } from '../../nls.js';
 import { Event } from '../../base/common/event.js';
-import { DeepRequiredNonNullable, assertIsDefined } from '../../base/common/types.js';
+import { DeepRequiredNonNullable, assertReturnsDefined } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon.js';
@@ -1558,7 +1558,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 	}
 
 	getFileEditorFactory(): IFileEditorFactory {
-		return assertIsDefined(this.fileEditorFactory);
+		return assertReturnsDefined(this.fileEditorFactory);
 	}
 
 	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature<IEditorSerializer>): IDisposable {

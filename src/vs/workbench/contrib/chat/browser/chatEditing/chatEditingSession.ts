@@ -35,11 +35,11 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
-import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
+import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { ChatEditingSessionStorage, IChatEditingSessionSnapshot, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -512,7 +512,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const entry of this._entriesObs.get()) {
 			const snapshotEntry = entries.get(entry.modifiedURI);
 			if (!snapshotEntry) {
-				entry.resetToInitialContent();
+				await entry.resetToInitialContent();
 				entry.dispose();
 			}
 		}
@@ -522,33 +522,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const snapshotEntry of entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
-			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
+			await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 			entriesArr.push(entry);
 		}
 
 		this._entriesObs.set(entriesArr, undefined);
-	}
-
-	remove(...uris: URI[]): void {
-		this._assertNotDisposed();
-
-		let didRemoveUris = false;
-		for (const uri of uris) {
-
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				entry.dispose();
-				const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
-				this._entriesObs.set(newEntries, undefined);
-				didRemoveUris = true;
-			}
-
-		}
-
-		if (!didRemoveUris) {
-			return; // noop
-		}
-
 	}
 
 	private _assertNotDisposed(): void {

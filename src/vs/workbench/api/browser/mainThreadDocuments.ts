@@ -290,6 +290,9 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			initialValue: options?.content,
 			encoding: options?.encoding
 		});
+		if (options?.encoding) {
+			await model.setEncoding(options.encoding);
+		}
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);
 		if (!this._modelTrackers.has(resource)) {
