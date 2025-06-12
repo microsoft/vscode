@@ -8,7 +8,7 @@
 }
 
 .monaco-custom-radio > .monaco-button {
-	border-radius: 0;
+	border-radius: var(--vscode-base-corner-radius-none);
 	font-size: 0.9em;
 	line-height: 1em;
 	padding-left: 0.5em;
@@ -16,13 +16,13 @@
 }
 
 .monaco-custom-radio > .monaco-button:first-child {
-	border-top-left-radius: 3px;
-	border-bottom-left-radius: 3px;
+	border-top-left-radius: var(--vscode-base-corner-radius-s);
+	border-bottom-left-radius: var(--vscode-base-corner-radius-s);
 }
 
 .monaco-custom-radio > .monaco-button:last-child {
-	border-top-right-radius: 3px;
-	border-bottom-right-radius: 3px;
+	border-top-right-radius: var(--vscode-base-corner-radius-s);
+	border-bottom-right-radius: var(--vscode-base-corner-radius-s);
 }
 
 .monaco-custom-radio > .monaco-button:not(.active):not(:last-child) {
@@ -60,8 +60,8 @@
 
 .hc-black .monaco-custom-radio > .monaco-button:not(.active):hover,
 .hc-light .monaco-custom-radio > .monaco-button:not(.active):hover {
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px
+	outline: var(--vscode-base-line-width-s) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(var(--vscode-base-line-width-s) * -1);
 }
 
 .monaco-custom-radio > .monaco-button:hover:not(.active) {

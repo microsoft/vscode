@@ -57,7 +57,7 @@
 .monaco-list.element-focused,
 .monaco-list.selection-single,
 .monaco-list.selection-multiple {
-	outline: 0 !important;
+	outline: var(--vscode-base-line-width-none) !important;
 }
 
 /* Filter */
@@ -67,8 +67,8 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	top: 0;
-	left: 0;
+	top: var(--vscode-base-spacing-none);
+	left: var(--vscode-base-spacing-none);
 	padding: 40px 1em 1em 1em;
 	text-align: center;
 	white-space: normal;

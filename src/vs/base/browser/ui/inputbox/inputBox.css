@@ -6,9 +6,9 @@
 .monaco-inputbox {
 	position: relative;
 	display: block;
-	padding: 0;
+	padding: var(--vscode-base-spacing-none);
 	box-sizing:	border-box;
-	border-radius: 2px;
+	border-radius: var(--vscode-base-corner-radius-xs);
 
 	/* Customizable */
 	font-size: inherit;
@@ -18,7 +18,7 @@
 .monaco-inputbox > .ibwrapper > .mirror {
 
 	/* Customizable */
-	padding: 4px 6px;
+	padding: var(--vscode-base-spacing-xs) var(--vscode-base-spacing-nudge-s);
 }
 
 .monaco-inputbox > .ibwrapper {
@@ -61,8 +61,8 @@
 	position: absolute;
 	display: inline-block;
 	width: 100%;
-	top: 0;
-	left: 0;
+	top: var(--vscode-base-spacing-none);
+	left: var(--vscode-base-spacing-none);
 	box-sizing: border-box;
 	white-space: pre-wrap;
 	visibility: hidden;
@@ -82,25 +82,25 @@
 	width: 100%;
 	box-sizing:	border-box;
 	padding: 0.4em;
-	font-size: 12px;
-	line-height: 17px;
-	margin-top: -1px;
+	font-size: var(--vscode-font-body2-size);
+	line-height: var(--vscode-inputbox-line-height);
+	margin-top: calc(var(--vscode-base-spacing-xxxs) * -1);
 	word-wrap: break-word;
 }
 
 /* Action bar support */
 .monaco-inputbox .monaco-action-bar {
 	position: absolute;
-	right: 2px;
-	top: 4px;
+	right: var(--vscode-base-spacing-xxs);
+	top: var(--vscode-base-spacing-xs);
 }
 
 .monaco-inputbox .monaco-action-bar .action-item {
-	margin-left: 2px;
+	margin-left: var(--vscode-base-spacing-xxs);
 }
 
 .monaco-inputbox .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
-	width: 16px;
-	height: 16px;
+	width: var(--vscode-codicon-width);
+	height: var(--vscode-codicon-height);
 }

@@ -9,5 +9,5 @@
 
 .monaco-toolbar .toolbar-toggle-more {
 	display: inline-block;
-	padding: 0;
+	padding: var(--vscode-base-spacing-none);
 }

@@ -8,8 +8,8 @@
 	position: fixed;
 	height: 100%;
 	width: 100%;
-	left: 0;
-	top: 0;
+	left: var(--vscode-base-spacing-none);
+	top: var(--vscode-base-spacing-none);
 	z-index: 2575; /* Above Context Views, Below Workbench Hover */
 	display: flex;
 	justify-content: center;
@@ -25,22 +25,22 @@
 	display: flex;
 	flex-direction: column-reverse;
 	width: min-content;
-	min-width: 500px;
+	min-width: var(--vscode-dialog-min-width);
 	max-width: 90vw;
-	min-height: 75px;
-	padding: 10px;
+	min-height: var(--vscode-dialog-min-height);
+	padding: var(--vscode-dialog-spacing-m);
 	transform: translate3d(0px, 0px, 0px);
-	border-radius: 3px;
+	border-radius: var(--vscode-base-corner-radius-s);
 }
 
 .monaco-dialog-box.align-vertical {
-	min-width: 350px; /* more narrow when aligned vertically */
+	min-width: var(--vscode-dialog-verticalorientation-min-width); /* more narrow when aligned vertically */
 }
 
 /** Dialog: Title Actions Row */
 .monaco-dialog-box .dialog-toolbar-row {
-	height: 22px;
-	padding-bottom: 4px;
+	height: var(--vscode-dialog-toolbar-height);
+	padding-bottom: var(--vscode-base-spacing-xs);
 }
 
 .monaco-dialog-box .dialog-toolbar-row .actions-container {
@@ -53,7 +53,7 @@
 	display: flex;
 	flex-grow: 1;
 	align-items: center;
-	padding: 0 10px;
+	padding: var(--vscode-base-spacing-none) var(--vscode-dialog-spacing-m);
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row {
@@ -61,15 +61,15 @@
 }
 
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
-	flex: 0 0 48px;
-	height: 48px;
-	font-size: 48px;
+	flex: 0 0 var(--vscode-icon-width-xl);
+	height: var(--vscode-icon-height-xl);
+	font-size: var(--vscode-icon-height-xl);
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row > .dialog-icon.codicon {
-	flex: 0 0 64px;
-	height: 64px;
-	font-size: 64px;
+	flex: 0 0 var(--vscode-icon-width-xxl);
+	height: var(--vscode-icon-height-xxl);
+	font-size: var(--vscode-icon-height-xxl);
 }
 
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row > .dialog-icon.codicon {
@@ -90,12 +90,12 @@
 }
 
 .monaco-dialog-box .dialog-footer-row {
-	margin-top: 20px;
+	margin-top: var(--vscode-base-spacing-xl);
 }
 
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container,
 .monaco-dialog-box:not(.align-vertical) .dialog-footer-row {
-	padding-left: 24px;
+	padding-left: var(--vscode-base-spacing-xxl);
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container,
@@ -106,36 +106,36 @@
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container ul,
 .monaco-dialog-box .dialog-footer-row ul {
-	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
+	padding-inline-start: var(--vscode-base-spacing-xl); /* reduce excessive indent of list items in the dialog */
 }
 
 /** Dialog: Message */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
-	line-height: 22px;
-	font-size: 18px;
+	line-height: var(--vscode-base-line-height-l);
+	font-size: var(--vscode-dialog-header-font-size);
 	flex: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-	min-height: 48px; /* matches icon height */
-	margin-bottom: 8px;
+	min-height: var(--vscode-icon-height-xl); /* matches icon height */
+	margin-bottom: var(--vscode-base-spacing-s);
 	display: flex;
 	align-items: center;
 }
 
 /** Dialog: Details */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
-	line-height: 22px;
+	line-height: var(--vscode-base-line-height-l);
 	flex: 1; /* let the message always grow */
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
-	outline-width: 1px;
+	outline-width: var(--vscode-base-line-width-s);
 	outline-style: solid;
 }
 
 /** Dialog: Checkbox */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
-	padding: 15px 0px 0px;
+	padding: var(--vscode-dialog-spacing-l) var(--vscode-base-spacing-none) var(--vscode-base-spacing-none);
 	display: flex;
 }
 
@@ -147,7 +147,7 @@
 
 /** Dialog: Input */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input {
-	padding: 15px 0px 0px;
+	padding: var(--vscode-dialog-spacing-l) var(--vscode-base-spacing-none) var(--vscode-base-spacing-none);
 	display: flex;
 }
 
@@ -164,14 +164,14 @@
 .monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	align-items: center;
-	padding-right: 1px;
+	padding-right: var(--vscode-base-spacing-xxxs);
 	overflow: hidden; /* buttons row should never overflow */
 }
 
 .monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	white-space: nowrap;
-	padding: 20px 10px 10px;
+	padding: var(--vscode-base-spacing-xl) var(--vscode-dialog-spacing-m) var(--vscode-dialog-spacing-m);
 }
 
 /** Dialog: Buttons */
@@ -187,21 +187,21 @@
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons {
-	margin-left: 5px;
-	margin-right: 5px;
+	margin-left: var(--vscode-dialog-spacing-s);
+	margin-right: var(--vscode-dialog-spacing-s);
 	flex-direction: column;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	padding: 5px 10px;
+	padding: var(--vscode-dialog-spacing-s) var(--vscode-dialog-spacing-m);
 	overflow: hidden;
 	text-overflow: ellipsis;
-	margin: 4px 5px; /* allows button focus outline to be visible */
-	outline-offset: 2px !important;
+	margin: var(--vscode-base-spacing-xs) var(--vscode-dialog-spacing-s); /* allows button focus outline to be visible */
+	outline-offset: var(--vscode-base-spacing-xxs) !important;
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	margin: 4px 0; /* allows button focus outline to be visible */
+	margin: var(--vscode-base-spacing-xs) var(--vscode-base-spacing-none); /* allows button focus outline to be visible */
 }
 
 .monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button {
@@ -210,7 +210,7 @@
 
 /** Dialog: Dropdown */
 .monaco-dialog-box:not(.align-vertical) > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
-	margin: 4px 5px;
+	margin: var(--vscode-base-spacing-xs) var(--vscode-dialog-spacing-s);
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
@@ -223,16 +223,16 @@
 	 * container of the dropdown button to ensure the dialog box looks
 	 * consistent to dialogs without dropdown buttons.
 	 */
-	outline-offset: 2px !important;
-	outline-width: 1px;
+	outline-offset: var(--vscode-base-spacing-xxs) !important;
+	outline-width: var(--vscode-base-line-width-s);
 	outline-style: solid;
 	outline-color: var(--vscode-focusBorder);
-	border-radius: 2px;
+	border-radius: var(--vscode-base-corner-radius-xs);
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
-	padding-left: 10px;
-	padding-right: 10px;
+	padding-left: var(--vscode-dialog-spacing-m);
+	padding-right: var(--vscode-dialog-spacing-m);
 }
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
@@ -240,6 +240,6 @@
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
-	padding-left: 5px;
-	padding-right: 5px;
+	padding-left: var(--vscode-dialog-spacing-s);
+	padding-right: var(--vscode-dialog-spacing-s);
 }

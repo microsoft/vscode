@@ -10,7 +10,7 @@
 .context-view.fixed {
 	all: initial;
 	font-family: inherit;
-	font-size: 13px;
+	font-size: var(--vscode-font-body1-size);
 	position: fixed;
 	color: inherit;
 }

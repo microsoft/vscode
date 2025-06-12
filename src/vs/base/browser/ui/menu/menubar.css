@@ -14,12 +14,12 @@
 }
 
 .menubar.overflow-menu-only {
-	width: 38px;
+	width: var(--vscode-menubar-overflow-width);
 }
 
 .fullscreen .menubar:not(.compact) {
 	margin: var(--vscode-base-spacing-none);
-	padding: 4px 5px;
+	padding: var(--vscode-menubar-vertical-spacing) var(--vscode-menubar-horizontal-spacing);
 }
 
 .menubar > .menubar-menu-button {
@@ -36,7 +36,7 @@
 .monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
 	outline-width: var(--vscode-base-line-width-s);
 	outline-style: solid;
-	outline-offset: calc (var(--vscode-base-line-width-s) * -1px);
+	outline-offset: calc (var(--vscode-base-line-width-s) * -1);
 	outline-color: var(--vscode-focusBorder);
 }
 
@@ -53,7 +53,7 @@
 
 .menubar-menu-title {
 	padding: var(--vscode-base-spacing-none) var(--vscode-base-spacing-s);
-	border-radius: var(--vscode-hover-menubar-corner-radius);
+	border-radius: var(--vscode-menubar-corner-radius);
 }
 
 .menubar .menubar-menu-items-holder {
@@ -77,8 +77,8 @@
 }
 
 .menubar .toolbar-toggle-more {
-	width: var(--vscode-hover-menubar-toggle-width);
-	height: var(--vscode-hover-menubar-toggle-height);
+	width: var(--vscode-menubar-toggle-width);
+	height: var(--vscode-menubar-toggle-height);
 	padding: var(--vscode-base-spacing-none) var(--vscode-base-spacing-s);
 	display: flex;
 	align-items: center;
@@ -108,5 +108,5 @@
 .menubar.compact > .menubar-menu-button:focus .menubar-menu-title,
 .menubar.compact > .menubar-menu-button:hover .menubar-menu-title{
 	outline-width: var(--vscode-base-line-width-s) !important;
-	outline-offset: calc(var(--vscode-base-spacing-s) * -1px) !important;
+	outline-offset: calc(var(--vscode-base-spacing-s) * -1) !important;
 }

@@ -43,8 +43,8 @@
 	border: var(--vscode-base-line-width-s) solid transparent;
 	border-radius: var(--vscode-checkbox-corner-radius);
 	margin-right: calc(var(--vscode-checkbox-width) / 2);
-	margin-left: 0px;
-	padding: 0px;
+	margin-left: var(--vscode-base-spacing-none);
+	padding: var(--vscode-base-spacing-none);
 	opacity: 1;
 	background-size: calc(var(--vscode-checkbox-height) - var(--vscode-base-spacing-xxs)) !important;
 }

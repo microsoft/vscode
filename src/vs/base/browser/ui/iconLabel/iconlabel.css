@@ -14,12 +14,12 @@
 .monaco-icon-label::before {
 
 	/* svg icons rendered as background image */
-	background-size: var(--vscode-icon-width);
+	background-size: var(--vscode-icon-width-m);
 	background-position: left center;
 	background-repeat: no-repeat;
-	padding-right: var(--vscode-base-spacing-s-nudge);
-	width: var(--vscode-icon-width);
-	height: 22px;
+	padding-right: var(--vscode-base-spacing-nudge-s);
+	width: var(--vscode-icon-width-m);
+	height: var(--vscode-iconlabel-height);
 	line-height: inherit !important;
 	display: inline-block;
 
@@ -32,8 +32,8 @@
 }
 
 .monaco-icon-label-iconpath {
-	width: var(--vscode-icon-width);
-	height: var(--vscode-icon-height);
+	width: var(--vscode-icon-width-m);
+	height: var(--vscode-icon-height-m);
 	padding-left: var(--vscode-base-spacing-xxs);
 	margin-top: var(--vscode-base-spacing-xxs);
 	display: flex;
@@ -43,7 +43,7 @@
 	color: var(--vscode-disabledForeground);
 }
 .monaco-icon-label > .monaco-icon-label-container {
-	min-width: 0;
+	min-width: var(--vscode-base-spacing-none);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex: 1;
@@ -55,7 +55,7 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name > .label-separator {
-	margin: 0 var(--vscode-base-spacing-xxs);
+	margin: var(--vscode-base-spacing-none) var(--vscode-base-spacing-xxs);
 	opacity: 0.5;
 }
 
@@ -98,7 +98,7 @@
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
-	margin: auto var(--vscode-icon-width) 0 5px; /* https://github.com/microsoft/vscode/issues/113223 */
+	margin: auto var(--vscode-icon-height-m) var(--vscode-base-spacing-none) 5px; /* https://github.com/microsoft/vscode/issues/113223 */
 	text-align: center;
 }
 

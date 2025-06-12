@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 :root {
-	--vscode-sash-size: 4px;
-	--vscode-sash-hover-size: 4px;
+	--vscode-sash-size: var(--vscode-base-spacing-xs);
+	--vscode-sash-hover-size: var(--vscode-base-spacing-xs);
 }
 
 .monaco-sash {
@@ -49,14 +49,14 @@
 
 .monaco-sash.vertical {
 	cursor: ew-resize;
-	top: 0;
+	top: var(--vscode-base-spacing-none);
 	width: var(--vscode-sash-size);
 	height: 100%;
 }
 
 .monaco-sash.horizontal {
 	cursor: ns-resize;
-	left: 0;
+	left: var(--vscode-base-spacing-none);
 	width: 100%;
 	height: var(--vscode-sash-size);
 }

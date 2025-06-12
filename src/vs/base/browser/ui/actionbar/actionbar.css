@@ -10,8 +10,8 @@
 
 .monaco-action-bar .actions-container {
 	display: flex;
-	margin: 0 auto;
-	padding: 0;
+	margin: var(--vscode-base-spacing-none) auto;
+	padding: var(--vscode-base-spacing-none);
 	height: 100%;
 	width: 100%;
 	align-items: center;
@@ -48,8 +48,8 @@
 .monaco-action-bar .action-label {
 	display: flex;
 	font-size: var(--vscode-font-body3-size);
-	padding: 3px;
-	border-radius: 5px;
+	padding: var(--vscode-base-spacing-nudge-xs);
+	border-radius: var(--vscode-actionbar-actionlabel-corner-radius);
 }
 
 .monaco-action-bar .action-item.disabled .action-label:not(.icon) ,
@@ -84,29 +84,29 @@
 }
 
 .monaco-action-bar .action-item .action-label.separator {
-	width: 1px;
-	height: 16px;
-	margin: 5px 4px !important;
+	width: var(--vscode-base-line-width-s);
+	height: var(--vscode-actionbar-actionlabel-height);
+	margin: var(--vscode-actionbar-actionlabel-horizontal-spacing) var(--vscode-base-spacing-xs) !important;
 	cursor: default;
 	min-width: var(--vscode-base-line-width-s);
-	padding: 0;
+	padding: var(--vscode-base-spacing-none);
 	background-color: #bbb;
 }
 
 .secondary-actions .monaco-action-bar .action-label {
-	margin-left: 6px;
+	margin-left: var(--vscode-base-spacing-nudge-s);
 }
 
 /* Action Items */
 .monaco-action-bar .action-item.select-container {
 	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
 	flex: 1;
-	max-width: 170px;
-	min-width: 60px;
+	max-width: var(--vscode-actionbar-selectcontainer-max-width);
+	min-width: var(--vscode-actionbar-selectcontainer-min-width);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-right: 10px;
+	margin-right: var(--vscode-base-spacing-nudge-m);
 }
 
 .monaco-action-bar .action-item.action-dropdown-item {

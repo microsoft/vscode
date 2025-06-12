@@ -9,16 +9,16 @@
 
 .icon-select-box .icon-select-icons-container {
 	height: 100%;
-	outline: 0 !important;
+	outline: var(--vscode-base-line-width-none) !important;
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container {
 	display: inline-flex;
 	cursor: pointer;
-	font-size: 20px;
+	font-size: var(--vscode-iconselectbox-font-size);
 	align-items: center;
 	justify-content: center;
-	border-radius: 5px;
+	border-radius: var(--vscode-iconselectbox-corner-radius);
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container.focused {
@@ -32,8 +32,8 @@
 }
 
 .icon-select-box .icon-select-id-container .icon-select-id-label {
-	height: 24px;
-	padding: 10px;
+	height: var(--vscode-base-spacing-xxl);
+	padding: var(--vscode-base-spacing-nudge-m);
 	opacity: .8;
 }
 

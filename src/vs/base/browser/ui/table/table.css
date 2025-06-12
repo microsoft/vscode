@@ -14,7 +14,7 @@
 }
 
 .monaco-table > .monaco-split-view2 {
-	border-bottom: 1px solid transparent;
+	border-bottom: var(--vscode-base-line-width-s) solid transparent;
 }
 
 .monaco-table > .monaco-list {
@@ -47,8 +47,8 @@
 	content: "";
 	position: absolute;
 	left: calc(var(--vscode-sash-size) / 2);
-	width: 0;
-	border-left: 1px solid transparent;
+	width: var(--vscode-base-spacing-none);
+	border-left: var(--vscode-base-line-width-s) solid transparent;
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
