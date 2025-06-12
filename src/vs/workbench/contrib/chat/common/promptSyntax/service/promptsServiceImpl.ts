@@ -25,7 +25,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
+import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 
 /**
@@ -190,8 +190,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		});
 	}
 
-	public async getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
-		const modeFiles = (await this.listPromptFiles(PromptsType.mode, CancellationToken.None))
+	public async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		const modeFiles = (await this.listPromptFiles(PromptsType.mode, token))
 			.map(modeFile => modeFile.uri);
 
 		const metadataList = await Promise.all(
@@ -204,7 +204,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						PromptParser,
 						uri,
 						{ allowNonPromptFiles: true },
-					).start();
+					).start(token);
 
 					await parser.settled();
 
@@ -229,6 +229,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		return metadataList;
 	}
+
+	public async parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+		let parser: PromptParser | undefined;
+		try {
+			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true }).start(token);
+			await parser.settled();
+			// make a copy, to avoid leaking the parser instance
+			return {
+				uri: parser.uri,
+				metadata: parser.metadata,
+				topError: parser.topError,
+				allValidReferences: parser.allValidReferences.map(ref => ref.uri)
+			};
+		} finally {
+			parser?.dispose();
+		}
+	}
+
 
 	public async findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
 		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
