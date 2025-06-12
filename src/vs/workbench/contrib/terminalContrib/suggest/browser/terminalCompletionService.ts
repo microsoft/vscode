@@ -525,6 +525,9 @@ function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompleti
  */
 function addPathRelativePrefix(text: string, resourceRequestConfig: Pick<TerminalResourceRequestConfig, 'pathSeparator'>, lastWordFolderHasDotPrefix: boolean): string {
 	if (!lastWordFolderHasDotPrefix) {
+		if (text.startsWith(resourceRequestConfig.pathSeparator)) {
+			return `.${text}`;
+		}
 		return `.${resourceRequestConfig.pathSeparator}${text}`;
 	}
 	return text;

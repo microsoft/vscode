@@ -91,6 +91,7 @@ suite('ChatEditingService', function () {
 			}
 		});
 		const insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		store.add(insta.get(IEditorWorkerService) as TestWorkerService);
 		const value = insta.get(IChatEditingService);
 		assert.ok(value instanceof ChatEditingService);
 		editingService = value;
