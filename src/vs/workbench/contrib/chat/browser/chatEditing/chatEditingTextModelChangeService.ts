@@ -356,7 +356,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {
 
-		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed() || this._store.isDisposed) {
 			return undefined;
 		}
 
@@ -380,7 +380,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			'advanced'
 		);
 
-		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed() || this._store.isDisposed) {
 			return undefined;
 		}
 
