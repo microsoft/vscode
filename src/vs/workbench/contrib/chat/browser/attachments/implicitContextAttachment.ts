@@ -6,12 +6,10 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -61,9 +59,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
 		const range = undefined;
 
-		const attachmentTypeName = (this.attachment.isPromptFile === false)
-			? file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file")
-			: localize('prompt.lowercase', "prompt");
+		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
@@ -74,16 +70,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const currentFile = localize('openEditor', "Suggested context (current file)");
 		const title = `${currentFile}\n${uriLabel}`;
 
-		const icon = this.attachment.isPromptFile
-			? ThemeIcon.fromId(Codicon.bookmark.id)
-			: undefined;
-
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title,
-			icon,
+			title
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
