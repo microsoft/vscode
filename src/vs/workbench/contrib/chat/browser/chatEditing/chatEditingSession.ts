@@ -420,7 +420,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
 		for (const entry of this._linearHistory.get()) {
-			if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
+			if (entry.startIndex >= linearHistoryPtr) {
+				// all further entries are being dropped
+				break;
+			} else if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
 				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex, postEdit: undefined });
 			} else {
 				newLinearHistory.push(entry);
@@ -512,7 +515,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const entry of this._entriesObs.get()) {
 			const snapshotEntry = entries.get(entry.modifiedURI);
 			if (!snapshotEntry) {
-				await entry.resetToInitialContent();
+				entry.resetToInitialContent();
 				entry.dispose();
 			}
 		}
@@ -522,7 +525,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const snapshotEntry of entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
-			await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
+			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 			entriesArr.push(entry);
 		}
 
