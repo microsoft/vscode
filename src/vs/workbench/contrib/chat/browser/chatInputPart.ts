@@ -24,6 +24,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { ResourceSet } from '../../../../base/common/map.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -446,7 +447,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar));
+		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
 
