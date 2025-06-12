@@ -7,10 +7,10 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
+import { IModelDecoration, InlineDecorationType, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
+import { ICoordinatesConverter, InlineDecoration, ViewModelDecoration } from '../viewModel.js';
+import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 
 export interface IDecorationsViewportData {
@@ -137,7 +137,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
 		const options = this.configuration.options;
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(options), !options.get(EditorOption.effectiveAllowVariableFonts), onlyMinimapDecorations, onlyMarginDecorations);
+		const modelDecorationsViewportData = this._linesCollection.getViewportDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(options), filterFontDecorations(options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 
@@ -148,13 +148,10 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations[j - startLineNumber] = new InlineDecorations();
 		}
 
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			const modelDecoration = modelDecorations[i];
+		for (let i = 0, len = modelDecorationsViewportData.length; i < len; i++) {
+			const viewportData = modelDecorationsViewportData[i];
+			const modelDecoration = viewportData.modelDecoration;
 			const decorationOptions = modelDecoration.options;
-
-			if (!isModelDecorationVisible(this.model, modelDecoration)) {
-				continue;
-			}
 
 			const viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
 			const viewRange = viewModelDecoration.range;
@@ -167,7 +164,7 @@ export class ViewModelDecorations implements IDisposable {
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
 					const inlineClassName = decorationOptions.inlineClassName;
-					const inlineDecoration: InlineDecoration = new InlineDecoration(viewRange, inlineClassName, inlineDecorationType);
+					const inlineDecoration = new InlineDecoration(viewRange, inlineClassName, inlineDecorationType);
 					inlineDecorations[j - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}
@@ -176,7 +173,7 @@ export class ViewModelDecorations implements IDisposable {
 					const range = new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn);
 					const inlineClassName = decorationOptions.beforeContentClassName;
 					const inlineDecorationType = InlineDecorationType.Before;
-					const inlineDecoration: InlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
+					const inlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}
@@ -185,7 +182,7 @@ export class ViewModelDecorations implements IDisposable {
 					const range = new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn);
 					const inlineClassName = decorationOptions.afterContentClassName;
 					const inlineDecorationType = InlineDecorationType.After;
-					const inlineDecoration: InlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
+					const inlineDecoration = new InlineDecoration(range, inlineClassName, inlineDecorationType);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration, decorationOptions.affectsFont ?? false);
 				}
 			}

@@ -7,6 +7,11 @@ import { EditorOption } from '../config/editorOptions.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
+enum LineBreaksComputationType {
+	Dom = 'dom',
+	Monospace = 'monospace'
+}
+
 export class LineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	constructor(
@@ -17,11 +22,6 @@ export class LineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public createLineBreaksComputer(context: ILineBreaksComputerContext, config: IEditorConfiguration, tabSize: number): LineBreaksComputer {
 		return new LineBreaksComputer(context, config, tabSize, this.domLineBreaksComputerFactory, this.monospaceLineBreaksComputerFactory);
 	}
-}
-
-enum LineBreaksComputationType {
-	Dom = 'dom',
-	Monospace = 'monospace'
 }
 
 export class LineBreaksComputer implements ILineBreaksComputer {
@@ -46,9 +46,10 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 	}
 
 	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void {
-		const wrappingStrategy = this._config.options.get(EditorOption.wrappingStrategy);
-		const allowVariableFonts = this._config.options.get(EditorOption.effectiveAllowVariableFonts);
-		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getInlineDecorations(lineNumber).affectsFonts)) {
+		const options = this._config.options;
+		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
+		const allowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
+		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.getLineInlineDecorations(lineNumber).affectsFonts)) {
 			this._domLineBreaksComputer.addRequest(lineNumber, previousLineBreakData);
 			this._lineBreaksComputationMapping.push(LineBreaksComputationType.Dom);
 		} else {

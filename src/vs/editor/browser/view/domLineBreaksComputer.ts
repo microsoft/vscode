@@ -20,12 +20,15 @@ import { LineInjectedText } from '../../common/textModelEvents.js';
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
 const LINE_BREAK_LINE_HEIGHT = 300;
+const DOM_LINE_BREAKS_COMPUTER_CLASS_NAME = 'dom-line-breaks-computer';
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	public static create(targetWindow: Window): DOMLineBreaksComputerFactory {
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow));
 	}
+
+	private _containerDomNode: HTMLDivElement | null = null;
 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
@@ -37,19 +40,20 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
+				const res = createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
+				this._containerDomNode?.remove();
+				this._containerDomNode = res.domNode;
+				return res.data;
 			}
 		};
 	}
 }
 
-let containerNode: HTMLDivElement | null = null;
-
-function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): (ModelLineProjectionData | null)[] {
-	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
-		const injectedTexts = context.getLineInjectedText(lineNumbers[requestIdx]);
+function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): { data: (ModelLineProjectionData | null)[]; domNode: HTMLDivElement | null } {
+	function createEmptyLineBreakWithPossiblyInjectedText(lineNumber: number): ModelLineProjectionData | null {
+		const injectedTexts = context.getLineInjectedText(lineNumber);
 		if (injectedTexts) {
-			const lineContent = context.getLineContent(lineNumbers[requestIdx]);
+			const lineContent = context.getLineContent(lineNumber);
 			const lineText = LineInjectedText.applyInjectedText(lineContent, injectedTexts);
 
 			const injectionOptions = injectedTexts.map(t => t.options);
@@ -71,27 +75,26 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	if (firstLineBreakColumn === -1) {
 		const result: (ModelLineProjectionData | null)[] = [];
 		for (let i = 0, len = lineNumbers.length; i < len; i++) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(lineNumbers[i]);
 		}
-		return result;
+		return { data: result, domNode: null };
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 
-	containerNode?.remove();
 	const containerDomNode = document.createElement('div');
-	containerNode = containerDomNode;
-	containerDomNode.classList.add('dom-line-breaks-computer');
+	containerDomNode.classList.add(DOM_LINE_BREAKS_COMPUTER_CLASS_NAME);
 	applyFontInfo(containerDomNode, fontInfo);
 
 	const sb = new StringBuilder(10000);
 	const wrappedTextIndentLengths: number[] = [];
+	const renderedLineContents: string[] = [];
 	const characterMappings: CharacterMapping[] = [];
 	for (let i = 0; i < lineNumbers.length; i++) {
-		const lineContent = context.getLineContent(lineNumbers[i]);
-
+		const lineNumber = lineNumbers[i];
+		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));
 		let wrappedTextIndentLength = 0;
 
 		if (wrappingIndent !== WrappingIndent.None) {
@@ -105,18 +108,11 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 					);
 					wrappedTextIndentLength += charWidth;
 				}
-
-				const indentWidth = Math.ceil(fontInfo.spaceWidth * wrappedTextIndentLength);
-
-				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (indentWidth + fontInfo.typicalFullwidthCharacterWidth > overallWidth) {
-					wrappedTextIndentLength = 0;
-				}
 			}
 		}
-
-		const renderedLineOutput = renderLine(context, lineNumbers[i], tabSize, overallWidth, options, sb);
+		renderedLineContents[i] = lineContent;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
+		const renderedLineOutput = renderLine(context, lineNumber, tabSize, overallWidth, options, sb);
 		characterMappings[i] = renderedLineOutput.characterMapping;
 	}
 	const html = sb.build();
@@ -124,9 +120,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	containerDomNode.innerHTML = trustedhtml as string;
 
 	containerDomNode.style.position = 'absolute';
-	containerDomNode.style.top = '200px';
-	containerDomNode.style.zIndex = '20';
+	containerDomNode.style.top = '300px';
 	containerDomNode.style.background = 'white';
+	containerDomNode.style.zIndex = '20';
 	if (wordBreak === 'keepAll') {
 		// word-break: keep-all; overflow-wrap: anywhere
 		containerDomNode.style.wordBreak = 'keep-all';
@@ -145,9 +141,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	for (let i = 0; i < lineNumbers.length; i++) {
 		const lineDomNode = lineDomNodes[i];
 		const characterMapping = characterMappings[i];
-		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, context.getLineContent(lineNumbers[i]), characterMapping);
+		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderedLineContents[i], characterMapping);
 		if (breakOffsets === null) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(lineNumbers[i]);
 			continue;
 		}
 
@@ -173,7 +169,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	}
 
 	// containerDomNode.remove();
-	return result;
+	return { data: result, domNode: containerDomNode };
 }
 
 function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tabSize: number, width: number, options: IComputedEditorOptions, sb: StringBuilder): RenderLineOutput {
@@ -181,15 +177,13 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const fontLigatures = options.get(EditorOption.fontLigatures);
-	const inlineDecorations = context.getInlineDecorations(lineNumber);
-	console.log('lineNumber : ', lineNumber);
-	const lineDecorations = LineDecoration.filter(inlineDecorations.decorations, lineNumber, 0, Infinity);
+	const inlineDecorations = context.getLineInlineDecorations(lineNumber);
+	const lineDecorations = LineDecoration.filter(inlineDecorations, lineNumber, 0, Infinity);
 	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 	const tokens = context.getLineTokens(lineNumber);
-	const lineContent = context.getLineContent(lineNumber);
-	const injectedText = context.getLineInjectedText(lineNumber);
-	const lineContentWithInjectedText = LineInjectedText.applyInjectedText(lineContent, injectedText);
-	const isBasicASCII = strings.isBasicASCII(lineContentWithInjectedText);
+	const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));
+	const isBasicASCII = strings.isBasicASCII(lineContent);
+	// TODO
 	const lineHasVariableFonts = inlineDecorations.affectsFonts;
 	let renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	if (lineHasVariableFonts || options.get(EditorOption.experimentalWhitespaceRendering) === 'off') {
@@ -201,7 +195,7 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const renderLineInput = new RenderLineInput(
 		useMonospaceOptimizations,
 		fontInfo.canUseHalfwidthRightwardsArrow,
-		lineContentWithInjectedText,
+		lineContent,
 		false,
 		isBasicASCII,
 		false,
@@ -245,9 +239,10 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 		return null;
 	}
 
-	if (breakOffsets.length === 0) {
-		return null;
-	}
+	// if (breakOffsets.length === 0) {
+	// 	console.log('return 3');
+	// 	return null;
+	// }
 
 	breakOffsets.push(lineContent.length);
 	return breakOffsets;

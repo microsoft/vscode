@@ -26,15 +26,14 @@ import { Position } from '../../../../../common/core/position.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { ScrollType } from '../../../../../common/editorCommon.js';
 import { BackgroundTokenizationState } from '../../../../../common/tokenizationTextModelPart.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
+import { InlineDecoration } from '../../../../../common/viewModel.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { ILineBreaksComputerContext, ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
-import { InlineDecorations } from '../../../../../common/viewModel/viewModelDecorations.js';
-import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
-import { ILanguageService } from '../../../../../common/languages/language.js';
+import { LineInlineDecoration } from '../../../../../common/textModelEvents.js';
+import { InlineDecorationType } from '../../../../../common/model.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -66,8 +65,7 @@ export class DiffEditorViewZones extends Disposable {
 		private readonly _origViewZonesToIgnore: Set<string>,
 		private readonly _modViewZonesToIgnore: Set<string>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ILanguageService private readonly _languageService: ILanguageService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super();
 		this._originalTopPadding = observableValue(this, 0);
@@ -173,19 +171,20 @@ export class DiffEditorViewZones extends Disposable {
 			if (!renderSideBySide) {
 				const modifiedViewModel = this._editors.modified._getViewModel();
 				if (modifiedViewModel) {
-					const originalModel = this._editors.original.getModel()!;
+					const originalEditor = this._editors.original;
+					const originalModel = originalEditor.getModel()!;
 					const context: ILineBreaksComputerContext = {
 						getLineContent: (lineNumber: number) => {
 							return originalModel.getLineContent(lineNumber);
 						},
 						getLineTokens: (lineNumber: number) => {
-							return LineTokens.createEmpty(originalModel.getLineContent(lineNumber), this._languageService.languageIdCodec);
+							return originalModel.getLineTokens(lineNumber, originalEditor.getNumberId());
 						},
-						getInlineDecorations: (lineNumber: number) => {
-							return new InlineDecorations();
+						getLineInlineDecorations: (lineNumber: number): LineInlineDecoration[] => {
+							return originalModel.getLineInlineDecorations(lineNumber, originalEditor.getNumberId());
 						},
 						getLineInjectedText: (lineNumber: number) => {
-							return null;
+							return originalModel.getLineInjectedText(lineNumber, originalEditor.getNumberId());
 						}
 					};
 					const deletedCodeLineBreaksComputer = modifiedViewModel.createLineBreaksComputer(context);

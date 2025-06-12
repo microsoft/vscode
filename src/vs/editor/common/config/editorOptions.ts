@@ -1998,9 +1998,9 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const accessibilitySupport = env.accessibilitySupport;
 		if (accessibilitySupport === AccessibilitySupport.Enabled) {
-			return options.get(EditorOption.allowVariableFonts);
-		} else {
 			return options.get(EditorOption.allowVariableFontsInAccessibilityMode);
+		} else {
+			return options.get(EditorOption.allowVariableFonts);
 		}
 	}
 }
@@ -3781,6 +3781,17 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 		return options.get(EditorOption.readOnly);
 	}
 	return renderValidationDecorations === 'on' ? false : true;
+}
+
+//#endregion
+
+//#region font decorations
+
+/**
+ * @internal
+ */
+export function filterFontDecorations(options: IComputedEditorOptions): boolean {
+	return !options.get(EditorOption.effectiveAllowVariableFonts);
 }
 
 //#endregion

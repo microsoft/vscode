@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
-import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel.js';
+import { InlineDecoration } from '../../../common/viewModel.js';
 import { testViewModel } from './testViewModel.js';
+import { InlineDecorationType } from '../../../common/model.js';
 
 suite('ViewModelDecorations', () => {
 

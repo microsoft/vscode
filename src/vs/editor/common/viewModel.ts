@@ -12,13 +12,14 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, InlineDecorationType, ITextModel, PositionAffinity } from './model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
+import { LineInlineDecoration } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { InlineDecorations } from './viewModel/viewModelDecorations.js';
+import { InlineDecorations as InlineDecorations } from './viewModel/viewModelDecorations.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -392,13 +393,6 @@ export class ViewLineRenderingData {
 	}
 }
 
-export const enum InlineDecorationType {
-	Regular = 0,
-	Before = 1,
-	After = 2,
-	RegularAffectingLetterSpacing = 3
-}
-
 export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
@@ -423,6 +417,15 @@ export class SingleLineInlineDecoration {
 			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
 			this.inlineClassName,
 			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
+		);
+	}
+
+	toLineInlineDecoration(lineNumber: number): LineInlineDecoration {
+		return new LineInlineDecoration(
+			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
+			this.inlineClassName,
+			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
+			this.affectsFont
 		);
 	}
 }

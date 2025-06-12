@@ -746,9 +746,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 				// Try to render the textarea with the color/font style to match the text under it
 				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
-				const viewModel = this._context.viewModel;
 				const fontSize = this._getFontSizeAtPosition(this._primaryCursorPosition);
-				const viewLineData = viewModel.getViewLineData(startPosition.lineNumber);
+				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
@@ -850,11 +849,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
-		// TODO: Maybe should remove font size when using text area?
-		// TODO: Decide how to handle this in the text area case
-		if (renderData.fontSize) {
-			ta.setFontSize(renderData.fontSize);
-		}
+		ta.setFontSize(renderData.fontSize ?? this._fontInfo.fontSize);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
@@ -891,7 +886,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const viewModel = this._context.viewModel;
 		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
 		const fontDecorations = viewModel.model.getFontDecorationsInRange(Range.fromPositions(modelPosition), this._ownerId);
-		let fontSize = this._fontInfo.fontSize;
+		let fontSize: number = this._fontInfo.fontSize;
 		for (const fontDecoration of fontDecorations) {
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;

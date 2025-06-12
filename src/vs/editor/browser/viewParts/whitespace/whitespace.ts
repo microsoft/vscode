@@ -103,6 +103,11 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		for (let lineNumber = ctx.viewportData.startLineNumber; lineNumber <= ctx.viewportData.endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
 			const lineData = viewportData.data[lineIndex]!;
+			const affectsFonts = ctx.viewportData.getViewLineRenderingData(lineNumber).inlineDecorations.affectsFonts;
+			if (affectsFonts) {
+				this._renderResult[lineIndex] = '';
+				continue;
+			}
 
 			let selectionsOnLine: OffsetRange[] | null = null;
 			if (this._options.renderWhitespace === 'selection') {

@@ -41,7 +41,8 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { LineInjectedText, LineInlineDecoration } from '../textModelEvents.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -440,8 +441,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				let lineMappingHasChanged = false;
 				for (const change of e.changes) {
 					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const [lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
-						this._lines.onModelLineChanged(change.versionId, change.lineNumber, changedLineBreakData);
+					const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.versionId, change.lineNumber, changedLineBreakData);
 					lineMappingHasChanged = lineMappingChanged;
 					if (linesChangedEvent) {
 						eventsCollector.emitViewEvent(linesChangedEvent);
@@ -453,6 +453,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 					this._cursor.onLineMappingChanged(eventsCollector);
 					this._decorations.onLineMappingChanged();
+					this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
 				}
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
@@ -460,9 +461,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			// Update the configuration and reset the centered view line
 			const viewportStartWasValid = this._viewportStart.isValid;
 			this._viewportStart.invalidate();
-			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
-
 			// Recover viewport
 			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && viewportStartWasValid) {
 				const modelRange = this.model._getTrackedRange(this._viewportStart.modelTrackedRange);
@@ -817,23 +816,17 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
 		return {
-			getLineContent: (lineNumber: number) => {
+			getLineContent: (lineNumber: number): string => {
 				return this.model.getLineContent(lineNumber);
 			},
-			getLineTokens: (lineNumber: number) => {
-				return this._lines.getViewLineData(lineNumber).tokens;
+			getLineTokens: (lineNumber: number): LineTokens => {
+				return this.model.getLineTokens(lineNumber, this._editorId);
 			},
-			getInlineDecorations: (lineNumber: number) => {
-				const inlineDecorations = this.getViewLineRenderingData(lineNumber).inlineDecorations;
-				console.log('inlineDecorations of contentChange for lineNumber', lineNumber);
-				console.log(inlineDecorations);
-				return inlineDecorations;
+			getLineInlineDecorations: (lineNumber: number): LineInlineDecoration[] => {
+				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
 			},
-			getLineInjectedText: (lineNumber: number) => {
-				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				const injectedText = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
-				return injectedText;
+			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
+				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
 	}

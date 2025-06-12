@@ -13,7 +13,7 @@ import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import { InlineDecorationType } from '../../../common/viewModel.js';
+import { InlineDecorationType } from '../../../common/model.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
