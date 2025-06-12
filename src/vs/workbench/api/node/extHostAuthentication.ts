@@ -73,7 +73,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 					const state = reqUrl.searchParams.get('state') ?? undefined;
 					const error = reqUrl.searchParams.get('error') ?? undefined;
 					if (error) {
-						res.writeHead(302, { location: `/?error=${reqUrl.searchParams.get('error_description')}` });
+						res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
 						res.end();
 						deferredPromise.error(new Error(error));
 						break;
@@ -84,19 +84,19 @@ class LoopbackAuthServer implements ILoopbackServer {
 						break;
 					}
 					if (this.state !== state) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}` });
+						res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
 						res.end();
 						deferredPromise.error(new Error('State does not match.'));
 						break;
 					}
 					deferredPromise.complete({ code, state });
-					res.writeHead(302, { location: '/success' });
+					res.writeHead(302, { location: '/done' });
 					res.end();
 					break;
 				}
 				// Serve the static files
-				case '/success':
-					this._sendSuccessPage(res);
+				case '/done':
+					this._sendPage(res);
 					break;
 				default:
 					res.writeHead(404);
@@ -114,7 +114,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 		return `http://127.0.0.1:${this._port}/`;
 	}
 
-	private _sendSuccessPage(res: http.ServerResponse): void {
+	private _sendPage(res: http.ServerResponse): void {
 		const html = getHtml(this._appUri);
 		res.writeHead(200, {
 			'Content-Type': 'text/html',
@@ -147,11 +147,8 @@ class LoopbackAuthServer implements ILoopbackServer {
 		this._server.on('error', err => {
 			if ('code' in err && err.code === 'EADDRINUSE') {
 				this._logger.error('Address in use, retrying with a different port...');
-				setTimeout(() => {
-					this._server.close();
-					// Best effort to use a specific port, but fallback to a random one if it is in use
-					this._server.listen(0, '127.0.0.1');
-				}, 1000);
+				// Best effort to use a specific port, but fallback to a random one if it is in use
+				this._server.listen(0, '127.0.0.1');
 				return;
 			}
 			clearTimeout(portTimeout);
@@ -232,11 +229,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			});
 		}
 
-		// Add device code flow support (works in all environments)
-		this._createFlows.push({
-			label: nls.localize('device code', "Device Code"),
-			handler: (scopes, progress, token) => this._createWithDeviceCode(scopes, progress, token)
-		});
+		// Add device code flow to the end since it's not as streamlined
+		if (serverMetadata.device_authorization_endpoint) {
+			this._createFlows.push({
+				label: nls.localize('device code', "Device Code"),
+				handler: (scopes, progress, token) => this._createWithDeviceCode(scopes, progress, token)
+			});
+		}
 	}
 
 	private async _createWithLoopbackServer(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
