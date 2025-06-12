@@ -1238,8 +1238,8 @@ export class FileService extends Disposable implements IFileService {
 				return;
 			}
 			// Check if the provider supports symlink resolution
-			if (this.hasCapability(resource, FileSystemProviderCapabilities.FileSymlinkResolution)) {
-				return (provider as any).resolveSymlinkTarget(resource);
+			if ('resolveSymlinkTarget' in provider && typeof provider.resolveSymlinkTarget === 'function' && this.hasCapability(resource, FileSystemProviderCapabilities.FileSymlinkResolution)) {
+				return provider.resolveSymlinkTarget(resource);
 			}
 
 			// Provider doesn't support symlink resolution
