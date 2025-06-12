@@ -1869,4 +1869,10 @@ suite('Async', () => {
 			assert.strictEqual(n < 2, true);
 		});
 	});
+
+	suite('timeout', () => {
+		test('should not leak any disposables', async function () {
+			await async.timeout(0);
+		});
+	});
 });
