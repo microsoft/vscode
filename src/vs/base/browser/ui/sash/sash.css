@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 :root {
-	--vscode-sash-size: var(--vscode-base-spacing-xs);
-	--vscode-sash-hover-size: var(--vscode-base-spacing-xs);
+	--vscode-sash-size: 4px;
+	--vscode-sash-hover-size: 4px;
 }
 
 .monaco-sash {
