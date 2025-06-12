@@ -312,7 +312,7 @@ registerAction2(class RemoveAction extends Action2 {
 			title: localize2('chat.undoEdits.label', "Undo Requests"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.x,
+			icon: Codicon.discard,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: {
@@ -334,9 +334,9 @@ registerAction2(class RemoveAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = chatWidgetService.lastFocusedWidget;
 			item = widget?.getFocus();
 		}
 
@@ -408,6 +408,11 @@ registerAction2(class RemoveAction extends Action2 {
 			// Restore the snapshot to what it was before the request(s) that we deleted
 			const snapshotRequestId = chatRequests[itemIndex].id;
 			await session.restoreSnapshot(snapshotRequestId, undefined);
+		}
+
+		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+			widget?.focusInput();
+			widget?.input.setValue(item.messageText, false);
 		}
 	}
 });

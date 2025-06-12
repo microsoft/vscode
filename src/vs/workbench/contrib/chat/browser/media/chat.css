@@ -1928,7 +1928,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		height: 22px;
 	}
 
-	.request-hover .actions-container .action-label.codicon-x {
+	.request-hover .actions-container .action-label.codicon-discard {
 		margin-top: 4px;
 		padding: 3px 3px;
 	}
