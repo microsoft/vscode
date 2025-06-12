@@ -416,7 +416,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind,
 				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: lastWord.length,
+				replacementLength: lastWord.length
 			});
 		}
 
