@@ -574,6 +574,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
 	private _focusEventBufferer = new EventBufferer();
+	private _useToggleCountBadge = false;
 
 	readonly type = QuickInputType.QuickPick;
 
@@ -857,6 +858,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set hideCheckAll(hideCheckAll: boolean) {
 		this._hideCheckAll = hideCheckAll;
+		this.update();
+	}
+
+	get useToggleCountBadge() {
+		return this._useToggleCountBadge;
+	}
+
+	set useToggleCountBadge(useToggleCountBadge: boolean) {
+		this._useToggleCountBadge = useToggleCountBadge;
 		this.update();
 	}
 

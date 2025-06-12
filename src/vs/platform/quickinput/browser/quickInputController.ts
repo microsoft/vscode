@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, QuickPickItem } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
+import { ToggleCountBadge } from '../../../base/browser/ui/countBadge/toggleCountBadge.js';
 
 const $ = dom.$;
 
@@ -677,8 +678,45 @@ export class QuickInputController extends Disposable {
 		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+		this.useToggleCountBadge(ui);
+
 	}
 
+	private useToggleCountBadge(ui: QuickInputUI): void {
+		if (this.controller instanceof QuickPick && this.controller.useToggleCountBadge) {
+			const countContainer = ui.countContainer;
+			dom.clearNode(countContainer);
+			const toggleCount = this._register(new ToggleCountBadge(
+				countContainer,
+				{ countFormat: localize({ key: 'quickInput.countSelected.toggle', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") },
+				this.styles.countBadge
+			));
+			ui.count = toggleCount;
+
+			let allElements: QuickPickItem[] = [];
+			let checkedElements: IQuickPickItem[] = [];
+
+			this._register(ui.list.onChangedCheckedCount(c => {
+				toggleCount.setCount(c);
+
+			}));
+
+			this._register(toggleCount.onDidToggle(toggled => {
+
+				if (toggled) {
+					allElements = ui.list.getAllElements();
+					checkedElements = ui.list.getCheckedElements();
+					ui.list.setElements(checkedElements);
+					ui.list.setCheckedElements(checkedElements);
+				} else {
+					checkedElements = ui.list.getCheckedElements();
+					ui.list.setElements(allElements);
+					ui.list.setCheckedElements(checkedElements);
+				}
+			}));
+
+		}
+	}
 	isVisible(): boolean {
 		return !!this.ui && this.ui.container.style.display !== 'none';
 	}

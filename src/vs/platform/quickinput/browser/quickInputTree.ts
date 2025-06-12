@@ -1163,6 +1163,10 @@ export class QuickInputTree extends Disposable {
 		});
 	}
 
+	getAllElements(): QuickPickItem[] {
+		return this._inputElements.slice();
+	}
+
 	focus(what: QuickPickFocus): void {
 		if (!this._itemElements.length) {
 			return;

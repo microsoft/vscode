@@ -635,6 +635,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	toggles: IQuickInputToggle[] | undefined;
 
 	/**
+	 * Whether to use the toggle count badge.
+	 */
+	useToggleCountBadge: boolean;
+
+	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */
