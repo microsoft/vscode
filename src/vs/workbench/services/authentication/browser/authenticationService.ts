@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
@@ -109,6 +109,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
+	private _isDisposable: boolean = false;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
@@ -116,7 +118,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
+		this._register(toDisposable(() => this._isDisposable = true));
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
@@ -265,6 +267,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+		if (this._isDisposable) {
+			return [];
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
 			// Check if the authorization server is in the list of supported authorization servers
@@ -282,6 +288,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
 			return await authProvider.createSession(scopes, {
@@ -294,6 +304,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async removeSession(id: string, sessionId: string): Promise<void> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.removeSession(sessionId);
