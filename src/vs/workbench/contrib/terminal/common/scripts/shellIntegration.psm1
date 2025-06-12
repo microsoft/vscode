@@ -13,8 +13,6 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
 }
 
-$abc = "def"
-
 $Script:__VSCodeState = @{
 	OriginalPrompt = $function:Prompt
 	LastHistoryId = -1
