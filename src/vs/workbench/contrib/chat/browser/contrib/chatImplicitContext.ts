@@ -13,20 +13,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, TSharedPrompt } from '../../common/promptSyntax/service/promptsService.js';
+import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
@@ -155,6 +152,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		let languageId: string | undefined;
 		if (model) {
 			newValue = model.uri;
+			languageId = model.getLanguageId();
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
@@ -174,6 +172,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
+		const isPromptFile = languageId && getPromptsTypeForLanguageId(languageId) !== undefined;
+
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
@@ -181,11 +181,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
-			if (setting === 'first' && !isFirstInteraction) {
-				widget.input.implicitContext.setValue(undefined, false, undefined);
-			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
+			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
 				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
-			} else if (setting === 'never') {
+			} else {
 				widget.input.implicitContext.setValue(undefined, false, undefined);
 			}
 		}
@@ -193,18 +191,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
-	/**
-	 * If the implicit context references a prompt file, this field
-	 * holds a reference to an associated prompt parser instance.
-	 */
-	private prompt: TSharedPrompt | undefined;
 
 	get id() {
-		if (this.prompt !== undefined) {
-			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
-			return variable.id;
-		}
-
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
 		} else if (this.value) {
@@ -219,12 +207,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	get name(): string {
-		if (this.prompt !== undefined) {
-			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
-
-			return variable.name;
-		}
-
 		if (URI.isUri(this.value)) {
 			return `file:${basename(this.value)}`;
 		} else if (this.value) {
@@ -237,12 +219,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	readonly kind = 'implicit';
 
 	get modelDescription(): string {
-		if (this.prompt !== undefined) {
-			const variable = toPromptFileVariableEntry(this.prompt.uri, true);
-
-			return variable.modelDescription;
-		}
-
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
 		} else if (this._isSelection) {
@@ -277,90 +253,20 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	constructor(
-		@IPromptsService private readonly promptsService: IPromptsService,
-		@IModelService private readonly modelService: IModelService,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-	}
-
 	setValue(value: Location | URI | undefined, isSelection: boolean, languageId?: string): void {
 		this._value = value;
 		this._isSelection = isSelection;
-
-		// remove and dispose existent prompt parser instance
-		this.removePrompt();
-		// if language ID is a 'prompt' language, create a prompt parser instance
-		if (value && (languageId === PROMPT_LANGUAGE_ID)) {
-			this.addPrompt(value);
-		}
 		this._onDidChangeValue.fire();
 	}
 
 	public async toBaseEntries(): Promise<readonly IChatRequestVariableEntry[]> {
-		// chat variable for non-prompt file attachment
-		if (this.prompt === undefined) {
-			return [{
-				kind: 'file',
-				id: this.id,
-				name: this.name,
-				value: this.value,
-				modelDescription: this.modelDescription,
-			}];
-
-		}
-
-		// prompt can have any number of nested references, hence
-		// collect all of valid ones and return the entire list
-		await this.prompt.allSettled();
-		return [
-			// add all valid child references in the prompt
-			...this.prompt.allValidReferences.map((link) => {
-				return toPromptFileVariableEntry(link.uri, false);
-			}),
-			// and then the root prompt reference itself
-			toPromptFileVariableEntry(this.prompt.uri, true)
-		];
+		return [{
+			kind: 'file',
+			id: this.id,
+			name: this.name,
+			value: this.value,
+			modelDescription: this.modelDescription,
+		}];
 	}
 
-	/**
-	 * Whether the implicit context references a prompt file.
-	 */
-	public get isPromptFile() {
-		return (this.prompt !== undefined);
-	}
-
-	/**
-	 * Add prompt parser instance for the provided value.
-	 */
-	private addPrompt(
-		value: URI | Location,
-	): void {
-		const uri = URI.isUri(value)
-			? value
-			: value.uri;
-
-		const model = this.modelService.getModel(uri);
-		const modelExists = (model !== null);
-		if ((modelExists === false) || model.isDisposed()) {
-			return this.logService.warn(
-				`cannot create prompt parser instance for ${uri.path} (model exists: ${modelExists})`,
-			);
-		}
-
-		this.prompt = this.promptsService.getSyntaxParserFor(model);
-	}
-
-	/**
-	 * Remove and dispose prompt parser instance.
-	 */
-	private removePrompt(): void {
-		delete this.prompt;
-	}
-
-	public override dispose(): void {
-		this.removePrompt();
-		super.dispose();
-	}
 }

@@ -203,16 +203,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	get hasPromptFileAttachments(): boolean {
 		// if prompt attached explicitly as a "prompt" attachment
-		if (this._attachmentModel.hasPromptFiles(PROMPT_LANGUAGE_ID)) {
-			return true;
-		}
-
-		if (this.implicitContext === undefined) {
-			return false;
-		}
-
-		// if prompt attached as an implicit "current file" context
-		return (this.implicitContext.isPromptFile && this.implicitContext.enabled);
+		return this._attachmentModel.hasPromptFiles(PROMPT_LANGUAGE_ID);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
@@ -458,12 +449,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar));
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
-
-		// trigger re-layout of chat input when number of instruction attachment changes
-		// this._register(this._attachmentModel.promptInstructions.onUpdate(() => {
-		// 	this._handleAttachedContextChange();
-		// 	this._onDidChangeHeight.fire();
-		// }));
 
 		this.initSelectedModel();
 
@@ -1299,7 +1284,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && isPromptFileVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, resource, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isImageVariableEntry(attachment)) {

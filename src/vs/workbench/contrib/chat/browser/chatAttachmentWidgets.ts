@@ -482,7 +482,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
 		resource: URI,
 		attachment: IChatRequestVariableEntry,
-		correspondingContentReference: IChatContentReference | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -497,7 +496,7 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 
-		this.hintElement = dom.append(this.element, dom.$('span.chat-implicit-hint'));
+		this.hintElement = dom.append(this.element, dom.$('span.prompt-type'));
 
 		this.updateLabel(resource);
 
