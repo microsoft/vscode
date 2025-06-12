@@ -111,6 +111,7 @@ import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { ChatMCPPolicyName } from '../../../common/policy.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -245,10 +246,8 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['preview'],
 			policy: {
-				name: 'ChatMCP',
+				name: ChatMCPPolicyName,
 				minimumVersion: '1.99',
-				previewFeature: true,
-				defaultValue: false
 			}
 		},
 		[mcpServerSamplingSection]: {
