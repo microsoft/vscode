@@ -8,12 +8,11 @@ import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
-import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContextKey, IsWindowsContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -78,6 +77,10 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							EditorContextKeys.editorTextFocus,
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+							ContextKeyExpr.or(
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('end'),
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('both')
+							)
 						),
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
@@ -117,43 +120,14 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
-		const contextKeyService = accessor.get(IContextKeyService);
 
 		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
-		// Check cursor line boundary context - only move to end of line when on 'start' or 'none'
-		const cursorLineBoundary = contextKeyService.getContextKeyValue<'none' | 'start' | 'end' | 'both'>(NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.key);
-		
-		// Handle end-of-line movement for any cell when on last line and not at end
-		if (cursorLineBoundary === 'start' || cursorLineBoundary === 'none') {
-			const targetCell = (context.cell ?? context.selectedCells?.[0]);
-			const foundEditor: ICodeEditor | undefined = targetCell ? findTargetCellEditor(context, targetCell) : undefined;
-			
-			if (foundEditor && foundEditor.hasTextFocus()) {
-				const currentPosition = foundEditor.getPosition();
-				const model = foundEditor.getModel();
-				
-				if (currentPosition && model) {
-					const lastLineNumber = model.getLineCount();
-					const lastColumnNumber = model.getLineMaxColumn(lastLineNumber);
-					
-					// If we're on the last line but not at the end, move to end of line
-					if (currentPosition.lineNumber === lastLineNumber && currentPosition.column < lastColumnNumber) {
-						// Use the cell's setSelections method to move cursor to end of line
-						const newSelection = new Selection(lastLineNumber, lastColumnNumber, lastLineNumber, lastColumnNumber);
-						activeCell.setSelections([newSelection]);
-						return;
-					}
-				}
-			}
-		}
-
-		// If we're in the last cell, handle according to existing behavior
 		if (idx >= editor.getLength() - 1) {
-			// We're in the last cell, return and do nothing (preserving existing behavior)
+			// last one
 			return;
 		}
 
@@ -188,6 +162,10 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 							EditorContextKeys.editorTextFocus,
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+							ContextKeyExpr.or(
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('start'),
+								NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.isEqualTo('both')
+							)
 						),
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
