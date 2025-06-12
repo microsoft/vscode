@@ -138,7 +138,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		// start the parser in case it was not started yet,
 		// and wait for it to settle to a final result
 		const { references } = await parser
-			.start()
+			.start(token)
 			.settled();
 
 		// validate that the cancellation was not yet requested
