@@ -23,13 +23,17 @@
 		</div>
 	</div>
 	<script>
-		var search = window.location.search;
-		var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
+		var urlParams = new URLSearchParams(window.location.search);
+		var error = urlParams.get('error');
 		if (error) {
 			document.querySelector('.error-text')
-				.textContent = decodeURIComponent(error);
+				.textContent = error;
 			document.querySelector('body')
 				.classList.add('error');
+		} else if (urlParams.get('redirect_uri')) {
+			setTimeout(() => {
+				window.location = urlParams.get('redirect_uri');
+			}, 1000);
 		}
 	</script>
 </body>
