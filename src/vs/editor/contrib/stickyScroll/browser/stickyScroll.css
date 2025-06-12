@@ -10,6 +10,7 @@
 	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 4px 2px -2px;
 	z-index: 4;
 	right: initial !important;
+	margin-left: '0px';
 }
 
 .monaco-editor .sticky-widget .sticky-widget-line-numbers {

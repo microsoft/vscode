@@ -33,7 +33,9 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .header.hidden {
+.interactive-item-container .header.hidden,
+.interactive-item-container .header .avatar-container.hidden,
+.interactive-item-container .header .username.hidden {
 	display: none;
 }
 
@@ -1121,65 +1123,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /**
  * Styles for the `reusable prompts` attachment widget.
  */
-.chat-attached-context .chat-prompt-attachment {
-	display: flex;
-	gap: 4px;
-}
-.chat-attached-context .chat-prompt-attachment .codicon {
-	color: inherit;
-	text-decoration: none;
-}
-.chat-attached-context .chat-prompt-attachment .chat-implicit-hint {
+.chat-attached-context-attachment .prompt-type {
 	opacity: 0.7;
 	font-size: .9em;
-	margin-top: -0.5px;
+	margin-left: 0.5px;
 }
-.chat-attached-context .chat-prompt-attachment.warning {
+.chat-attached-context-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
-.chat-attached-context .chat-prompt-attachment.error {
+.chat-attached-context-attachment.error {
 	color: var(--vscode-notificationsErrorIcon-foreground);
-}
-.chat-attached-context .chat-prompt-attachment.disabled {
-	border-style: dashed;
-	opacity: 0.75;
-}
-.chat-attached-context .chat-prompt-attachment:focus .monaco-button {
-	border-color: var(--vscode-focusBorder);
-}
-.chat-attached-context .chat-prompt-attachment .monaco-icon-label-container {
-	margin-top: -0.1em;
-}
-.chat-attached-context .chat-prompt-attachment.warning.implicit {
-	border: 1px solid currentColor;
-}
-.chat-attached-context .chat-prompt-attachment.implicit .monaco-button {
-	padding-left: 2px;
-	padding-right: 2px;
-}
-/*
- * If in one of the non-normal states, make sure the `main icon` of
- * the component has the same color as the component itself
- */
-.chat-attached-context .chat-prompt-attachment.error .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-attachment.warning .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
-	color: inherit;
-}
-.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
-	font-style: italic;
-}
-.chat-attached-context .chat-prompt-attachment.disabled:hover {
-	opacity: 1;
-}
-.chat-attached-context .chat-prompt-attachment.disabled .chat-implicit-hint,
-.chat-attached-context .chat-prompt-attachment.disabled .label-name {
-	font-style: italic;
-	text-decoration: line-through;
-}
-.chat-attached-context .chat-prompt-attachment.disabled:focus {
-	outline: none;
-	border-color: var(--vscode-focusBorder);
 }
 
 .chat-attached-context-attachment .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
@@ -1629,6 +1582,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 
 	code {
 		font-size: 11px;

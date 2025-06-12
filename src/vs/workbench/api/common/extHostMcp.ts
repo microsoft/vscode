@@ -517,7 +517,11 @@ class McpHTTPHandle extends Disposable {
 				return;
 			}
 
-			retry = 0;
+			// Only reset the retry counter if we definitely get an event stream to avoid
+			// spamming servers that (incorrectly) don't return one from this endpoint.
+			if (res.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
+				retry = 0;
+			}
 
 			const parser = new SSEParser(event => {
 				if (event.type === 'message') {

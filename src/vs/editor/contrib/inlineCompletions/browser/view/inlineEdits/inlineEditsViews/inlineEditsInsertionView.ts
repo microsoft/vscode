@@ -12,16 +12,14 @@ import { editorBackground } from '../../../../../../../platform/theme/common/col
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
-import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
-import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
@@ -55,13 +53,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	});
 
 	private readonly _trimVertically = derived(this, reader => {
-		const text = this._state.read(reader)?.text;
+		const state = this._state.read(reader);
+		const text = state?.text;
 		if (!text || text.trim() === '') {
 			return { topOffset: 0, bottomOffset: 0, linesTop: 0, linesBottom: 0 };
 		}
 
 		// Adjust for leading/trailing newlines
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const lineHeight = this._editor.getLineHeightForPosition(new Position(state.lineNumber, 1));
 		const eol = this._editor.getModel()!.getEOL();
 		let linesTop = 0;
 		let linesBottom = 0;

@@ -8,8 +8,43 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
+
+/**
+ * Base OAuth 2.0 error codes as specified in RFC 6749.
+ */
+export const enum AuthorizationErrorType {
+	InvalidRequest = 'invalid_request',
+	InvalidClient = 'invalid_client',
+	InvalidGrant = 'invalid_grant',
+	UnauthorizedClient = 'unauthorized_client',
+	UnsupportedGrantType = 'unsupported_grant_type',
+	InvalidScope = 'invalid_scope'
+}
+
+/**
+ * Device authorization grant specific error codes as specified in RFC 8628 section 3.5.
+ */
+export const enum AuthorizationDeviceCodeErrorType {
+	/**
+	 * The authorization request is still pending as the end user hasn't completed the user interaction steps.
+	 */
+	AuthorizationPending = 'authorization_pending',
+	/**
+	 * A variant of "authorization_pending", polling should continue but interval must be increased by 5 seconds.
+	 */
+	SlowDown = 'slow_down',
+	/**
+	 * The authorization request was denied.
+	 */
+	AccessDenied = 'access_denied',
+	/**
+	 * The "device_code" has expired and the device authorization session has concluded.
+	 */
+	ExpiredToken = 'expired_token'
+}
 
 /**
  * Metadata about a protected resource.
@@ -395,18 +430,11 @@ export interface IAuthorizationDeviceResponse {
  * Error response from the token endpoint when using device authorization grant.
  * As defined in RFC 8628 section 3.5.
  */
-export interface IAuthorizationDeviceTokenErrorResponse {
+export interface IAuthorizationErrorResponse {
 	/**
 	 * REQUIRED. Error code as specified in OAuth 2.0 or in RFC 8628 section 3.5.
-	 * Standard OAuth 2.0 error codes plus:
-	 * - "authorization_pending": The authorization request is still pending as the end user hasn't completed the user interaction steps
-	 * - "slow_down": A variant of "authorization_pending", polling should continue but interval must be increased by 5 seconds
-	 * - "access_denied": The authorization request was denied
-	 * - "expired_token": The "device_code" has expired and the device authorization session has concluded
 	 */
-	error: 'invalid_request' | 'invalid_client' | 'invalid_grant' | 'unauthorized_client' |
-	'unsupported_grant_type' | 'invalid_scope' | 'authorization_pending' |
-	'slow_down' | 'access_denied' | 'expired_token' | string;
+	error: AuthorizationErrorType | string;
 
 	/**
 	 * OPTIONAL. Human-readable description of the error.
@@ -417,6 +445,17 @@ export interface IAuthorizationDeviceTokenErrorResponse {
 	 * OPTIONAL. URI to a human-readable web page with more information about the error.
 	 */
 	error_uri?: string;
+}
+
+/**
+ * Error response from the token endpoint when using device authorization grant.
+ * As defined in RFC 8628 section 3.5.
+ */
+export interface IAuthorizationDeviceTokenErrorResponse extends IAuthorizationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or in RFC 8628 section 3.5.
+	 */
+	error: AuthorizationErrorType | AuthorizationDeviceCodeErrorType | string;
 }
 
 export interface IAuthorizationJWTClaims {
@@ -606,12 +645,12 @@ export function isAuthorizationDeviceResponse(obj: unknown): obj is IAuthorizati
 	return response.device_code !== undefined && response.user_code !== undefined && response.verification_uri !== undefined && response.expires_in !== undefined;
 }
 
-export function isAuthorizationDeviceTokenErrorResponse(obj: unknown): obj is IAuthorizationDeviceTokenErrorResponse {
+export function isAuthorizationErrorResponse(obj: unknown): obj is IAuthorizationErrorResponse {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
-	const response = obj as IAuthorizationDeviceTokenErrorResponse;
-	return response.error !== undefined && response.error_description !== undefined;
+	const response = obj as IAuthorizationErrorResponse;
+	return response.error !== undefined;
 }
 
 //#endregion
@@ -646,7 +685,7 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
  * the spec and require an exact match.
  */
 export const DEFAULT_AUTH_FLOW_PORT = 33418;
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
 	const response = await fetch(registrationEndpoint, {
 		method: 'POST',
 		headers: {
@@ -669,6 +708,7 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
+			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none'
 		})
 	});

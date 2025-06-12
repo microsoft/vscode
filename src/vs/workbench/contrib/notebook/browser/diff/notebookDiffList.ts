@@ -621,6 +621,7 @@ function buildSourceEditor(instantiationService: IInstantiationService, notebook
 		},
 		automaticLayout: false,
 		overflowWidgetsDomNode: notebookEditor.getOverflowContainerDomNode(),
+		allowVariableLineHeights: false,
 		readOnly: true,
 	}, {
 		contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1)
