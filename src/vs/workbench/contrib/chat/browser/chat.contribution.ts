@@ -239,6 +239,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		'chat.undoRequests.restoreInput': {
+			default: true,
+			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
+			type: 'boolean',
+			tags: ['experimental']
+		},
 		[mcpEnabledSection]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
