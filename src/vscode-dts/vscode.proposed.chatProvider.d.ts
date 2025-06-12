@@ -135,10 +135,8 @@ declare module 'vscode' {
 
 	export namespace lm {
 
-		export function registerChatModelProvider(
-			vendor: string,
-			provider: LanguageModelChatProvider2
-		): Disposable;
+		//
+		// export function registerChatModelProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
 	}
 
 
