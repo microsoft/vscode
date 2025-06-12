@@ -26,7 +26,7 @@ import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Mutable, assertType } from '../../../../base/common/types.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
