@@ -1641,7 +1641,7 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 	});
 
-	suite('Issue #68694 Move consequitive lines with multiple selections', () => {
+	suite('Issue #68694 support to move multiple lines through alt+arrow', () => {
 		test('Move lines down', () => {
 			const TEXT = [
 				'Line 1',
@@ -1657,7 +1657,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				moveLinesDownAction.run(null!, editor);
+				executeAction(moveLinesDownAction, editor);
 
 				const model = editor.getModel()!;
 
@@ -1692,7 +1692,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesUpAction = new MoveLinesUpAction();
-				moveLinesUpAction.run(null!, editor);
+				executeAction(moveLinesUpAction, editor);
 
 				const model = editor.getModel()!;
 
@@ -1731,7 +1731,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				const model = editor.getModel()!;
 
-				moveLinesUpAction.run(null!, editor); // no change since selections are already at top
+				executeAction(moveLinesUpAction, editor); // no change since selections are already at top
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 1',
@@ -1741,7 +1741,7 @@ suite('Editor Contrib - Line Operations', () => {
 					'Line 5'
 				]);
 
-				moveLinesDownAction.run(null!, editor);
+				executeAction(moveLinesDownAction, editor);
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 3',
@@ -1751,7 +1751,7 @@ suite('Editor Contrib - Line Operations', () => {
 					'Line 5'
 				]);
 
-				moveLinesDownAction.run(null!, editor);
+				executeAction(moveLinesDownAction, editor);
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 3',
@@ -1784,7 +1784,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				moveLinesDownAction.run(null!, editor);
+				executeAction(moveLinesDownAction, editor);
 
 				const model = editor.getModel()!;
 
@@ -1820,7 +1820,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				moveLinesDownAction.run(null!, editor);
+				executeAction(moveLinesDownAction, editor);
 
 				const model = editor.getModel()!;
 
