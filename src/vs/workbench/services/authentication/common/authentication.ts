@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -32,6 +35,7 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
+	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
 export interface IAuthenticationCreateSessionOptions {
@@ -41,6 +45,24 @@ export interface IAuthenticationCreateSessionOptions {
 	 * attempt to return the sessions that are only related to this account.
 	 */
 	account?: AuthenticationSessionAccount;
+	/**
+	 * The authorization server URI to use for this creation request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
+	 */
+	authorizationServer?: URI;
+}
+
+export interface IAuthenticationGetSessionsOptions {
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
+	/**
+	 * The authorization server URI to use for this request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
+	 */
+	authorizationServer?: URI;
 }
 
 export interface AllowedExtension {
@@ -55,6 +77,12 @@ export interface AllowedExtension {
 	lastUsed?: number;
 	// If true, this comes from the product.json
 	trusted?: boolean;
+}
+
+export interface IAuthenticationProviderHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -140,9 +168,10 @@ export interface IAuthenticationService {
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session
+	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -158,6 +187,53 @@ export interface IAuthenticationService {
 	 * @param sessionId The id of the session to remove
 	 */
 	removeSession(providerId: string, sessionId: string): Promise<void>;
+
+	/**
+	 * Gets a provider id for a specified authorization server
+	 * @param authorizationServer The authorization server url that this provider is responsible for
+	 */
+	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
+
+	/**
+	 * Allows the ability register a delegate that will be used to start authentication providers
+	 * @param delegate The delegate to register
+	 */
+	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable;
+
+	/**
+	 * Creates a dynamic authentication provider for the given server metadata
+	 * @param serverMetadata The metadata for the server that is being authenticated against
+	 */
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
+}
+
+export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
+	if (typeof thing !== 'object' || !thing) {
+		return false;
+	}
+	const maybe = thing as AuthenticationSession;
+	if (typeof maybe.id !== 'string') {
+		return false;
+	}
+	if (typeof maybe.accessToken !== 'string') {
+		return false;
+	}
+	if (typeof maybe.account !== 'object' || !maybe.account) {
+		return false;
+	}
+	if (typeof maybe.account.label !== 'string') {
+		return false;
+	}
+	if (typeof maybe.account.id !== 'string') {
+		return false;
+	}
+	if (!Array.isArray(maybe.scopes)) {
+		return false;
+	}
+	if (maybe.idToken && typeof maybe.idToken !== 'string') {
+		return false;
+	}
+	return true;
 }
 
 // TODO: Move this into MainThreadAuthentication
@@ -224,6 +300,11 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return the sessions that are only related to this account.
 	 */
 	account?: AuthenticationSessionAccount;
+	/**
+	 * The authorization server that is being asked about. If this is passed in, the provider should
+	 * attempt to return sessions that are only related to this authorization server.
+	 */
+	authorizationServer?: URI;
 }
 
 /**
@@ -239,6 +320,11 @@ export interface IAuthenticationProvider {
 	 * The display label of the authentication provider.
 	 */
 	readonly label: string;
+
+	/**
+	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
+	 */
+	readonly authorizationServers?: ReadonlyArray<URI>;
 
 	/**
 	 * Indicates whether the authentication provider supports multiple accounts.

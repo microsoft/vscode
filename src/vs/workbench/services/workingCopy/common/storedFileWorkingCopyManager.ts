@@ -505,7 +505,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 						try {
 							await workingCopy.resolve(resolveOptions);
 						} catch (error) {
-							onUnexpectedError(error);
+							if (!workingCopy.isDisposed()) {
+								onUnexpectedError(error); // only log if the working copy is still around
+							}
 						}
 					})();
 				}

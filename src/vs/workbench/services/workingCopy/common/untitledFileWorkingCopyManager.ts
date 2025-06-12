@@ -16,12 +16,32 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from './abstractFileWorkingCopyManager.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
+export interface IUntitledFileWorkingCopySaveEvent {
+
+	/**
+	 * The source untitled file working copy that was saved. It is disposed at this point.
+	 */
+	readonly source: URI;
+
+	/**
+	 * The target file working copy the untitled was saved to. Is never untitled.
+	 */
+	readonly target: URI;
+}
+
 /**
  * The only one that should be dealing with `IUntitledFileWorkingCopy` and
  * handle all operations that are working copy related, such as save/revert,
  * backup and resolving.
  */
 export interface IUntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> {
+
+	/**
+	 * An event for when an untitled file working copy was saved.
+	 * At the point the event fires, the untitled file working copy is
+	 * disposed.
+	 */
+	readonly onDidSave: Event<IUntitledFileWorkingCopySaveEvent>;
 
 	/**
 	 * An event for when a untitled file working copy changed it's dirty state.
@@ -57,6 +77,11 @@ export interface IUntitledFileWorkingCopyManager<M extends IUntitledFileWorkingC
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
 	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
+
+	/**
+	 * Internal method: triggers the onDidSave event.
+	 */
+	notifyDidSave(source: URI, target: URI): void;
 }
 
 export interface INewUntitledFileWorkingCopyOptions {
@@ -104,6 +129,9 @@ type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOption
 export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> implements IUntitledFileWorkingCopyManager<M> {
 
 	//#region Events
+
+	private readonly _onDidSave = this._register(new Emitter<IUntitledFileWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledFileWorkingCopy<M>>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -269,4 +297,8 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	}
 
 	//#endregion
+
+	notifyDidSave(source: URI, target: URI): void {
+		this._onDidSave.fire({ source, target });
+	}
 }

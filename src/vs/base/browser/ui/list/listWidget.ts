@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
 import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
@@ -26,7 +27,7 @@ import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js'
 import { ISpliceable } from '../../../common/sequence.js';
 import { isNumber } from '../../../common/types.js';
 import './list.css';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
@@ -898,14 +899,14 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -951,8 +952,8 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusOutline) { // default: set
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.monaco-drag-image${suffix},
+				.monaco-list${suffix}:focus .monaco-list-row.focused,
 				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
@@ -1055,6 +1056,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly userSelection?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
 	readonly transformOptimization?: boolean;
@@ -1239,25 +1241,25 @@ class PipelineRenderer<T> implements IListRenderer<T, any> {
 		return this.renderers.map(r => r.renderTemplate(container));
 	}
 
-	renderElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	renderElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.renderElement(element, index, templateData[i++], height);
+			renderer.renderElement(element, index, templateData[i++], renderDetails);
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: any[], height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: any[], renderDetails?: IListElementRenderDetails): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeElement?.(element, index, templateData[i], height);
+			renderer.disposeElement?.(element, index, templateData[i], renderDetails);
 
 			i += 1;
 		}
 	}
 
-	disposeTemplate(templateData: any[]): void {
+	disposeTemplate(templateData: unknown[]): void {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
@@ -1301,11 +1303,11 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, IAccessibilityTemplate
 		}
 	}
 
-	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData, height: number | undefined): void {
+	disposeElement(element: T, index: number, templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.clear();
 	}
 
-	disposeTemplate(templateData: any): void {
+	disposeTemplate(templateData: IAccessibilityTemplateData): void {
 		templateData.disposables.dispose();
 	}
 }

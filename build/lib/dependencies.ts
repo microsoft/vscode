@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as cp from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import cp from 'child_process';
 const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
 
 function getNpmProductionDependencies(folder: string): string[] {

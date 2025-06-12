@@ -8,5 +8,7 @@
 	"videoPreviewerLoop": "Loop videos over again automatically.",
 	"command.zoomIn": "Zoom in",
 	"command.zoomOut": "Zoom out",
-	"command.copyImage": "Copy"
+	"command.copyImage": "Copy",
+	"command.reopenAsPreview": "Reopen as image preview",
+	"command.reopenAsText": "Reopen as source text"
 }

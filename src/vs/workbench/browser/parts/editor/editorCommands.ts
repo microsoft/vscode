@@ -28,7 +28,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAc
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -40,6 +40,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
+import { prepareMoveCopyEditors } from './editor.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -60,6 +61,7 @@ export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
 export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
+export const REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID = 'reopenActiveEditorWith';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
@@ -108,13 +110,13 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	TOGGLE_MAXIMIZE_EDITOR_GROUP
 ];
 
-export interface ActiveEditorMoveCopyArguments {
+export interface SelectedEditorsMoveCopyArguments {
 	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by?: 'tab' | 'group';
 	value?: number;
 }
 
-const isActiveEditorMoveCopyArg = function (arg: ActiveEditorMoveCopyArguments): boolean {
+const isSelectedEditorsMoveCopyArg = function (arg: SelectedEditorsMoveCopyArguments): boolean {
 	if (!isObject(arg)) {
 		return false;
 	}
@@ -159,14 +161,14 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(true, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
 					description: localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
@@ -178,42 +180,55 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(false, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorCopy.arg.name', "Active editor copy argument"),
 					description: localize('editorCommand.activeEditorCopy.arg.description', "Argument Properties:\n\t* 'to': String value providing where to copy.\n\t* 'value': Number value providing how many positions or an absolute position to copy."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
 		}
 	});
 
-	function moveCopyActiveEditor(isMove: boolean, args: ActiveEditorMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
+	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
 		args.to = args.to || 'right';
 		args.by = args.by || 'tab';
 		args.value = typeof args.value === 'number' ? args.value : 1;
 
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-		if (activeEditorPane) {
+		const activeGroup = accessor.get(IEditorGroupsService).activeGroup;
+		const selectedEditors = activeGroup.selectedEditors;
+		if (selectedEditors.length > 0) {
 			switch (args.by) {
 				case 'tab':
 					if (isMove) {
-						return moveActiveTab(args, activeEditorPane);
+						return moveTabs(args, activeGroup, selectedEditors);
 					}
 					break;
 				case 'group':
-					return moveCopyActiveEditorToGroup(isMove, args, activeEditorPane, accessor);
+					return moveCopyActiveEditorToGroup(isMove, args, activeGroup, selectedEditors, accessor);
 			}
 		}
 	}
 
-	function moveActiveTab(args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane): void {
-		const group = control.group;
-		let index = group.getIndexOfEditor(control.input);
+	function moveTabs(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editors: EditorInput[]): void {
+		const to = args.to;
+		if (to === 'first' || to === 'right') {
+			editors = [...editors].reverse();
+		} else if (to === 'position' && (args.value ?? 1) < group.getIndexOfEditor(editors[0])) {
+			editors = [...editors].reverse();
+		}
+
+		for (const editor of editors) {
+			moveTab(args, group, editor);
+		}
+	}
+
+	function moveTab(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editor: EditorInput): void {
+		let index = group.getIndexOfEditor(editor);
 		switch (args.to) {
 			case 'first':
 				index = 0;
@@ -236,14 +251,13 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
-		group.moveEditor(control.input, group, { index });
+		group.moveEditor(editor, group, { index });
 	}
 
-	function moveCopyActiveEditorToGroup(isMove: boolean, args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
+	function moveCopyActiveEditorToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const sourceGroup = control.group;
 		let targetGroup: IEditorGroup | undefined;
 
 		switch (args.to) {
@@ -295,11 +309,13 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		if (targetGroup) {
+			const editorsWithOptions = prepareMoveCopyEditors(sourceGroup, editors);
 			if (isMove) {
-				sourceGroup.moveEditor(control.input, targetGroup);
+				sourceGroup.moveEditors(editorsWithOptions, targetGroup);
 			} else if (sourceGroup.id !== targetGroup.id) {
-				sourceGroup.copyEditor(control.input, targetGroup);
+				sourceGroup.copyEditors(editorsWithOptions, targetGroup);
 			}
+
 			targetGroup.focus();
 		}
 	}
@@ -494,7 +510,7 @@ function registerOpenEditorAPICommands(): void {
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		await editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		await editorService.openEditor({ resource: URI.from(resource, true), options: { pinned: true, ...optionsArg, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 
 	// partial, renderer-side API command to open diff editor
@@ -852,73 +868,87 @@ function registerCloseEditorCommands() {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: async (accessor, ...args: unknown[]) => {
-			const editorService = accessor.get(IEditorService);
-			const editorResolverService = accessor.get(IEditorResolverService);
-			const telemetryService = accessor.get(ITelemetryService);
-
-			const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
-			const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
-
-			for (const { group, editors } of resolvedContext.groupedEditors) {
-				for (const editor of editors) {
-					const untypedEditor = editor.toUntyped();
-					if (!untypedEditor) {
-						return; // Resolver can only resolve untyped editors
-					}
-
-					untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
-					const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
-					if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-						return;
-					}
-
-					let editorReplacementsInGroup = editorReplacements.get(group);
-					if (!editorReplacementsInGroup) {
-						editorReplacementsInGroup = [];
-						editorReplacements.set(group, editorReplacementsInGroup);
-					}
-
-					editorReplacementsInGroup.push({
-						editor: editor,
-						replacement: resolvedEditor.editor,
-						forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
-						options: resolvedEditor.options
-					});
-
-					// Telemetry
-					type WorkbenchEditorReopenClassification = {
-						owner: 'rebornix';
-						comment: 'Identify how a document is reopened';
-						scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
-						ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
-						from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
-						to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
-					};
-
-					type WorkbenchEditorReopenEvent = {
-						scheme: string;
-						ext: string;
-						from: string;
-						to: string;
-					};
-
-					telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-						scheme: editor.resource?.scheme ?? '',
-						ext: editor.resource ? extname(editor.resource) : '',
-						from: editor.editorId ?? '',
-						to: resolvedEditor.editor.editorId ?? ''
-					});
-				}
-			}
-
-			// Replace editor with resolved one and make active
-			for (const [group, replacements] of editorReplacements) {
-				await group.replaceEditors(replacements);
-				await group.openEditor(replacements[0].replacement);
-			}
+		handler: (accessor, ...args: unknown[]) => {
+			return reopenEditorWith(accessor, EditorResolution.PICK, ...args);
 		}
 	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, override?: string, ...args: unknown[]) => {
+			return reopenEditorWith(accessor, override ?? EditorResolution.PICK, ...args);
+		}
+	});
+
+	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | EditorResolution, ...args: unknown[]) {
+		const editorService = accessor.get(IEditorService);
+		const editorResolverService = accessor.get(IEditorResolverService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
+
+		for (const { group, editors } of resolvedContext.groupedEditors) {
+			for (const editor of editors) {
+				const untypedEditor = editor.toUntyped();
+				if (!untypedEditor) {
+					return; // Resolver can only resolve untyped editors
+				}
+
+				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
+				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
+				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					return;
+				}
+
+				let editorReplacementsInGroup = editorReplacements.get(group);
+				if (!editorReplacementsInGroup) {
+					editorReplacementsInGroup = [];
+					editorReplacements.set(group, editorReplacementsInGroup);
+				}
+
+				editorReplacementsInGroup.push({
+					editor: editor,
+					replacement: resolvedEditor.editor,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					options: resolvedEditor.options
+				});
+
+				// Telemetry
+				type WorkbenchEditorReopenClassification = {
+					owner: 'rebornix';
+					comment: 'Identify how a document is reopened';
+					scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
+					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
+				};
+
+				type WorkbenchEditorReopenEvent = {
+					scheme: string;
+					ext: string;
+					from: string;
+					to: string;
+				};
+
+				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
+					scheme: editor.resource?.scheme ?? '',
+					ext: editor.resource ? extname(editor.resource) : '',
+					from: editor.editorId ?? '',
+					to: resolvedEditor.editor.editorId ?? ''
+				});
+			}
+		}
+
+		// Replace editor with resolved one and make active
+		for (const [group, replacements] of editorReplacements) {
+			await group.replaceEditors(replacements);
+			await group.openEditor(replacements[0].replacement);
+		}
+	}
 
 	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, ...args: unknown[]) => {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
@@ -960,8 +990,8 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false);
-			group?.focus();
+			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false) ?? editorGroupsService.activeGroup;
+			group.focus();
 		});
 	}
 }

@@ -361,7 +361,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 					wsmiddotWidth: 10,
 					maxDigitWidth: 10,
 				}, true),
-				stickyHeight: 0
+				stickyHeight: 0,
+				listViewOffsetTop: 0,
 			};
 		}
 	};
@@ -562,6 +563,9 @@ export class TestNotebookExecutionStateService implements INotebookExecutionStat
 	}
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
+		return;
+	}
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
 		return;
 	}
 	getExecution(notebook: URI): INotebookExecution | undefined {

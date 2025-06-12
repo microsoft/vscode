@@ -31,17 +31,16 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import * as coverUtils from './codeCoverageDisplayUtils.js';
-import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
-import { ManagedTestCoverageBars } from './testCoverageBars.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
 import { TestCommandId } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
@@ -50,6 +49,9 @@ import { TestId } from '../common/testId.js';
 import { ITestService } from '../common/testService.js';
 import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
+import { ManagedTestCoverageBars } from './testCoverageBars.js';
 
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
@@ -76,6 +78,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		@ITestCoverageService private readonly coverage: ITestCoverageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly log: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -103,6 +106,18 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			report.didAddCoverage.read(reader); // re-read if changes when there's no report
 			return { file, testId: coverage.filterToTest.read(reader) };
 		});
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasPerTestCoverage,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file.perTestData?.size,
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasCoverageInFile,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file,
+		));
 
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
@@ -709,7 +724,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 			icon: testingCoverageReport,
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.hasCoverageInFile, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
 			]
 		});
 	}
@@ -735,7 +750,7 @@ registerAction2(class ToggleCoverageToolbar extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
 				{ id: MenuId.StickyScrollContext, when: TestingContextKeys.isTestCoverageOpen },
-				{ id: MenuId.EditorTitle, when: TestingContextKeys.isTestCoverageOpen, group: 'coverage@1' },
+				{ id: MenuId.EditorTitle, when: TestingContextKeys.hasCoverageInFile, group: 'coverage@1' },
 			]
 		});
 	}
@@ -759,7 +774,16 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 				condition: TestingContextKeys.isCoverageFilteredToTest,
 			},
 			menu: [
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						TestingContextKeys.hasCoverageInFile,
+						TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true),
+						TestingContextKeys.hasPerTestCoverage,
+						ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					),
+					group: 'navigation',
+				},
 			]
 		});
 	}

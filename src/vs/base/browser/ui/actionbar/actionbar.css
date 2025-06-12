@@ -52,10 +52,17 @@
 	border-radius: 5px;
 }
 
-.monaco-action-bar .action-item.disabled .action-label,
-.monaco-action-bar .action-item.disabled .action-label::before,
-.monaco-action-bar .action-item.disabled .action-label:hover {
+.monaco-action-bar .action-item.disabled .action-label:not(.icon) ,
+.monaco-action-bar .action-item.disabled .action-label:not(.icon)::before,
+.monaco-action-bar .action-item.disabled .action-label:not(.icon):hover {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Unable to change color of SVGs, hence opacity is used */
+.monaco-action-bar .action-item.disabled .action-label.icon ,
+.monaco-action-bar .action-item.disabled .action-label.icon::before,
+.monaco-action-bar .action-item.disabled .action-label.icon:hover {
+	opacity: 0.6;
 }
 
 /* Vertical actions */

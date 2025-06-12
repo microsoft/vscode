@@ -220,6 +220,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 	disposeTemplate(templateData: IOutputReplElementTemplateData): void {
 		templateData.source.dispose();
 		templateData.elementDisposable.dispose();
+		templateData.count.dispose();
 	}
 
 	disposeElement(_element: ITreeNode<ReplOutputElement, FuzzyScore>, _index: number, templateData: IOutputReplElementTemplateData): void {

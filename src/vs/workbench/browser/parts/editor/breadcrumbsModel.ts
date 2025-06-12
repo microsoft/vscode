@@ -49,7 +49,7 @@ export class BreadcrumbsModel {
 
 	constructor(
 		readonly resource: URI,
-		editor: IEditorPane | undefined,
+		readonly editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,

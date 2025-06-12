@@ -518,8 +518,8 @@ class OverlayContext implements IContext {
 
 	constructor(private parent: IContext, private overlay: ReadonlyMap<string, any>) { }
 
-	getValue<T>(key: string): T | undefined {
-		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getValue(key);
+	getValue<T extends ContextKeyValue>(key: string): T | undefined {
+		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getValue<T>(key);
 	}
 }
 

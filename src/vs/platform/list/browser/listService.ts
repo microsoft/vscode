@@ -646,13 +646,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
@@ -860,6 +853,7 @@ export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTree
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly selectionNavigation?: boolean;
+	readonly scrollToActiveElement?: boolean;
 }
 
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {

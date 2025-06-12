@@ -14,7 +14,7 @@ import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationE
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
 
-export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
+export class DebugMemoryFileSystemProvider extends Disposable implements IFileSystemProvider {
 	private memoryFdCounter = 0;
 	private readonly fdMemory = new Map<number, { session: IDebugSession; region: IMemoryRegion }>();
 	private readonly changeEmitter = new Emitter<readonly IFileChange[]>();
@@ -31,13 +31,15 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		| FileSystemProviderCapabilities.FileOpenReadWriteClose;
 
 	constructor(private readonly debugService: IDebugService) {
-		debugService.onDidEndSession(({ session }) => {
+		super();
+
+		this._register(debugService.onDidEndSession(({ session }) => {
 			for (const [fd, memory] of this.fdMemory) {
 				if (memory.session === session) {
 					this.close(fd);
 				}
 			}
-		});
+		}));
 	}
 
 	public watch(resource: URI, opts: IWatchOptions) {
@@ -233,11 +235,12 @@ class MemoryRegionView extends Disposable implements IMemoryRegion {
 
 	public readonly onDidInvalidate = this.invalidateEmitter.event;
 	public readonly writable: boolean;
-	private readonly width = this.range.toOffset - this.range.fromOffset;
+	private readonly width: number;
 
 	constructor(private readonly parent: IMemoryRegion, public readonly range: { fromOffset: number; toOffset: number }) {
 		super();
 		this.writable = parent.writable;
+		this.width = range.toOffset - range.fromOffset;
 
 		this._register(parent);
 		this._register(parent.onDidInvalidate(e => {

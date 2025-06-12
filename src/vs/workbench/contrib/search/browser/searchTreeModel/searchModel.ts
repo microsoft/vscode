@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { INotebookSearchService } from '../../common/notebookSearch.js';
 import { ReplacePattern } from '../../../../services/search/common/replace.js';
-import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
 import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation, ISearchModel, ISearchResult, SEARCH_MODEL_PREFIX } from './searchTreeCommon.js';
 import { SearchResultImpl } from './searchResult.js';
 import { ISearchViewModelWorkbenchService } from './searchViewModelWorkbenchService.js';
@@ -115,38 +115,33 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		return this._searchResult;
 	}
 
-	async addAIResults(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	aiSearch(onResult: (result: ISearchProgressItem | undefined) => void): Promise<ISearchComplete> {
 		if (this.hasAIResults) {
 			// already has matches or pending matches
 			throw Error('AI results already exist');
-		} else {
-			if (this._searchQuery) {
-				return this.aiSearch(
-					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
-					onProgress,
-				);
-			} else {
-				throw Error('No search query');
-			}
 		}
-	}
-
-	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		if (!this._searchQuery) {
+			throw Error('No search query');
+		}
 
 		const searchInstanceID = Date.now().toString();
 		const tokenSource = new CancellationTokenSource();
 		this.currentAICancelTokenSource = tokenSource;
 		const start = Date.now();
 		const asyncAIResults = this.searchService.aiTextSearch(
-			query,
+			{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
 			tokenSource.token,
 			async (p: ISearchProgressItem) => {
+				onResult(p);
 				this.onSearchProgress(p, searchInstanceID, false, true);
-				onProgress?.(p);
 			}).finally(() => {
 				tokenSource.dispose(true);
 			}).then(
 				value => {
+					if (value.results.length === 0) {
+						// alert of no results since onProgress won't be called
+						onResult(undefined);
+					}
 					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
 					return value;
 				},
@@ -369,7 +364,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			} else {
 				this._startStreamDelay.then(() => {
 					if (targetQueue.length) {
-						this._searchResult.add(targetQueue, searchInstanceID, ai, true);
+						this._searchResult.add(targetQueue, searchInstanceID, ai, !ai);
 						targetQueue.length = 0;
 					}
 				});
@@ -397,6 +392,11 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			return true;
 		}
 		return false;
+	}
+	clearAiSearchResults(): void {
+		this._aiResultQueue.length = 0;
+		// it's not clear all as we are only clearing the AI results
+		this._searchResult.aiTextSearchResult.clear(false);
 	}
 	override dispose(): void {
 		this.cancelSearch();

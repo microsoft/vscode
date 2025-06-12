@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { IPaneComposite } from '../../../common/panecomposite.js';
-import { IView, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IView, IViewDescriptor, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
@@ -22,6 +22,7 @@ export interface IViewsService {
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
 	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
+	getFocusedView(): IViewDescriptor | null;
 	getFocusedViewName(): string;
 
 	// View APIs

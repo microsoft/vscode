@@ -9,13 +9,15 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { PerfviewContrib, PerfviewInput } from './perfviewEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService.js';
 import { EventProfiling } from '../../../../base/common/event.js';
 import { InputLatencyContrib } from './inputLatencyContrib.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { GCBasedDisposableTracker, setDisposableTracker } from '../../../../base/common/lifecycle.js';
 
 // -- startup performance view
 
@@ -136,3 +138,18 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 	InputLatencyContrib,
 	LifecyclePhase.Eventually
 );
+
+
+// -- track leaking disposables, those that get GC'ed before having been disposed
+
+
+class DisposableTracking {
+	static readonly Id = 'perf.disposableTracking';
+	constructor(@IEnvironmentService envService: IEnvironmentService) {
+		if (!envService.isBuilt && !envService.extensionTestsLocationURI) {
+			setDisposableTracker(new GCBasedDisposableTracker());
+		}
+	}
+}
+
+registerWorkbenchContribution2(DisposableTracking.Id, DisposableTracking, WorkbenchPhase.Eventually);

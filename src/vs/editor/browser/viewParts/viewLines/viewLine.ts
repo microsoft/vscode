@@ -11,7 +11,7 @@ import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
@@ -19,6 +19,7 @@ import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -54,7 +55,7 @@ export class ViewLine implements IVisibleLine {
 	private _isMaybeInvalid: boolean;
 	private _renderedViewLine: IRenderedViewLine | null;
 
-	constructor(options: ViewLineOptions) {
+	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, options: ViewLineOptions) {
 		this._options = options;
 		this._isMaybeInvalid = true;
 		this._renderedViewLine = null;
@@ -98,7 +99,7 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
+		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
 			return false;
@@ -116,7 +117,7 @@ export class ViewLine implements IVisibleLine {
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
 
 		// Only send selection information when needed for rendering whitespace
-		let selectionsOnLine: LineRange[] | null = null;
+		let selectionsOnLine: OffsetRange[] | null = null;
 		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
@@ -138,7 +139,7 @@ export class ViewLine implements IVisibleLine {
 							selectionsOnLine = [];
 						}
 
-						selectionsOnLine.push(new LineRange(startColumn - 1, endColumn - 1));
+						selectionsOnLine.push(new OffsetRange(startColumn - 1, endColumn - 1));
 					}
 				}
 			}
@@ -174,6 +175,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
@@ -211,6 +214,7 @@ export class ViewLine implements IVisibleLine {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
+			this._renderedViewLine.domNode.setLineHeight(lineHeight);
 		}
 	}
 

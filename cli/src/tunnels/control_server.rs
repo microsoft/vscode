@@ -1062,7 +1062,6 @@ fn handle_challenge_issue(
 
 	let mut auth_state = auth_state.lock().unwrap();
 	if let AuthState::WaitingForChallenge(Some(s)) = &*auth_state {
-		println!("looking for token {}, got {:?}", s, params.token);
 		match &params.token {
 			Some(t) if s != t => return Err(CodeError::AuthChallengeBadToken.into()),
 			None => return Err(CodeError::AuthChallengeBadToken.into()),

@@ -55,7 +55,7 @@ suite('Suggest Widget Model', () => {
 				const history = new Array<boolean>();
 				const d = autorun(reader => {
 					/** @description debug */
-					const selectedSuggestItem = !!model.selectedSuggestItem.read(reader);
+					const selectedSuggestItem = !!model.debugGetSelectedSuggestItem().read(reader);
 					if (last !== selectedSuggestItem) {
 						last = selectedSuggestItem;
 						history.push(last);

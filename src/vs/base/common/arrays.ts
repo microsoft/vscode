@@ -9,15 +9,15 @@ import { CancellationError } from './errors.js';
 import { ISplice } from './sequence.js';
 
 /**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
+ * Returns the last entry and the initial N-1 entries of the array, as a tuple of [rest, last].
+ *
+ * The array must have at least one element.
+ *
+ * @param arr The input array
+ * @returns A tuple of [rest, last] where rest is all but the last element and last is the last element
+ * @throws Error if the array is empty
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
-	return array[array.length - (1 + n)];
-}
-
-export function tail2<T>(arr: T[]): [T[], T] {
+export function tail<T>(arr: T[]): [T[], T] {
 	if (arr.length === 0) {
 		throw new Error('Invalid tail call');
 	}
@@ -191,6 +191,10 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	for (let i = 0; i < arr.length; i++) {
 		f(i === 0 ? undefined : arr[i - 1], arr[i], i + 1 === arr.length ? undefined : arr[i + 1]);
 	}
+}
+
+export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
+	return ([] as any[]).concat(...arrays);
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -368,7 +372,7 @@ export function move(array: unknown[], from: number, to: number): void {
 /**
  * @returns false if the provided object is an array and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
+export function isFalsyOrEmpty(obj: unknown): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
@@ -620,6 +624,8 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
 }
 
+
+
 /**
  * When comparing two values,
  * a negative number indicates that the first value is less than the second,
@@ -684,14 +690,34 @@ export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<T
 	return (a, b) => -comparator(a, b);
 }
 
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
+}
+
 export class ArrayQueue<T> {
+	private readonly items: readonly T[];
 	private firstIdx = 0;
-	private lastIdx = this.items.length - 1;
+	private lastIdx: number;
 
 	/**
 	 * Constructs a queue that is backed by the given array. Runtime is O(1).
 	*/
-	constructor(private readonly items: readonly T[]) { }
+	constructor(items: readonly T[]) {
+		this.items = items;
+		this.lastIdx = this.items.length - 1;
+	}
 
 	get length(): number {
 		return this.lastIdx - this.firstIdx + 1;
@@ -887,4 +913,12 @@ export async function findAsync<T>(array: readonly T[], predicate: (element: T, 
 	));
 
 	return results.find(r => r.ok)?.element;
+}
+
+export function sum(array: readonly number[]): number {
+	return array.reduce((acc, value) => acc + value, 0);
+}
+
+export function sumBy<T>(array: readonly T[], selector: (value: T) => number): number {
+	return array.reduce((acc, value) => acc + selector(value), 0);
 }

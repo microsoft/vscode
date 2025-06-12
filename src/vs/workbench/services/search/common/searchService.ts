@@ -10,6 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { randomChance } from '../../../../base/common/numbers.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isNumber } from '../../../../base/common/types.js';
 import { URI, URI as uri } from '../../../../base/common/uri.js';
@@ -21,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, isAIKeyword, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -93,7 +94,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			// Match
 			if (onProgress) { // don't override open editor results
-				if (isFileMatch(progress)) {
+				if (isFileMatch(progress) || isAIKeyword(progress)) {
 					onProgress(progress);
 				} else {
 					onProgress(<IProgressMessage>progress);
@@ -212,7 +213,8 @@ export class SearchService extends Disposable implements ISearchService {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
 				messages: arrays.coalesce(completes.flatMap(i => i.messages)).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
-				results: completes.flatMap((c: ISearchComplete) => c.results)
+				results: completes.flatMap((c: ISearchComplete) => c.results),
+				aiKeywords: completes.flatMap((c: ISearchComplete) => c.aiKeywords).filter(keyword => keyword !== undefined),
 			};
 		})();
 
@@ -276,9 +278,6 @@ export class SearchService extends Disposable implements ISearchService {
 			return this.getSearchProvider(query.type).has(scheme);
 		});
 
-		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
-			return [];
-		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			if (query.onlyFileScheme && scheme !== Schemas.file) {
 				return;
@@ -355,6 +354,11 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
+		if (!randomChance(5 / 100)) {
+			// Noisy events, only send 5% of them
+			return;
+		}
+
 		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
 		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
 		const scheme = fileSchemeOnly ? Schemas.file :

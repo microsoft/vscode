@@ -94,7 +94,9 @@
           },
           "markdown.math.macros": {
             "type": "object",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "default": {},
             "description": "%config.markdown.math.macros%",
             "scope": "resource"
@@ -108,9 +110,6 @@
     "watch": "npm run build-notebook",
     "build-notebook": "node ./esbuild"
   },
-  "dependencies": {
-    "@vscode/markdown-it-katex": "^1.1.0"
-  },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",
     "@types/vscode-notebook-renderer": "^1.60.0"
@@ -118,5 +117,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "dependencies": {
+    "@vscode/markdown-it-katex": "^1.1.1"
   }
 }

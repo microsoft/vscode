@@ -151,8 +151,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
 			id: 'editor.action.smartSelect.expand',
-			label: nls.localize('smartSelect.expand', "Expand Selection"),
-			alias: 'Expand Selection',
+			label: nls.localize2('smartSelect.expand', "Expand Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -180,8 +179,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
-			alias: 'Shrink Selection',
+			label: nls.localize2('smartSelect.shrink', "Shrink Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

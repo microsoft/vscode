@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -15,48 +13,19 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { SignOutOfAccountAction } from './actions/signOutOfAccountAction.js';
-import { AuthenticationProviderInformation, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
-import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
 import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { ManageAccountPreferencesForMcpServerAction } from './actions/manageAccountPreferencesForMcpServerAction.js';
+import { ManageTrustedMcpServersForAccountAction } from './actions/manageTrustedMcpServersForAccountAction.js';
+import { RemoveDynamicAuthenticationProvidersAction } from './actions/manageDynamicAuthenticationProvidersAction.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 	return environmentService.options?.codeExchangeProxyEndpoints;
-});
-
-const authenticationDefinitionSchema: IJSONSchema = {
-	type: 'object',
-	additionalProperties: false,
-	properties: {
-		id: {
-			type: 'string',
-			description: localize('authentication.id', 'The id of the authentication provider.')
-		},
-		label: {
-			type: 'string',
-			description: localize('authentication.label', 'The human readable name of the authentication provider.'),
-		}
-	}
-};
-
-const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
-	extensionPoint: 'authentication',
-	jsonSchema: {
-		description: localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
-		type: 'array',
-		items: authenticationDefinitionSchema
-	},
-	activationEventsGenerator: (authenticationProviders, result) => {
-		for (const authenticationProvider of authenticationProviders) {
-			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
-			}
-		}
-	}
 });
 
 class AuthenticationDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
@@ -76,6 +45,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 		const headers = [
 			localize('authenticationlabel', "Label"),
 			localize('authenticationid', "ID"),
+			localize('authenticationMcpAuthorizationServers', "MCP Authorization Servers")
 		];
 
 		const rows: IRowData[][] = authentication
@@ -84,6 +54,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 				return [
 					auth.label,
 					auth.id,
+					(auth.authorizationServerGlobs ?? []).join(',\n')
 				];
 			});
 
@@ -127,40 +98,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 			this._clearPlaceholderMenuItem();
 		}
 		this._registerHandlers();
-		this._registerAuthenticationExtentionPointHandler();
 		this._registerActions();
-	}
-
-	private _registerAuthenticationExtentionPointHandler(): void {
-		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
-			added.forEach(point => {
-				for (const provider of point.value) {
-					if (isFalsyOrWhitespace(provider.id)) {
-						point.collector.error(localize('authentication.missingId', 'An authentication contribution must specify an id.'));
-						continue;
-					}
-
-					if (isFalsyOrWhitespace(provider.label)) {
-						point.collector.error(localize('authentication.missingLabel', 'An authentication contribution must specify a label.'));
-						continue;
-					}
-
-					if (!this._authenticationService.declaredProviders.some(p => p.id === provider.id)) {
-						this._authenticationService.registerDeclaredAuthenticationProvider(provider);
-					} else {
-						point.collector.error(localize('authentication.idConflict', "This authentication id '{0}' has already been registered", provider.id));
-					}
-				}
-			});
-
-			const removedExtPoints = removed.flatMap(r => r.value);
-			removedExtPoints.forEach(point => {
-				const provider = this._authenticationService.declaredProviders.find(provider => provider.id === point.id);
-				if (provider) {
-					this._authenticationService.unregisterDeclaredAuthenticationProvider(provider.id);
-				}
-			});
-		});
 	}
 
 	private _registerHandlers(): void {
@@ -184,6 +122,9 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
+		this._register(registerAction2(ManageTrustedMcpServersForAccountAction));
+		this._register(registerAction2(ManageAccountPreferencesForMcpServerAction));
+		this._register(registerAction2(RemoveDynamicAuthenticationProvidersAction));
 	}
 
 	private _clearPlaceholderMenuItem(): void {
