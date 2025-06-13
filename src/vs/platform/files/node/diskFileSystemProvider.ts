@@ -10,7 +10,6 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { isEqual } from '../../../base/common/extpath.js';
-import { realpath } from '../../../base/node/extpath.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { basename, dirname, join } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
@@ -103,19 +102,20 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
+	async resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
 		try {
 			if (!resource.path) {
-				Promise.resolve(undefined); // return undefined if the resource is not a valid path
+				return undefined; // return undefined if the resource is not a valid path
 			}
-			return realpath(resource.path);
+			const resolvedPath = await promises.realpath(resource.path, 'utf8');
+			return resolvedPath;
 		} catch (error) {
 			// Return undefined if we can't resolve the symlink target
 			// This handles cases like:
 			// - File is not a symlink
 			// - Dangling symlinks
 			// - Permission errors
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 	}
 
