@@ -218,20 +218,15 @@ export class ModelRawLineChanged {
 	/**
 	 * The line that has changed.
 	 */
-	public readonly lineNumber: number;
+	public readonly oldLineNumber: number;
 	/**
-	 * The new value of the line.
+	 * The new line number the old one is mapped to
 	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	public readonly newLineNumber: number;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
-		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
+	constructor(lineNumber: number, newLineNumber: number) {
+		this.oldLineNumber = lineNumber;
+		this.newLineNumber = newLineNumber;
 	}
 }
 
@@ -267,6 +262,31 @@ export class ModelLineHeightChanged {
 }
 
 /**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelFontChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The version ID of the model.
+	 */
+	public readonly versionId: number;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+
+	constructor(ownerId: number, versionId: number, lineNumber: number) {
+		this.ownerId = ownerId;
+		this.versionId = versionId;
+		this.lineNumber = lineNumber;
+	}
+}
+
+/**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
@@ -296,25 +316,25 @@ export class ModelRawLinesInserted {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	public readonly fromLineNumber: number;
+	public readonly oldFromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly toLineNumber: number;
+	public readonly oldToLineNumber: number;
 	/**
-	 * The text that was inserted
+	 * The new from line number of the inserted lines.
 	 */
-	public readonly detail: string[];
+	public readonly newFromLineNumber: number;
 	/**
-	 * The injected texts for every inserted line.
+	 * The new to line number of the inserted lines.
 	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	public readonly newToLineNumber: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-		this.detail = detail;
+	constructor(oldFromLineNumber: number, oldToLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
+		this.oldFromLineNumber = oldFromLineNumber;
+		this.oldToLineNumber = oldToLineNumber;
+		this.newFromLineNumber = newFromLineNumber;
+		this.newToLineNumber = newToLineNumber;
 	}
 }
 
@@ -421,6 +441,19 @@ export class ModelLineHeightChangedEvent {
 			}
 			return false;
 		}
+	}
+}
+
+/**
+ * An event describing a change in fonts.
+ * @internal
+ */
+export class ModelFontChangedEvent {
+
+	public readonly changes: ModelFontChanged[];
+
+	constructor(changes: ModelFontChanged[]) {
+		this.changes = changes;
 	}
 }
 

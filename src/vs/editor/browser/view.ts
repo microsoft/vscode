@@ -116,10 +116,13 @@ export class View extends ViewEventHandler {
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
-	private _ownerID: string;
+
+	private readonly _numberOwnerID: number;
+	private readonly _ownerID: string;
 
 	constructor(
 		editorContainer: HTMLElement,
+		ownerNumberID: number,
 		ownerID: string,
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
@@ -130,6 +133,7 @@ export class View extends ViewEventHandler {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		this._numberOwnerID = ownerNumberID;
 		this._ownerID = ownerID;
 
 		this._widgetFocusTracker = this._register(
@@ -293,7 +297,7 @@ export class View extends ViewEventHandler {
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
-			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+			return this._instantiationService.createInstance(TextAreaEditContext, this._numberOwnerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		}
 	}
 
