@@ -104,8 +104,6 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	logService.trace('doResolveShellEnv#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-	const regex = new RegExp(mark + '([\\s\\S]*?)' + mark);
-
 	const env = {
 		...process.env,
 		ELECTRON_RUN_AS_NODE: '1',
@@ -207,8 +205,9 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 				return reject(new Error(localize('resolveShellEnvExitError', "Unexpected exit code from spawned shell (code {0}, signal {1})", code, signal)));
 			}
 
-			const match = regex.exec(raw);
-			const rawStripped = match ? match[1] : '{}';
+			const startIndex = raw.indexOf(mark);
+			const endIndex = raw.lastIndexOf(mark);
+			const rawStripped = startIndex !== -1 && endIndex !== -1 && startIndex < endIndex ? raw.substring(startIndex + mark.length, endIndex).trim() : '{}';
 
 			try {
 				const env = JSON.parse(rawStripped);

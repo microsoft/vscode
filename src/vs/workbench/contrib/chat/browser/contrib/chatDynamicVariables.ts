@@ -12,28 +12,23 @@ import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
-/**
- * Type of dynamic variables. Can be either a file reference or
- * another dynamic variable (e.g., a `#sym`, `#kb`, etc.).
- */
-type TDynamicVariable = IDynamicVariable | ChatFileReference;
+
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
-	private _variables: TDynamicVariable[] = [];
-	get variables(): ReadonlyArray<TDynamicVariable> {
+	private _variables: IDynamicVariable[] = [];
+
+	get variables(): ReadonlyArray<IDynamicVariable> {
 		return [...this._variables];
 	}
 
@@ -46,18 +41,16 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
-		@IConfigurationService private readonly configService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 
-			const removed: TDynamicVariable[] = [];
+			const removed: IDynamicVariable[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
-			this._variables = coalesce(this._variables.map((ref, idx): TDynamicVariable | null => {
+			this._variables = coalesce(this._variables.map((ref, idx): IDynamicVariable | null => {
 				const model = widget.inputEditor.getModel();
 
 				if (!model) {
@@ -115,7 +108,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	getInputState(): any {
 		return this.variables
-			.map((variable: TDynamicVariable) => {
+			.map((variable: IDynamicVariable) => {
 				// return underlying `IDynamicVariable` object for file references
 				if (variable instanceof ChatFileReference) {
 					return variable.reference;
@@ -143,26 +136,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	addReference(ref: IDynamicVariable): void {
-		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
-		const promptSnippetsEnabled = PromptsConfig.enabled(this.configService);
-		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
-			? this.instantiationService.createInstance(ChatFileReference, ref)
-			: ref;
-
-		this._variables.push(variable);
+		this._variables.push(ref);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
-
-		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
-		// start resolving nested file references immediately and subscribe to updates
-		if (variable instanceof ChatFileReference && variable.isPromptFile) {
-			// subscribe to variable changes
-			variable.onUpdate(() => {
-				this.updateDecorations();
-			});
-			// start resolving the file references
-			variable.start();
-		}
 	}
 
 	private updateDecorations(): void {
