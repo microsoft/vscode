@@ -84,14 +84,6 @@ async function rimrafUnlink(path: string): Promise<void> {
 	return fs.promises.rm(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
-export function rimrafSync(path: string): void {
-	if (isRootOrDriveLetter(path)) {
-		throw new Error('rimraf - will refuse to recursively delete root');
-	}
-
-	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
-}
-
 //#endregion
 
 //#region readdir with NFC support (macos)
@@ -154,15 +146,6 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	}
 
 	return result;
-}
-
-/**
- * Drop-in replacement of `fs.readdirSync` with support
- * for converting from macOS NFD unicon form to NFC
- * (https://github.com/nodejs/node/issues/2165)
- */
-export function readdirSync(path: string): string[] {
-	return handleDirectoryChildren(fs.readdirSync(path));
 }
 
 function handleDirectoryChildren(children: string[]): string[];
@@ -439,6 +422,8 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
  * Same as `fs.writeFileSync` but with an additional call to
  * `fs.fdatasyncSync` after writing to ensure changes are
  * flushed to disk.
+ *
+ * @deprecated always prefer async variants over sync!
  */
 export function writeFileSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	const ensuredOptions = ensureWriteOptions(options);
@@ -739,6 +724,9 @@ export async function realpath(path: string): Promise<string> {
 	}
 }
 
+/**
+ * @deprecated always prefer async variants over sync!
+ */
 export function realpathSync(path: string): string {
 	try {
 		return fs.realpathSync(path);
