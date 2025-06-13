@@ -117,8 +117,12 @@
 	touch-action: none;
 }
 
+/* Override any inherited background/foreground for focused row */
 .workbench-suggest-widget .monaco-list .monaco-list-row.focused {
-	color: var(--vscode-editorSuggestWidget-selectedForeground);
+	color: inherit !important;
+	background: none !important;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+	outline-offset: -1px;
 }
 
 .workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon {
