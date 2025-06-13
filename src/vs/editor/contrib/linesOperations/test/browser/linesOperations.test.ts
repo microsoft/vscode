@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorAction } from '../../../../browser/editorExtensions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
@@ -1642,6 +1642,7 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 	});
 
+	// Multi cursor/selections line move actions
 	suite('Issue #68694 support to move multiple lines through alt+arrow', () => {
 
 		test('Move lines down', () => {
@@ -1746,7 +1747,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				const model = editor.getModel()!;
 
-				moveLinesUpAction.run(instantiationService, editor); // no change since selections are already at t, instantiationServiceop
+				moveLinesUpAction.run(instantiationService, editor); // no change since selections are already at the beginning of the file = no-op
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 1',
