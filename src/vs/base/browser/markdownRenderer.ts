@@ -323,7 +323,7 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 }
 
 function uriMassage(markdown: IMarkdownString, part: string): string {
-	let data: any;
+	let data: unknown;
 	try {
 		data = parse(decodeURIComponent(part));
 	} catch (e) {

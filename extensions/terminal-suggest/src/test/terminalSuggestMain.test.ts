@@ -6,7 +6,7 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
 import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
@@ -92,7 +92,7 @@ suite('Terminal Suggest', () => {
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
 					const cursorPosition = testSpec.input.indexOf('|');
-					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorPosition, undefined);
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
 					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
@@ -100,7 +100,7 @@ suite('Terminal Suggest', () => {
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
-						prefix,
+						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},

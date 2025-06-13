@@ -20,6 +20,7 @@ import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../comm
 import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';
 import { FoldingModel } from '../../folding/browser/foldingModel.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IViewModel } from '../../../common/viewModel.js';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -58,7 +59,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private readonly _editor: ICodeEditor;
 
-	private _previousState: StickyScrollWidgetState | undefined;
+	private _state: StickyScrollWidgetState | undefined;
 	private _lineHeight: number;
 	private _renderedStickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
@@ -142,49 +143,48 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
-	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, _rebuildFromLine?: number): void {
-		if (_rebuildFromLine === undefined &&
-			((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state)))
-		) {
+	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromIndexCandidate?: number): void {
+		const currentStateAndPreviousStateUndefined = !this._state && !state;
+		const currentStateDefinedAndEqualsPreviousState = this._state && this._state.equals(state);
+		if (currentStateAndPreviousStateUndefined || currentStateDefinedAndEqualsPreviousState) {
 			return;
 		}
-		const isWidgetHeightZero = this._isWidgetHeightZero(_state);
-		const state = isWidgetHeightZero ? undefined : _state;
-		const rebuildFromLine = isWidgetHeightZero ? 0 : this._findLineToRebuildWidgetFrom(_state, _rebuildFromLine);
-
-		this._renderRootNode(state, foldingModel, rebuildFromLine);
-		this._previousState = _state;
+		const data = this._findRenderingData(state);
+		const previousLineNumbers = this._lineNumbers;
+		this._lineNumbers = data.lineNumbers;
+		this._lastLineRelativePosition = data.lastLineRelativePosition;
+		const rebuildFromIndex = this._findIndexToRebuildFrom(previousLineNumbers, this._lineNumbers, rebuildFromIndexCandidate);
+		this._renderRootNode(this._lineNumbers, this._lastLineRelativePosition, foldingModel, rebuildFromIndex);
+		this._state = state;
 	}
 
-	private _isWidgetHeightZero(state: StickyScrollWidgetState | undefined): boolean {
+	private _findRenderingData(state: StickyScrollWidgetState | undefined): { lineNumbers: number[]; lastLineRelativePosition: number } {
 		if (!state) {
-			return true;
+			return { lineNumbers: [], lastLineRelativePosition: 0 };
 		}
-		const futureWidgetHeight = this._getHeightOfLines(state.startLineNumbers, state.lastLineRelativePosition);
-		if (futureWidgetHeight > 0) {
-			this._lastLineRelativePosition = state.lastLineRelativePosition;
-			const lineNumbers = [...state.startLineNumbers];
-			if (state.showEndForLine !== null) {
-				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
-			}
-			this._lineNumbers = lineNumbers;
-		} else {
-			this._lastLineRelativePosition = 0;
-			this._lineNumbers = [];
+		const candidateLineNumbers = [...state.startLineNumbers];
+		if (state.showEndForLine !== null) {
+			candidateLineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
 		}
-		return futureWidgetHeight === 0;
+		let totalHeight = 0;
+		for (let i = 0; i < candidateLineNumbers.length; i++) {
+			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+		}
+		if (totalHeight === 0) {
+			return { lineNumbers: [], lastLineRelativePosition: 0 };
+		}
+		return { lineNumbers: candidateLineNumbers, lastLineRelativePosition: state.lastLineRelativePosition };
 	}
 
-	private _findLineToRebuildWidgetFrom(state: StickyScrollWidgetState | undefined, _rebuildFromLine?: number): number {
-		if (!state || !this._previousState) {
+	private _findIndexToRebuildFrom(previousLineNumbers: number[], newLineNumbers: number[], rebuildFromIndexCandidate?: number): number {
+		if (newLineNumbers.length === 0) {
 			return 0;
 		}
-		if (_rebuildFromLine !== undefined) {
-			return _rebuildFromLine;
+		if (rebuildFromIndexCandidate !== undefined) {
+			return rebuildFromIndexCandidate;
 		}
-		const previousState = this._previousState;
-		const indexOfLinesAlreadyRendered = state.startLineNumbers.findIndex(startLineNumber => !previousState.startLineNumbers.includes(startLineNumber));
-		return (indexOfLinesAlreadyRendered === -1) ? 0 : indexOfLinesAlreadyRendered;
+		const validIndex = newLineNumbers.findIndex(startLineNumber => !previousLineNumbers.includes(startLineNumber));
+		return validIndex === -1 ? 0 : validIndex;
 	}
 
 	private _updateWidgetWidth(): void {
@@ -193,18 +193,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
 		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
-	}
-
-	private _clearStickyLinesFromLine(clearFromLine: number) {
-		this._foldingIconStore.clear();
-		// Removing only the lines that need to be rerendered
-		for (let i = clearFromLine; i < this._renderedStickyLines.length; i++) {
-			const stickyLine = this._renderedStickyLines[i];
-			stickyLine.lineNumberDomNode.remove();
-			stickyLine.lineDomNode.remove();
-		}
-		// Keep the lines that need to be updated
-		this._renderedStickyLines = this._renderedStickyLines.slice(0, clearFromLine);
 	}
 
 	private _useFoldingOpacityTransition(requireTransitions: boolean) {
@@ -221,51 +209,55 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromLine: number): Promise<void> {
-		this._clearStickyLinesFromLine(rebuildFromLine);
-		if (!state) {
-			// make sure the dom is 0 height and display:none
-			this._setHeight(0);
+	private async _renderRootNode(lineNumbers: number[], lastLineRelativePosition: number, foldingModel: FoldingModel | undefined, rebuildFromIndex: number): Promise<void> {
+		const viewModel = this._editor._getViewModel();
+		if (!viewModel) {
+			this._clearWidget();
 			return;
 		}
-		let top: number = 0;
-		// For existing sticky lines update the top and z-index
-		for (const stickyLine of this._renderedStickyLines) {
-			this._updatePosition(stickyLine, top);
-			top += stickyLine.height;
+		if (lineNumbers.length === 0) {
+			this._clearWidget();
+			return;
 		}
-		// For new sticky lines
-		const layoutInfo = this._editor.getLayoutInfo();
-		const linesToRender = this._lineNumbers.slice(rebuildFromLine);
-		for (const [index, line] of linesToRender.entries()) {
-			const stickyLine = this._renderChildNode(index + rebuildFromLine, line, top, foldingModel, layoutInfo);
-			if (!stickyLine) {
-				continue;
+		const renderedStickyLines: RenderedStickyLine[] = [];
+		const lastLineNumber = lineNumbers[lineNumbers.length - 1];
+		let top: number = 0;
+		for (let i = 0; i < this._renderedStickyLines.length; i++) {
+			if (i < rebuildFromIndex) {
+				const renderedLine = this._renderedStickyLines[i];
+				renderedStickyLines.push(this._updatePosition(renderedLine, top, renderedLine.lineNumber === lastLineNumber));
+				top += renderedLine.height;
+			} else {
+				const renderedLine = this._renderedStickyLines[i];
+				renderedLine.lineNumberDomNode.remove();
+				renderedLine.lineDomNode.remove();
 			}
+		}
+		const layoutInfo = this._editor.getLayoutInfo();
+		for (let i = rebuildFromIndex; i < lineNumbers.length; i++) {
+			const stickyLine = this._renderChildNode(viewModel, i, lineNumbers[i], top, lastLineNumber === lineNumbers[i], foldingModel, layoutInfo);
 			top += stickyLine.height;
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
-			this._renderedStickyLines.push(stickyLine);
+			renderedStickyLines.push(stickyLine);
 		}
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
 			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
-
-		const widgetHeight = top + this._lastLineRelativePosition;
-		this._setHeight(widgetHeight);
-
-		this._rootDomNode.style.marginLeft = '0px';
 		this._minContentWidthInPx = Math.max(...this._renderedStickyLines.map(l => l.scrollWidth)) + layoutInfo.verticalScrollbarWidth;
+		this._renderedStickyLines = renderedStickyLines;
+		this._setHeight(top + lastLineRelativePosition);
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getHeightOfLines(lineNumbers: number[], lastLineRelativePosition: number): number {
-		let totalHeight = 0;
-		for (let i = 0; i < lineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(lineNumbers[i], 1));
+	private _clearWidget(): void {
+		for (let i = 0; i < this._renderedStickyLines.length; i++) {
+			const stickyLine = this._renderedStickyLines[i];
+			stickyLine.lineNumberDomNode.remove();
+			stickyLine.lineDomNode.remove();
 		}
-		return totalHeight + lastLineRelativePosition;
+		this._setHeight(0);
 	}
 
 	private _setHeight(height: number): void {
@@ -302,11 +294,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 	}
 
-	private _renderChildNode(index: number, line: number, top: number, foldingModel: FoldingModel | undefined, layoutInfo: EditorLayoutInfo): RenderedStickyLine | undefined {
-		const viewModel = this._editor._getViewModel();
-		if (!viewModel) {
-			return;
-		}
+	private _renderChildNode(viewModel: IViewModel, index: number, line: number, top: number, isLastLine: boolean, foldingModel: FoldingModel | undefined, layoutInfo: EditorLayoutInfo): RenderedStickyLine {
 		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
@@ -376,21 +364,27 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(lineNumberHTMLNode);
 
-
 		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineNumberHTMLNode.style.height = `${lineHeight}px`;
 		lineHTMLNode.style.height = `${lineHeight}px`;
 
-		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth, lineHeight);
-		return this._updatePosition(renderedLine, top);
+		const renderedLine = new RenderedStickyLine(
+			index,
+			line,
+			lineHTMLNode,
+			lineNumberHTMLNode,
+			foldingIcon,
+			renderOutput.characterMapping,
+			lineHTMLNode.scrollWidth,
+			lineHeight
+		);
+		return this._updatePosition(renderedLine, top, isLastLine);
 	}
 
-	private _updatePosition(stickyLine: RenderedStickyLine, top: number): RenderedStickyLine {
-		const index = stickyLine.index;
+	private _updatePosition(stickyLine: RenderedStickyLine, top: number, isLastLine: boolean): RenderedStickyLine {
 		const lineHTMLNode = stickyLine.lineDomNode;
 		const lineNumberHTMLNode = stickyLine.lineNumberDomNode;
-		const isLastLine = index === this._lineNumbers.length - 1;
 		if (isLastLine) {
 			const zIndex = '0';
 			lineHTMLNode.style.zIndex = zIndex;

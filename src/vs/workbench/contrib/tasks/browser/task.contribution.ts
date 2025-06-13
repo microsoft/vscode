@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../services/output/common/output.js';
 
-import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind } from '../common/tasks.js';
+import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind, rerunTaskIcon, RerunForActiveTerminalCommandId } from '../common/tasks.js';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -40,8 +40,6 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 import { TerminalMenuBarGroup } from '../../terminal/browser/terminalMenus.js';
 import { isString } from '../../../../base/common/types.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -566,8 +564,6 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
-export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -595,4 +591,3 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-

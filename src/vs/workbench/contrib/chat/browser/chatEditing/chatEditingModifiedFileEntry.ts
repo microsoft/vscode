@@ -8,9 +8,8 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,8 +21,7 @@ import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undo
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 
@@ -161,7 +159,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 					const remain = Math.round(future - Date.now());
 					if (remain <= 0) {
-						this.accept(undefined);
+						this.accept();
 					} else {
 						const handle = setTimeout(update, 100);
 						this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
@@ -206,34 +204,38 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	async accept(tx: ITransaction | undefined): Promise<void> {
+	async accept(): Promise<void> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
-		await this._doAccept(tx);
-		this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
-		this._autoAcceptCtrl.set(undefined, tx);
+		await this._doAccept();
+		transaction(tx => {
+			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
+			this._autoAcceptCtrl.set(undefined, tx);
+		});
 
 		this._notifyAction('accepted');
 	}
 
-	protected abstract _doAccept(tx: ITransaction | undefined): Promise<void>;
+	protected abstract _doAccept(): Promise<void>;
 
-	async reject(tx: ITransaction | undefined): Promise<void> {
+	async reject(): Promise<void> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		this._notifyAction('rejected');
-		await this._doReject(tx);
-		this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
-		this._autoAcceptCtrl.set(undefined, tx);
+		await this._doReject();
+		transaction(tx => {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
+			this._autoAcceptCtrl.set(undefined, tx);
+		});
 	}
 
-	protected abstract _doReject(tx: ITransaction | undefined): Promise<void>;
+	protected abstract _doReject(): Promise<void>;
 
 	protected _notifyAction(outcome: 'accepted' | 'rejected' | 'userModified') {
 		this._chatService.notifyUserAction({
@@ -283,18 +285,18 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
-	async acceptStreamingEditsEnd(tx: ITransaction) {
-		this._resetEditsState(tx);
+	async acceptStreamingEditsEnd() {
+		this._resetEditsState(undefined);
 
 		if (await this._areOriginalAndModifiedIdentical()) {
 			// ACCEPT if identical
-			await this.accept(tx);
+			await this.accept();
 		}
 	}
 
 	protected abstract _areOriginalAndModifiedIdentical(): Promise<boolean>;
 
-	protected _resetEditsState(tx: ITransaction): void {
+	protected _resetEditsState(tx: ITransaction | undefined): void {
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._rewriteRatioObs.set(0, tx);
 		this._waitsForLastEdits.set(false, tx);
@@ -306,30 +308,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
 
-	abstract restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk?: boolean): void;
+	abstract restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk?: boolean): Promise<void>;
 
 	// --- inital content
 
-	abstract resetToInitialContent(): void;
+	abstract resetToInitialContent(): Promise<void>;
 
 	abstract initialContent: string;
-}
-
-export interface IModifiedEntryTelemetryInfo {
-	readonly agentId: string | undefined;
-	readonly command: string | undefined;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly result: IChatAgentResult | undefined;
-}
-
-export interface ISnapshotEntry {
-	readonly resource: URI;
-	readonly languageId: string;
-	readonly snapshotUri: URI;
-	readonly original: string;
-	readonly current: string;
-	readonly originalToCurrentEdit: StringEdit;
-	readonly state: ModifiedFileEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
 }

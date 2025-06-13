@@ -82,7 +82,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		return this._startingRedirect.searchParams.get('state') ?? undefined;
 	}
 
-	constructor(serveRoot: string, startingRedirect: string) {
+	constructor(serveRoot: string, startingRedirect: string, callbackUri: string) {
 		if (!serveRoot) {
 			throw new Error('serveRoot must be defined');
 		}
@@ -126,7 +126,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 						throw new Error('Nonce does not match.');
 					}
 					deferred.resolve({ code, state });
-					res.writeHead(302, { location: '/' });
+					res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}` });
 					res.end();
 					break;
 				}

@@ -30,7 +30,7 @@ import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
 import { coalesce } from '../../base/common/arrays.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
@@ -556,9 +556,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON, position);
 
 		// Adjust CSS
-		const activityBarContainer = assertIsDefined(activityBar.getContainer());
-		const sideBarContainer = assertIsDefined(sideBar.getContainer());
-		const auxiliaryBarContainer = assertIsDefined(auxiliaryBar.getContainer());
+		const activityBarContainer = assertReturnsDefined(activityBar.getContainer());
+		const sideBarContainer = assertReturnsDefined(sideBar.getContainer());
+		const auxiliaryBarContainer = assertReturnsDefined(auxiliaryBar.getContainer());
 		activityBarContainer.classList.remove(oldPositionValue);
 		sideBarContainer.classList.remove(oldPositionValue);
 		activityBarContainer.classList.add(newPositionValue);
@@ -2137,7 +2137,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newPositionValue = positionToString(position);
 
 		// Adjust CSS
-		const panelContainer = assertIsDefined(panelPart.getContainer());
+		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
 
