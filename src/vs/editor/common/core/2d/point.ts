@@ -41,6 +41,10 @@ export class Point {
 		return new Point(map(this.x), map(this.y));
 	}
 
+	public isZero(): boolean {
+		return this.x === 0 && this.y === 0;
+	}
+
 	public withThreshold(threshold: number): Point {
 		return this.mapComponents(axisVal => {
 			if (axisVal > threshold) {
