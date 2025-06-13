@@ -567,11 +567,12 @@ export class ExtensionsScanner extends Disposable {
 			const userScanOptions: UserExtensionsScanOptions = { includeInvalid: true, profileLocation, productVersion };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
-				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(profileLocation);
+				const key: URI = profileLocation.with({ query: language });
+				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(key);
 				if (!scanAllExtensionsPromise) {
 					scanAllExtensionsPromise = this.extensionsScannerService.scanAllExtensions({ language }, userScanOptions)
-						.finally(() => this.scanAllExtensionPromise.delete(profileLocation));
-					this.scanAllExtensionPromise.set(profileLocation, scanAllExtensionsPromise);
+						.finally(() => this.scanAllExtensionPromise.delete(key));
+					this.scanAllExtensionPromise.set(key, scanAllExtensionsPromise);
 				}
 				scannedExtensions.push(...await scanAllExtensionsPromise);
 			} else if (type === ExtensionType.User) {
