@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { LoopbackAuthServer } from '../../node/authServer';
+import { env } from 'vscode';
 
 suite('LoopbackAuthServer', () => {
 	let server: LoopbackAuthServer;
@@ -53,7 +54,7 @@ suite('LoopbackAuthServer', () => {
 			{ redirect: 'manual' }
 		);
 		assert.strictEqual(response.status, 302);
-		assert.strictEqual(response.headers.get('location'), '/?redirect_uri=https%3A%2F%2Fcode.visualstudio.com');
+		assert.strictEqual(response.headers.get('location'), `/?redirect_uri=https%3A%2F%2Fcode.visualstudio.com&app_name=${encodeURIComponent(env.appName)}`);
 		await Promise.race([
 			server.waitForOAuthResponse().then(result => {
 				assert.strictEqual(result.code, 'valid-code');
