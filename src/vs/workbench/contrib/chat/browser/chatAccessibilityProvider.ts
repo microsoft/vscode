@@ -90,9 +90,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				for (const invocation of toolInvocation) {
 					const titleObj = invocation.confirmationMessages?.title;
 					let title = '';
-					if (typeof titleObj === 'string') {
+					if (typeof titleObj === 'string' && titleObj.trim()) {
 						title = titleObj;
-					} else if (titleObj && typeof titleObj === 'object' && 'value' in titleObj && titleObj.value) {
+					} else if (titleObj && typeof titleObj === 'object' && 'value' in titleObj && titleObj.value && titleObj.value.trim()) {
 						title = titleObj.value;
 					} else {
 						// Fallback to toolId if no valid title
