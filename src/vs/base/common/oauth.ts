@@ -653,6 +653,14 @@ export function isAuthorizationErrorResponse(obj: unknown): obj is IAuthorizatio
 	return response.error !== undefined;
 }
 
+export function isAuthorizationTokenErrorResponse(obj: unknown): obj is IAuthorizationTokenErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationTokenErrorResponse;
+	return response.error !== undefined;
+}
+
 //#endregion
 
 export function getDefaultMetadataForUrl(authorizationServer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {

@@ -13,7 +13,7 @@ import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/com
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, IAuthorizationTokenErrorResponse, isAuthorizationTokenResponse, isAuthorizationTokenErrorResponse } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
@@ -27,6 +27,17 @@ import { IExtHostProgress } from './extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
+
+/**
+ * Custom error class to signal that a client authentication failed due to invalid_client error.
+ * This error should trigger client ID removal and re-registration.
+ */
+export class InvalidClientError extends Error {
+	constructor(message: string, public readonly error: IAuthorizationTokenErrorResponse) {
+		super(message);
+		this.name = 'InvalidClientError';
+	}
+}
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -353,7 +364,15 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 							this._logger.info(`Successfully created a new token for scopes ${session.scopes.join(' ')}.`);
 							newTokens.push(newToken);
 						} catch (err) {
-							this._logger.error(`Failed to refresh token: ${err}`);
+							if (err instanceof InvalidClientError) {
+								this._logger.warn(`Client authentication failed for provider ${this.id}: ${err.message}. Client will be removed and re-registration will be required.`);
+								// Signal that this client is invalid and needs to be removed
+								await this._proxy.$invalidateClient(this.authorizationServer.toString(true), this.clientId, err.error);
+								// Remove all tokens for this client since they're now invalid
+								removedTokens.push(token);
+							} else {
+								this._logger.error(`Failed to refresh token: ${err}`);
+							}
 						}
 
 					}
@@ -389,6 +408,14 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 					break;
 				}
 			} catch (err) {
+				if (err instanceof InvalidClientError) {
+					this._logger.warn(`Client authentication failed during session creation for provider ${this.id}: ${err.message}. Client will be removed and re-registration will be required.`);
+					// Signal that this client is invalid and needs to be removed
+					await this._proxy.$invalidateClient(this.authorizationServer.toString(true), this.clientId, err.error);
+					// Re-throw the error to prevent continuing with invalid client
+					throw err;
+				}
+				
 				const nextMode = this._createFlows[i + 1]?.label;
 				if (!nextMode) {
 					break; // No more flows to try
@@ -563,6 +590,28 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		});
 
 		if (!response.ok) {
+			let errorResponse: IAuthorizationTokenErrorResponse | undefined;
+			try {
+				const errorData = await response.json();
+				if (isAuthorizationTokenErrorResponse(errorData)) {
+					errorResponse = errorData;
+					// Check for invalid_client error which indicates the client ID is no longer valid
+					if (errorResponse.error === 'invalid_client') {
+						throw new InvalidClientError(
+							`Client authentication failed: ${errorResponse.error_description || errorResponse.error}`,
+							errorResponse
+						);
+					}
+				}
+			} catch (error) {
+				// If we can't parse the error response or it's already an InvalidClientError, re-throw it
+				if (error instanceof InvalidClientError) {
+					throw error;
+				}
+				// Fall through to generic error handling below
+			}
+			
+			// For non-invalid_client errors or unparseable responses, throw generic error
 			const text = await response.text();
 			throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${text}`);
 		}
@@ -594,6 +643,28 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		});
 
 		if (!response.ok) {
+			let errorResponse: IAuthorizationTokenErrorResponse | undefined;
+			try {
+				const errorData = await response.json();
+				if (isAuthorizationTokenErrorResponse(errorData)) {
+					errorResponse = errorData;
+					// Check for invalid_client error which indicates the client ID is no longer valid
+					if (errorResponse.error === 'invalid_client') {
+						throw new InvalidClientError(
+							`Client authentication failed: ${errorResponse.error_description || errorResponse.error}`,
+							errorResponse
+						);
+					}
+				}
+			} catch (error) {
+				// If we can't parse the error response or it's already an InvalidClientError, re-throw it
+				if (error instanceof InvalidClientError) {
+					throw error;
+				}
+				// Fall through to generic error handling below
+			}
+			
+			// For non-invalid_client errors or unparseable responses, throw generic error
 			const text = await response.text();
 			throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${text}`);
 		}
