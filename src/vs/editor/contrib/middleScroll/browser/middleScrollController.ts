@@ -42,11 +42,17 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 			const scrollingSession = reader.store.add(
 				disposableObservableValue(
 					'scrollingSession',
-					undefined as undefined | { mouseDeltaAfterThreshold: IObservable<Point>; initialMousePosInEditor: Point } & IDisposable
+					undefined as undefined | { mouseDeltaAfterThreshold: IObservable<Point>; initialMousePosInEditor: Point; didScroll: boolean } & IDisposable
 				)
 			);
 
 			reader.store.add(this._editor.onMouseDown(e => {
+				const session = scrollingSession.get();
+				if (session) {
+					scrollingSession.set(undefined, undefined);
+					return;
+				}
+
 				if (!e.event.middleButton) {
 					return;
 				}
@@ -64,12 +70,21 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 				scrollingSession.set({
 					mouseDeltaAfterThreshold,
 					initialMousePosInEditor,
+					didScroll: false,
 					dispose: () => store.dispose(),
 				}, undefined);
-			}));
 
-			reader.store.add(this._editor.onMouseUp(e => {
-				scrollingSession.set(undefined, undefined);
+				store.add(this._editor.onMouseUp(e => {
+					const session = scrollingSession.get();
+					if (session && session.didScroll) {
+						// Only cancel session on release if the user scrolled during it
+						scrollingSession.set(undefined, undefined);
+					}
+				}));
+
+				store.add(this._editor.onKeyDown(e => {
+					scrollingSession.set(undefined, undefined);
+				}));
 			}));
 
 			reader.store.add(autorun(reader => {
@@ -94,6 +109,9 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 
 					const scrollPos = new Point(this._editor.getScrollLeft(), this._editor.getScrollTop());
 					this._editor.setScrollPosition(toScrollPosition(scrollPos.add(scrollDelta)));
+					if (!scrollDelta.isZero()) {
+						session.didScroll = true;
+					}
 				}));
 
 				const directionAttr = derived(reader => {
