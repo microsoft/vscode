@@ -1,0 +1,1 @@
+This is the real target file for symlink realpath testing.

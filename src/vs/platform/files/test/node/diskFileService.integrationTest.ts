@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from '../../common/files.js';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions, FileType } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -107,6 +107,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 			(res as any).size = 1;
 		} else if (this.readonly) {
 			(res as any).permissions = FilePermission.Readonly;
+		} else if (resource.path.includes('symlink')) {
+			(res as any).type = FileType.File;
 		}
 
 		return res;
@@ -444,6 +446,17 @@ flakySuite('Disk File Service', function () {
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.isDirectory, false);
 		assert.strictEqual(resolved.isSymbolicLink, true);
+	});
+
+	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link with realpath', async () => {
+		// Create a target and symlink in the temp test directory
+		const target = URI.file(join(testDir, 'symlink-target.txt'));
+		const link = URI.file(join(testDir, 'symlinked.txt'));
+
+		const resolved = await service.resolve(link, { resolveSymlinkTarget: true });
+		assert.strictEqual(resolved.isDirectory, false);
+		assert.strictEqual(resolved.isSymbolicLink, true);
+		assert.strictEqual(resolved.resource.fsPath, target.fsPath);
 	});
 
 	test('resolve - symbolic link pointing to nonexistent file does not break', async () => {
@@ -2603,5 +2616,13 @@ flakySuite('Disk File Service', function () {
 			deleteFileError = error;
 		}
 		assert.ok(deleteFileError);
+	});
+
+	(isWindows ? test.skip : test)('resolve - symlink fixture real type: file', async () => {
+		const symlinkDir = join(testDir, 'symlink');
+		const link = URI.file(join(symlinkDir, 'symlink.txt'));
+
+		const resolved = await service.resolve(link, { resolveSymlinkTarget: true });
+		assert.strictEqual(resolved.isFile, true);
 	});
 });
