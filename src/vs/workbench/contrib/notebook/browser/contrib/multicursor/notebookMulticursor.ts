@@ -480,6 +480,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.cursorsDisposables.clear();
 		this.cursorsControllers.clear();
 		this.trackedCells = [];
+		this.totalMatchesCount = 0;
 		this.startPosition = undefined;
 		this.word = '';
 		this.totalMatchesCount = 0;
@@ -557,7 +558,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			// Check if all matches are already covered by selections to avoid infinite looping
 			const totalSelections = this.trackedCells.reduce((sum, trackedCell) => sum + trackedCell.matchSelections.length, 0);
-			
+
 			if (totalSelections >= this.totalMatchesCount) {
 				// All matches are already selected, make this a no-op like in regular editors
 				return;
