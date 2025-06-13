@@ -12,7 +12,7 @@ import { randomPath } from '../../../common/extpath.js';
 import { FileAccess } from '../../../common/network.js';
 import { basename, dirname, join, sep } from '../../../common/path.js';
 import { isWindows } from '../../../common/platform.js';
-import { configureFlushOnWrite, Promises, realcase, realpath, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
+import { configureFlushOnWrite, Promises, realcase, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { flakySuite, getRandomTestPath } from '../testUtils.js';
 
@@ -487,7 +487,7 @@ flakySuite('PFS', function () {
 	});
 
 	test('realpath', async () => {
-		const realpathVal = await realpath(testDir);
+		const realpathVal = await Promises.realpath(testDir);
 		assert.ok(realpathVal);
 	});
 

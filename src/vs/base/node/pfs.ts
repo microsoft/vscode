@@ -702,7 +702,7 @@ export async function realcase(path: string, token?: CancellationToken): Promise
 	return null;
 }
 
-export async function realpath(path: string): Promise<string> {
+async function realpath(path: string): Promise<string> {
 	try {
 		// DO NOT USE `fs.promises.realpath` here as it internally
 		// calls `fs.native.realpath` which will result in subst
@@ -805,14 +805,12 @@ export const Promises = new class {
 		};
 	}
 
-	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 20.x yet
+	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 22.x yet
 
 	get open() { return promisify(fs.open); } 			// changed to return `FileHandle` in promise API
 	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`
 
-	get realpath() { return realpath; }					// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
-
-	get ftruncate() { return promisify(fs.ftruncate); } // not exposed as API in 20.x yet
+	get ftruncate() { return promisify(fs.ftruncate); } // not exposed as API in 22.x yet
 
 	//#endregion
 
@@ -837,6 +835,8 @@ export const Promises = new class {
 
 	get rename() { return rename; }
 	get copy() { return copy; }
+
+	get realpath() { return realpath; }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
 
 	//#endregion
 };
