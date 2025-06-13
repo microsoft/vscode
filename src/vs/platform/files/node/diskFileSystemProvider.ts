@@ -103,21 +103,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+	resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
 		try {
 			if (!resource.path) {
-				return;
+				Promise.resolve(undefined); // return undefined if the resource is not a valid path
 			}
-			const resolvedPath = await realpath(resource.path);
-			const stat = await this.stat(URI.file(resolvedPath));
-			return stat;
+			return realpath(resource.path);
 		} catch (error) {
 			// Return undefined if we can't resolve the symlink target
 			// This handles cases like:
 			// - File is not a symlink
 			// - Dangling symlinks
 			// - Permission errors
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 	}
 

@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { basename } from '../../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -367,6 +367,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
+			let detail: string | undefined = undefined;
 			if (foldersRequested && child.isDirectory) {
 				kind = TerminalCompletionItemKind.Folder;
 			} else if (filesRequested && child.isFile) {
@@ -396,14 +397,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 
 			// Try to resolve symlink target for symbolic links
-			let symlinkIsDirectory: boolean;
 			if (child.isSymbolicLink) {
 				try {
-					symlinkIsDirectory = await this._symlinkIsDirectory(child.resource);
-					if (symlinkIsDirectory) {
-						kind = TerminalCompletionItemKind.Folder;
-					} else {
-						kind = TerminalCompletionItemKind.File;
+					detail = await this._fileService.resolveSymlinkRealpath(child.resource);
+					if (detail) {
+						detail = getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType) + ` -> ${detail}`;
 					}
 				} catch (error) {
 					// Ignore errors resolving symlink targets - they may be dangling links
@@ -414,7 +412,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
+				detail: detail ?? getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -517,21 +515,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 	private _getHomeDir(useWindowsStylePath: boolean, capabilities: ITerminalCapabilityStore): string | undefined {
 		return useWindowsStylePath ? this._getEnvVar('USERPROFILE', capabilities) : this._getEnvVar('HOME', capabilities);
-	}
-
-	/**
-	 * Resolve the target path of a symbolic link.
-	 * @param symlinkUri The URI of the symbolic link
-	 * @returns The target path that the symlink points to, or undefined if resolution fails
-	 */
-	private async _symlinkIsDirectory(symlinkUri: URI): Promise<boolean> {
-		try {
-			const targetUri = await this._fileService.resolveSymlinkTarget(symlinkUri);
-			return targetUri?.type === FileType.Directory;
-		} catch (error) {
-			// Return undefined if we can't resolve the symlink target
-			return false;
-		}
 	}
 }
 

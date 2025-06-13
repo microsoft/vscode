@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { FileType, IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions, IStat } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
 import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
@@ -124,11 +124,11 @@ suite('TerminalCompletionService', () => {
 				});
 				return createFileStat(resource, undefined, undefined, undefined, undefined, children);
 			},
-			async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+			async resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
 				if (resource.path.includes('symlink-file')) {
-					return { ...createFileStat(URI.file('/target/actual-file.txt'), false, true), type: FileType.File };
+					return '/target/actual-file.txt';
 				} else if (resource.path.includes('symlink-folder')) {
-					return { ...createFileStat(URI.file('/target/actual-folder'), true, true), type: FileType.Directory };
+					return '/target/actual-folder';
 				}
 				return undefined;
 			}
@@ -685,37 +685,40 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
-	suite('symlink support', () => {
-		test('should include symlink target information in completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///test'),
-				pathSeparator,
-				filesRequested: true,
-				foldersRequested: true
-			};
+	if (!isWindows) {
+		suite('symlink support', () => {
+			test('should include symlink target information in completions', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///test'),
+					pathSeparator,
+					filesRequested: true,
+					foldersRequested: true
+				};
 
-			validResources = [URI.parse('file:///test')];
+				validResources = [URI.parse('file:///test')];
 
-			// Create mock children including a symbolic link
-			childResources = [
-				{ resource: URI.parse('file:///test/regular-file.txt'), isFile: true },
-				{ resource: URI.parse('file:///test/symlink-file'), isFile: true, isSymbolicLink: true },
-				{ resource: URI.parse('file:///test/symlink-folder'), isDirectory: true, isSymbolicLink: true },
-				{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
-			];
+				// Create mock children including a symbolic link
+				childResources = [
+					{ resource: URI.parse('file:///test/regular-file.txt'), isFile: true },
+					{ resource: URI.parse('file:///test/symlink-file'), isFile: true, isSymbolicLink: true },
+					{ resource: URI.parse('file:///test/symlink-folder'), isDirectory: true, isSymbolicLink: true },
+					{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
+				];
 
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
 
-			// Find the symlink completion
-			const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
-			const symlinkFolderCompletion = result?.find(c => c.label === './symlink-folder/');
-			assert.ok(symlinkFileCompletion, 'Symlink completion should be found');
-			assert.strictEqual(symlinkFileCompletion.kind, TerminalCompletionItemKind.File, 'Symlink target should be resolved');
-			assert.ok(symlinkFolderCompletion, 'Symlink folder completion should be found');
-			assert.strictEqual(symlinkFolderCompletion.kind, TerminalCompletionItemKind.Folder, 'Symlink folder target should be resolved');
+				// Find the symlink completion
+				const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
+				const symlinkFolderCompletion = result?.find(c => c.label === './symlink-folder/');
+				assert.ok(symlinkFileCompletion, 'Symlink completion should be found');
+				assert.strictEqual(symlinkFileCompletion.kind, TerminalCompletionItemKind.File, 'Symlink target should be resolved');
+				assert.ok(symlinkFolderCompletion, 'Symlink folder completion should be found');
+				assert.strictEqual(symlinkFolderCompletion.kind, TerminalCompletionItemKind.Folder, 'Symlink folder target should be resolved');
+				assert.strictEqual(symlinkFileCompletion.detail, '/test/symlink-file -> /target/actual-file.txt', 'Symlink file detail should match target');
+				assert.strictEqual(symlinkFolderCompletion.detail, '/test/symlink-folder/ -> /target/actual-folder', 'Symlink folder detail should match target');
+			});
 		});
-	});
-
+	}
 });
 
 

@@ -1116,7 +1116,7 @@ export class TestFileService implements IFileService {
 		return createFileStat(resource, this.readonly);
 	}
 
-	resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+	resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
 		return Promise.resolve(undefined);
 	}
 

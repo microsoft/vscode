@@ -79,8 +79,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('stat', [resource]);
 	}
 
-	async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
-		return this.channel.call('resolveSymlinkTarget', [resource]) as Promise<IStat | undefined>;
+	async resolveSymlinkRealpath(resource: URI): Promise<IStat | undefined> {
+		return this.channel.call('resolveSymlinkRealpath', [resource]) as Promise<IStat | undefined>;
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
