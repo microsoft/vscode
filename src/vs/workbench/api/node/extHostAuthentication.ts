@@ -595,7 +595,7 @@ function getHtml(appUri: URI) {
 	</a>
 	<div class="message-container">
 		<div class="message">
-			You are signed in now and can close this page.
+			You are signed in now. You can close this page and return to Visual Studio Code.
 		</div>
 		<div class="error-message">
 			An error occurred while signing in:
