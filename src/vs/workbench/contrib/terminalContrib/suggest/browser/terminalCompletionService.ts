@@ -313,7 +313,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return resourceCompletions;
 		}
 
-		const stat = await this._fileService.resolve(lastWordFolderResource, { resolveSingleChildDescendants: true });
+		const stat = await this._fileService.resolve(lastWordFolderResource, { resolveSingleChildDescendants: true, resolveSymlinkTarget: true });
 		if (!stat?.children) {
 			return;
 		}
@@ -417,7 +417,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
 							try {
-								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true });
+								const fileStat = await this._fileService.resolve(URI.file(cdPathEntry), { resolveSingleChildDescendants: true, resolveSymlinkTarget: true });
 								if (fileStat?.children) {
 									for (const child of fileStat.children) {
 										if (!child.isDirectory) {

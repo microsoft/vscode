@@ -25,6 +25,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from '../common/diskFileSystemProvider.js';
 import { UniversalWatcherClient } from './watcher/watcherClient.js';
 import { NodeJSWatcherClient } from './watcher/nodejs/nodejsClient.js';
+import { realpath } from '../../../base/node/extpath.js';
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
@@ -209,6 +210,17 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			lock?.dispose();
 		}
+	}
+
+	/**
+	 *
+	 * @param resource the resource to resolve the real path for
+	 * @returns a promise that resolves to the stat of the resolved path
+	 */
+	async realpath(resource: URI): Promise<IStat> {
+		const resolvedPath = await realpath(resource.path);
+		const stat = await this.stat(URI.file(resolvedPath));
+		return stat;
 	}
 
 	private traceLock(msg: string): void {
@@ -449,7 +461,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// wise we end up in a deadlock situation
 			// https://github.com/microsoft/vscode/issues/142462
 			if (previousLock) {
-				this.traceLock(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
+				this.traceLock(`[DiskFileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
 				previousLock.dispose();
 			}
 		}
@@ -491,11 +503,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			if (lockForHandle) {
 				if (this.mapHandleToLock.get(fd) === lockForHandle) {
-					this.traceLock(`[Disk FileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
+					this.traceLock(`[DiskFileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
 					this.mapHandleToLock.delete(fd); // only delete from map if this is still our lock!
 				}
 
-				this.traceLock(`[Disk FileSystemProvider]: close() - disposing lock for handle ${fd}`);
+				this.traceLock(`[DiskFileSystemProvider]: close() - disposing lock for handle ${fd}`);
 				lockForHandle.dispose();
 			}
 		}

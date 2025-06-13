@@ -657,6 +657,7 @@ export interface IFileSystemProvider {
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
+	realpath?(resource: URI): Promise<IStat>;
 
 	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
@@ -1373,6 +1374,11 @@ export interface IResolveFileOptions {
 	 * on performance and thus should only be used when these values are required.
 	 */
 	readonly resolveMetadata?: boolean;
+
+	/**
+	 * Will resolve the target of symbolic links if enabled.
+	 */
+	readonly resolveSymlinkTarget?: boolean;
 }
 
 export interface IResolveMetadataFileOptions extends IResolveFileOptions {

@@ -213,12 +213,13 @@ export class FileService extends Disposable implements IFileService {
 		const resolveTo = options?.resolveTo;
 		const resolveSingleChildDescendants = options?.resolveSingleChildDescendants;
 		const resolveMetadata = options?.resolveMetadata;
+		const resolveSymlinkTarget = options?.resolveSymlinkTarget;
 
 		const stat = await provider.stat(resource);
 
 		let trie: TernarySearchTree<URI, boolean> | undefined;
 
-		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, (stat, siblings) => {
+		return this.toFileStat(provider, resource, stat, undefined, !!resolveMetadata, resolveSymlinkTarget ?? false, (stat, siblings) => {
 
 			// lazy trie to check for recursive resolving
 			if (!trie) {
@@ -243,10 +244,19 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
-	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
+
+		if (resource.path && resolveSymlinkTarget && (stat.type & FileType.SymbolicLink) === 0) {
+			try {
+				const resolvedSymlinkStat = await provider.realpath?.(resource);
+				if (resolvedSymlinkStat) {
+					stat = resolvedSymlinkStat;
+				}
+			} catch { }
+		}
 
 		// convert to file stat
 		const fileStat: IFileStat = {
@@ -273,7 +283,7 @@ export class FileService extends Disposable implements IFileService {
 						const childResource = providerExtUri.joinPath(resource, name);
 						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
 
-						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
+						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, resolveSymlinkTarget, recurse);
 					} catch (error) {
 						this.logService.trace(error);
 
@@ -314,7 +324,7 @@ export class FileService extends Disposable implements IFileService {
 
 		const stat = await provider.stat(resource);
 
-		return this.toFileStat(provider, resource, stat, undefined, true, () => false /* Do not resolve any children */);
+		return this.toFileStat(provider, resource, stat, undefined, true, true, () => false /* Do not resolve any children */);
 	}
 
 	async exists(resource: URI): Promise<boolean> {
