@@ -461,7 +461,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// wise we end up in a deadlock situation
 			// https://github.com/microsoft/vscode/issues/142462
 			if (previousLock) {
-				this.traceLock(`[DiskFileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
+				this.traceLock(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
 				previousLock.dispose();
 			}
 		}
