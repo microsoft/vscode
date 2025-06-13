@@ -15,7 +15,9 @@
 	</a>
 	<div class="message-container">
 		<div class="message">
-			You are signed in now. You can close this page and return to Visual Studio Code.
+			You are signed in now. You will be redirected to Visual Studio Code in a few moments.
+			<br><br>
+			If nothing happens, you can <a href="#" id="fallback-link" style="color: #007ACC;">open this link</a> or close this page and return to Visual Studio Code.
 		</div>
 		<div class="error-message">
 			An error occurred while signing in:
@@ -25,14 +27,23 @@
 	<script>
 		var urlParams = new URLSearchParams(window.location.search);
 		var error = urlParams.get('error');
+		var redirectUri = urlParams.get('redirect_uri');
+		
 		if (error) {
 			document.querySelector('.error-text')
 				.textContent = error;
 			document.querySelector('body')
 				.classList.add('error');
-		} else if (urlParams.get('redirect_uri')) {
+		} else if (redirectUri) {
+			// Set up the fallback link
+			var fallbackLink = document.getElementById('fallback-link');
+			if (fallbackLink) {
+				fallbackLink.href = redirectUri;
+			}
+			
+			// Redirect after a delay
 			setTimeout(() => {
-				window.location = urlParams.get('redirect_uri');
+				window.location = redirectUri;
 			}, 1000);
 		}
 	</script>
