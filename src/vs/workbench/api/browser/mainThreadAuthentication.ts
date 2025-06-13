@@ -121,7 +121,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
 			create: async (authorizationServer, serverMetadata, resource) => {
-				const authProviderId = authorizationServer.toString(true);
+				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
+				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 				const clientId = this.dynamicAuthProviderStorageService.getClientId(authProviderId);
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {

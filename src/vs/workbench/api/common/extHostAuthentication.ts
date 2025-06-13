@@ -284,12 +284,14 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		initialTokens: IAuthorizationToken[],
 	) {
 		const stringifiedServer = authorizationServer.toString(true);
+		// Auth Provider Id is a combination of the authorization server and the resource, if provided.
 		this.id = _resourceMetadata?.resource
 			? stringifiedServer + ' ' + _resourceMetadata?.resource
 			: stringifiedServer;
+		// Auth Provider label is just the resource name if provided, otherwise the authority of the authorization server.
 		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
 
-		this._logger = loggerService.createLogger(stringifiedServer, { name: this.label });
+		this._logger = loggerService.createLogger(this.id, { name: this.label });
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
 		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
@@ -299,7 +301,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._tokenStore = this._disposable.add(new TokenStore(
 			{
 				onDidChange: scopedEvent,
-				set: (tokens) => _proxy.$setSessionsForDynamicAuthProvider(stringifiedServer, this.clientId, tokens),
+				set: (tokens) => _proxy.$setSessionsForDynamicAuthProvider(this.id, this.clientId, tokens),
 			},
 			initialTokens,
 			this._logger
