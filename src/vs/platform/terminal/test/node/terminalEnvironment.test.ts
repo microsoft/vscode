@@ -232,5 +232,35 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 		}
+
+		if (process.platform === 'win32') {
+			suite('cmd.exe', async () => {
+				suite('should override args', async () => {
+					const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+						type: 'injection',
+						newArgs: [
+							'/K',
+							`${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.cmd`
+						],
+						envMixin: {
+							VSCODE_INJECTION: '1'
+						}
+					});
+					test('when undefined, []', async () => {
+						deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: 'cmd.exe', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
+						deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: 'cmd.exe', args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
+					});
+				});
+				suite('should not modify args', async () => {
+					test('when shell integration is disabled', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'cmd.exe', args: [] }, disabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+						strictEqual((await getShellIntegrationInjection({ executable: 'cmd.exe', args: undefined }, disabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+					test('when custom args are provided', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'cmd.exe', args: ['/C', 'echo test'] }, disabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+				});
+			});
+		}
 	});
 });
