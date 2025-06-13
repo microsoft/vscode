@@ -8,7 +8,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
@@ -50,16 +49,6 @@ export class EditTool implements IToolImpl {
 
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
-
-		// Undo stops mark groups of response data in the output. Operations, such
-		// as text edits, that happen between undo stops are all done or undone together.
-		if (request.response?.response.getMarkdown().length) {
-			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
-			model.acceptResponseProgress(request, {
-				kind: 'undoStop',
-				id: generateUuid(),
-			});
-		}
 
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',

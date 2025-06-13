@@ -900,6 +900,13 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
+	 * Sends a signal to the terminal instance's process.
+	 *
+	 * @param signal The signal to send (e.g., 'SIGTERM', 'SIGINT', 'SIGKILL').
+	 */
+	sendSignal(signal: string): Promise<void>;
+
+	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
 	 * running within the terminal. The text is written to the stdin of the underlying pty process
 	 * (shell) of the terminal instance.

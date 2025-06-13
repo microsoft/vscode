@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import * as platform from '../../../../base/common/platform.js';
-import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -223,32 +223,4 @@ export function getHistoryItemHoverContent(themeService: IThemeService, historyI
 	}
 
 	return { markdown, markdownNotSupportedFallback: historyItem.message };
-}
-
-export function compareHistoryItemRefs(
-	ref1: ISCMHistoryItemRef,
-	ref2: ISCMHistoryItemRef,
-	currentHistoryItemRef?: ISCMHistoryItemRef,
-	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
-	currentHistoryItemBaseRef?: ISCMHistoryItemRef
-): number {
-	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
-		if (ref.id === currentHistoryItemRef?.id) {
-			return 1;
-		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
-			return 2;
-		} else if (ref.id === currentHistoryItemBaseRef?.id) {
-			return 3;
-		} else if (ref.color !== undefined) {
-			return 4;
-		}
-
-		return 99;
-	};
-
-	// Assign order (current > remote > base > color)
-	const ref1Order = getHistoryItemRefOrder(ref1);
-	const ref2Order = getHistoryItemRefOrder(ref2);
-
-	return ref1Order - ref2Order;
 }

@@ -59,7 +59,7 @@ import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -655,7 +655,7 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.limited,
+						ChatContextKeys.Entitlement.free,
 						ChatContextKeys.Entitlement.pro,
 						ChatContextKeys.Entitlement.proPlus
 					),
@@ -699,7 +699,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
-				title: localize2('configureCompletions', "Configure code completions..."),
+				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ContextKeyExpr.and(
 					ChatContextKeys.Setup.installed,
 					ChatContextKeys.Setup.disabled.negate()
@@ -750,8 +750,8 @@ export function registerChatActions() {
 				message = [message, localize('quotaResetDate', "The allowance will reset on {0}.", dateFormatter.value.format(quotaResetDate))].join(' ');
 			}
 
-			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
-			const upgradeToPro = limited ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
+			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
+			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
@@ -762,7 +762,7 @@ export function registerChatActions() {
 				},
 				buttons: [
 					{
-						label: limited ? localize('upgradePro', "Upgrade to Copilot Pro") : localize('upgradePlan', "Upgrade Copilot Plan"),
+						label: free ? localize('upgradePro', "Upgrade to Copilot Pro") : localize('upgradePlan', "Upgrade Copilot Plan"),
 						run: () => {
 							const commandId = 'workbench.action.chat.upgradePlan';
 							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-dialog' });
@@ -895,7 +895,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const chatSentiment = chatEntitlementService.sentiment;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			const limited = chatEntitlementService.entitlement === ChatEntitlement.Limited;
+			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -905,7 +905,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (chatQuotaExceeded && limited) {
+				} else if (chatQuotaExceeded && free) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages quota reached. Click for details.");
 					primaryActionIcon = Codicon.copilotWarning;
@@ -990,49 +990,33 @@ export interface IClearEditingSessionConfirmationOptions {
 	messageOverride?: string;
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
-	const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
-	const defaultTitle = localize('chat.startEditing.confirmation.title', "Start new chat?");
-	const phrase = options?.messageOverride ?? defaultPhrase;
-	const title = options?.titleOverride ?? defaultTitle;
 
-	const currentEdits = editingSession.entries.get();
-	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+// --- Chat Submenus in various Components
 
-	const { result } = await dialogService.prompt({
-		title,
-		message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
-		type: 'info',
-		cancelButton: true,
-		buttons: [
-			{
-				label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
-				run: async () => {
-					await editingSession.accept();
-					return true;
-				}
-			},
-			{
-				label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
-				run: async () => {
-					await editingSession.reject();
-					return true;
-				}
-			}
-		],
-	});
+const menuContext = ContextKeyExpr.and(
+	ChatContextKeys.Setup.hidden.negate(),
+	ChatContextKeys.Setup.disabled.negate()
+);
 
-	return Boolean(result);
-}
+const title = localize('copilot', "Copilot");
 
-export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
-	const currentEdits = editingSession.entries.get();
-	const currentEditCount = currentEdits.length;
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	submenu: MenuId.ChatTextEditorMenu,
+	group: '1_copilot',
+	title,
+	when: menuContext
+});
 
-	if (currentEditCount) {
-		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
-		return !!undecidedEdits.length;
-	}
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	submenu: MenuId.ChatExplorerMenu,
+	group: '5_copilot',
+	title,
+	when: menuContext
+});
 
-	return false;
-}
+MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
+	submenu: MenuId.ChatTerminalMenu,
+	group: '2_copilot',
+	title,
+	when: menuContext
+});

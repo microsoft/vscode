@@ -99,7 +99,7 @@ export default tseslint.config(
 					'browser': [
 						'common'
 					],
-					'electron-sandbox': [
+					'electron-browser': [
 						'common',
 						'browser'
 					],
@@ -223,20 +223,7 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/platform/configuration/test/common/configuration.test.ts',
-						'src/vs/platform/opener/test/common/opener.test.ts',
-						'src/vs/platform/registry/test/common/platform.test.ts',
-						'src/vs/platform/workspace/test/common/workspace.test.ts',
-						'src/vs/platform/workspaces/test/electron-main/workspaces.test.ts',
-						'src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts',
-						'src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts',
-						'src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts',
-						'src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts',
-						'src/vs/workbench/services/commands/test/common/commandService.test.ts',
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
-						'src/vs/workbench/test/browser/quickAccess.test.ts'
 					]
 				}
 			]
@@ -419,10 +406,10 @@ export default tseslint.config(
 			]
 		}
 	},
-	// browser/electron-sandbox layer
+	// browser/electron-browser layer
 	{
 		files: [
-			'src/**/{browser,electron-sandbox}/**/*.ts'
+			'src/**/{browser,electron-browser}/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -783,7 +770,7 @@ export default tseslint.config(
 				{
 					// imports that are allowed in all files of layers:
 					// - browser
-					// - electron-sandbox
+					// - electron-browser
 					'when': 'hasBrowser',
 					'allow': []
 				},
@@ -879,18 +866,18 @@ export default tseslint.config(
 				//  - src/vs/base/common
 				//  - src/vs/base/worker
 				//  - src/vs/base/browser
-				//  - src/vs/base/electron-sandbox
+				//  - src/vs/base/electron-browser
 				//  - src/vs/base/node
 				//  - src/vs/base/electron-main
 				//  - src/vs/base/test/common
 				//  - src/vs/base/test/worker
 				//  - src/vs/base/test/browser
-				//  - src/vs/base/test/electron-sandbox
+				//  - src/vs/base/test/electron-browser
 				//  - src/vs/base/test/node
 				//  - src/vs/base/test/electron-main
 				//
 				// When /~ is used in the restrictions, it will be replaced with the correct
-				// layers that can be used e.g. 'src/vs/base/electron-sandbox' will be able
+				// layers that can be used e.g. 'src/vs/base/electron-browser' will be able
 				// to import '{common,browser,electron-sanbox}', etc.
 				//
 				// It is possible to use /~ in the restrictions property even without using it in
@@ -1216,7 +1203,7 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vs/workbench/workbench.desktop.main.ts',
-					'layer': 'electron-sandbox',
+					'layer': 'electron-browser',
 					'restrictions': [
 						'vs/base/*/~',
 						'vs/base/parts/*/~',

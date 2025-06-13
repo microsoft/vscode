@@ -220,7 +220,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return model;
 	}
 
-	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async $prepareToolInvocation(toolId: string, input: unknown, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
@@ -242,7 +242,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 					kind: 'terminal',
 					language: result.language,
 					command: result.command,
-				}
+				},
+				presentation: result.presentation
 			};
 		} else if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);

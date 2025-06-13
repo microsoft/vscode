@@ -5,7 +5,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
-import { List } from '../../../base/browser/ui/list/listWidget.js';
+import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
@@ -201,6 +201,7 @@ export class ActionList<T> extends Disposable {
 		preview: boolean,
 		items: readonly IActionListItem<T>[],
 		private readonly _delegate: IActionListDelegate<T>,
+		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -212,6 +213,7 @@ export class ActionList<T> extends Disposable {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
+
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
 			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
@@ -234,6 +236,7 @@ export class ActionList<T> extends Disposable {
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
 				getWidgetRole: () => 'listbox',
+				...accessibilityProvider
 			},
 		}));
 

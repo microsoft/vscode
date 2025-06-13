@@ -143,7 +143,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				this,
 				{
 					supportsMultipleAccounts: true,
-					supportedIssuers: [
+					supportedAuthorizationServers: [
 						ghesUri ?? vscode.Uri.parse('https://github.com/login/oauth')
 					]
 				}

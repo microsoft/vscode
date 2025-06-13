@@ -24,6 +24,8 @@ export interface IChatConfirmationButton {
 	isSecondary?: boolean;
 	tooltip?: string;
 	data: any;
+	disabled?: boolean;
+	onDidChangeDisablement?: Event<boolean>;
 	moreActions?: IChatConfirmationButton[];
 }
 
@@ -122,7 +124,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget@root', [
 			dom.h('.chat-confirmation-widget-title@title'),
 			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
+			dom.h('.chat-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -139,7 +141,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {
@@ -151,7 +153,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 						action.label,
 						action.label,
 						undefined,
-						true,
+						!action.disabled,
 						() => {
 							this._onDidClick.fire(action);
 							return Promise.resolve();
@@ -165,13 +167,16 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			this._register(button);
 			button.label = buttonData.label;
 			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			if (buttonData.onDidChangeDisablement) {
+				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
+			}
 		});
 	}
 
 	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
 		this.messageElement.append(element);
 
-		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
+		if (this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
 			const targetWindow = dom.getWindow(listContainer);
 			if (!targetWindow.document.hasFocus()) {
 				this._hostService.focus(targetWindow, { mode: FocusMode.Notify });

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from './async.js';
 import { CancellationToken } from './cancellation.js';
 import { diffSets } from './collections.js';
 import { onUnexpectedError } from './errors.js';
@@ -324,7 +325,7 @@ export namespace Event {
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+	export function accumulate<T>(event: Event<T>, delay: number | typeof MicrotaskDelay = 0, disposable?: DisposableStore): Event<T[]> {
 		return Event.debounce<T, T[]>(event, (last, e) => {
 			if (!last) {
 				return [e];
@@ -598,8 +599,16 @@ export namespace Event {
 	/**
 	 * Creates a promise out of an event, using the {@link Event.once} helper.
 	 */
-	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): Promise<T> {
-		return new Promise(resolve => once(event)(resolve, null, disposables));
+	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): CancelablePromise<T> {
+		let cancelRef: () => void;
+		const promise = new Promise((resolve, reject) => {
+			const listener = once(event)(resolve, null, disposables);
+			// not resolved, matching the behavior of a normal disposal
+			cancelRef = () => listener.dispose();
+		}) as CancelablePromise<T>;
+		promise.cancel = cancelRef!;
+
+		return promise;
 	}
 
 	/**

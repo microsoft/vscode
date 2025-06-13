@@ -6,7 +6,8 @@
 import { PromptMetadataRecord } from './base/record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
-import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
+import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -16,7 +17,20 @@ const RECORD_NAME = 'tools';
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
-export class PromptToolsMetadata extends PromptMetadataRecord {
+export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
+
+	/**
+	 * List of all valid tool names that were found in
+	 * this metadata record.
+	 */
+	public override get value(): string[] | undefined {
+		if (this.validToolNames === undefined) {
+			return [];
+		}
+
+		return [...this.validToolNames.values()];
+	}
+
 	public override get recordName(): string {
 		return RECORD_NAME;
 	}
@@ -31,18 +45,6 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 * this metadata record.
 	 */
 	private validToolNames: Set<string> | undefined;
-
-	/**
-	 * List of all valid tool names that were found in
-	 * this metadata record.
-	 */
-	public get toolNames(): readonly string[] {
-		if (this.validToolNames === undefined) {
-			return [];
-		}
-
-		return [...this.validToolNames.values()];
-	}
 
 	constructor(
 		recordToken: FrontMatterRecord,
@@ -99,8 +101,11 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	): readonly PromptMetadataDiagnostic[] {
 		const issues: PromptMetadataDiagnostic[] = [];
 
-		// tool name must be a string
-		if ((valueToken instanceof FrontMatterString) === false) {
+		// tool name must be a quoted or an unquoted 'string'
+		if (
+			(valueToken instanceof FrontMatterString) === false &&
+			(valueToken instanceof FrontMatterSequence) === false
+		) {
 			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,

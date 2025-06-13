@@ -11,7 +11,7 @@ export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
-	readonly metadata: any;
+	readonly metadata: unknown;
 }
 
 export interface IProductWalkthrough {
@@ -334,6 +334,7 @@ export interface IDefaultChatAgent {
 	readonly managePlanUrl: string;
 	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
+	readonly signUpUrl: string;
 
 	readonly providerId: string;
 	readonly providerName: string;

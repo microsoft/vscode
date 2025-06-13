@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from './core/range.js';
+import { IPosition } from './core/position.js';
+import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 
@@ -402,6 +403,24 @@ export class ModelLineHeightChangedEvent {
 
 	constructor(changes: ModelLineHeightChanged[]) {
 		this.changes = changes;
+	}
+
+	public affects(rangeOrPosition: IRange | IPosition) {
+		if (Range.isIRange(rangeOrPosition)) {
+			for (const change of this.changes) {
+				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			for (const change of this.changes) {
+				if (change.lineNumber === rangeOrPosition.lineNumber) {
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 }
 

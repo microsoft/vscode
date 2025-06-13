@@ -5,7 +5,7 @@
 
 import { ChatMode } from '../../../../constants.js';
 import { PromptEnumMetadata } from './base/enum.js';
-import { FrontMatterRecord, FrontMatterToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterRecord, FrontMatterToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -26,13 +26,6 @@ export class PromptModeMetadata extends PromptEnumMetadata<ChatMode> {
 			recordToken,
 			languageId,
 		);
-	}
-
-	/**
-	 * Chat mode value of the metadata record.
-	 */
-	public get chatMode(): ChatMode | undefined {
-		return this.enumValue;
 	}
 
 	/**

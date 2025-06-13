@@ -79,7 +79,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 			.createLogger('mcpServerTest', { hidden: true, name: 'MCP Test' }));
 
 		// Start the handler creation
-		const handlerPromise = McpServerRequestHandler.create(instantiationService, transport, logger, undefined, cts.token);
+		const handlerPromise = McpServerRequestHandler.create(instantiationService, { logger, launch: transport }, cts.token);
 
 		handler = await handlerPromise;
 		store.add(handler);

@@ -11,7 +11,10 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -30,17 +33,20 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../common/context
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpConnectionState, McpServersGalleryEnabledContext, McpServerCacheState } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, mcpPromptPrefix, McpServerCacheState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
+import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -129,7 +135,7 @@ export class ListMcpServerCommand extends Action2 {
 		if (!picked) {
 			// no-op
 		} else if (picked.id === '$add') {
-			commandService.executeCommand(AddConfigurationAction.ID);
+			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
 		}
@@ -152,21 +158,24 @@ export class McpServerOptionsCommand extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const mcpRegistry = accessor.get(IMcpRegistry);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const samplingService = accessor.get(IMcpSamplingService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
 		}
 
-
 		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
 
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config' | 'configSampling' | 'samplingLog' | 'resources';
 		}
 
-		const items: ActionItem[] = [];
+		const items: (ActionItem | IQuickPickSeparator)[] = [];
 		const serverState = server.connectionState.get();
+
+		items.push({ type: 'separator', label: localize('mcp.actions.status', 'Status') });
 
 		// Only show start when server is stopped or in error state
 		if (McpConnectionState.canBeStarted(serverState.state)) {
@@ -185,11 +194,6 @@ export class McpServerOptionsCommand extends Action2 {
 			});
 		}
 
-		items.push({
-			label: localize('mcp.showOutput', 'Show Output'),
-			action: 'showOutput'
-		});
-
 		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
 		if (configTarget) {
 			items.push({
@@ -198,9 +202,40 @@ export class McpServerOptionsCommand extends Action2 {
 			});
 		}
 
+		items.push({
+			label: localize('mcp.showOutput', 'Show Output'),
+			action: 'showOutput'
+		});
+
+		items.push(
+			{ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') },
+			{
+				label: localize('mcp.configAccess', 'Configure Model Access'),
+				description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+				action: 'configSampling'
+			},
+		);
+
+
+		if (samplingService.hasLogs(server)) {
+			items.push({
+				label: localize('mcp.samplingLog', 'Show Sampling Requests'),
+				description: localize('mcp.samplingLog.description', 'Show the sampling requests for this server'),
+				action: 'samplingLog',
+			});
+		}
+
+		const capabilities = server.capabilities.get();
+		if (capabilities === undefined || (capabilities & McpCapability.Resources)) {
+			items.push({ type: 'separator', label: localize('mcp.actions.resources', 'Resources') });
+			items.push({
+				label: localize('mcp.resources', 'Browse Resources'),
+				action: 'resources',
+			});
+		}
+
 		const pick = await quickInputService.pick(items, {
-			title: server.definition.label,
-			placeHolder: localize('mcp.selectAction', 'Select Server Action')
+			placeHolder: localize('mcp.selectAction', 'Select action for \'{0}\'', server.definition.label),
 		});
 
 		if (!pick) {
@@ -226,6 +261,17 @@ export class McpServerOptionsCommand extends Action2 {
 				editorService.openEditor({
 					resource: URI.isUri(configTarget) ? configTarget : configTarget!.uri,
 					options: { selection: URI.isUri(configTarget) ? undefined : configTarget!.range }
+				});
+				break;
+			case 'configSampling':
+				return commandService.executeCommand(McpCommandIds.ConfigureSamplingModels, server);
+			case 'resources':
+				return commandService.executeCommand(McpCommandIds.BrowseResources, server);
+			case 'samplingLog':
+				editorService.openEditor({
+					resource: undefined,
+					contents: samplingService.getLogText(server),
+					label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
 				});
 				break;
 			default:
@@ -287,7 +333,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -408,11 +454,9 @@ export class ResetMcpCachedTools extends Action2 {
 }
 
 export class AddConfigurationAction extends Action2 {
-	static readonly ID = 'workbench.mcp.addConfiguration';
-
 	constructor() {
 		super({
-			id: AddConfigurationAction.ID,
+			id: McpCommandIds.AddConfiguration,
 			title: localize2('mcp.addConfiguration', "Add Server..."),
 			metadata: {
 				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
@@ -616,7 +660,89 @@ export class McpBrowseResourcesCommand extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+	run(accessor: ServicesAccessor, server?: IMcpServer): void {
+		if (server) {
+			accessor.get(IInstantiationService).createInstance(McpResourceQuickPick, server).pick();
+		} else {
+			accessor.get(IQuickInputService).quickAccess.show(McpResourceQuickAccess.PREFIX);
+		}
 	}
 }
+
+export class McpConfigureSamplingModels extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ConfigureSamplingModels,
+			title: localize2('mcp.configureSamplingModels', "Configure SamplingModel"),
+			category,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<number> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const lmService = accessor.get(ILanguageModelsService);
+		const mcpSampling = accessor.get(IMcpSamplingService);
+
+		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
+		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
+			const model = lmService.lookupLanguageModel(id)!;
+			if (!model.isUserSelectable) {
+				return undefined;
+			}
+			return {
+				label: model.name,
+				description: model.description,
+				id,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+			};
+		}).filter(isDefined);
+
+		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
+
+		// do the quickpick selection
+		const picked = await quickInputService.pick(allItems, {
+			placeHolder: localize('mcp.configureSamplingModels.ph', 'Pick the models {0} can access via MCP sampling', server.definition.label),
+			canPickMany: true,
+		});
+
+		if (picked) {
+			await mcpSampling.updateConfig(server, c => c.allowedModels = picked.map(p => p.id!));
+		}
+
+		return picked?.length || 0;
+	}
+}
+
+export class McpStartPromptingServerCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.StartPromptForServer,
+			title: localize2('mcp.startPromptingServer', "Start Prompting Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
+		const widget = await openPanelChatAndGetWidget(accessor.get(IViewsService), accessor.get(IChatWidgetService));
+		if (!widget) {
+			return;
+		}
+
+		const editor = widget.inputEditor;
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const range = (editor.getSelection() || model.getFullModelRange()).collapseToEnd();
+		const text = mcpPromptPrefix(server.definition) + '.';
+
+		model.applyEdits([{ range, text }]);
+		editor.setSelection(Range.fromPositions(range.getEndPosition().delta(0, text.length)));
+		widget.focusInput();
+		SuggestController.get(editor)?.triggerSuggest();
+	}
+}
+
+

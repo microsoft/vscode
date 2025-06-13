@@ -21,6 +21,7 @@ import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsx
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { localize } from '../../../../nls.js';
 
 export interface IToolData {
 	id: string;
@@ -44,8 +45,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment: number | undefined;
-	readonly total: number | undefined;
+	readonly increment?: number;
+	readonly total?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -91,13 +92,13 @@ export namespace ToolDataSource {
 
 	export function classify(source: ToolDataSource): { readonly ordinal: number; readonly label: string } {
 		if (source.type === 'internal') {
-			return { ordinal: 3, label: 'Built-In' };
+			return { ordinal: 1, label: localize('builtin', 'Built-In') };
 		} else if (source.type === 'mcp') {
-			return { ordinal: 1, label: 'MCP Servers' };
+			return { ordinal: 2, label: localize('mcp', 'MCP Server: {0}', source.label) };
 		} else if (source.type === 'user') {
-			return { ordinal: 0, label: 'User Defined' };
+			return { ordinal: 0, label: localize('user', 'User Defined') };
 		} else {
-			return { ordinal: 2, label: 'Extensions' };
+			return { ordinal: 3, label: localize('ext', 'Extension: {0}', source.label) };
 		}
 	}
 }
@@ -124,7 +125,17 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({ type: 'text'; value: string } | { type: 'data'; mimeType: string; value64: string })[];
+	readonly output: ({
+		value: string;
+		/** If true, value is text. If false or not given, value is base64 */
+		isText?: boolean;
+		/** Mimetype of the value, optional */
+		mimeType?: string;
+		/** URI of the resource on the MCP server. */
+		uri?: URI;
+		/** If true, this part came in as a resource reference rather than direct data. */
+		asResource?: boolean;
+	})[];
 	readonly isError?: boolean;
 }
 
@@ -168,6 +179,7 @@ export interface IToolResultDataPart {
 export interface IToolConfirmationMessages {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
 }
 
@@ -199,10 +211,9 @@ export class ToolSet {
 
 	constructor(
 		readonly id: string,
-		readonly displayName: string,
+		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly toolReferenceName: string,
 		readonly description?: string,
 	) {
 
@@ -213,7 +224,7 @@ export class ToolSet {
 	}
 
 	addTool(data: IToolData, tx?: ITransaction): IDisposable {
-		this._tools.add(data);
+		this._tools.add(data, tx);
 		return toDisposable(() => {
 			this._tools.delete(data);
 		});
@@ -223,7 +234,7 @@ export class ToolSet {
 		if (toolSet === this) {
 			return Disposable.None;
 		}
-		this._toolSets.add(toolSet);
+		this._toolSets.add(toolSet, tx);
 		return toDisposable(() => {
 			this._toolSets.delete(toolSet);
 		});
@@ -249,15 +260,16 @@ export interface ILanguageModelToolsService {
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string): IToolData | undefined;
+	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+	toEnablementMap(toolOrToolSetNames: Iterable<string>): Record<string, boolean>;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, displayName: string, options?: { icon?: ThemeIcon; toolReferenceName?: string; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
 }
 
 export function createToolInputUri(toolOrId: IToolData | string): URI {

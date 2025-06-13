@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -18,9 +20,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
-import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatModel.js';
+import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { ISCMHistoryItem } from '../common/history.js';
 import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -48,6 +50,8 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.scmHistoryItems', 'Source Control...');
 	readonly icon = Codicon.gitCommit;
+
+	private readonly _delayer = new ThrottledDelayer<IChatContextPickerPickItem[]>(200);
 
 	public static asAttachment(provider: ISCMProvider, historyItem: ISCMHistoryItem): ISCMHistoryItemVariableEntry {
 		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
@@ -77,11 +81,12 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 	asPicker(_widget: IChatWidget) {
 		return {
 			placeholder: localize('chatContext.scmHistoryItems.placeholder', 'Select a change'),
-			picks: (async (): Promise<ChatContextPick[]> => {
+			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
+				const filterText = query.trim() !== '' ? query.trim() : undefined;
 				const activeRepository = this._scmViewService.activeRepository.get();
 				const historyProvider = activeRepository?.provider.historyProvider.get();
 				if (!activeRepository || !historyProvider) {
-					return [];
+					return Promise.resolve([]);
 				}
 
 				const historyItemRefs = coalesce([
@@ -90,28 +95,35 @@ class SCMHistoryItemContext implements IChatContextPickerItem {
 					historyProvider.historyItemBaseRef.get(),
 				]).map(ref => ref.id);
 
-				const historyItems = await historyProvider.provideHistoryItems({ historyItemRefs, limit: 100 }) ?? [];
+				return this._delayer.trigger(() => {
+					return historyProvider.provideHistoryItems({ historyItemRefs, filterText, limit: 100 }, token)
+						.then(historyItems => {
+							if (!historyItems) {
+								return [];
+							}
 
-				return historyItems.map(historyItem => {
-					const details = [`${historyItem.displayId ?? historyItem.id}`];
-					if (historyItem.author) {
-						details.push(historyItem.author);
-					}
-					if (historyItem.statistics) {
-						details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
-					}
-					if (historyItem.timestamp) {
-						details.push(fromNow(historyItem.timestamp, true, true));
-					}
+							return historyItems.map(historyItem => {
+								const details = [`${historyItem.displayId ?? historyItem.id}`];
+								if (historyItem.author) {
+									details.push(historyItem.author);
+								}
+								if (historyItem.statistics) {
+									details.push(`${historyItem.statistics.files} ${localize('files', 'file(s)')}`);
+								}
+								if (historyItem.timestamp) {
+									details.push(fromNow(historyItem.timestamp, true, true));
+								}
 
-					return {
-						iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
-						label: historyItem.subject,
-						detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
-						asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
-					} satisfies IChatContextPickerPickItem;
+								return {
+									iconClass: ThemeIcon.asClassName(Codicon.gitCommit),
+									label: historyItem.subject,
+									detail: details.join(`$(${Codicon.circleSmallFilled.id})`),
+									asAttachment: () => SCMHistoryItemContext.asAttachment(activeRepository.provider, historyItem)
+								} satisfies IChatContextPickerPickItem;
+							});
+						});
 				});
-			})()
+			})
 		};
 	}
 }

@@ -32,6 +32,7 @@ export interface IMcpConfigurationStdio extends IMcpConfigurationCommon {
 	args?: readonly string[];
 	env?: Record<string, string | number | null>;
 	envFile?: string;
+	cwd?: string;
 }
 
 export interface IMcpConfigurationHTTP extends IMcpConfigurationCommon {

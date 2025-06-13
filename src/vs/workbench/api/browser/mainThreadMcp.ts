@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../nls.js';
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
@@ -23,8 +25,6 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
-import { CancellationError } from '../../../base/common/errors.js';
-import { IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -138,24 +138,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 
-		const issuer = URI.parse(metadata.issuer);
-		// Some better default?
-		const scopesSupported = metadata.scopes_supported || [];
-		let providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
+		const authorizationServer = URI.revive(authServerComponents);
+		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, undefined, true, issuer);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { authorizationServer: authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -193,7 +192,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						issuer
+						authorizationServer
 					});
 			} while (
 				accountToCreate
@@ -235,8 +234,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {
 		const message = recreatingSession
-			? nls.localize('confirmRelogin', "The MCP Server '{0}' wants you to sign in again using {1}.", mcpLabel, providerLabel)
-			: nls.localize('confirmLogin', "The MCP Server '{0}' wants to sign in using {1}.", mcpLabel, providerLabel);
+			? nls.localize('confirmRelogin', "The MCP Server Definition '{0}' wants you to authenticate to {1}.", mcpLabel, providerLabel)
+			: nls.localize('confirmLogin', "The MCP Server Definition '{0}' wants to authenticate to {1}.", mcpLabel, providerLabel);
 
 		const buttons: IPromptButton<boolean | undefined>[] = [
 			{

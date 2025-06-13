@@ -295,6 +295,10 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Scroll editor on middle click
+	 */
+	scrollOnMiddleClick?: boolean;
+	/**
 	 * Enable that scrolling can go beyond the last column by a number of columns.
 	 * Defaults to 5.
 	 */
@@ -507,6 +511,14 @@ export interface IEditorOptions {
 	 * Defaults to advanced.
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
+	/**
+	 * Boolean which controls whether to autoindent on paste
+	 */
+	autoIndentOnPaste?: boolean;
+	/**
+	 * Boolean which controls whether to autoindent on paste within a string when autoIndentOnPaste is enabled.
+	 */
+	autoIndentOnPasteWithinString?: boolean;
 	/**
 	 * Emulate selection behaviour of tab characters when using spaces for indentation.
 	 * This means selection will stick to tab stops.
@@ -770,7 +782,7 @@ export interface IEditorOptions {
 	/**
 	 * Sets whether the new experimental edit context should be used instead of the text area.
 	 */
-	experimentalEditContextEnabled?: boolean;
+	editContext?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -1357,6 +1369,13 @@ class EditorEnumOption<K extends EditorOption, T extends string, V> extends Base
 	}
 }
 
+function stringArray(value: any, defaultValue: string[]): string[] {
+	if (!Array.isArray(value)) {
+		return defaultValue;
+	}
+	return value.map(item => String(item));
+}
+
 //#endregion
 
 //#region autoIndent
@@ -1650,6 +1669,10 @@ export interface IEditorFindOptions {
 	*/
 	cursorMoveOnType?: boolean;
 	/**
+	 * Controls whether the find widget should search as you type.
+	 */
+	findOnType?: boolean;
+	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
 	seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
@@ -1692,6 +1715,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 	constructor() {
 		const defaults: EditorFindOptions = {
 			cursorMoveOnType: true,
+			findOnType: true,
 			seedSearchStringFromSelection: 'always',
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
@@ -1765,7 +1789,12 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
 					],
 					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
-				}
+				},
+				'editor.find.findOnType': {
+					type: 'boolean',
+					default: defaults.findOnType,
+					description: nls.localize('find.findOnType', "Controls whether the Find Widget should search as you type.")
+				},
 			}
 		);
 	}
@@ -1777,6 +1806,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 		const input = _input as IEditorFindOptions;
 		return {
 			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
+			findOnType: boolean(input.findOnType, this.defaultValue.findOnType),
 			seedSearchStringFromSelection: typeof _input.seedSearchStringFromSelection === 'boolean'
 				? (_input.seedSearchStringFromSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'selection'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selection']),
@@ -1940,14 +1970,14 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 
 //#region effectiveExperimentalEditContext
 
-class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean> {
+class EffectiveEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveEditContext, boolean> {
 
 	constructor() {
-		super(EditorOption.effectiveExperimentalEditContextEnabled);
+		super(EditorOption.effectiveEditContext);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
-		return env.editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
+		return env.editContextSupported && options.get(EditorOption.editContext);
 	}
 }
 
@@ -4274,6 +4304,16 @@ export interface IInlineSuggestOptions {
 		*/
 		useMultiLineGhostText?: boolean;
 	};
+
+	/**
+	* @internal
+	*/
+	experimental?: {
+		/**
+		* @internal
+		*/
+		suppressInlineSuggestions?: string[];
+	};
 }
 
 type RequiredRecursive<T> = {
@@ -4305,6 +4345,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: 'always',
 				useMultiLineGhostText: true
 			},
+			experimental: {
+				suppressInlineSuggestions: [],
+			},
 		};
 
 		super(
@@ -4335,6 +4378,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
+				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
+					type: 'array',
+					tags: ['experimental', 'onExp'],
+					items: { type: 'string' },
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs.")
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -4388,6 +4437,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
+			},
+			experimental: {
+				suppressInlineSuggestions: stringArray(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 			},
 		};
 	}
@@ -5463,6 +5515,8 @@ export const enum EditorOption {
 	autoClosingOvertype,
 	autoClosingQuotes,
 	autoIndent,
+	autoIndentOnPaste,
+	autoIndentOnPasteWithinString,
 	automaticLayout,
 	autoSurround,
 	bracketPairColorization,
@@ -5487,7 +5541,7 @@ export const enum EditorOption {
 	domReadOnly,
 	dragAndDrop,
 	dropIntoEditor,
-	experimentalEditContextEnabled,
+	editContext,
 	emptySelectionClipboard,
 	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
@@ -5607,7 +5661,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	effectiveExperimentalEditContextEnabled
+	effectiveEditContext,
+	scrollOnMiddleClick,
 }
 
 export const EditorOptions = {
@@ -5733,6 +5788,14 @@ export const EditorOptions = {
 			],
 			description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.")
 		}
+	)),
+	autoIndentOnPaste: register(new EditorBooleanOption(
+		EditorOption.autoIndentOnPaste, 'autoIndentOnPaste', false,
+		{ description: nls.localize('autoIndentOnPaste', "Controls whether the editor should automatically auto-indent the pasted content.") }
+	)),
+	autoIndentOnPasteWithinString: register(new EditorBooleanOption(
+		EditorOption.autoIndentOnPasteWithinString, 'autoIndentOnPasteWithinString', true,
+		{ description: nls.localize('autoIndentOnPasteWithinString', "Controls whether the editor should automatically auto-indent the pasted content when pasted within a string. This takes effect when autoIndentOnPaste is true.") }
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,
@@ -5873,10 +5936,10 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
-	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', true,
+	editContext: register(new EditorBooleanOption(
+		EditorOption.editContext, 'editContext', true,
 		{
-			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
+			description: nls.localize('editContext', "Sets whether the EditContext API should be used instead of the text area to power input in the editor."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
 		}
 	)),
@@ -6203,6 +6266,10 @@ export const EditorOptions = {
 		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
 		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
 	)),
+	scrollOnMiddleClick: register(new EditorBooleanOption(
+		EditorOption.scrollOnMiddleClick, 'scrollOnMiddleClick', false,
+		{ description: nls.localize('scrollOnMiddleClick', "Controls whether the editor will scroll when the middle button is pressed.") }
+	)),
 	scrollPredominantAxis: register(new EditorBooleanOption(
 		EditorOption.scrollPredominantAxis, 'scrollPredominantAxis', true,
 		{ description: nls.localize('scrollPredominantAxis', "Scroll only along the predominant axis when scrolling both vertically and horizontally at the same time. Prevents horizontal drift when scrolling vertically on a trackpad.") }
@@ -6440,7 +6507,7 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
-	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
+	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;

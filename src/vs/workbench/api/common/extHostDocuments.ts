@@ -12,7 +12,7 @@ import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import * as TypeConverters from './extHostTypeConverters.js';
 import type * as vscode from 'vscode';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { deepFreeze } from '../../../base/common/objects.js';
 import { TextDocumentChangeReason } from './extHostTypes.js';
 
@@ -88,7 +88,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			promise = this._proxy.$tryOpenDocument(uri, options).then(uriData => {
 				this._documentLoader.delete(uri.toString());
 				const canonicalUri = URI.revive(uriData);
-				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
+				return assertReturnsDefined(this._documentsAndEditors.getDocument(canonicalUri));
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);

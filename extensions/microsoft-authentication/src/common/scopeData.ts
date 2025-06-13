@@ -45,14 +45,14 @@ export class ScopeData {
 	 */
 	readonly tenantId: string | undefined;
 
-	constructor(readonly originalScopes: readonly string[] = [], issuer?: Uri) {
+	constructor(readonly originalScopes: readonly string[] = [], authorizationServer?: Uri) {
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
-		this.tenant = this.getTenant(this.allScopes, issuer);
+		this.tenant = this.getTenant(this.allScopes, authorizationServer);
 		this.tenantId = this.getTenantId(this.tenant);
 	}
 
@@ -65,10 +65,10 @@ export class ScopeData {
 		}, undefined) ?? DEFAULT_CLIENT_ID;
 	}
 
-	private getTenant(scopes: string[], issuer?: Uri): string {
-		if (issuer?.path) {
+	private getTenant(scopes: string[], authorizationServer?: Uri): string {
+		if (authorizationServer?.path) {
 			// Get tenant portion of URL
-			const tenant = issuer.path.split('/')[1];
+			const tenant = authorizationServer.path.split('/')[1];
 			if (tenant) {
 				return tenant;
 			}

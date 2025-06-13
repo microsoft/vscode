@@ -5,30 +5,31 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { pick } from '../../../../../../../base/common/arrays.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/types.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
-import { PromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { randomBoolean, waitRandom } from '../../../../../../../base/test/common/testUtils.js';
-import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
+import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../../common/promptSyntax/constants.js';
-import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION, PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
-import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
+import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
+import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
+import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -78,10 +79,10 @@ class ExpectedLink {
  * @param links Links to assert.
  * @param expectedLinks Expected links to compare against.
  */
-const assertLinks = (
+function assertLinks(
 	links: readonly IPromptFileReference[],
 	expectedLinks: readonly ExpectedLink[],
-) => {
+) {
 	for (let i = 0; i < links.length; i++) {
 		try {
 			expectedLinks[i].assertEqual(links[i]);
@@ -95,7 +96,7 @@ const assertLinks = (
 		expectedLinks.length,
 		`Links count must be correct.`,
 	);
-};
+}
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,6 +107,7 @@ suite('PromptsService', () => {
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
+		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
@@ -131,8 +133,8 @@ suite('PromptsService', () => {
 		service = disposables.add(instaService.createInstance(PromptsService));
 	});
 
-	suite('• getParserFor', () => {
-		test('• provides cached parser instance', async () => {
+	suite('getParserFor', () => {
+		test('provides cached parser instance', async () => {
 			// both languages must yield the same result
 			const languageId = (randomBoolean())
 				? PROMPT_LANGUAGE_ID
@@ -188,7 +190,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Next, get parser for the same exact model and
@@ -221,7 +223,7 @@ suite('PromptsService', () => {
 			));
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			const parser2 = service.getSyntaxParserFor(model2);
 
@@ -304,7 +306,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * Dispose the first parser, perform basic validations, and confirm
@@ -376,7 +378,7 @@ suite('PromptsService', () => {
 			);
 
 			// wait for some random amount of time
-			await waitRandom(5);
+			await timeout(5);
 
 			/**
 			 * This time dispose model of the second parser instead of
@@ -457,7 +459,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• auto-updated on model changes', async () => {
+		test('auto-updated on model changes', async () => {
 			const langId = 'bazLang';
 
 			const model = disposables.add(createTextModel(
@@ -525,7 +527,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• throws if a disposed model provided', async function () {
+		test('throws if a disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',
@@ -542,8 +544,8 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• getAllMetadata', () => {
-		test('• explicit', async function () {
+	suite('getAllMetadata', () => {
+		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
 			const rootFolder = `/${rootFolderName}`;
 
@@ -659,17 +661,16 @@ suite('PromptsService', () => {
 				[{
 					uri: rootFileUri,
 					metadata: {
+						promptType: PromptsType.prompt,
 						description: 'Root prompt description.',
 						tools: ['my-tool1'],
 						mode: 'agent',
-						applyTo: undefined,
 					},
 					children: [
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md'),
 							metadata: {
-								description: undefined,
-								applyTo: undefined,
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1'],
 								mode: 'agent',
 							},
@@ -677,9 +678,8 @@ suite('PromptsService', () => {
 								{
 									uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md'),
 									metadata: {
+										promptType: PromptsType.instructions,
 										description: 'Another file description.',
-										tools: ['my-tool3', 'my-tool2'],
-										mode: 'agent',
 										applyTo: '**/*.tsx',
 									},
 									children: undefined,
@@ -689,9 +689,9 @@ suite('PromptsService', () => {
 						{
 							uri: URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md'),
 							metadata: {
+								promptType: PromptsType.prompt,
 								tools: ['my-tool1', 'my-tool2'],
 								description: 'File 4 splendid description.',
-								applyTo: undefined,
 								mode: 'agent',
 							},
 							children: undefined,
@@ -702,12 +702,12 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('• findInstructionFilesFor', () => {
+	suite('findInstructionFilesFor', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('• finds correct instruction files', async () => {
+		test('finds correct instruction files', async () => {
 			const rootFolderName = 'finds-instruction-files';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -874,7 +874,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -886,7 +886,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('• does not have duplicates', async () => {
+		test('does not have duplicates', async () => {
 			const rootFolderName = 'finds-instruction-files-without-duplicates';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1055,7 +1055,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(pick('path')),
+				instructions.map(i => i.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

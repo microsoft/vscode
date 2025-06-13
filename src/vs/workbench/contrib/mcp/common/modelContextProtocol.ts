@@ -5,6 +5,21 @@
 
 /* eslint-disable local/code-no-unexternalized-strings */
 
+//#region proposals
+/**
+ * MCP protocol proposals.
+ * - Proposals here MUST have an MCP PR linked to them
+ * - Proposals here are subject to change and SHALL be removed when
+ *   the upstream MCP PR is merged or closed.
+ */
+export namespace MCP {
+
+	// Nothing, yet
+
+}
+
+//#endregion
+
 /**
  * Schema updated from the Model Context Protocol repository at
  * https://github.com/modelcontextprotocol/specification/tree/main/schema
@@ -1120,6 +1135,16 @@ export namespace MCP {
 				 * The value of the argument to use for completion matching.
 				 */
 				value: string;
+			};
+
+			/**
+			 * Additional, optional context for completions
+			 */
+			context?: {
+				/**
+				 * Previously-resolved variables in a URI template or prompt.
+				 */
+				arguments?: { [key: string]: string };
 			};
 		};
 	}

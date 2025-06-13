@@ -8,6 +8,8 @@ import { Event } from '../../../../../../base/common/event.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { PromptsType } from '../promptTypes.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Interface for a prompt contents provider. Prompt contents providers are
@@ -24,6 +26,16 @@ export interface IPromptContentsProvider extends IDisposable {
 	 * Language ID of the prompt contents.
 	 */
 	readonly languageId: string;
+
+	/**
+	 * Prompt type used to determine how to interpret file contents.
+	 */
+	readonly promptType: PromptsType | 'non-prompt';
+
+	/**
+	 * Prompt contents stream.
+	 */
+	readonly contents: Promise<VSBufferReadableStream>;
 
 	/**
 	 * Prompt contents source name.
@@ -45,7 +57,7 @@ export interface IPromptContentsProvider extends IDisposable {
 	/**
 	 * Start the contents provider to produce the underlying contents.
 	 */
-	start(): this;
+	start(token?: CancellationToken): this;
 
 	/**
 	 * Create a new instance of prompt contents provider.

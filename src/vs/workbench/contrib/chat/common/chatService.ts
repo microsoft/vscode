@@ -18,9 +18,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
@@ -36,6 +37,12 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
+export interface IChatResponseErrorDetailsConfirmationButton {
+	data: any;
+	label: string;
+	isSecondary?: boolean;
+}
+
 export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
@@ -43,6 +50,7 @@ export interface IChatResponseErrorDetails {
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
 	level?: ChatErrorLevel;
+	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -481,7 +489,7 @@ export interface IChatSendRequestOptions {
 	mode?: ChatMode;
 	userSelectedModelId?: string;
 	userSelectedTools?: Record<string, boolean>;
-	toolSelectionIsExclusive?: boolean;
+	modeInstructions?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

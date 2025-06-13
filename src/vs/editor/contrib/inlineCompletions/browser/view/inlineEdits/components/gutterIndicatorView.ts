@@ -197,7 +197,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			const layout = this._editorObs.layoutInfo.read(reader);
 
-			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
 			const gutterViewPortPadding = 1;
 
 			// Entire gutter view from top left to bottom right
@@ -240,7 +240,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			if (pillIsFullyDocked) {
 				const pillRect = pillFullyDockedRect;
-				const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+
+				let lineNumberWidth;
+				if (layout.lineNumbersWidth === 0) {
+					lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconWidth);
+				} else {
+					lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+				}
+
 				const lineNumberRect = pillRect.withWidth(lineNumberWidth);
 				const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
 				const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);

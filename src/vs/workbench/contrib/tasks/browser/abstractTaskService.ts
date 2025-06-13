@@ -87,6 +87,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -286,6 +287,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -683,15 +685,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						const customMessage = message === errorMessage
 							? `\`${message}\``
 							: `\`${message}\`\n\`\`\`json${errorMessage}\`\`\``;
-						actions.push({
-							label: nls.localize('troubleshootWithChat', "Fix with Chat"),
-							run: async () => {
-								this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
-									mode: ChatMode.Agent,
-									query: `Fix this task configuration error: ${customMessage}`
-								});
-							}
-						});
+
+
+						const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+						const providerName = defaultAgent?.fullName;
+						if (providerName) {
+							actions.push({
+								label: nls.localize('troubleshootWithChat', "Fix with {0}", providerName),
+								run: async () => {
+									this._commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
+										mode: ChatMode.Agent,
+										query: `Fix this task configuration error: ${customMessage}`
+									});
+								}
+							});
+						}
 					}
 				}
 				actions.push({
@@ -700,7 +708,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this._outputService.showChannel(this._outputChannel.id, true);
 					}
 				});
-				if (chatEnabled) {
+				if (chatEnabled && actions.length > 1) {
 					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPromptChat', 'There are task errors. Use chat to fix them or view the output for details.'), actions);
 				} else {
 					this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'), actions);
@@ -2116,7 +2124,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							this._showOutput(error.message);
 						} else {
 							this._log('Unknown error received while collecting tasks from providers.');
-							this._showOutput(undefined, undefined, 'Unknown error received while collecting tasks from providers.');
+							this._showOutput();
 						}
 					}
 				} finally {
@@ -2141,7 +2149,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								if (task.type !== this._providerTypes.get(handle)) {
 									this._log(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
-										this._showOutput(undefined, undefined, nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+										this._showOutput();
 									}
 									break;
 								}

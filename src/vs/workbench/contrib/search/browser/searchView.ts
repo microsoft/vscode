@@ -70,7 +70,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode, isAIKeyword } from '../../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -174,6 +174,7 @@ export class SearchView extends ViewPane {
 	private refreshTreeController: RefreshTreeController;
 
 	private _cachedResults: ISearchComplete | undefined;
+	private _cachedKeywords: string[] = [];
 	public _pendingSemanticSearchPromise: Promise<ISearchComplete> | undefined;
 	constructor(
 		options: IViewPaneOptions,
@@ -824,32 +825,46 @@ export class SearchView extends ViewPane {
 	}
 
 	private buildReplaceAllConfirmationMessage(occurrences: number, fileCount: number, replaceValue?: string) {
+		// Helper to truncate long values to 10 lines max
+		const truncateValue = (value: string | undefined): string | undefined => {
+			if (!value) {
+				return value;
+			}
+			const lines = value.split('\n');
+			if (lines.length > 10) {
+				return lines.slice(0, 10).join('\n') + '\n...';
+			}
+			return value;
+		};
+
+		const displayReplaceValue = truncateValue(replaceValue);
+
 		if (occurrences === 1) {
 			if (fileCount === 1) {
-				if (replaceValue) {
-					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+				if (displayReplaceValue) {
+					return nls.localize('removeAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file with '{2}'?", occurrences, fileCount, displayReplaceValue);
 				}
 
 				return nls.localize('replaceAll.occurrence.file.confirmation.message', "Replace {0} occurrence across {1} file?", occurrences, fileCount);
 			}
 
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+			if (displayReplaceValue) {
+				return nls.localize('removeAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files with '{2}'?", occurrences, fileCount, displayReplaceValue);
 			}
 
 			return nls.localize('replaceAll.occurrence.files.confirmation.message', "Replace {0} occurrence across {1} files?", occurrences, fileCount);
 		}
 
 		if (fileCount === 1) {
-			if (replaceValue) {
-				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, replaceValue);
+			if (displayReplaceValue) {
+				return nls.localize('removeAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file with '{2}'?", occurrences, fileCount, displayReplaceValue);
 			}
 
 			return nls.localize('replaceAll.occurrences.file.confirmation.message', "Replace {0} occurrences across {1} file?", occurrences, fileCount);
 		}
 
-		if (replaceValue) {
-			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue);
+		if (displayReplaceValue) {
+			return nls.localize('removeAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, displayReplaceValue);
 		}
 
 		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
@@ -1715,9 +1730,6 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
-		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
-			this.updateKeywordSuggestion(keywords);
-		}
 
 		if (this.shouldShowAIResults() && !allResults) {
 			const messageEl = this.clearMessage();
@@ -1847,6 +1859,7 @@ export class SearchView extends ViewPane {
 		this.model.searchResult.aiTextSearchResult.hidden = true;
 		if (!this._pendingSemanticSearchPromise) {
 			this._cachedResults = undefined;
+			this._cachedKeywords = [];
 			this.model.cancelAISearch(true);
 			this.model.clearAiSearchResults();
 		}
@@ -1854,7 +1867,7 @@ export class SearchView extends ViewPane {
 
 	public async requestAIResults() {
 		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
-		if (!this.cachedResults) {
+		if (!this.cachedResults || this.cachedResults.results.length === 0) {
 			this.clearAIResults();
 		}
 		this.model.searchResult.aiTextSearchResult.hidden = false;
@@ -1927,6 +1940,10 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
 
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.keywordSuggestions) {
+			this.getKeywordSuggestions();
+		}
+
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
@@ -1976,6 +1993,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
+		if (this._cachedKeywords.length > 0) {
+			return;
+		}
 		const fileCount = this.viewModel.searchResult.fileCount(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		const resultCount = this.viewModel.searchResult.count(this.viewModel.searchResult.aiTextSearchResult.hidden);
 		this.hasSearchResultsKey.set(fileCount > 0);
@@ -2017,7 +2037,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private handleKeywordClick(keyword: string, index: number, maxKeywords: number) {
+	private handleKeywordClick(keyword: string, index: number) {
 		this.searchWidget.searchInput?.setValue(keyword);
 		this.triggerQueryChange({ preserveFocus: false, triggeredOnType: false, shouldKeepAIResults: false });
 		type KeywordClickClassification = {
@@ -2032,54 +2052,60 @@ export class SearchView extends ViewPane {
 		};
 		this.telemetryService.publicLog2<KeywordClickEvent, KeywordClickClassification>('searchKeywordClick', {
 			index,
-			maxKeywords
+			maxKeywords: this._cachedKeywords.length
 		});
 	}
 
-	private async updateKeywordSuggestion(keywords?: AISearchKeyword[]) {
-		if (!keywords || keywords.length === 0) {
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			// Reuse pending aiSearch if available
-			let aiSearchPromise = this._pendingSemanticSearchPromise;
-			if (!aiSearchPromise) {
-				this.viewModel.searchResult.setAIQueryUsingTextQuery();
-				aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(() => {
-					// Clear pending promise when first result comes in
-					if (this._pendingSemanticSearchPromise === aiSearchPromise) {
-						this._pendingSemanticSearchPromise = undefined;
-					}
-				});
-			}
-			this._cachedResults = await aiSearchPromise;
-			keywords = this._cachedResults.aiKeywords;
-			if (!keywords || keywords.length === 0) {
+	private updateKeywordSuggestionUI(keyword: AISearchKeyword) {
+		const element = this.messagesElement.firstChild as HTMLDivElement;
+		if (this._cachedKeywords.length > 0) {
+			if (this._cachedKeywords.length >= 3) {
+				// If we already have 3 keywords, just return
 				return;
 			}
-		}
-		const messageEl = this.clearMessage();
-		messageEl.classList.add('ai-keywords');
-
-		if (keywords.length === 0) {
-			// Do not display anything if there are no keywords
-			return;
-		}
-
-		// Add unclickable message
-		const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
-		dom.append(messageEl, resultMsg);
-
-		const topKeywords = keywords.slice(0, 3);
-		topKeywords.forEach((keyword, index) => {
-			if (index > 0 && index < topKeywords.length) {
-				dom.append(messageEl, ', ');
-			}
+			dom.append(element, ', ');
+			const index = this._cachedKeywords.length;
 			const button = this.messageDisposables.add(new SearchLinkButton(
 				keyword.keyword,
-				() => this.handleKeywordClick(keyword.keyword, index, topKeywords.length),
+				() => this.handleKeywordClick(keyword.keyword, index),
+				this.hoverService
+			));
+			dom.append(element, button.element);
+		} else {
+			const messageEl = this.clearMessage();
+			messageEl.classList.add('ai-keywords');
+
+			// Add unclickable message
+			const resultMsg = nls.localize('keywordSuggestion.message', "Search instead for: ");
+			dom.append(messageEl, resultMsg);
+
+			const button = this.messageDisposables.add(new SearchLinkButton(
+				keyword.keyword,
+				() => this.handleKeywordClick(keyword.keyword, 0),
 				this.hoverService
 			));
 			dom.append(messageEl, button.element);
-		});
+		}
+		this._cachedKeywords.push(keyword.keyword);
+	}
+
+	private async getKeywordSuggestions() {
+		// Reuse pending aiSearch if available
+		let aiSearchPromise = this._pendingSemanticSearchPromise;
+		if (!aiSearchPromise) {
+			this.viewModel.searchResult.setAIQueryUsingTextQuery();
+			aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(result => {
+				if (result && isAIKeyword(result)) {
+					this.updateKeywordSuggestionUI(result);
+					return;
+				}
+				// Clear pending promise when first result comes in
+				if (this._pendingSemanticSearchPromise === aiSearchPromise) {
+					this._pendingSemanticSearchPromise = undefined;
+				}
+			});
+		}
+		this._cachedResults = await aiSearchPromise;
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
