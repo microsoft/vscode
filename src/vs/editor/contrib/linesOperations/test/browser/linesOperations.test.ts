@@ -6,15 +6,16 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction, MoveLinesUpAction, MoveLinesDownAction } from '../../browser/linesOperations.js';
-import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createCodeEditorServices, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -1642,7 +1643,11 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	suite('Issue #68694 support to move multiple lines through alt+arrow', () => {
+
 		test('Move lines down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
 			const TEXT = [
 				'Line 1',
 				'Line 2',
@@ -1657,7 +1662,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				executeAction(moveLinesDownAction, editor);
+				moveLinesDownAction.run(instantiationService, editor);
 
 				const model = editor.getModel()!;
 
@@ -1675,9 +1680,14 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(3, 1, 3, 1),
 					].toString());
 			});
+
+			disposables.dispose();
 		});
 
 		test('Move lines up', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
 			const TEXT = [
 				'Line 1',
 				'Line 2',
@@ -1692,7 +1702,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesUpAction = new MoveLinesUpAction();
-				executeAction(moveLinesUpAction, editor);
+				moveLinesUpAction.run(instantiationService, editor);
 
 				const model = editor.getModel()!;
 
@@ -1709,10 +1719,15 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(2, 1, 2, 1),
 						new Selection(3, 1, 3, 1),
 					].toString());
+
+				disposables.dispose();
 			});
 		});
 
 		test('Combining up and down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
 			const TEXT = [
 				'Line 1',
 				'Line 2',
@@ -1731,7 +1746,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				const model = editor.getModel()!;
 
-				executeAction(moveLinesUpAction, editor); // no change since selections are already at top
+				moveLinesUpAction.run(instantiationService, editor); // no change since selections are already at t, instantiationServiceop
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 1',
@@ -1741,7 +1756,7 @@ suite('Editor Contrib - Line Operations', () => {
 					'Line 5'
 				]);
 
-				executeAction(moveLinesDownAction, editor);
+				moveLinesDownAction.run(instantiationService, editor);
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 3',
@@ -1751,7 +1766,7 @@ suite('Editor Contrib - Line Operations', () => {
 					'Line 5'
 				]);
 
-				executeAction(moveLinesDownAction, editor);
+				moveLinesDownAction.run(instantiationService, editor);
 
 				assert.deepStrictEqual(model.getLinesContent(), [
 					'Line 3',
@@ -1766,10 +1781,15 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(3, 1, 3, 1),
 						new Selection(4, 1, 4, 1),
 					].toString());
+
+				disposables.dispose();
 			});
 		});
 
 		test('Move non ascending selections down', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
 			const TEXT = [
 				'Line 1',
 				'Line 2',
@@ -1784,7 +1804,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				executeAction(moveLinesDownAction, editor);
+				moveLinesDownAction.run(instantiationService, editor);
 
 				const model = editor.getModel()!;
 
@@ -1801,10 +1821,15 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(5, 1, 5, 1),
 						new Selection(4, 1, 4, 1),
 					].toString());
+
+				disposables.dispose();
 			});
 		});
 
 		test('Move multiple selections per line', () => {
+			const disposables = new DisposableStore();
+			const instantiationService = createCodeEditorServices(disposables);
+
 			const TEXT = [
 				'Line 1',
 				'Line 2',
@@ -1820,7 +1845,7 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 
 				const moveLinesDownAction = new MoveLinesDownAction();
-				executeAction(moveLinesDownAction, editor);
+				moveLinesDownAction.run(instantiationService, editor);
 
 				const model = editor.getModel()!;
 
@@ -1838,6 +1863,8 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(5, 1, 5, 1),
 						new Selection(4, 2, 4, 2),
 					].toString());
+
+				disposables.dispose();
 			});
 		});
 	});
