@@ -148,13 +148,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
-				let cwd;
-				if (vscode.env.remoteName) {
-					cwd = vscode.Uri.file((result.cwd ?? terminal.shellIntegration.cwd).path).with({ authority: vscode.env.remoteName, scheme: 'vscode-remote' });
-				} else {
-					cwd = vscode.Uri.file((result.cwd ?? terminal.shellIntegration.cwd).fsPath);
-				}
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd, env: terminal.shellIntegration?.env?.value, });
+				return new vscode.TerminalCompletionList(result.items, {
+					filesRequested: result.filesRequested,
+					foldersRequested: result.foldersRequested,
+					fileExtensions: result.fileExtensions,
+					cwd: result.cwd ?? terminal.shellIntegration.cwd,
+					env: terminal.shellIntegration?.env?.value,
+				});
 			}
 			return result.items;
 		}
