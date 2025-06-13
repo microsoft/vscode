@@ -825,8 +825,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			},
 			getInlineDecorations: (lineNumber: number) => {
 				const inlineDecorations = this.getViewLineRenderingData(lineNumber).inlineDecorations;
-				console.log('inlineDecorations of contentChange for lineNumber', lineNumber);
-				console.log(inlineDecorations);
 				return inlineDecorations;
 			},
 			getLineInjectedText: (lineNumber: number) => {

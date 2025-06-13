@@ -119,7 +119,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
-		console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {

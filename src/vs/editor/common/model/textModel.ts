@@ -2399,7 +2399,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
-		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
@@ -2432,6 +2431,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
 		this.affectsFont = !!options.fontSize || !!options.fontFamily || !!options.fontWeight || !!options.fontStyle;
+		this.stickiness = this.affectsFont ? model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges : (options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

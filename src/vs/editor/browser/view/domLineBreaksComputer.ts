@@ -182,7 +182,6 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const fontLigatures = options.get(EditorOption.fontLigatures);
 	const inlineDecorations = context.getInlineDecorations(lineNumber);
-	console.log('lineNumber : ', lineNumber);
 	const lineDecorations = LineDecoration.filter(inlineDecorations.decorations, lineNumber, 0, Infinity);
 	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 	const tokens = context.getLineTokens(lineNumber);
