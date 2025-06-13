@@ -53,7 +53,7 @@ suite('LoopbackAuthServer', () => {
 			{ redirect: 'manual' }
 		);
 		assert.strictEqual(response.status, 302);
-		assert.strictEqual(response.headers.get('location'), '/');
+		assert.strictEqual(response.headers.get('location'), '/?redirect_uri=https%3A%2F%2Fcode.visualstudio.com');
 		await Promise.race([
 			server.waitForOAuthResponse().then(result => {
 				assert.strictEqual(result.code, 'valid-code');
