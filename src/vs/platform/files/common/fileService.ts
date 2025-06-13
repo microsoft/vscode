@@ -251,7 +251,7 @@ export class FileService extends Disposable implements IFileService {
 
 		if (resource.path && resolveSymlinkTarget && (stat.type & FileType.SymbolicLink) !== 0) {
 			try {
-				const resolvedSymlinkStat = await provider.realpath?.(resource);
+				const resolvedSymlinkStat = await provider.stat?.(resource);
 				if (resolvedSymlinkStat) {
 					stat = resolvedSymlinkStat;
 				}

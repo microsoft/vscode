@@ -25,7 +25,6 @@ import { ILogService } from '../../log/common/log.js';
 import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from '../common/diskFileSystemProvider.js';
 import { UniversalWatcherClient } from './watcher/watcherClient.js';
 import { NodeJSWatcherClient } from './watcher/nodejs/nodejsClient.js';
-import { realpath } from '../../../base/node/extpath.js';
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
@@ -210,17 +209,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			lock?.dispose();
 		}
-	}
-
-	/**
-	 *
-	 * @param resource the resource to resolve the real path for
-	 * @returns a promise that resolves to the stat of the resolved path
-	 */
-	async realpath(resource: URI): Promise<IStat> {
-		const resolvedPath = await realpath(resource.path);
-		const stat = await this.stat(URI.file(resolvedPath));
-		return stat;
 	}
 
 	private traceLock(msg: string): void {
