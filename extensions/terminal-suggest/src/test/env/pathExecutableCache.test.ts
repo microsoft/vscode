@@ -35,7 +35,8 @@ suite('PathExecutableCache', () => {
 
 	test('cache should include executables found via symbolic links', async () => {
 		const path = require('path');
-		const fixtureDir = path.resolve(__dirname, '../fixtures/symlink-test');
+		// Always use the source fixture directory to ensure symlinks are present
+		const fixtureDir = path.resolve(__dirname.replace(/out[\/].*$/, 'src/test/env'), '../fixtures/symlink-test');
 		const env = { PATH: fixtureDir };
 		const cache = new PathExecutableCache();
 		const result = await cache.getExecutablesInPath(env);
