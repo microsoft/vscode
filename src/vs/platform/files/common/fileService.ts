@@ -249,7 +249,7 @@ export class FileService extends Disposable implements IFileService {
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
 
-		if (resource.path && resolveSymlinkTarget && (stat.type & FileType.SymbolicLink) === 0) {
+		if (resource.path && resolveSymlinkTarget && (stat.type & FileType.SymbolicLink) !== 0) {
 			try {
 				const resolvedSymlinkStat = await provider.realpath?.(resource);
 				if (resolvedSymlinkStat) {
