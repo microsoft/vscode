@@ -503,7 +503,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			if (lockForHandle) {
 				if (this.mapHandleToLock.get(fd) === lockForHandle) {
-					this.traceLock(`[DiskFileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
+					this.traceLock(`[Disk FileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
 					this.mapHandleToLock.delete(fd); // only delete from map if this is still our lock!
 				}
 
