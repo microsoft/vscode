@@ -110,6 +110,10 @@ export const ENABLE_LANGUAGE_FILTER = true;
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
 export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 
+export enum WorkbenchSettingsEditorSettings {
+	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
+}
+
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
 	recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension>;
