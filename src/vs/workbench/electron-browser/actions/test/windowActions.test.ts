@@ -10,7 +10,6 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 import { URI } from '../../../../base/common/uri.js';
-import * as dom from '../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('CloseAllOtherWindowsAction', () => {
@@ -20,7 +19,6 @@ suite('CloseAllOtherWindowsAction', () => {
 	let instantiationService: TestInstantiationService;
 	let nativeHostService: MockNativeHostService;
 	let action: CloseAllOtherWindowsAction;
-	let originalGetActiveWindow: any;
 
 	class MockNativeHostService implements Partial<INativeHostService> {
 		private windows: Array<IOpenedMainWindow | IOpenedAuxiliaryWindow> = [];
@@ -50,41 +48,28 @@ suite('CloseAllOtherWindowsAction', () => {
 		nativeHostService = new MockNativeHostService();
 		instantiationService.set(INativeHostService, nativeHostService);
 		action = new CloseAllOtherWindowsAction();
-		
-		// Store original function
-		originalGetActiveWindow = dom.getActiveWindow;
-	});
-
-	teardown(() => {
-		// Restore original function
-		if (originalGetActiveWindow) {
-			(dom as any).getActiveWindow = originalGetActiveWindow;
-		}
 	});
 
 	test('should close all windows except current', async () => {
-		// Mock the getActiveWindow function
-		(dom as any).getActiveWindow = () => ({ vscodeWindowId: 1 });
-
 		// Set up multiple windows
 		const windows: IOpenedMainWindow[] = [
 			{
 				id: 1,
-				workspace: { uri: URI.file('/workspace1'), folders: [] },
+				workspace: { id: 'workspace1', uri: URI.file('/workspace1') },
 				title: 'Window 1',
 				filename: '',
 				dirty: false
 			},
 			{
 				id: 2,
-				workspace: { uri: URI.file('/workspace2'), folders: [] },
+				workspace: { id: 'workspace2', uri: URI.file('/workspace2') },
 				title: 'Window 2',
 				filename: '',
 				dirty: false
 			},
 			{
 				id: 3,
-				workspace: { uri: URI.file('/workspace3'), folders: [] },
+				workspace: { id: 'workspace3', uri: URI.file('/workspace3') },
 				title: 'Window 3',
 				filename: '',
 				dirty: false
@@ -93,26 +78,31 @@ suite('CloseAllOtherWindowsAction', () => {
 
 		nativeHostService.setWindows(windows);
 
-		// Run the action
-		await action.run(instantiationService);
+		// Mock getActiveWindow to return window ID 1
+		const domModule = await import('../../../../base/browser/dom.js');
+		const getActiveWindowStub = sinon.stub(domModule, 'getActiveWindow').returns({ vscodeWindowId: 1 } as any);
 
-		// Verify that only windows 2 and 3 were closed (not window 1 which is current)
-		const closedWindows = nativeHostService.getClosedWindows();
-		assert.strictEqual(closedWindows.length, 2);
-		assert.ok(closedWindows.includes(2));
-		assert.ok(closedWindows.includes(3));
-		assert.ok(!closedWindows.includes(1));
+		try {
+			// Run the action
+			await action.run(instantiationService);
+
+			// Verify that only windows 2 and 3 were closed (not window 1 which is current)
+			const closedWindows = nativeHostService.getClosedWindows();
+			assert.strictEqual(closedWindows.length, 2);
+			assert.ok(closedWindows.includes(2));
+			assert.ok(closedWindows.includes(3));
+			assert.ok(!closedWindows.includes(1));
+		} finally {
+			getActiveWindowStub.restore();
+		}
 	});
 
 	test('should handle no other windows to close', async () => {
-		// Mock the getActiveWindow function
-		(dom as any).getActiveWindow = () => ({ vscodeWindowId: 1 });
-
 		// Set up only one window (current)
 		const windows: IOpenedMainWindow[] = [
 			{
 				id: 1,
-				workspace: { uri: URI.file('/workspace1'), folders: [] },
+				workspace: { id: 'workspace1', uri: URI.file('/workspace1') },
 				title: 'Window 1',
 				filename: '',
 				dirty: false
@@ -121,23 +111,28 @@ suite('CloseAllOtherWindowsAction', () => {
 
 		nativeHostService.setWindows(windows);
 
-		// Run the action
-		await action.run(instantiationService);
+		// Mock getActiveWindow to return window ID 1
+		const domModule = await import('../../../../base/browser/dom.js');
+		const getActiveWindowStub = sinon.stub(domModule, 'getActiveWindow').returns({ vscodeWindowId: 1 } as any);
 
-		// Verify no windows were closed
-		const closedWindows = nativeHostService.getClosedWindows();
-		assert.strictEqual(closedWindows.length, 0);
+		try {
+			// Run the action
+			await action.run(instantiationService);
+
+			// Verify no windows were closed
+			const closedWindows = nativeHostService.getClosedWindows();
+			assert.strictEqual(closedWindows.length, 0);
+		} finally {
+			getActiveWindowStub.restore();
+		}
 	});
 
 	test('should handle auxiliary windows', async () => {
-		// Mock the getActiveWindow function
-		(dom as any).getActiveWindow = () => ({ vscodeWindowId: 1 });
-
 		// Set up main and auxiliary windows
 		const windows: Array<IOpenedMainWindow | IOpenedAuxiliaryWindow> = [
 			{
 				id: 1,
-				workspace: { uri: URI.file('/workspace1'), folders: [] },
+				workspace: { id: 'workspace1', uri: URI.file('/workspace1') },
 				title: 'Main Window',
 				filename: '',
 				dirty: false
@@ -152,13 +147,21 @@ suite('CloseAllOtherWindowsAction', () => {
 
 		nativeHostService.setWindows(windows);
 
-		// Run the action
-		await action.run(instantiationService);
+		// Mock getActiveWindow to return window ID 1
+		const domModule = await import('../../../../base/browser/dom.js');
+		const getActiveWindowStub = sinon.stub(domModule, 'getActiveWindow').returns({ vscodeWindowId: 1 } as any);
 
-		// Verify that auxiliary window was closed
-		const closedWindows = nativeHostService.getClosedWindows();
-		assert.strictEqual(closedWindows.length, 1);
-		assert.ok(closedWindows.includes(2));
-		assert.ok(!closedWindows.includes(1));
+		try {
+			// Run the action
+			await action.run(instantiationService);
+
+			// Verify that auxiliary window was closed
+			const closedWindows = nativeHostService.getClosedWindows();
+			assert.strictEqual(closedWindows.length, 1);
+			assert.ok(closedWindows.includes(2));
+			assert.ok(!closedWindows.includes(1));
+		} finally {
+			getActiveWindowStub.restore();
+		}
 	});
 });
