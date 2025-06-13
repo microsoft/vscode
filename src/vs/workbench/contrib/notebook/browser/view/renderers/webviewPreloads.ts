@@ -2935,8 +2935,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (e.altKey) {
 					// Don't make element draggable if Alt is used with copy/paste/cut keys
 					// to avoid interfering with Alt-based keyboard shortcuts for copying
-					const isCopyPasteShortcut = e.key === 'c' || e.key === 'C' || 
-											   e.key === 'v' || e.key === 'V' || 
+					const isCopyPasteShortcut = e.key === 'c' || e.key === 'C' ||
+											   e.key === 'v' || e.key === 'V' ||
 											   e.key === 'x' || e.key === 'X';
 					if (!isCopyPasteShortcut) {
 						this.element.draggable = true;
