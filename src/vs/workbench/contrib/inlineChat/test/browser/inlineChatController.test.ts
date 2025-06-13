@@ -77,7 +77,6 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { isSafari, isWeb } from '../../../../../base/common/platform.js';
 
 suite('InlineChatController', function () {
 
@@ -668,7 +667,8 @@ suite('InlineChatController', function () {
 		await r;
 	});
 
-	((isWeb && isSafari) ? test.skip /* flaky */ : test)('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
+	// TODO@jrieken https://github.com/microsoft/vscode/issues/251429
+	test.skip('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
 
 		model.setValue('');
 
