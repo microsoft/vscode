@@ -6,8 +6,6 @@
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import * as nls from '../../../../../../nls.js';
-import { ILocalizedString } from '../../../../../../platform/action/common/action.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -25,7 +23,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/v
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { CONTEXT_VARIABLE_EXTENSIONID, CONTEXT_VARIABLE_INTERFACES, CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from '../../../../debug/common/debug.js';
 import { IEmptyScope, INotebookScope, INotebookVariableElement, NotebookVariableDataSource } from './notebookVariablesDataSource.js';
-import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDelegate } from './notebookVariablesTree.js';
+import { NOTEBOOK_TITLE, NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDelegate, REPL_TITLE } from './notebookVariablesTree.js';
 import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
@@ -39,8 +37,6 @@ export type contextMenuArg = { source: string; name: string; type?: string; valu
 export class NotebookVariablesView extends ViewPane {
 
 	static readonly ID = 'notebookVariablesView';
-	static readonly NOTEBOOK_TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
-	static readonly REPL_TITLE: ILocalizedString = nls.localize2('notebook.ReplVariables', "REPL Variables");
 
 	private tree: WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
@@ -151,11 +147,11 @@ export class NotebookVariablesView extends ViewPane {
 		this.activeNotebook = notebookDocument;
 
 		if (isCompositeNotebookEditorInput(editor.input)) {
-			this.updateTitle(NotebookVariablesView.REPL_TITLE.value);
-			this.accessibilityProvider.updateWidgetAriaLabel(NotebookVariablesView.REPL_TITLE.value);
+			this.updateTitle(REPL_TITLE.value);
+			this.accessibilityProvider.updateWidgetAriaLabel(REPL_TITLE.value);
 		} else {
-			this.updateTitle(NotebookVariablesView.NOTEBOOK_TITLE.value);
-			this.accessibilityProvider.updateWidgetAriaLabel(NotebookVariablesView.NOTEBOOK_TITLE.value);
+			this.updateTitle(NOTEBOOK_TITLE.value);
+			this.accessibilityProvider.updateWidgetAriaLabel(NOTEBOOK_TITLE.value);
 		}
 
 		if (doUpdate) {
