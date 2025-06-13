@@ -176,6 +176,9 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		});
 
 		token.onCancellationRequested(() => {
+			logService.error('doResolveShellEnv#timeout', 'Shell environment resolution timed out, buffers so far:');
+			logService.error('doResolveShellEnv#stdout', Buffer.concat(buffers).toString('utf8') || '<empty>');
+			logService.error('doResolveShellEnv#stderr', Buffer.concat(stderr).toString('utf8') || '<empty>');
 			child.kill();
 
 			return reject(new CancellationError());
