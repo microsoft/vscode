@@ -440,39 +440,12 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 	}
 
-	// Find the cell that corresponds to the current scroll position
-	// This is where the main fix begins - we need to look at scroll position, not just visible range
-	let currentScrollCell = -1;
-	
-	// Find which cell contains the current scroll position
-	for (let i = 0; i < visibleRange.end && i < 1000; i++) { // Safety limit to prevent infinite loops
-		const cell = notebookEditor.cellAt(i);
-		if (!cell) break;
-		
-		const cellTop = notebookEditor.getAbsoluteTopOfElement(cell);
-		const cellBottom = cellTop + notebookEditor.getHeightOfElement(cell);
-		
-		if (editorScrollTop >= cellTop && editorScrollTop < cellBottom) {
-			currentScrollCell = i;
-			break;
-		} else if (editorScrollTop < cellTop) {
-			// If scroll position is above this cell, use the previous cell
-			currentScrollCell = Math.max(0, i - 1);
-			break;
-		}
-	}
-	
-	// If we couldn't find a specific cell, fall back to the first visible cell
-	if (currentScrollCell === -1) {
-		currentScrollCell = visibleRange.start;
-	}
-
-	// Now find the relevant header entry for the current scroll position
-	// We need to search backwards from the current position to find all relevant headers
+	// Find the most relevant header by searching backwards from the first visible cell
+	// This fixes the issue where headers far above the viewport weren't being found
 	let cellEntry: OutlineEntry | undefined;
 	
-	// Search backwards from current scroll position to find the most recent header
-	for (let i = currentScrollCell; i >= 0; i--) {
+	// Search backwards from the first visible cell to find the most recent header
+	for (let i = visibleRange.start; i >= 0; i--) {
 		const candidateEntry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
 		if (candidateEntry && candidateEntry.level < 7) {
 			// Found a header - this is the one we want to potentially show
@@ -487,10 +460,11 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 	}
 
 	// iterate over cells in viewport ------------------------------------------------------------------------------------------------------
+	let cell;
 	const startIndex = visibleRange.start - 1; // -1 to account for cells hidden "under" sticky lines.
 	for (let currentIndex = startIndex; currentIndex < visibleRange.end; currentIndex++) {
 		// store data for current cell, and next cell
-		const cell = notebookEditor.cellAt(currentIndex);
+		cell = notebookEditor.cellAt(currentIndex);
 		if (!cell) {
 			return new Map();
 		}
