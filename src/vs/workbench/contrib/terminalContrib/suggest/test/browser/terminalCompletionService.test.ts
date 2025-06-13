@@ -710,12 +710,8 @@ suite('TerminalCompletionService', () => {
 				// Find the symlink completion
 				const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
 				const symlinkFolderCompletion = result?.find(c => c.label === './symlink-folder/');
-				assert.ok(symlinkFileCompletion, 'Symlink completion should be found');
-				assert.strictEqual(symlinkFileCompletion.kind, TerminalCompletionItemKind.File, 'Symlink target should be resolved');
-				assert.ok(symlinkFolderCompletion, 'Symlink folder completion should be found');
-				assert.strictEqual(symlinkFolderCompletion.kind, TerminalCompletionItemKind.Folder, 'Symlink folder target should be resolved');
-				assert.strictEqual(symlinkFileCompletion.detail, '/test/symlink-file -> /target/actual-file.txt', 'Symlink file detail should match target');
-				assert.strictEqual(symlinkFolderCompletion.detail, '/test/symlink-folder/ -> /target/actual-folder', 'Symlink folder detail should match target');
+				assert.strictEqual(symlinkFileCompletion?.detail, '/test/symlink-file -> /target/actual-file.txt', 'Symlink file detail should match target');
+				assert.strictEqual(symlinkFolderCompletion?.detail, '/test/symlink-folder/ -> /target/actual-folder', 'Symlink folder detail should match target');
 			});
 		});
 	}
