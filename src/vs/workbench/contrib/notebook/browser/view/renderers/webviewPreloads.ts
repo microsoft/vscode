@@ -2933,7 +2933,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// Add alt key handlers
 			window.addEventListener('keydown', (e) => {
 				if (e.altKey) {
-					this.element.draggable = true;
+					// Don't make element draggable if Alt is used with copy/paste/cut keys
+					// to avoid interfering with Alt-based keyboard shortcuts for copying
+					const isCopyPasteShortcut = e.key === 'c' || e.key === 'C' || 
+											   e.key === 'v' || e.key === 'V' || 
+											   e.key === 'x' || e.key === 'X';
+					if (!isCopyPasteShortcut) {
+						this.element.draggable = true;
+					}
 				}
 			});
 
