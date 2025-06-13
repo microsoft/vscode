@@ -11,7 +11,7 @@ suite('LoopbackAuthServer', () => {
 	let port: number;
 
 	setup(async () => {
-		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080');
+		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080', 'https://code.visualstudio.com');
 		port = await server.start();
 	});
 
