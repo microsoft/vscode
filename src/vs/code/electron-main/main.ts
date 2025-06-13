@@ -58,7 +58,7 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IThemeMainService, ThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
+import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
@@ -72,6 +72,7 @@ import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
 
 /**
  * The main VS Code entry point.

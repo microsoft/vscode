@@ -34,7 +34,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { PromptsType } from '../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -43,7 +43,7 @@ import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { ChatPauseState, IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
@@ -54,12 +54,11 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
-import { IMetadata, IPromptsService } from '../common/promptSyntax/service/types.js';
+import { IMetadata, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { isPromptFileChatVariable, toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -67,6 +66,9 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 
 const $ = dom.$;
 
@@ -1077,7 +1079,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
-		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, 0), (events => {
+		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
+		const delay = renderImmediately ? MicrotaskDelay : 0;
+		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
 			if (!this.viewModel) {
 				return;
 			}
@@ -1201,16 +1205,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private _findPromptFileInContext(attachedContext: IChatRequestVariableEntry[]): URI | undefined {
-		for (const item of attachedContext) {
-			if (isPromptFileChatVariable(item) && item.isRoot) {
+	private _findPromptFileInContext(attachedContext: ChatRequestVariableSet): URI | undefined {
+		for (const item of attachedContext.asArray()) {
+			if (isPromptFileVariableEntry(item) && item.isRoot) {
 				return IChatRequestVariableEntry.toUri(item);
 			}
 		}
 		return undefined;
 	}
 
-	private async _applyPromptFileIfSet(requestInput: { input: string; attachedContext: IChatRequestVariableEntry[] }): Promise<IMetadata | undefined> {
+	private async _applyPromptFileIfSet(requestInput: { input: string; attachedContext: ChatRequestVariableSet }): Promise<IMetadata | undefined> {
 
 		let metadata: IMetadata | undefined;
 
@@ -1219,12 +1223,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (agentSlashPromptPart) {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
 			if (metadata) {
-				const uri = metadata.uri;
-				if (!requestInput.attachedContext.some(variable => isPromptFileChatVariable(variable) && isEqual(IChatRequestVariableEntry.toUri(variable), uri))) {
-					// not yet attached, so attach it
-					const variable = toChatVariable({ uri: metadata.uri, isPromptFile: true }, true);
-					requestInput.attachedContext.push(variable);
-				}
+				// add the prompt file to the context, but not sticky
+				requestInput.attachedContext.add(toPromptFileVariableEntry(metadata.uri, true));
+
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
 			}
@@ -1281,8 +1282,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const isUserQuery = !query;
 
-			const { promptInstructions } = this.inputPart.attachmentModel;
-			const instructionsEnabled = promptInstructions.featureEnabled;
+			const instructionsEnabled = PromptsConfig.enabled(this.configurationService);
 			if (instructionsEnabled) {
 				await this._applyPromptFileIfSet(requestInputs);
 				await this.autoAttachInstructions(requestInputs.attachedContext);
@@ -1290,7 +1290,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
-				const editingSessionAttachedContext: IChatRequestVariableEntry[] = requestInputs.attachedContext;
+				const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 
 				// Collect file variables from previous requests before sending the request
 				const previousRequests = this.viewModel.model.getRequests();
@@ -1299,7 +1299,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						if (URI.isUri(variable.value) && variable.kind === 'file') {
 							const uri = variable.value;
 							if (!uniqueWorkingSetEntries.has(uri)) {
-								editingSessionAttachedContext.push(variable);
+								editingSessionAttachedContext.add(variable);
 								uniqueWorkingSetEntries.add(variable.value);
 							}
 						}
@@ -1330,7 +1330,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
-				attachedContext: requestInputs.attachedContext,
+				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
 				userSelectedTools: this.getUserSelectedTools(),
 				modeInstructions: this.input.currentMode2.body
@@ -1619,28 +1619,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * match file references in the attached context and then attaches
 	 * such instructions to the context.
 	 */
-	private async autoAttachInstructions(
-		attachedContext: IChatRequestVariableEntry[],
-	): Promise<void> {
+	private async autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
 
-		const variableUris = attachedContext
-			.map(IChatRequestVariableEntry.toUri)
-			.filter(isDefined);
+		const variableUris = attachedContext.asArray().map(IChatRequestVariableEntry.toUri).filter(isDefined);
 
-		const automaticInstructions = await this.promptsService
-			.findInstructionFilesFor(variableUris);
+		const automaticInstructions = await this.promptsService.findInstructionFilesFor(variableUris);
 
 		// add instructions to the final context list
-		attachedContext.push(
-			...automaticInstructions.map((uri) => {
-				return toChatVariable({ uri, isPromptFile: true }, true);
-			}),
-		);
+		attachedContext.add(...automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction, true)));
 
 		// add to attached list to make the instructions sticky
-		this.inputPart
-			.attachmentModel
-			.promptInstructions.add(automaticInstructions);
+		this.inputPart.attachmentModel.addPromptFiles(automaticInstructions);
 	}
 }
 

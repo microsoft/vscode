@@ -6,9 +6,10 @@
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 export class MockPromptsService implements IPromptsService {
 
@@ -42,7 +43,10 @@ export class MockPromptsService implements IPromptsService {
 		throw new Error('Method not implemented.');
 	}
 	onDidChangeCustomChatModes: Event<void> = Event.None;
-	getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
+	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		throw new Error('Method not implemented.');
+	}
+	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
 		throw new Error('Method not implemented.');
 	}
 	dispose(): void { }

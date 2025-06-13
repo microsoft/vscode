@@ -9,11 +9,13 @@ import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/li
 import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
 import { DebugExpressionRenderer } from '../../../../debug/browser/debugExpressionRenderer.js';
 import { INotebookVariableElement } from './notebookVariablesDataSource.js';
+import { NotebookVariablesView } from './notebookVariablesView.js';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -86,8 +88,14 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 
 export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<INotebookVariableElement> {
 
-	getWidgetAriaLabel(): string {
-		return localize('debugConsole', "Notebook Variables");
+	private _widgetAriaLabel = observableValue('widgetAriaLabel', NotebookVariablesView.NOTEBOOK_TITLE.value);
+
+	getWidgetAriaLabel() {
+		return this._widgetAriaLabel;
+	}
+
+	updateWidgetAriaLabel(label: string): void {
+		this._widgetAriaLabel.set(label, undefined);
 	}
 
 	getAriaLabel(element: INotebookVariableElement): string {

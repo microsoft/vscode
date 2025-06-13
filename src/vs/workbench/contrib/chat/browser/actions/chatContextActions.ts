@@ -37,14 +37,14 @@ import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browse
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
+import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);

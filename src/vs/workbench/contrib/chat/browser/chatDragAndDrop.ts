@@ -23,7 +23,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidgetService } from './chat.js';
 import { ImageTransferData, resolveEditorAttachContext, resolveImageAttachContext, resolveMarkerAttachContext, resolveNotebookOutputAttachContext, resolveSymbolsAttachContext } from './chatAttachmentResolve.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';

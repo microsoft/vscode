@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { OutlineElement, OutlineGroup, OutlineModel } from '../../documentSymbols/browser/outlineModel.js';
@@ -385,17 +385,26 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 
 class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
-	private readonly provider: SyntaxRangeProvider | undefined;
+	private readonly provider: MutableDisposable<SyntaxRangeProvider> = this._register(new MutableDisposable<SyntaxRangeProvider>());
 
-	constructor(editor: IActiveCodeEditor,
+	constructor(
+		editor: IActiveCodeEditor,
 		onProviderUpdate: () => void,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super(editor);
+		this._register(this._languageFeaturesService.foldingRangeProvider.onDidChange(() => {
+			this._updateProvider(editor, onProviderUpdate);
+		}));
+		this._updateProvider(editor, onProviderUpdate);
+	}
+
+	private _updateProvider(editor: IActiveCodeEditor, onProviderUpdate: () => void): void {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, editor.getModel());
-		if (selectedProviders.length > 0) {
-			this.provider = this._register(new SyntaxRangeProvider(editor.getModel(), selectedProviders, onProviderUpdate, this._foldingLimitReporter, undefined));
+		if (selectedProviders.length === 0) {
+			return;
 		}
+		this.provider.value = new SyntaxRangeProvider(editor.getModel(), selectedProviders, onProviderUpdate, this._foldingLimitReporter, undefined);
 	}
 
 	protected override isProviderValid(): boolean {
@@ -403,6 +412,6 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 	}
 
 	protected override async createModelFromProvider(token: CancellationToken): Promise<FoldingRegions | null> {
-		return this.provider?.compute(token) ?? null;
+		return this.provider.value?.compute(token) ?? null;
 	}
 }

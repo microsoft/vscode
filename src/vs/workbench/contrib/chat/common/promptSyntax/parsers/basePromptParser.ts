@@ -24,21 +24,22 @@ import type { TPromptReference, IResolveError, ITopError } from './types.js';
 import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
-import { BaseToken } from '../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../codecs/base/baseToken.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { type IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { PromptHeader, type TPromptMetadata } from './promptHeader/promptHeader.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
-import { LinesDecoder } from '../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
+import { ObservableDisposable } from '../utils/observableDisposable.js';
+import { PromptsType, INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../promptTypes.js';
+import { LinesDecoder } from '../codecs/base/linesCodec/linesDecoder.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { MarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
-import { isPromptOrInstructionsFile, PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { FrontMatterHeader } from '../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { MarkdownLink } from '../codecs/base/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../codecs/base/markdownCodec/tokens/markdownToken.js';
+import { isPromptOrInstructionsFile } from '../config/promptFileLocations.js';
+import { FrontMatterHeader } from '../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 import { type IPromptContentsProviderOptions, DEFAULT_OPTIONS as CONTENTS_PROVIDER_DEFAULT_OPTIONS } from '../contentProviders/promptContentsProviderBase.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 /**
  * Options of the {@link BasePromptParser} class.
@@ -511,7 +512,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	/**
 	 * Start the prompt parser.
 	 */
-	public start(): this {
+	public start(token?: CancellationToken): this {
 		// if already started, nothing to do
 		if (this.started) {
 			return this;
@@ -525,7 +526,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			return this;
 		}
 
-		this.promptContentsProvider.start();
+		this.promptContentsProvider.start(token);
 		return this;
 	}
 

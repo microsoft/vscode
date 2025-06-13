@@ -80,6 +80,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	private readonly _registrations = this._register(new DisposableMap<string>());
 	private _sentProviderUsageEvents = new Set<string>();
+	private _suppressUnregisterEvent = false;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -101,7 +102,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
 		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
-		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => this._proxy.$onDidUnregisterAuthenticationProvider(e.id)));
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			if (!this._suppressUnregisterEvent) {
+				this._proxy.$onDidUnregisterAuthenticationProvider(e.id);
+			}
+		}));
 		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(e => {
 			const providerInfo = this.authenticationService.getProvider(e.providerId);
 			this._proxy.$onDidChangeAuthenticationSessions(providerInfo.id, providerInfo.label, e.extensionIds);
@@ -153,7 +158,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $unregisterAuthenticationProvider(id: string): Promise<void> {
 		this._registrations.deleteAndDispose(id);
-		this.authenticationService.unregisterAuthenticationProvider(id);
+		// The ext host side already unregisters the provider, so we can suppress the event here.
+		this._suppressUnregisterEvent = true;
+		try {
+			this.authenticationService.unregisterAuthenticationProvider(id);
+		} finally {
+			this._suppressUnregisterEvent = false;
+		}
 	}
 
 	async $ensureProvider(id: string): Promise<void> {

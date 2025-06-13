@@ -6,8 +6,8 @@
 import { PromptMetadataRecord } from './record.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
-import { FrontMatterSequence } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
-import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
+import { FrontMatterRecord, FrontMatterString } from '../../../../codecs/base/frontMatterCodec/tokens/index.js';
 
 /**
  * Base class for all metadata records with a `string` value.

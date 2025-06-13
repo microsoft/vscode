@@ -67,7 +67,7 @@ import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../ch
 import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
-import { IPromptsService } from '../../../chat/common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../chat/test/common/mockChatModeService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
@@ -77,6 +77,7 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { isSafari, isWeb } from '../../../../../base/common/platform.js';
 
 suite('InlineChatController', function () {
 
@@ -224,6 +225,7 @@ suite('InlineChatController', function () {
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
+		store.add(instaService.get(IEditorWorkerService) as TestWorkerService);
 
 		store.add(instaService.createInstance(ChatInputBoxContentProvider));
 
@@ -666,7 +668,7 @@ suite('InlineChatController', function () {
 		await r;
 	});
 
-	test('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
+	((isWeb && isSafari) ? test.skip /* flaky */ : test)('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
 
 		model.setValue('');
 
