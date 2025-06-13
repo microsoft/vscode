@@ -76,7 +76,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
 		for (const path of paths) {
-			promises.push(this._getCommandsInPath(path, pathSeparator, labels));
+			promises.push(this._getExecutablesInPath(path, pathSeparator, labels));
 		}
 
 		// Merge all results
@@ -96,7 +96,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		return this._cachedExes;
 	}
 
-	private async _getCommandsInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
+	private async _getExecutablesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
 			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
 			if (!dirExists) {
