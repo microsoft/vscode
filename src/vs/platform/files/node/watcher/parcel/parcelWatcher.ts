@@ -18,10 +18,10 @@ import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
-import { realcase, realpath } from '../../../../../base/node/extpath.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { realcase, realpath } from '../../../../../base/node/pfs.js';
 
 export class ParcelWatcherInstance extends Disposable {
 
