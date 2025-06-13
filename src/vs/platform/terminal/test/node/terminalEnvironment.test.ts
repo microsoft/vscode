@@ -49,7 +49,7 @@ suite('platform - terminalEnvironment', async () => {
 		(getWindowsBuildNumber() < 18309 ? suite.skip : suite)('pwsh', async () => {
 			const expectedPs1 = process.platform === 'win32'
 				? `try { Import-Module "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1" } catch {}`
-				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
+				: `Import-Module "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
 			suite('should override args', async () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					type: 'injection',
