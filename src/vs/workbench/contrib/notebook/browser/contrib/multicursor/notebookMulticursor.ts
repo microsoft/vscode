@@ -483,7 +483,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.totalMatchesCount = 0;
 		this.startPosition = undefined;
 		this.word = '';
-		this.totalMatchesCount = 0;
 	}
 
 	public async findAndTrackNextSelection(focusedCell: ICellViewModel): Promise<void> {
