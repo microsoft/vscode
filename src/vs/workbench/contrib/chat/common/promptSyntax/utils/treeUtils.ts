@@ -13,9 +13,7 @@ export type TTree<TTreenNode> = { children?: readonly TTree<TTreenNode>[] } & TT
 /**
  * Flatter a tree structure into a single flat array.
  */
-export const flatten = <TTreeNode>(
-	treeRoot: TTree<TTreeNode>,
-): TTreeNode[] => {
+export function flatten<TTreeNode>(treeRoot: TTree<TTreeNode>): TTreeNode[] {
 	const result: TTreeNode[] = [];
 
 	result.push(treeRoot);
@@ -25,15 +23,12 @@ export const flatten = <TTreeNode>(
 	}
 
 	return result;
-};
+}
 
 /**
  * Traverse a tree structure and execute a callback for each node.
  */
-export const forEach = <TTreeNode>(
-	callback: (node: TTreeNode) => boolean,
-	treeRoot: TTree<TTreeNode>,
-): ReturnType<typeof callback> => {
+export function forEach<TTreeNode>(callback: (node: TTreeNode) => boolean, treeRoot: TTree<TTreeNode>): ReturnType<typeof callback> {
 	const shouldStop = callback(treeRoot);
 
 	if (shouldStop === true) {
@@ -49,7 +44,7 @@ export const forEach = <TTreeNode>(
 	}
 
 	return false;
-};
+}
 
 /**
  * Maps nodes of a tree to a new type preserving the original tree structure by invoking
@@ -91,16 +86,16 @@ export const forEach = <TTreeNode>(
  * });
  * ```
  */
-export const map = <
+export function map<
 	TTreeNode extends object,
-	TNewTreeNode extends object,
+	TNewTreeNode extends object
 >(
 	callback: (
 		originalNode: Readonly<TTree<TTreeNode>>,
 		newChildren: Readonly<TNewTreeNode>[] | undefined,
 	) => TTree<TNewTreeNode>,
 	treeRoot: TTree<TTreeNode>,
-): TTree<TNewTreeNode> => {
+): TTree<TNewTreeNode> {
 	// if the node does not have children, just call the callback
 	if (treeRoot.children === undefined) {
 		return callback(treeRoot, undefined);
@@ -123,7 +118,7 @@ export const map = <
 	newNode.children = newChildren;
 
 	return newNode;
-};
+}
 
 /**
  * Type for a generic comparable object - the one that implements
@@ -188,10 +183,7 @@ type TDiffTree<T> = TTree<TDifference<T> & {
  * of the same type. The result is another tree of difference
  * nodes that represent difference between tree node pairs.
  */
-export function difference<T extends NonNullable<unknown>>(
-	tree1: TTree<TComparable<T>>,
-	tree2: TTree<TComparable<T>>,
-): TDiffTree<T> | null {
+export function difference<T extends NonNullable<unknown>>(tree1: TTree<TComparable<T>>, tree2: TTree<TComparable<T>>): TDiffTree<T> | null {
 	const tree1Children = tree1.children ?? [];
 	const tree2Children = tree2.children ?? [];
 
@@ -276,11 +268,11 @@ type TCurriedFunction<T extends (...args: any[]) => unknown> = ((...args: TRestP
 /**
  * Curry a provided function with the first argument.
  */
-export const curry = <T, K>(
+export function curry<T, K>(
 	callback: (arg1: T, ...args: any[]) => K,
 	arg1: T,
-): TCurriedFunction<typeof callback> => {
+): TCurriedFunction<typeof callback> {
 	return (...args) => {
 		return callback(arg1, ...args);
 	};
-};
+}

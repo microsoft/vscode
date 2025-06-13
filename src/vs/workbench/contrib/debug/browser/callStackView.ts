@@ -74,7 +74,7 @@ function assignStackFrameContext(element: StackFrame, context: any) {
 	return context;
 }
 
-export function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null) {
 	if (element instanceof StackFrame) {
 		return assignStackFrameContext(element, {});
 	} else if (element instanceof Thread) {

@@ -24,7 +24,9 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
 import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension, IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { getPromptsTypeForLanguageId } from '../common/promptSyntax/promptTypes.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
@@ -82,8 +84,11 @@ export async function resolveResourceAttachContext(resource: URI, isDirectory: b
 	let omittedState = OmittedState.NotOmitted;
 
 	if (!isDirectory) {
+
+		let languageId: string | undefined;
 		try {
 			const createdModel = await textModelService.createModelReference(resource);
+			languageId = createdModel.object.getLanguageId();
 			createdModel.dispose();
 		} catch {
 			omittedState = OmittedState.Full;
@@ -91,6 +96,9 @@ export async function resolveResourceAttachContext(resource: URI, isDirectory: b
 
 		if (/\.(svg)$/i.test(resource.path)) {
 			omittedState = OmittedState.Full;
+		}
+		if (languageId && getPromptsTypeForLanguageId(languageId)) {
+			return toPromptFileVariableEntry(resource, true);
 		}
 	}
 

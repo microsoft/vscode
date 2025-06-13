@@ -10,7 +10,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { LogLevel } from '../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
@@ -40,6 +40,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService,
 		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
 	) {
 		super();
@@ -52,7 +53,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	protected _startMcp(id: number, launch: McpServerLaunch): void {
 		if (launch.type === McpServerTransportType.HTTP) {
-			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy));
+			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService));
 			return;
 		}
 
@@ -197,7 +198,8 @@ class McpHTTPHandle extends Disposable {
 	constructor(
 		private readonly _id: number,
 		private readonly _launch: McpServerTransportHTTP,
-		private readonly _proxy: MainThreadMcpShape
+		private readonly _proxy: MainThreadMcpShape,
+		private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -242,26 +244,15 @@ class McpHTTPHandle extends Disposable {
 		}
 		await this._addAuthHeader(headers);
 
-		const doFetch = () => fetch(
+		const res = await this._fetchWithAuthRetry(
 			this._launch.uri.toString(true),
 			{
 				method: 'POST',
-				signal: this._abortCtrl.signal,
 				headers,
 				body: asBytes,
-			}
+			},
+			headers
 		);
-
-		let res = await doFetch();
-		if (res.status === 401) {
-			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
-				await this._addAuthHeader(headers);
-				if (headers['Authorization']) {
-					res = await doFetch();
-				}
-			}
-		}
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
 
@@ -290,7 +281,7 @@ class McpHTTPHandle extends Disposable {
 
 			this._proxy.$onDidChangeState(this._id, {
 				state: McpConnectionState.Kind.Error,
-				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + (retryWithSessionId ? `; will retry with new session ID` : ''),
 				shouldRetry: retryWithSessionId,
 			});
 			return;
@@ -384,9 +375,8 @@ class McpHTTPHandle extends Disposable {
 				...Object.fromEntries(this._launch.headers)
 			};
 		}
-		const resourceMetadataResponse = await fetch(resourceMetadata, {
+		const resourceMetadataResponse = await this._fetch(resourceMetadata, {
 			method: 'GET',
-			signal: this._abortCtrl.signal,
 			headers: {
 				...additionalHeaders,
 				'Accept': 'application/json',
@@ -411,9 +401,8 @@ class McpHTTPHandle extends Disposable {
 		const authorizationServerUrl = new URL(authorizationServer);
 		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-		let authServerMetadataResponse = await fetch(pathToFetch, {
+		let authServerMetadataResponse = await this._fetch(pathToFetch, {
 			method: 'GET',
-			signal: this._abortCtrl.signal,
 			headers: {
 				...addtionalHeaders,
 				'Accept': 'application/json',
@@ -424,11 +413,10 @@ class McpHTTPHandle extends Disposable {
 			// Try fetching the other discovery URL. For the openid metadata discovery
 			// path, we _ADD_ the well known path after the existing path.
 			// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-			authServerMetadataResponse = await fetch(
+			authServerMetadataResponse = await this._fetch(
 				URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
 				{
 					method: 'GET',
-					signal: this._abortCtrl.signal,
 					headers: {
 						...addtionalHeaders,
 						'Accept': 'application/json',
@@ -511,11 +499,14 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(true), {
-					method: 'GET',
-					signal: this._abortCtrl.signal,
-					headers,
-				});
+				res = await this._fetchWithAuthRetry(
+					this._launch.uri.toString(true),
+					{
+						method: 'GET',
+						headers,
+					},
+					headers
+				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
 				continue;
@@ -526,7 +517,11 @@ class McpHTTPHandle extends Disposable {
 				return;
 			}
 
-			retry = 0;
+			// Only reset the retry counter if we definitely get an event stream to avoid
+			// spamming servers that (incorrectly) don't return one from this endpoint.
+			if (res.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
+				retry = 0;
+			}
 
 			const parser = new SSEParser(event => {
 				if (event.type === 'message') {
@@ -559,11 +554,14 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(true), {
-				method: 'GET',
-				signal: this._abortCtrl.signal,
-				headers,
-			});
+			res = await this._fetchWithAuthRetry(
+				this._launch.uri.toString(true),
+				{
+					method: 'GET',
+					headers,
+				},
+				headers
+			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
 				return;
@@ -601,9 +599,8 @@ class McpHTTPHandle extends Disposable {
 			'Content-Length': String(asBytes.length),
 		};
 		await this._addAuthHeader(headers);
-		const res = await fetch(url, {
+		const res = await this._fetch(url, {
 			method: 'POST',
-			signal: this._abortCtrl.signal,
 			headers,
 			body: asBytes,
 		});
@@ -666,6 +663,63 @@ class McpHTTPHandle extends Disposable {
 			return res.statusText;
 		}
 	}
+
+	/**
+	 * Helper method to perform fetch with 401 authentication retry logic.
+	 * If the initial request returns 401 and we don't have auth metadata,
+	 * it will populate the auth metadata and retry once.
+	 */
+	private async _fetchWithAuthRetry(url: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<Response> {
+		const doFetch = () => this._fetch(url, init);
+
+		let res = await doFetch();
+		if (res.status === 401) {
+			if (!this._authMetadata) {
+				await this._populateAuthMetadata(res);
+				await this._addAuthHeader(headers);
+				if (headers['Authorization']) {
+					// Update the headers in the init object
+					init.headers = headers;
+					res = await doFetch();
+				}
+			}
+		}
+		return res;
+	}
+
+	private async _fetch(url: string, init: MinimalRequestInit): Promise<Response> {
+		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const traceObj: any = { ...init, headers: { ...init.headers } };
+			if (traceObj.body) {
+				traceObj.body = new TextDecoder().decode(traceObj.body);
+			}
+			if (traceObj.headers?.Authorization) {
+				traceObj.headers.Authorization = '***'; // don't log the auth header
+			}
+			this._log(LogLevel.Trace, `Fetching ${url} with options: ${JSON.stringify(traceObj)}`);
+		}
+		const res = await fetch(url, {
+			...init,
+			signal: this._abortCtrl.signal,
+		});
+
+		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const headers: Record<string, string> = {};
+			res.headers.forEach((value, key) => { headers[key] = value; });
+			this._log(LogLevel.Trace, `Fetched ${url}: ${JSON.stringify({
+				status: res.status,
+				headers: headers,
+			})}`);
+		}
+
+		return res;
+	}
+}
+
+interface MinimalRequestInit {
+	method: string;
+	headers: Record<string, string>;
+	body?: Uint8Array<ArrayBuffer>;
 }
 
 function isJSON(str: string): boolean {

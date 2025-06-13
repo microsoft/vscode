@@ -25,12 +25,11 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { basename, dirname } from '../../../../base/common/path.js';
-import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -54,6 +53,7 @@ import { IChatContentReference } from '../common/chatService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -227,7 +227,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverElement.setAttribute('aria-label', ariaLabel);
 		this.element.classList.add('warning');
 
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
+		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
 		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
 	}
 }
@@ -305,7 +305,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
 	hoverService: IHoverService, ariaLabel: string,
-	currentLanguageModelName: string,
+	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState): IDisposable {
@@ -333,7 +333,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 
 	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
+		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else {
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
@@ -475,6 +475,91 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
+export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private hintElement: HTMLElement;
+
+	constructor(
+		resource: URI,
+		attachment: IChatRequestVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+
+		this.hintElement = dom.append(this.element, dom.$('span.prompt-type'));
+
+		this.updateLabel(resource);
+
+		this.instantiationService.invokeFunction(accessor => {
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+		});
+		this.addResourceOpenHandlers(resource, undefined);
+
+		this.attachClearButton();
+	}
+
+	private updateLabel(resource: URI) {
+		const fileBasename = basename(resource.path);
+		const fileDirname = dirname(resource.path);
+		const friendlyName = `${fileBasename} ${fileDirname}`;
+		const isPrompt = this.languageService.guessLanguageIdByFilepathOrFirstLine(resource) === 'prompt';
+		const ariaLabel = isPrompt
+			? localize('chat.promptAttachment', "Prompt file, {0}", friendlyName)
+			: localize('chat.instructionsAttachment', "Instructions attachment, {0}", friendlyName);
+		const typeLabel = isPrompt
+			? localize('prompt', "Prompt")
+			: localize('instructions', "Instructions");
+
+		const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+		const title = `${typeLabel} ${uriLabel}`;
+
+		//const { topError } = this.promptFile;
+		this.element.classList.remove('warning', 'error');
+
+		// if there are some errors/warning during the process of resolving
+		// attachment references (including all the nested child references),
+		// add the issue details in the hover title for the attachment, one
+		// error/warning at a time because there is a limited space available
+		// if (topError) {
+		// 	const { errorSubject: subject } = topError;
+		// 	const isError = (subject === 'root');
+		// 	this.element.classList.add((isError) ? 'error' : 'warning');
+
+		// 	const severity = (isError)
+		// 		? localize('error', "Error")
+		// 		: localize('warning', "Warning");
+
+		// 	title += `\n[${severity}]: ${topError.localizedMessage}`;
+		// }
+
+		const fileWithoutExtension = getCleanPromptName(resource);
+		this.label.setFile(URI.file(fileWithoutExtension), {
+			fileKind: FileKind.FILE,
+			hidePath: true,
+			range: undefined,
+			title,
+			icon: ThemeIcon.fromId(Codicon.bookmark.id),
+			extraClasses: [],
+		});
+
+		this.hintElement.innerText = typeLabel;
+
+
+		this.element.ariaLabel = ariaLabel;
+	}
+}
+
+
 export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
 		attachment: IChatRequestToolSetEntry | IChatRequestToolEntry,
@@ -599,7 +684,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		}
 
 		const clickHandler = async () => await this.openResource(resource, false, undefined);
-		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
 	}
@@ -815,3 +900,5 @@ function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, sc
 		});
 	});
 }
+
+export const chatAttachmentResourceContextKey = new RawContextKey<string>('chatAttachmentResource', undefined, { type: 'URI', description: localize('resource', "The full value of the chat attachment resource, including scheme and path") });

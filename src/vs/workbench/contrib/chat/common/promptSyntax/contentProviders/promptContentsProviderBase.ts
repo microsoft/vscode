@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptContentsProvider } from './types.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { assert } from '../../../../../../base/common/assert.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { PromptsType } from '../../../../../../platform/prompts/common/prompts.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../constants.js';
-import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
+import { INSTRUCTIONS_LANGUAGE_ID, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { ObservableDisposable } from '../utils/observableDisposable.js';
+import { IPromptContentsProvider } from './types.js';
 
 /**
  * Options of the {@link PromptContentsProviderBase} class.
@@ -180,14 +179,14 @@ export abstract class PromptContentsProviderBase<
 	/**
 	 * Start producing the prompt contents data.
 	 */
-	public start(): this {
+	public start(token?: CancellationToken): this {
 		assert(
 			!this.isDisposed,
 			'Cannot start contents provider that was already disposed.',
 		);
 
 		// `'full'` means "everything has changed"
-		this.onContentsChanged('full');
+		this.onContentsChanged('full', token);
 
 		// subscribe to the change event emitted by a child class
 		this._register(this.onChangeEmitter.event(this.onContentsChanged, this));

@@ -13,7 +13,7 @@ import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
-import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, DEFAULT_AUTH_FLOW_PORT, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -61,7 +61,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 	private _state = randomBytes(16).toString('base64');
 	private _port: number | undefined;
 
-	constructor(private readonly _logger: ILogger) {
+	constructor(private readonly _logger: ILogger, private readonly _appUri: URI) {
 		const deferredPromise = new DeferredPromise<IOAuthResult>();
 		this._resultPromise = deferredPromise.p;
 
@@ -73,7 +73,7 @@ class LoopbackAuthServer implements ILoopbackServer {
 					const state = reqUrl.searchParams.get('state') ?? undefined;
 					const error = reqUrl.searchParams.get('error') ?? undefined;
 					if (error) {
-						res.writeHead(302, { location: `/?error=${reqUrl.searchParams.get('error_description')}` });
+						res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
 						res.end();
 						deferredPromise.error(new Error(error));
 						break;
@@ -84,19 +84,19 @@ class LoopbackAuthServer implements ILoopbackServer {
 						break;
 					}
 					if (this.state !== state) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}` });
+						res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
 						res.end();
 						deferredPromise.error(new Error('State does not match.'));
 						break;
 					}
 					deferredPromise.complete({ code, state });
-					res.writeHead(302, { location: '/success' });
+					res.writeHead(302, { location: '/done' });
 					res.end();
 					break;
 				}
 				// Serve the static files
-				case '/success':
-					this._sendSuccessPage(res);
+				case '/done':
+					this._sendPage(res);
 					break;
 				default:
 					res.writeHead(404);
@@ -114,8 +114,8 @@ class LoopbackAuthServer implements ILoopbackServer {
 		return `http://127.0.0.1:${this._port}/`;
 	}
 
-	private _sendSuccessPage(res: http.ServerResponse): void {
-		const html = getHtml();
+	private _sendPage(res: http.ServerResponse): void {
+		const html = getHtml(this._appUri);
 		res.writeHead(200, {
 			'Content-Type': 'text/html',
 			'Content-Length': Buffer.byteLength(html, 'utf8')
@@ -147,11 +147,8 @@ class LoopbackAuthServer implements ILoopbackServer {
 		this._server.on('error', err => {
 			if ('code' in err && err.code === 'EADDRINUSE') {
 				this._logger.error('Address in use, retrying with a different port...');
-				setTimeout(() => {
-					this._server.close();
-					// Best effort to use a specific port, but fallback to a random one if it is in use
-					this._server.listen(0, '127.0.0.1');
-				}, 1000);
+				// Best effort to use a specific port, but fallback to a random one if it is in use
+				this._server.listen(0, '127.0.0.1');
 				return;
 			}
 			clearTimeout(portTimeout);
@@ -226,23 +223,35 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		// Prepend Node-specific flows to the existing flows
 		if (!initData.remote.isRemote) {
 			// If we are not in a remote environment, we can use the loopback server for authentication
-			this._createFlows.push({
+			this._createFlows.unshift({
 				label: nls.localize('loopback', "Loopback Server"),
 				handler: (scopes, progress, token) => this._createWithLoopbackServer(scopes, progress, token)
 			});
 		}
 
-		// Add device code flow support (works in all environments)
-		this._createFlows.push({
-			label: nls.localize('device code', "Device Code"),
-			handler: (scopes, progress, token) => this._createWithDeviceCode(scopes, progress, token)
-		});
+		// Add device code flow to the end since it's not as streamlined
+		if (serverMetadata.device_authorization_endpoint) {
+			this._createFlows.push({
+				label: nls.localize('device code', "Device Code"),
+				handler: (scopes, progress, token) => this._createWithDeviceCode(scopes, progress, token)
+			});
+		}
 	}
 
 	private async _createWithLoopbackServer(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+
+		// Generate a random state value to prevent CSRF
+		const nonce = this.generateRandomString(32);
+		const callbackUri = URI.parse(`${this._initData.environment.appUriScheme}://dynamicauthprovider/${this.authorizationServer.authority}/redirect?nonce=${nonce}`);
+		let appUri: URI;
+		try {
+			appUri = await this._extHostUrls.createAppUri(callbackUri);
+		} catch (error) {
+			throw new Error(`Failed to create external URI: ${error}`);
+		}
 
 		// Prepare the authorization request URL
 		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
@@ -260,7 +269,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		}
 
 		// Create and start the loopback server
-		const server = new LoopbackAuthServer(this._logger);
+		const server = new LoopbackAuthServer(this._logger, appUri);
 		try {
 			await server.start();
 		} catch (err) {
@@ -272,6 +281,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		authorizationUrl.searchParams.set('state', server.state);
 
 		const promise = server.waitForOAuthResponse();
+		// Set up a Uri Handler but it's just to redirect not to handle the code
+		void this._proxy.$waitForUriHandler(appUri);
 
 		try {
 			// Open the browser for user authorization
@@ -465,12 +476,13 @@ export class NodeExtHostAuthentication extends ExtHostAuthentication implements 
 		extHostUrls: IExtHostUrlsService,
 		extHostProgress: IExtHostProgress,
 		extHostLoggerService: ILoggerService,
+		extHostLogService: ILogService
 	) {
-		super(extHostRpc, initData, extHostWindow, extHostUrls, extHostProgress, extHostLoggerService);
+		super(extHostRpc, initData, extHostWindow, extHostUrls, extHostProgress, extHostLoggerService, extHostLogService);
 	}
 }
 
-function getHtml() {
+function getHtml(appUri: URI) {
 	return `<!DOCTYPE html>
 <html lang="en">
 
@@ -598,6 +610,11 @@ function getHtml() {
 				.textContent = decodeURIComponent(error);
 			document.querySelector('body')
 				.classList.add('error');
+		} else {
+			// Redirect to the app URI after a 1-second delay to allow page to load
+			setTimeout(function() {
+				window.location.href = '${appUri.toString(true)}';
+			}, 1000);
 		}
 	</script>
 </body>

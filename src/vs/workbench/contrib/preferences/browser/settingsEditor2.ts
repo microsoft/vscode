@@ -634,11 +634,18 @@ export class SettingsEditor2 extends EditorPane {
 		if (!setupHidden && showSuggestions) {
 			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
 			const searchServiceEnabled = this.aiSettingsSearchService.isEnabled();
+
 			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				localize('showAiResultsDescription', "Search settings with AI"), showAiResultActionClassNames.join(' '), searchServiceEnabled
+				searchServiceEnabled
+					? localize('showAiResultsDescription', "Search settings with AI")
+					: localize('showAiResultsNotReady', "AI search functionality loading..."),
+				showAiResultActionClassNames.join(' '), searchServiceEnabled
 			));
 			this._register(this.aiSettingsSearchService.onProviderRegistered(() => {
-				this.showAiResultsAction!.enabled = true;
+				if (this.showAiResultsAction) {
+					this.showAiResultsAction.label = localize('showAiResultsDescription', "Search settings with AI");
+					this.showAiResultsAction.enabled = true;
+				}
 			}));
 			this._register(this.showAiResultsAction.onDidChange(() => {
 				this.onSearchInputChanged(true);
@@ -724,7 +731,7 @@ export class SettingsEditor2 extends EditorPane {
 					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, options, this.actionRunner, this.searchWidget);
 				}
 				if (this.showAiResultsAction && action.id === this.showAiResultsAction.id) {
-					return new ToggleActionViewItem(null, action, { ...options, toggleStyles: defaultToggleStyles });
+					return new ToggleActionViewItem(null, action, { ...options, keybinding: 'Ctrl+I', toggleStyles: defaultToggleStyles });
 				}
 				return undefined;
 			}

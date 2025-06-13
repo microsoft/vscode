@@ -17,15 +17,15 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
+import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
-import { IToolData, ToolSet, ToolDataSource, ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
-type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: (ToolPick | ToolSetPick)[] };
+type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; toolset?: ToolSet; children: (ToolPick | ToolSetPick)[] };
 type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent: BucketPick };
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 type CallbackPick = IQuickPickItem & { pickable: false; run: () => void };
@@ -86,8 +86,8 @@ export async function showToolsPicker(
 		picked: false,
 	};
 
-	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
-	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.tools), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
+	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(McpCommandIds.AddConfiguration) };
+	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.gear), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
 	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
 	const addPick: CallbackPick = {
 		type: 'item', label: localize('addAny', "Add More Tools..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: async () => {
@@ -199,6 +199,9 @@ export async function showToolsPicker(
 					indented: true,
 					buttons
 				});
+			} else {
+				// stash the MCP toolset into the bucket item
+				bucket.toolset = toolSetOrTool;
 			}
 
 		} else if (toolSetOrTool.canBeReferencedInPrompt) {
@@ -235,7 +238,7 @@ export async function showToolsPicker(
 		});
 
 		picks.push(bucket);
-		picks.push(...bucket.children);
+		picks.push(...bucket.children.sort((a, b) => a.label.localeCompare(b.label)));
 	}
 
 	const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
@@ -282,6 +285,9 @@ export async function showToolsPicker(
 				} else if (isToolPick(item)) {
 					result.set(item.tool, item.picked);
 				} else if (isBucketPick(item)) {
+					if (item.toolset) {
+						result.set(item.toolset, item.picked);
+					}
 					for (const child of item.children) {
 						if (isToolSetPick(child)) {
 							result.set(child.toolset, item.picked);

@@ -119,7 +119,7 @@ export class InstantiationService implements IInstantiationService {
 		this._throwIfDisposed();
 
 		let _trace: Trace;
-		let result: any;
+		let result: unknown;
 		if (ctorOrDescriptor instanceof SyncDescriptor) {
 			_trace = Trace.traceCreation(this._enableTracing, ctorOrDescriptor.ctor);
 			result = this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest), _trace);

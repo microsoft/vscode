@@ -17,7 +17,7 @@ export class LineEdit {
 	public static readonly empty = new LineEdit([]);
 
 	public static deserialize(data: SerializedLineEdit): LineEdit {
-		return new LineEdit(data.map(e => SingleLineEdit.deserialize(e)));
+		return new LineEdit(data.map(e => LineReplacement.deserialize(e)));
 	}
 
 	public static fromEdit(edit: StringEdit, initialValue: AbstractText): LineEdit {
@@ -28,7 +28,7 @@ export class LineEdit {
 	public static fromTextEdit(edit: TextEdit, initialValue: AbstractText): LineEdit {
 		const edits = edit.replacements;
 
-		const result: SingleLineEdit[] = [];
+		const result: LineReplacement[] = [];
 
 		const currentEdits: TextReplacement[] = [];
 		for (let i = 0; i < edits.length; i++) {
@@ -42,14 +42,14 @@ export class LineEdit {
 			const singleEdit = TextReplacement.joinReplacements(currentEdits, initialValue);
 			currentEdits.length = 0;
 
-			const singleLineEdit = SingleLineEdit.fromSingleTextEdit(singleEdit, initialValue);
+			const singleLineEdit = LineReplacement.fromSingleTextEdit(singleEdit, initialValue);
 			result.push(singleLineEdit);
 		}
 
 		return new LineEdit(result);
 	}
 
-	public static createFromUnsorted(edits: readonly SingleLineEdit[]): LineEdit {
+	public static createFromUnsorted(edits: readonly LineReplacement[]): LineEdit {
 		const result = edits.slice();
 		result.sort(compareBy(i => i.lineRange.startLineNumber, numberComparator));
 		return new LineEdit(result);
@@ -59,7 +59,7 @@ export class LineEdit {
 		/**
 		 * Have to be sorted by start line number and non-intersecting.
 		*/
-		public readonly edits: readonly SingleLineEdit[]
+		public readonly edits: readonly LineReplacement[]
 	) {
 		assert(checkAdjacentItems(edits, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
 	}
@@ -112,7 +112,7 @@ export class LineEdit {
 
 	public rebase(base: LineEdit): LineEdit {
 		return new LineEdit(
-			this.edits.map(e => new SingleLineEdit(base.mapLineRange(e.lineRange), e.newLines)),
+			this.edits.map(e => new LineReplacement(base.mapLineRange(e.lineRange), e.newLines)),
 		);
 	}
 
@@ -208,15 +208,15 @@ export class LineEdit {
 	}
 }
 
-export class SingleLineEdit {
-	public static deserialize(e: SerializedSingleLineEdit): SingleLineEdit {
-		return new SingleLineEdit(
+export class LineReplacement {
+	public static deserialize(e: SerializedSingleLineEdit): LineReplacement {
+		return new LineReplacement(
 			LineRange.ofLength(e[0], e[1] - e[0]),
 			e[2],
 		);
 	}
 
-	public static fromSingleTextEdit(edit: TextReplacement, initialValue: AbstractText): SingleLineEdit {
+	public static fromSingleTextEdit(edit: TextReplacement, initialValue: AbstractText): LineReplacement {
 		// 1: ab[cde
 		// 2: fghijk
 		// 3: lmn]opq
@@ -262,7 +262,7 @@ export class SingleLineEdit {
 			newLines.pop();
 		}
 
-		return new SingleLineEdit(new LineRange(startLineNumber, endLineNumberEx), newLines);
+		return new LineReplacement(new LineRange(startLineNumber, endLineNumberEx), newLines);
 	}
 
 	constructor(
@@ -343,7 +343,7 @@ export class SingleLineEdit {
 		];
 	}
 
-	public removeCommonSuffixPrefixLines(initialValue: AbstractText): SingleLineEdit {
+	public removeCommonSuffixPrefixLines(initialValue: AbstractText): LineReplacement {
 		let startLineNumber = this.lineRange.startLineNumber;
 		let endLineNumberEx = this.lineRange.endLineNumberExclusive;
 
@@ -368,7 +368,7 @@ export class SingleLineEdit {
 		if (trimStartCount === 0 && trimEndCount === 0) {
 			return this;
 		}
-		return new SingleLineEdit(new LineRange(startLineNumber, endLineNumberEx), this.newLines.slice(trimStartCount, this.newLines.length - trimEndCount));
+		return new LineReplacement(new LineRange(startLineNumber, endLineNumberEx), this.newLines.slice(trimStartCount, this.newLines.length - trimEndCount));
 	}
 
 	public toLineEdit(): LineEdit {

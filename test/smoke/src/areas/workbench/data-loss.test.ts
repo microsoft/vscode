@@ -7,7 +7,7 @@ import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath, suiteCrashPath } from '../../utils';
 
-export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
+export function setup(ensureStableCode: () => { stableCodePath: string | undefined; stableCodeVersion: { major: number; minor: number; patch: number } | undefined }, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', function () {
 
 		// Double the timeout since these tests involve 2 startups
@@ -146,7 +146,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installAppAfterHandler(() => insidersApp ?? stableApp, async () => stableApp?.stop());
 
 		it('verifies opened editors are restored', async function () {
-			const stableCodePath = ensureStableCode();
+			const { stableCodePath, stableCodeVersion } = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -170,6 +170,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableOptions.quality = Quality.Stable;
 			stableOptions.logsPath = logsPath;
 			stableOptions.crashesPath = crashesPath;
+			stableOptions.version = stableCodeVersion ?? { major: 0, minor: 0, patch: 0 };
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
@@ -210,7 +211,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		async function testHotExit(this: import('mocha').Context, title: string, restartDelay: number | undefined) {
-			const stableCodePath = ensureStableCode();
+			const { stableCodePath, stableCodeVersion } = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -225,6 +226,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableOptions.quality = Quality.Stable;
 			stableOptions.logsPath = logsPath;
 			stableOptions.crashesPath = crashesPath;
+			stableOptions.version = stableCodeVersion ?? { major: 0, minor: 0, patch: 0 };
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();

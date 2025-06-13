@@ -33,7 +33,7 @@ import { ActiveEditorContext, ResourceContextKey } from '../../../common/context
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -46,6 +46,7 @@ import { IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcp
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { McpUrlHandler } from './mcpUrlHandler.js';
+import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -134,7 +135,7 @@ export class ListMcpServerCommand extends Action2 {
 		if (!picked) {
 			// no-op
 		} else if (picked.id === '$add') {
-			commandService.executeCommand(AddConfigurationAction.ID);
+			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
 		}
@@ -206,7 +207,15 @@ export class McpServerOptionsCommand extends Action2 {
 			action: 'showOutput'
 		});
 
-		items.push({ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') });
+		items.push(
+			{ type: 'separator', label: localize('mcp.actions.sampling', 'Sampling') },
+			{
+				label: localize('mcp.configAccess', 'Configure Model Access'),
+				description: localize('mcp.showOutput.description', 'Set the models the server can use via MCP sampling'),
+				action: 'configSampling'
+			},
+		);
+
 
 		if (samplingService.hasLogs(server)) {
 			items.push({
@@ -226,8 +235,7 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		const pick = await quickInputService.pick(items, {
-			title: server.definition.label,
-			placeHolder: localize('mcp.selectAction', 'Select Server Action')
+			placeHolder: localize('mcp.selectAction', 'Select action for \'{0}\'', server.definition.label),
 		});
 
 		if (!pick) {
@@ -446,11 +454,9 @@ export class ResetMcpCachedTools extends Action2 {
 }
 
 export class AddConfigurationAction extends Action2 {
-	static readonly ID = 'workbench.mcp.addConfiguration';
-
 	constructor() {
 		super({
-			id: AddConfigurationAction.ID,
+			id: McpCommandIds.AddConfiguration,
 			title: localize2('mcp.addConfiguration', "Add Server..."),
 			metadata: {
 				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
@@ -680,7 +686,15 @@ export class McpConfigureSamplingModels extends Action2 {
 		const existingIds = new Set(mcpSampling.getConfig(server).allowedModels);
 		const allItems: IQuickPickItem[] = lmService.getLanguageModelIds().map(id => {
 			const model = lmService.lookupLanguageModel(id)!;
-			return model.isUserSelectable ? ({ label: model.name, description: model.description, id, picked: existingIds.has(id) }) : undefined;
+			if (!model.isUserSelectable) {
+				return undefined;
+			}
+			return {
+				label: model.name,
+				description: model.description,
+				id,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+			};
 		}).filter(isDefined);
 
 		allItems.sort((a, b) => (b.picked ? 1 : 0) - (a.picked ? 1 : 0) || a.label.localeCompare(b.label));
@@ -710,10 +724,7 @@ export class McpStartPromptingServerCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
-		const chatWidget = accessor.get(IChatWidgetService);
-		await accessor.get(IViewsService).openView(ChatViewId, true);
-
-		const widget = chatWidget.lastFocusedWidget || chatWidget.getAllWidgets()[0];
+		const widget = await openPanelChatAndGetWidget(accessor.get(IViewsService), accessor.get(IChatWidgetService));
 		if (!widget) {
 			return;
 		}
@@ -733,3 +744,5 @@ export class McpStartPromptingServerCommand extends Action2 {
 		SuggestController.get(editor)?.triggerSuggest();
 	}
 }
+
+
