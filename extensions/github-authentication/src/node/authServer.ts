@@ -82,7 +82,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		return this._startingRedirect.searchParams.get('state') ?? undefined;
 	}
 
-	constructor(serveRoot: string, startingRedirect: string) {
+	constructor(private readonly serveRoot: string, startingRedirect: string, private readonly appUri?: string) {
 		if (!serveRoot) {
 			throw new Error('serveRoot must be defined');
 		}
@@ -130,13 +130,17 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					res.end();
 					break;
 				}
-				// Serve the static files
+				// Serve the static files or dynamic content
 				case '/':
-					sendFile(res, path.join(serveRoot, 'index.html'));
+					if (this.appUri) {
+						this._sendDynamicSuccessPage(res);
+					} else {
+						sendFile(res, path.join(this.serveRoot, 'index.html'));
+					}
 					break;
 				default:
 					// substring to get rid of leading '/'
-					sendFile(res, path.join(serveRoot, reqUrl.pathname.substring(1)));
+					sendFile(res, path.join(this.serveRoot, reqUrl.pathname.substring(1)));
 					break;
 			}
 		});
@@ -194,5 +198,14 @@ export class LoopbackAuthServer implements ILoopbackServer {
 
 	public waitForOAuthResponse(): Promise<IOAuthResult> {
 		return this._resultPromise;
+	}
+
+	private _sendDynamicSuccessPage(res: http.ServerResponse): void {
+		const html = getSuccessHtml(this.appUri!);
+		res.writeHead(200, {
+			'Content-Type': 'text/html',
+			'Content-Length': Buffer.byteLength(html, 'utf8')
+		});
+		res.end(html);
 	}
 }
