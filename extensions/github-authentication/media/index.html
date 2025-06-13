@@ -25,9 +25,9 @@
 		</div>
 	</div>
 	<script>
-		var urlParams = new URLSearchParams(window.location.search);
-		var error = urlParams.get('error');
-		var redirectUri = urlParams.get('redirect_uri');
+		const urlParams = new URLSearchParams(window.location.search);
+		const error = urlParams.get('error');
+		const redirectUri = urlParams.get('redirect_uri');
 		
 		if (error) {
 			document.querySelector('.error-text')
@@ -36,7 +36,7 @@
 				.classList.add('error');
 		} else if (redirectUri) {
 			// Set up the fallback link
-			var fallbackLink = document.getElementById('fallback-link');
+			const fallbackLink = document.getElementById('fallback-link');
 			if (fallbackLink) {
 				fallbackLink.href = redirectUri;
 			}

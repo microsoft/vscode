@@ -605,8 +605,8 @@ function getHtml(appUri: URI) {
 		</div>
 	</div>
 	<script>
-		var search = window.location.search;
-		var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
+		const search = window.location.search;
+		const error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
 		if (error) {
 			document.querySelector('.error-text')
 				.textContent = decodeURIComponent(error);
