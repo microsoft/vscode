@@ -65,7 +65,9 @@ export class McpStdioStateHandler implements IDisposable {
 
 		if (this._child.pid) {
 			if (!isWindows) {
-				await killTree(this._child.pid, false);
+				await killTree(this._child.pid, false).catch(() => {
+					this._child.kill('SIGTERM');
+				});
 			}
 		} else {
 			this._child.kill('SIGTERM');
@@ -76,7 +78,9 @@ export class McpStdioStateHandler implements IDisposable {
 		this._procState = McpProcessState.KilledForceful;
 
 		if (this._child.pid) {
-			await killTree(this._child.pid, true);
+			await killTree(this._child.pid, true).catch(() => {
+				this._child.kill('SIGKILL');
+			});
 		} else {
 			this._child.kill();
 		}
