@@ -1036,6 +1036,118 @@ class AdditionalDetailsWidget extends Disposable {
 		}));
 	}
 
+	/**
+	 * Renders a UI box for repo provenance information below installation info.
+	 */
+	private renderRepoProvenance(container: HTMLElement): void {
+		// UI mockup for repo provenance information
+		const provenanceContainer = append(container, $('.provenance-container.additional-details-element'));
+		append(provenanceContainer, $('.additional-details-title', undefined, 'Provenance'));
+		const box = append(provenanceContainer, $('.repo-provenance-box'));
+		box.style.border = '1px solid var(--vscode-editorWidget-border, #ccc)';
+		box.style.borderRadius = '4px';
+		box.style.padding = '12px';
+		box.style.marginTop = '8px';
+		box.style.background = 'var(--vscode-editorWidget-background, #f3f3f3)';
+		box.style.fontSize = '13px';
+		box.style.color = 'var(--vscode-foreground, #333)';
+		// Provenance UI mockup content (DOM-based, not innerHTML)
+		const flexRow = append(box, document.createElement('div'));
+		flexRow.style.display = 'flex';
+		flexRow.style.alignItems = 'flex-start';
+		flexRow.style.gap = '16px';
+		flexRow.style.flexWrap = 'wrap';
+
+		// Left column: badge and label
+		const leftCol = append(flexRow, document.createElement('div'));
+		leftCol.style.flex = 'none';
+		leftCol.style.display = 'flex';
+		leftCol.style.flexDirection = 'column';
+		leftCol.style.alignItems = 'center';
+		leftCol.style.marginRight = '16px';
+
+
+
+		// Header row: check mark, Verified Build label, and view summary link
+		const headerRow = append(box, document.createElement('div'));
+		headerRow.style.display = 'flex';
+		headerRow.style.alignItems = 'center';
+		headerRow.style.gap = '8px';
+		headerRow.style.marginBottom = '8px';
+
+		const check = append(headerRow, document.createElement('span'));
+		check.classList.add('codicon', 'codicon-verified');
+		check.style.fontSize = '36px';
+		check.style.color = '#22c55e';
+		check.style.lineHeight = '1';
+
+		const ghActions = append(headerRow, document.createElement('span'));
+		ghActions.textContent = 'Verified Build';
+		ghActions.style.fontWeight = '600';
+		ghActions.style.fontSize = '20px';
+		ghActions.style.letterSpacing = '0.01em';
+
+		// Table-like layout for provenance data
+		const table = append(box, document.createElement('div'));
+		table.style.display = 'flex';
+		table.style.flexDirection = 'column';
+		table.style.gap = '6px';
+		table.style.marginTop = '8px';
+
+		// Row: Build summary (removed, now in header)
+
+		// Row: Source Commit
+		const rowCommit = append(table, document.createElement('div'));
+		rowCommit.style.display = 'flex';
+		rowCommit.style.alignItems = 'center';
+		const commitLabel = append(rowCommit, document.createElement('div'));
+		commitLabel.style.fontWeight = '500';
+		commitLabel.style.width = '120px';
+		commitLabel.textContent = 'Source Commit';
+		const commitValue = append(rowCommit, document.createElement('div'));
+		const commitLink = append(commitValue, document.createElement('a'));
+		commitLink.textContent = 'github.com/fa2…';
+		commitLink.href = '#';
+		commitLink.style.textDecoration = 'underline';
+		commitLink.style.color = 'var(--vscode-textLink-foreground, #3794ff)';
+		commitLink.style.fontSize = '12px';
+		commitLink.style.verticalAlign = 'middle';
+
+		// Row: Build File
+		const rowBuildFile = append(table, document.createElement('div'));
+		rowBuildFile.style.display = 'flex';
+		rowBuildFile.style.alignItems = 'center';
+		const buildFileLabel = append(rowBuildFile, document.createElement('div'));
+		buildFileLabel.style.fontWeight = '500';
+		buildFileLabel.style.width = '120px';
+		buildFileLabel.textContent = 'Build File';
+		const buildFileValue = append(rowBuildFile, document.createElement('div'));
+		const buildFileLink = append(buildFileValue, document.createElement('a'));
+		buildFileLink.textContent = '…/publish.yml';
+		buildFileLink.href = '#';
+		buildFileLink.style.textDecoration = 'underline';
+		buildFileLink.style.color = 'var(--vscode-textLink-foreground, #3794ff)';
+		buildFileLink.style.fontSize = '12px';
+		buildFileLink.style.verticalAlign = 'middle';
+
+		// Row: Public Ledger
+		const rowLedger = append(table, document.createElement('div'));
+		rowLedger.style.display = 'flex';
+		rowLedger.style.alignItems = 'center';
+		const ledgerLabel = append(rowLedger, document.createElement('div'));
+		ledgerLabel.style.fontWeight = '500';
+		ledgerLabel.style.width = '120px';
+		ledgerLabel.textContent = 'Public Ledger';
+		const ledgerValue = append(rowLedger, document.createElement('div'));
+		const ledgerLink = append(ledgerValue, document.createElement('a'));
+		ledgerLink.textContent = 'Transparency log';
+		ledgerLink.href = '#';
+		ledgerLink.style.textDecoration = 'underline';
+		ledgerLink.style.color = 'var(--vscode-textLink-foreground, #3794ff)';
+		ledgerLink.style.fontSize = '12px';
+		ledgerLink.style.verticalAlign = 'middle';
+	}
+
 	private render(extension: IExtension): void {
 		this.container.innerText = '';
 		this.disposables.clear();
@@ -1043,6 +1155,8 @@ class AdditionalDetailsWidget extends Disposable {
 		if (extension.local) {
 			this.renderInstallInfo(this.container, extension.local);
 		}
+		// Insert repo provenance box right after installation info
+		this.renderRepoProvenance(this.container);
 		if (extension.gallery) {
 			this.renderMarketplaceInfo(this.container, extension);
 		}
