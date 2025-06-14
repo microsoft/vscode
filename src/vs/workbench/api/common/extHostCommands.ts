@@ -176,7 +176,15 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		return this._doExecuteCommand(id, args, true);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	async conditionallyExecuteCommand<T>(when: string, id: string, ...args: any[]): Promise<{ executed: boolean; result: T | undefined }> {
+		this._logService.trace('ExtHostCommands#conditionallyExecuteCommand', id);
+		if (!when || await this.#proxy.$checkCondition(when)) {
+			return { executed: true, result: await this._doExecuteCommand(id, args, true, when) };
+		}
+		return { executed: false, result: undefined };
+	}
+
+	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean, when?: string): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// - We stay inside the extension host and support
