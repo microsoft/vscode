@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.context-view {
-	position: absolute;
-}
+export * from './sizeUtils.js';
 
-.context-view.fixed {
-	all: initial;
-	font-family: inherit;
-	font-size: var(--vscode-font-body1-size);
-	position: fixed;
-	color: inherit;
-}
+export * from './sizes/controlsSizes.js';
+export * from './sizes/iconographySizes.js';
+export * from './sizes/cornerRadiiSizes.js';
+export * from './sizes/shadowsSizes.js';
+export * from './sizes/spacingSizes.js';
+export * from './sizes/strokeSizes.js';
+export * from './sizes/typographySizes.js';

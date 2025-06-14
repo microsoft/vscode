@@ -9,14 +9,14 @@
 }
 
 .monaco-findInput .monaco-inputbox {
-	font-size: 13px;
+	font-size: var(--vscode-font-body1-size);
 	width: 100%;
 }
 
 .monaco-findInput > .controls {
 	position: absolute;
-	top: 3px;
-	right: 2px;
+	top: var(--vscode-base-spacing-nudge-xs);
+	right: var(--vscode-base-spacing-xxs);
 }
 
 .vs .monaco-findInput.disabled {
