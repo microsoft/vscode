@@ -343,6 +343,31 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 	}
 }
 
+export class AcceptAllEditsAction extends ChatEditingEditorAction {
+
+	static readonly ID = 'chatEditor.action.acceptAllEdits';
+
+	constructor() {
+		super({
+			id: AcceptAllEditsAction.ID,
+			title: localize2('acceptAllEdits', 'Keep All Chat Edits'),
+			tooltip: localize2('acceptAllEditsTooltip', 'Keep All Chat Edits in this Session'),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			icon: Codicon.checkAll,
+			f1: true,
+			keybinding: {
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
+			},
+		});
+	}
+
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): Promise<void> {
+		await session.accept();
+	}
+}
+
 
 // --- multi file diff
 
@@ -396,6 +421,7 @@ export function registerChatEditorActions() {
 	registerAction2(ReviewChangesAction);
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
+	registerAction2(AcceptAllEditsAction);
 	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
 	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);
