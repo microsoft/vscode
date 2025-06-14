@@ -31,6 +31,8 @@ suite('PathExecutableCache', () => {
 		cache.refresh();
 		const result2 = await cache.getExecutablesInPath(env);
 		strictEqual(result !== result2, true);
+
+		strictEqual(1, 0, 'Test failure...');
 	});
 
 	if (process.platform !== 'win32') {
@@ -65,8 +67,6 @@ suite('PathExecutableCache', () => {
 			const symlinkPath = path.join(fixtureDir, 'symlink-executable.sh');
 			strictEqual(realDoc, realPath);
 			strictEqual(symlinkDoc, `${symlinkPath} -> ${realPath}`);
-
-			strictEqual(1, 0, 'Test failure...');
 		});
 	}
 });
