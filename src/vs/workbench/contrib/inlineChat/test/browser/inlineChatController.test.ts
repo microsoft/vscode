@@ -202,7 +202,7 @@ suite('InlineChatController', function () {
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
 			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 			[IPromptsService, new class extends mock<IPromptsService>() {
-				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly URI[]> {
+				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 					return [];
 				}
 			}],
