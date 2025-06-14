@@ -65,6 +65,8 @@ suite('PathExecutableCache', () => {
 			const symlinkPath = path.join(fixtureDir, 'symlink-executable.sh');
 			strictEqual(realDoc, realPath);
 			strictEqual(symlinkDoc, `${symlinkPath} -> ${realPath}`);
+
+			strictEqual(1, 0, 'Test failure...');
 		});
 	}
 });
