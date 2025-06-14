@@ -15,6 +15,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITopError } from '../parsers/types.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
  * Provides prompt services.
@@ -184,7 +185,7 @@ export interface IPromptsService extends IDisposable {
 	 * Find all instruction files which have a glob pattern in their
 	 * 'applyTo' metadata record that match the provided list of files.
 	 */
-	findInstructionFilesFor(fileUris: readonly URI[]): Promise<readonly URI[]>;
+	findInstructionFilesFor(fileUris: readonly URI[], ignoreInstructions?: ResourceSet): Promise<readonly { uri: URI; reason: string }[]>;
 
 	/**
 	 * Event that is triggered when the list of custom chat modes changes.
@@ -216,6 +217,12 @@ export interface IPromptsService extends IDisposable {
 	 * @param uris
 	 */
 	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult>;
+
+	/**
+	 * Returns the prompt file type for the given URI.
+	 * @param resource the URI of the resource
+	 */
+	getPromptFileType(resource: URI): PromptsType | undefined;
 }
 
 export interface IChatPromptSlashCommand {

@@ -259,7 +259,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	public async toBaseEntries(): Promise<readonly IChatRequestVariableEntry[]> {
+	public toBaseEntries(): IChatRequestVariableEntry[] {
 		return [{
 			kind: 'file',
 			id: this.id,

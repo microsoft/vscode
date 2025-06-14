@@ -69,6 +69,7 @@ import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const $ = dom.$;
 
@@ -1207,7 +1208,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _findPromptFileInContext(attachedContext: ChatRequestVariableSet): URI | undefined {
 		for (const item of attachedContext.asArray()) {
-			if (isPromptFileVariableEntry(item) && item.isRoot) {
+			if (isPromptFileVariableEntry(item) && item.isRoot && this.promptsService.getPromptFileType(item.value) === PromptsType.prompt) {
 				return IChatRequestVariableEntry.toUri(item);
 			}
 		}
@@ -1224,7 +1225,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
 			if (metadata) {
 				// add the prompt file to the context, but not sticky
-				requestInput.attachedContext.add(toPromptFileVariableEntry(metadata.uri, true));
+				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(metadata.uri, true));
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
@@ -1243,7 +1244,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!requestInput.input.trim()) {
 			// NOTE this is a prompt and therefore not localized
-			requestInput.input = `Follow instructions from ${basename(metadata.uri)}`;
+			requestInput.input = `Follow instructions in [${basename(metadata.uri)}](${metadata.uri.toString()} )`;
 		}
 
 		const meta = metadata.metadata;
@@ -1277,15 +1278,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requestId = this.chatAccessibilityService.acceptRequest();
 			const requestInputs = {
 				input: !query ? editorValue : query.query,
-				attachedContext: await this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId),
+				attachedContext: this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId),
 			};
 
 			const isUserQuery = !query;
 
 			const instructionsEnabled = PromptsConfig.enabled(this.configurationService);
 			if (instructionsEnabled) {
+				// process the prompt command
 				await this._applyPromptFileIfSet(requestInputs);
-				await this.autoAttachInstructions(requestInputs.attachedContext);
+				await this._autoAttachInstructions(requestInputs.attachedContext);
+				await this._collectReferencedInstructions(requestInputs.attachedContext);
 			}
 
 			if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentMode === ChatMode.Edit && !this.chatService.edits2Enabled) {
@@ -1614,22 +1617,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.selectedToolsModel.enable(enabledToolSets, enabledTools, true);
 	}
 
+	private async _collectReferencedInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
+		for (const variable of attachedContext.asArray()) {
+			if (isPromptFileVariableEntry(variable)) {
+				const result = await this.promptsService.parse(variable.value, CancellationToken.None);
+				for (const ref of result.allValidReferences) {
+					const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(variable.value));
+					attachedContext.add(toPromptFileVariableEntry(ref, true, reason));
+				}
+			}
+		}
+	}
+
 	/**
-	 * Resolves instructions that have `include` metadata that can
+	 * Resolves instructions that have `applyTo` metadata that can
 	 * match file references in the attached context and then attaches
 	 * such instructions to the context.
 	 */
-	private async autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
+	private async _autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
+		const existingInstructions = new ResourceSet();
+		const fileInContext = [];
 
-		const variableUris = attachedContext.asArray().map(IChatRequestVariableEntry.toUri).filter(isDefined);
+		for (const variable of attachedContext.asArray()) {
+			if (isPromptFileVariableEntry(variable)) {
+				existingInstructions.add(variable.value);
+			} else {
+				const uri = IChatRequestVariableEntry.toUri(variable);
+				if (uri) {
+					fileInContext.push(uri);
+				}
+			}
+		}
 
-		const automaticInstructions = await this.promptsService.findInstructionFilesFor(variableUris);
+		const automaticInstructions = await this.promptsService.findInstructionFilesFor(fileInContext, existingInstructions);
+		const promptVariableEntries = automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction.uri, true, instruction.reason));
 
 		// add instructions to the final context list
-		attachedContext.add(...automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction, true)));
+		attachedContext.add(...promptVariableEntries);
 
 		// add to attached list to make the instructions sticky
-		this.inputPart.attachmentModel.addPromptFiles(automaticInstructions);
+		this.inputPart.attachmentModel.addContext(...promptVariableEntries);
 	}
 }
 

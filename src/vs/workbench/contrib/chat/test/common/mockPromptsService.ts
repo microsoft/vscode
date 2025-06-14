@@ -39,7 +39,7 @@ export class MockPromptsService implements IPromptsService {
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly URI[]> {
+	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 		throw new Error('Method not implemented.');
 	}
 	onDidChangeCustomChatModes: Event<void> = Event.None;
@@ -47,6 +47,9 @@ export class MockPromptsService implements IPromptsService {
 		throw new Error('Method not implemented.');
 	}
 	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+		throw new Error('Method not implemented.');
+	}
+	getPromptFileType(resource: URI): PromptsType | undefined {
 		throw new Error('Method not implemented.');
 	}
 	dispose(): void { }

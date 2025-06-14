@@ -118,7 +118,7 @@ class AttachInstructionsAction extends Action2 {
 		}
 
 		if (skipSelectionDialog && resource) {
-			widget.attachmentModel.addPromptFiles([resource]);
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(resource, true));
 			widget.focusInput();
 			return;
 		}
@@ -131,7 +131,7 @@ class AttachInstructionsAction extends Action2 {
 		const result = await pickers.selectPromptFile({ resource, placeholder, type: PromptsType.instructions });
 
 		if (result !== undefined) {
-			widget.attachmentModel.addPromptFiles([result.promptFile]);
+			widget.attachmentModel.addContext(toPromptFileVariableEntry(result.promptFile, true));
 			widget.focusInput();
 		}
 	}

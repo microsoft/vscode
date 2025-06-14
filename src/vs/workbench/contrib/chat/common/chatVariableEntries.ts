@@ -185,6 +185,7 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly kind: 'promptFile';
 	readonly value: URI;
 	readonly isRoot: boolean;
+	readonly originLabel?: string;
 	readonly modelDescription: string;
 }
 
@@ -272,7 +273,7 @@ export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): o
  * @param isRoot If the reference is the root reference in the references tree.
  * 				 This object most likely was explicitly attached by the user.
  */
-export function toPromptFileVariableEntry(uri: URI, isRoot: boolean): IPromptFileVariableEntry {
+export function toPromptFileVariableEntry(uri: URI, isRoot: boolean, originLabel?: string): IPromptFileVariableEntry {
 	return {
 		//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
 		id: `vscode.prompt.instructions${isRoot ? '.root' : ''}}__${uri.toString()}`,
@@ -281,29 +282,41 @@ export function toPromptFileVariableEntry(uri: URI, isRoot: boolean): IPromptFil
 		kind: 'promptFile',
 		modelDescription: 'Prompt instructions file',
 		isRoot,
+		originLabel,
 	};
 }
 
 export class ChatRequestVariableSet {
-	private _entries = new Map<string, IChatRequestVariableEntry>();
+	private _ids = new Set<string>();
+	private _entries: IChatRequestVariableEntry[] = [];
+
 
 	public add(...entry: IChatRequestVariableEntry[]): void {
 		for (const e of entry) {
-			if (!this._entries.has(e.id)) {
-				this._entries.set(e.id, e);
+			if (!this._ids.has(e.id)) {
+				this._ids.add(e.id);
+				this._entries.push(e);
 			}
 		}
 	}
 
+	public insertFirst(entry: IChatRequestVariableEntry): void {
+		if (!this._ids.has(entry.id)) {
+			this._ids.add(entry.id);
+			this._entries.unshift(entry);
+		}
+	}
+
 	public remove(entry: IChatRequestVariableEntry): void {
-		this._entries.delete(entry.id);
+		this._ids.delete(entry.id);
+		this._entries = this._entries.filter(e => e.id !== entry.id);
 	}
 
 	public has(entry: IChatRequestVariableEntry): boolean {
-		return this._entries.has(entry.id);
+		return this._ids.has(entry.id);
 	}
 
 	public asArray(): IChatRequestVariableEntry[] {
-		return Array.from(this._entries.values());
+		return this._entries.slice(0); // return a copy
 	}
 }
