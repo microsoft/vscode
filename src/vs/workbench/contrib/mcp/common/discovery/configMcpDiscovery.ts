@@ -7,8 +7,8 @@ import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorunDelta, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import * as path from '../../../../../base/common/path.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -121,10 +121,11 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 			const configMapping = configMappings[index];
 			const { isAbsolute, join, sep } = src.path.remoteAuthority && remoteEnv
-				? (remoteEnv.os === OperatingSystem.Windows ? path.win32 : path.posix) : path;
+				? (remoteEnv.os === OperatingSystem.Windows ? pathWin32 : pathPosix)
+				: (isWindows ? pathWin32 : pathPosix);
 			const fsPathForRemote = (uri: URI) => {
 				const fsPathLocal = uri.fsPath;
-				return fsPathLocal.replaceAll(path.sep, sep);
+				return fsPathLocal.replaceAll(pathSep, sep);
 			};
 
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
