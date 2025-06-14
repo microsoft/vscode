@@ -84,17 +84,26 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-      - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
+      - powershell: |
+          $ErrorActionPreference = "Stop"
+          . build/azure-pipelines/win32/exec.ps1
+          exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
         displayName: 🧪 Run integration tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-      - powershell: .\scripts\test-web-integration.bat --browser chromium
+      - powershell: |
+          $ErrorActionPreference = "Stop"
+          . build/azure-pipelines/win32/exec.ps1
+          exec { .\scripts\test-web-integration.bat --browser chromium }
         displayName: 🧪 Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
     - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
-      - powershell: .\scripts\test-remote-integration.bat
+      - powershell: |
+          $ErrorActionPreference = "Stop"
+          . build/azure-pipelines/win32/exec.ps1
+          exec { .\scripts\test-remote-integration.bat }
         displayName: 🧪 Run integration tests (Remote)
         timeoutInMinutes: 20
 
