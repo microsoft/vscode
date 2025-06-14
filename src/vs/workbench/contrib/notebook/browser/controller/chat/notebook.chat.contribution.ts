@@ -17,7 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
@@ -37,7 +37,7 @@ import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../contrib/chat/notebookChatUtils.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker } from '../../../../chat/browser/chatContextPickService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
@@ -260,7 +260,7 @@ class KernelVariableContextPicker implements IChatContextPickerItem {
 		return widget.location === ChatAgentLocation.Notebook && Boolean(getNotebookEditorFromEditorPane(this.editorService.activeEditorPane)?.getViewModel()?.notebookDocument);
 	}
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> } {
+	asPicker(): IChatContextPicker {
 
 		const picks = (async () => {
 
