@@ -320,7 +320,7 @@ export class ConfigureToolSets extends Action2 {
 	constructor() {
 		super({
 			id: ConfigureToolSets.ID,
-			title: localize2('chat.configureToolSets', 'Configure Tool Sets'),
+			title: localize2('chat.configureToolSets', 'Configure Tool Sets...'),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
