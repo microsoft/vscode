@@ -141,7 +141,7 @@ class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('configure-instructions', "Configure Instructions"),
+			title: localize2('configure-instructions', "Configure Instructions..."),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
