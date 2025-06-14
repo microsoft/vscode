@@ -1683,6 +1683,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async squash(ref: string): Promise<void> {
+		await this.run(Operation.Squash, () => this.repository.squash(ref));
+	}
+
 	async mergeAbort(): Promise<void> {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
@@ -2549,7 +2553,7 @@ export class Repository implements Disposable {
 	}
 
 	private isMergeInProgress(): Promise<boolean> {
-		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_MSG');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
 	}
 
