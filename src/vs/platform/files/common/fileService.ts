@@ -1230,6 +1230,26 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	async resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
+		// Get the file system provider for this resource
+		try {
+			const provider = this.getProvider(resource.scheme);
+			if (!provider) {
+				return;
+			}
+			// Check if the provider supports symlink resolution
+			if ('resolveSymlinkRealpath' in provider && typeof provider.resolveSymlinkRealpath === 'function' && this.hasCapability(resource, FileSystemProviderCapabilities.FileSymlinkResolution)) {
+				return provider.resolveSymlinkRealpath(resource);
+			}
+
+			// Provider doesn't support symlink resolution
+			return undefined;
+		} catch (error) {
+			// Provider not found or other error
+			return undefined;
+		}
+	}
+
 	override dispose(): void {
 		super.dispose();
 
