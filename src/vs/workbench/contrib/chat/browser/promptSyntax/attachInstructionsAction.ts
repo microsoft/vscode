@@ -16,7 +16,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatContextPick, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -233,7 +233,7 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 		return PromptsConfig.enabled(this.configurationService);
 	}
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<ChatContextPick[]> } {
+	asPicker(): IChatContextPicker {
 
 		const picks = this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None).then(value => {
 
@@ -267,8 +267,13 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 		return {
 			placeholder: localize('placeholder', 'Select instructions files to attach'),
-			picks
+			picks,
+			configure: {
+				label: localize('configureInstructions', 'Configure Instructions...'),
+				commandId: CONFIGURE_INSTRUCTIONS_ACTION_ID
+			}
 		};
 	}
+
 
 }
