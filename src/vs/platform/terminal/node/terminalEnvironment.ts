@@ -17,6 +17,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import { spawn } from 'child_process';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -25,6 +26,45 @@ export function getWindowsBuildNumber(): number {
 		buildNumber = parseInt(osVersion[3]);
 	}
 	return buildNumber;
+}
+
+/**
+ * Detects if the given shell executable is actually bash by running a quick command.
+ * This is useful for cases where sh is a wrapper around bash.
+ */
+async function isShActuallyBash(shellExecutable: string): Promise<boolean> {
+	try {
+		return new Promise<boolean>((resolve) => {
+			// Use a simple command that bash supports but minimal sh might not handle the same way
+			const child = spawn(shellExecutable, ['-c', 'echo $BASH_VERSION 2>/dev/null || echo ""'], {
+				stdio: ['pipe', 'pipe', 'pipe'],
+				timeout: 1000
+			});
+
+			let output = '';
+			child.stdout.on('data', (data) => {
+				output += data.toString();
+			});
+
+			child.on('close', (code) => {
+				// If we get a BASH_VERSION output, it's bash
+				const trimmedOutput = output.trim();
+				resolve(trimmedOutput.length > 0 && !trimmedOutput.includes('not found') && !trimmedOutput.includes('command not found'));
+			});
+
+			child.on('error', () => {
+				resolve(false);
+			});
+
+			// Fallback timeout
+			setTimeout(() => {
+				child.kill();
+				resolve(false);
+			}, 1000);
+		});
+	} catch {
+		return false;
+	}
 }
 
 export interface IShellIntegrationConfigInjection {
@@ -87,7 +127,13 @@ export async function getShellIntegrationInjection(
 	}
 
 	const originalArgs = shellLaunchConfig.args;
-	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	let shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	
+	// Detect if sh is actually bash to enable proper shell integration
+	if (shell === 'sh' && await isShActuallyBash(shellLaunchConfig.executable)) {
+		shell = 'bash';
+	}
+	
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	const type = 'injection';
 	let newArgs: string[] | undefined;

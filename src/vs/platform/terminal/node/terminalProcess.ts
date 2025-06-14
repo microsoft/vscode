@@ -85,6 +85,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['node', GeneralShellType.Node],
 
 ]);
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -120,6 +121,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
+	private _originalShellType: TerminalShellType | undefined = undefined;
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
@@ -150,6 +152,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		@IProductService private readonly _productService: IProductService
 	) {
 		super();
+		
+		// Initialize the original shell type based on the shell launch config
+		if (this.shellLaunchConfig.executable) {
+			const shellBasename = path.basename(this.shellLaunchConfig.executable);
+			this._originalShellType = posixShellTypeMap.get(shellBasename) || generalShellTypeMap.get(shellBasename);
+		}
+		
 		let name: string;
 		if (isWindows) {
 			name = path.basename(this.shellLaunchConfig.executable || '');
@@ -431,7 +440,21 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			let shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			
+			// Special handling for 'sh' - detect subshell scenario
+			if (sanitizedTitle === 'sh' && !isWindows) {
+				// If the original shell was bash, we're likely in a subshell scenario
+				// Preserve the bash shell type to maintain shell integration
+				if (this._originalShellType === PosixShellType.Bash || 
+					(this.shellLaunchConfig.executable && path.basename(this.shellLaunchConfig.executable) === 'bash')) {
+					
+					this._logService.debug('TerminalProcess#_sendProcessTitle: Detected sh subshell from bash, preserving bash shell type');
+					// Keep the shell type as bash to maintain shell integration
+					shellTypeValue = PosixShellType.Bash;
+				}
+			}
+			
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
 	}
