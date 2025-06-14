@@ -1116,6 +1116,10 @@ export class TestFileService implements IFileService {
 		return createFileStat(resource, this.readonly);
 	}
 
+	resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+		return Promise.resolve(undefined);
+	}
+
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
 	}
