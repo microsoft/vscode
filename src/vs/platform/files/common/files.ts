@@ -255,6 +255,14 @@ export interface IFileService {
 	watch(resource: URI, options?: IWatchOptionsWithoutCorrelation): IDisposable;
 
 	/**
+	 * Resolves the realpath of a symbolic link.
+	 *
+	 * @param resource The URI of the symbolic link
+	 * @returns The realpath that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+	 */
+	resolveSymlinkRealpath(resource: URI): Promise<string | undefined>;
+
+	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
@@ -635,7 +643,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 17
+	FileClone = 1 << 17,
+
+	/**
+	 * Symlink resolution
+	 */
+	FileSymlinkResolution = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -759,6 +772,16 @@ export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemPr
 
 export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
+}
+
+export interface IFileSystemProviderWithSymlinkResolutionCapability extends IFileSystemProvider {
+	/**
+	 * Resolves the realpath of a symbolic link.
+	 *
+	 * @param resource The URI of the symbolic link
+	 * @returns The realpath that the symlink points to, or undefined if resolution fails or the resource is not a symlink
+	 */
+	resolveSymlinkRealpath(resource: URI): Promise<string | undefined>;
 }
 
 export enum FileSystemProviderErrorCode {

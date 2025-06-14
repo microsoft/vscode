@@ -68,6 +68,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.stat(resource);
 	}
 
+	async resolveSymlinkRealpath(resource: URI): Promise<IStat | undefined> {
+		return this.provider.resolveSymlinkRealpath(resource);
+	}
+
 	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this.provider.readdir(resource);
 	}

@@ -367,6 +367,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
+			let detail: string | undefined = undefined;
 			if (foldersRequested && child.isDirectory) {
 				if (child.isSymbolicLink) {
 					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
@@ -403,11 +404,23 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 			}
 
+			// Try to resolve symlink target for symbolic links
+			if (child.isSymbolicLink) {
+				try {
+					detail = await this._fileService.resolveSymlinkRealpath(child.resource);
+					if (detail) {
+						detail = getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType) + ` -> ${detail}`;
+					}
+				} catch (error) {
+					// Ignore errors resolving symlink targets - they may be dangling links
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
+				detail: detail ?? getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
