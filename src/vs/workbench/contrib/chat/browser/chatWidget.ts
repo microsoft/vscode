@@ -54,7 +54,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
-import { IMetadata, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
@@ -1215,17 +1215,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return undefined;
 	}
 
-	private async _applyPromptFileIfSet(requestInput: { input: string; attachedContext: ChatRequestVariableSet }): Promise<IMetadata | undefined> {
+	private async _applyPromptFileIfSet(requestInput: { input: string; attachedContext: ChatRequestVariableSet }): Promise<IPromptParserResult | undefined> {
 
-		let metadata: IMetadata | undefined;
+		let parseResult: IPromptParserResult | undefined;
 
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (agentSlashPromptPart) {
-			metadata = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand);
-			if (metadata) {
+			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
+			if (parseResult) {
 				// add the prompt file to the context, but not sticky
-				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(metadata.uri, true));
+				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, true));
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
@@ -1234,25 +1234,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
-				metadata = await this.promptsService.getMetadata(uri);
+				parseResult = await this.promptsService.parse(uri, CancellationToken.None);
 			}
 		}
 
-		if (!metadata) {
+		if (!parseResult) {
 			return undefined;
 		}
 
 		if (!requestInput.input.trim()) {
 			// NOTE this is a prompt and therefore not localized
-			requestInput.input = `Follow instructions in [${basename(metadata.uri)}](${metadata.uri.toString()} )`;
+			requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()} )`;
 		}
 
-		const meta = metadata.metadata;
+		const meta = parseResult.metadata;
 		if (meta?.promptType === PromptsType.prompt) {
 			await this._applyPromptMetadata(meta);
 		}
 
-		return metadata;
+		return parseResult;
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {

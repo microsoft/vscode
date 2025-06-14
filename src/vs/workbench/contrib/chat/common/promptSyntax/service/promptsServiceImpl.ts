@@ -159,12 +159,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<IPromptParserResult | undefined> {
 		const promptUri = await this.getPromptPath(data);
 		if (!promptUri) {
 			return undefined;
 		}
-		return await this.getMetadata(promptUri);
+		return await this.parse(promptUri, token);
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
@@ -326,11 +326,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		}
 		return result;
-	}
-
-	public async getMetadata(promptFileUri: URI): Promise<IMetadata> {
-		const metaDatas = await this.getAllMetadata([promptFileUri]);
-		return metaDatas[0];
 	}
 
 	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {
