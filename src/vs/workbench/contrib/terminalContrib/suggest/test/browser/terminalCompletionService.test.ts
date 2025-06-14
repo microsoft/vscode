@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
+import { FileType, IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
@@ -98,7 +98,7 @@ suite('TerminalCompletionService', () => {
 	let configurationService: TestConfigurationService;
 	let capabilities: TerminalCapabilityStore;
 	let validResources: URI[];
-	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean }[];
+	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[];
 	let terminalCompletionService: TerminalCompletionService;
 	const provider = 'testProvider';
 
@@ -122,8 +122,16 @@ suite('TerminalCompletionService', () => {
 						count(childFsPath, '/') === count(parentFsPath, '/') + 1
 					);
 				});
-				return createFileStat(resource, undefined, undefined, undefined, children);
+				return createFileStat(resource, undefined, undefined, undefined, undefined, children);
 			},
+			async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+				if (resource.path.includes('symlink-file')) {
+					return { ...createFileStat(URI.file('/target/actual-file.txt'), false, true), type: FileType.File };
+				} else if (resource.path.includes('symlink-folder')) {
+					return { ...createFileStat(URI.file('/target/actual-folder'), true, true), type: FileType.Directory };
+				}
+				return undefined;
+			}
 		});
 		terminalCompletionService = store.add(instantiationService.createInstance(TerminalCompletionService));
 		terminalCompletionService.processEnv = testEnv;
@@ -677,4 +685,37 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+	suite('symlink support', () => {
+		test('should include symlink target information in completions', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				pathSeparator,
+				filesRequested: true,
+				foldersRequested: true
+			};
+
+			validResources = [URI.parse('file:///test')];
+
+			// Create mock children including a symbolic link
+			childResources = [
+				{ resource: URI.parse('file:///test/regular-file.txt'), isFile: true },
+				{ resource: URI.parse('file:///test/symlink-file'), isFile: true, isSymbolicLink: true },
+				{ resource: URI.parse('file:///test/symlink-folder'), isDirectory: true, isSymbolicLink: true },
+				{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
+			];
+
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
+
+			// Find the symlink completion
+			const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
+			const symlinkFolderCompletion = result?.find(c => c.label === './symlink-folder/');
+			assert.ok(symlinkFileCompletion, 'Symlink completion should be found');
+			assert.strictEqual(symlinkFileCompletion.kind, TerminalCompletionItemKind.File, 'Symlink target should be resolved');
+			assert.ok(symlinkFolderCompletion, 'Symlink folder completion should be found');
+			assert.strictEqual(symlinkFolderCompletion.kind, TerminalCompletionItemKind.Folder, 'Symlink folder target should be resolved');
+		});
+	});
+
 });
+
+

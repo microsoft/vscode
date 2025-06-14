@@ -52,6 +52,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'delete': return this.delete(uriTransformer, arg[0], arg[1]);
 			case 'watch': return this.watch(uriTransformer, arg[0], arg[1], arg[2], arg[3]);
 			case 'unwatch': return this.unwatch(arg[0], arg[1]);
+			case 'resolveSymlinkTarget': return this.resolveSymlinkTarget(arg[0]);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -63,6 +64,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		switch (event) {
 			case 'fileChange': return this.onFileChange(uriTransformer, arg[0]);
 			case 'readFileStream': return this.onReadFileStream(uriTransformer, arg[0], arg[1]);
+			case 'resolveSymlinkTarget': return Event.fromPromise(this.resolveSymlinkTarget(arg[0]));
 		}
 
 		throw new Error(`Unknown event ${event}`);
@@ -78,6 +80,11 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
 		return this.provider.stat(resource);
+	}
+
+	async resolveSymlinkTarget(resource: URI): Promise<IStat | undefined> {
+		const stat = await this.provider.resolveSymlinkTarget(resource);
+		return stat;
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {
