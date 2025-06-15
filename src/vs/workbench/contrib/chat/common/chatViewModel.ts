@@ -36,10 +36,13 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
 }
 
 export interface IChangePlaceholderEvent {
@@ -86,6 +89,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
+	readonly isDisabled?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -205,6 +209,7 @@ export interface IChatResponseViewModel {
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isPaused: IObservable<boolean>;
+	readonly isDisabled: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -402,6 +407,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isCompleteAddedRequest;
 	}
 
+	get isDisabled() {
+		return this._model.isDisabled;
+	}
+
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
 	}
@@ -536,6 +545,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isStale() {
 		return this._model.isStale;
+	}
+
+	get isDisabled() {
+		return this._model.isDisabled;
 	}
 
 	get isLast(): boolean {
