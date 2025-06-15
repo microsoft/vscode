@@ -41,6 +41,15 @@ interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 }
 
 class ManageTrustedExtensionsForAccountActionImpl {
+	private readonly _viewDetailsButton = {
+		tooltip: localize('extensionDetails', "View extension details"),
+		iconClass: ThemeIcon.asClassName(Codicon.eye),
+	};
+	private readonly _managePreferencesButton = {
+		tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
+		iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+	};
+
 	constructor(
 		@IProductService private readonly _productService: IProductService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -189,14 +198,8 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			tooltip,
 			disabled,
 			buttons: [
-				{
-					tooltip: localize('extensionDetails', "View extension details"),
-					iconClass: ThemeIcon.asClassName(Codicon.eye),
-				},
-				{
-					tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
-					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				}
+				this._viewDetailsButton,
+				this._managePreferencesButton
 			],
 			picked: extension.allowed === undefined || extension.allowed
 		};
@@ -232,12 +235,11 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			quickPick.hide();
 		}));
 		disposableStore.add(quickPick.onDidTriggerItemButton(e => {
-			const buttonIndex = e.button && e.item.buttons ? e.item.buttons.indexOf(e.button) : -1;
-			if (buttonIndex === 0) {
-				// First button: View extension details
+			if (e.button === this._viewDetailsButton) {
+				// View extension details
 				this._commandService.executeCommand('workbench.extensions.search', `@id:${e.item.extension.id}`);
-			} else if (buttonIndex === 1) {
-				// Second button: Manage account preferences
+			} else if (e.button === this._managePreferencesButton) {
+				// Manage account preferences
 				this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId);
 			}
 		}));
