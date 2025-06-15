@@ -85,12 +85,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
 
-		this._registerHandlers();
 		this._registerActions();
-	}
-
-	private _registerHandlers(): void {
-		// No handlers needed for placeholder menu item management
 	}
 
 	private _registerActions(): void {
