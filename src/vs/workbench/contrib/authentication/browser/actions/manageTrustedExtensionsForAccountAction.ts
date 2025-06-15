@@ -188,10 +188,16 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			description,
 			tooltip,
 			disabled,
-			buttons: [{
-				tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
-				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-			}],
+			buttons: [
+				{
+					tooltip: localize('extensionDetails', "View extension details"),
+					iconClass: ThemeIcon.asClassName(Codicon.info),
+				},
+				{
+					tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+				}
+			],
 			picked: extension.allowed === undefined || extension.allowed
 		};
 	}
@@ -225,9 +231,16 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		disposableStore.add(quickPick.onDidCustom(() => {
 			quickPick.hide();
 		}));
-		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId)
-		));
+		disposableStore.add(quickPick.onDidTriggerItemButton(e => {
+			const buttonIndex = e.button && e.item.buttons ? e.item.buttons.indexOf(e.button) : -1;
+			if (buttonIndex === 0) {
+				// First button: View extension details
+				this._commandService.executeCommand('workbench.extensions.search', `@id:${e.item.extension.id}`);
+			} else if (buttonIndex === 1) {
+				// Second button: Manage account preferences
+				this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId);
+			}
+		}));
 		return quickPick;
 	}
 }
