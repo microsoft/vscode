@@ -191,7 +191,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			buttons: [
 				{
 					tooltip: localize('extensionDetails', "View extension details"),
-					iconClass: ThemeIcon.asClassName(Codicon.info),
+					iconClass: ThemeIcon.asClassName(Codicon.eye),
 				},
 				{
 					tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
