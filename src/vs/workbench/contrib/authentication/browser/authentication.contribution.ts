@@ -80,42 +80,17 @@ const extensionFeature = Registry.as<IExtensionFeaturesRegistry>(Extensions.Exte
 class AuthenticationContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.authentication';
 
-	private _placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-		command: {
-			id: 'noAuthenticationProviders',
-			title: localize('authentication.Placeholder', "No accounts requested yet..."),
-			precondition: ContextKeyExpr.false()
-		},
-	});
-
 	constructor(@IAuthenticationService private readonly _authenticationService: IAuthenticationService) {
 		super();
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
 
-		// Clear the placeholder menu item if there are already providers registered.
-		if (_authenticationService.getProviderIds().length) {
-			this._clearPlaceholderMenuItem();
-		}
 		this._registerHandlers();
 		this._registerActions();
 	}
 
 	private _registerHandlers(): void {
-		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(_e => {
-			this._clearPlaceholderMenuItem();
-		}));
-		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(_e => {
-			if (!this._authenticationService.getProviderIds().length) {
-				this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-					command: {
-						id: 'noAuthenticationProviders',
-						title: localize('loading', "Loading..."),
-						precondition: ContextKeyExpr.false()
-					}
-				});
-			}
-		}));
+		// No handlers needed for placeholder menu item management
 	}
 
 	private _registerActions(): void {
@@ -125,11 +100,6 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		this._register(registerAction2(ManageTrustedMcpServersForAccountAction));
 		this._register(registerAction2(ManageAccountPreferencesForMcpServerAction));
 		this._register(registerAction2(RemoveDynamicAuthenticationProvidersAction));
-	}
-
-	private _clearPlaceholderMenuItem(): void {
-		this._placeholderMenuItem?.dispose();
-		this._placeholderMenuItem = undefined;
 	}
 }
 
