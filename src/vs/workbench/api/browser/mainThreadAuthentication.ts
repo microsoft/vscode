@@ -70,7 +70,6 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 
 	async removeSession(sessionId: string): Promise<void> {
 		await this._proxy.$removeSession(this.id, sessionId);
-		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 }
 
