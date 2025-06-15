@@ -13,6 +13,7 @@ import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
 import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { throttle } from './decorators';
 
 function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
 	const getOrder = (ref: SourceControlHistoryItemRef): number => {
@@ -87,6 +88,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.commitShortHashLength = config.get<number>('commitShortHashLength', 7);
 	}
 
+	@throttle
 	private async onDidRunWriteOperation(result: OperationResult): Promise<void> {
 		if (!this.repository.HEAD) {
 			this.logger.trace('[GitHistoryProvider][onDidRunWriteOperation] repository.HEAD is undefined');

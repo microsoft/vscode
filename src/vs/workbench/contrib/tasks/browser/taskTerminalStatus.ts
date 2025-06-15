@@ -13,7 +13,7 @@ import { ITaskService, Task } from '../common/taskService.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
-import { IMarker } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { IMarker } from '@xterm/xterm';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ITerminalStatus } from '../../terminal/common/terminal.js';
 

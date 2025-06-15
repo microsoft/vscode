@@ -12,12 +12,11 @@ import { PendingMigrationError, isCancellationError, isSigPipeError, onUnexpecte
 import { Event } from '../../../base/common/event.js';
 import * as performance from '../../../base/common/performance.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
-import { realpath } from '../../../base/node/extpath.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
 import { BufferedEmitter, PersistentProtocol, ProtocolConstants } from '../../../base/parts/ipc/common/ipc.net.js';
 import { NodeSocket, WebSocketNodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
-import type { MessagePortMain } from '../../../base/parts/sandbox/node/electronTypes.js';
+import type { MessagePortMain, MessageEvent as UtilityMessageEvent } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { boolean } from '../../../editor/common/config/editorOptions.js';
 import product from '../../../platform/product/common/product.js';
 import { ExtensionHostMain, IExitFn } from '../common/extensionHostMain.js';
@@ -92,7 +91,7 @@ function patchProcess(allowExit: boolean) {
 	} as (code?: number) => never;
 
 	// override Electron's process.crash() method
-	process.crash = function () {
+	(process as any /* bypass layer checker */).crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
@@ -167,7 +166,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			process.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
+			(process as unknown as { parentPort: { on: (event: 'message', listener: (messageEvent: UtilityMessageEvent) => void) => void } }).parentPort.on('message', (e: UtilityMessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
@@ -420,7 +419,7 @@ async function startExtensionHostProcess(): Promise<void> {
 		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
 		fsExists(path: string) { return Promises.exists(path); }
-		fsRealpath(path: string) { return realpath(path); }
+		fsRealpath(path: string) { return Promises.realpath(path); }
 	};
 
 	// Attempt to load uri transformer

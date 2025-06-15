@@ -1317,6 +1317,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	async sendSignal(signal: string): Promise<void> {
+		this._logService.debug('sending signal (vscode)', signal);
+		await this._processManager.sendSignal(signal);
+	}
+
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
 		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
 	}

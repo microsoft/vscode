@@ -38,7 +38,7 @@ import { registerIcon, widgetClose } from '../../../../platform/theme/common/ico
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -1008,7 +1008,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findPreviousMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 
@@ -1018,7 +1018,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findNextMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 

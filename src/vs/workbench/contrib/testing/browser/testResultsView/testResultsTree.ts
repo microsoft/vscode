@@ -745,6 +745,9 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		let { label, labelWithIcons, description } = element;
 		if (subjectElement instanceof TestMessageElement) {
 			description = subjectElement.label;
+			if (element.description) {
+				description = `${description} @ ${element.description}`;
+			}
 		}
 
 		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';

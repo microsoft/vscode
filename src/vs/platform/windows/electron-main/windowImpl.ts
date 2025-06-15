@@ -150,6 +150,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.dispose();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
+			this.clearFocusNotificationBadge();
+
 			this._lastFocusTime = Date.now();
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
@@ -323,11 +325,21 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Notify:
 				if (isMacintosh) {
+					this.setFocusNotificationBadge(undefined /* generic dot */);
+
+					// On macOS we have direct API to bounce the dock icon
 					electron.app.dock?.bounce('informational');
 				} else if (isWindows) {
-					// On Windows, this just flashes the taskbar icon, which is desired
+					this.setFocusNotificationBadge(undefined /* generic dot */);
+
+					// On Windows, calling focus() will bounce the taskbar icon
 					// https://github.com/electron/electron/issues/2867
 					this.win?.focus();
+				} else if (isLinux) {
+					this.setFocusNotificationBadge(1 /* only number supported */);
+
+					// On Linux, there seems to be no way to bounce the taskbar icon
+					// as calling focus() will actually steal focus away.
 				}
 				break;
 
@@ -337,6 +349,20 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				}
 				this.doFocusWindow();
 				break;
+		}
+	}
+
+	private hasFocusNotificationBadge = false;
+
+	private setFocusNotificationBadge(count?: number): void {
+		electron.app.setBadgeCount(count);
+		this.hasFocusNotificationBadge = true;
+	}
+
+	private clearFocusNotificationBadge(): void {
+		if (this.hasFocusNotificationBadge) {
+			electron.app.setBadgeCount(0);
+			this.hasFocusNotificationBadge = false;
 		}
 	}
 
@@ -619,7 +645,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.logService.trace('window#ctor: using window state', state);
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 			});
@@ -1091,7 +1117,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;

@@ -19,6 +19,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -37,14 +38,14 @@ import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browse
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
+import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -113,7 +114,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true,
 			menu: [{
 				id: MenuId.SearchContext,
 				group: 'z_chat',
@@ -211,7 +212,7 @@ class AttachSelectionToChatAction extends Action2 {
 			id: AttachSelectionToChatAction.ID,
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true,
 			menu: {
 				id: MenuId.ChatTextEditorMenu,
 				group: 'zContext',
@@ -420,7 +421,7 @@ export class AttachContextAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
-
+		const commandService = accessor.get(ICommandService);
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			additionPicks,
@@ -433,7 +434,7 @@ export class AttachContextAction extends Action2 {
 						this._handleContextPick(item.item, widget);
 
 					} else if (item.item.type === 'pickerPick') {
-						isDone = await this._handleContextPickerItem(quickInputService, item.item, widget);
+						isDone = await this._handleContextPickerItem(quickInputService, commandService, item.item, widget);
 					}
 
 					if (!isDone) {
@@ -465,7 +466,6 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
-
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -532,7 +532,7 @@ export class AttachContextAction extends Action2 {
 		}
 	}
 
-	private async _handleContextPickerItem(quickInputService: IQuickInputService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
+	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
 
 		const pickerConfig = item.asPicker(widget);
 
@@ -542,7 +542,16 @@ export class AttachContextAction extends Action2 {
 			label: localize('goBack', 'Go back ↩'),
 			alwaysShow: true
 		};
-		const extraPicks: QuickPickItem[] = [{ type: 'separator' }, goBackItem];
+		const configureItem = pickerConfig.configure ? {
+			label: pickerConfig.configure.label,
+			commandId: pickerConfig.configure.commandId,
+			alwaysShow: true
+		} : undefined;
+		const extraPicks: QuickPickItem[] = [{ type: 'separator' }];
+		if (configureItem) {
+			extraPicks.push(configureItem);
+		}
+		extraPicks.push(goBackItem);
 
 		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
 
@@ -596,6 +605,10 @@ export class AttachContextAction extends Action2 {
 			}
 			if (selected === goBackItem) {
 				defer.complete(false);
+			}
+			if (selected === configureItem) {
+				defer.complete(true);
+				commandService.executeCommand(configureItem.commandId);
 			}
 			if (!e.inBackground) {
 				defer.complete(true);
