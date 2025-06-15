@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as TreeSitter from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { StandardTokenType } from '../../../encodedTokenAttributes.js';
@@ -195,18 +194,4 @@ export class TreeSitterSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		}
 		return model.hasTokens();
 	}
-}
-
-export function rangesEqual(a: TreeSitter.Range, b: TreeSitter.Range) {
-	return (a.startPosition.row === b.startPosition.row)
-		&& (a.startPosition.column === b.startPosition.column)
-		&& (a.endPosition.row === b.endPosition.row)
-		&& (a.endPosition.column === b.endPosition.column)
-		&& (a.startIndex === b.startIndex)
-		&& (a.endIndex === b.endIndex);
-}
-
-export function rangesIntersect(a: TreeSitter.Range, b: TreeSitter.Range) {
-	return (a.startIndex <= b.startIndex && a.endIndex >= b.startIndex) ||
-		(b.startIndex <= a.startIndex && b.endIndex >= a.startIndex);
 }

@@ -24,9 +24,11 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { ResourceSet } from '../../../../base/common/map.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -75,21 +77,18 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, ChatRequestVariableSet, isPromptFileVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatMode2, IChatMode, IChatModeService, isBuiltinChatMode, validateChatMode2 } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, isChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
-import { PromptInstructionsAttachmentsCollectionWidget } from './attachments/promptInstructions/promptInstructionsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -97,12 +96,12 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEdi
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
-import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { PROMPT_LANGUAGE_ID } from '../common/promptSyntax/promptTypes.js';
 
 const $ = dom.$;
 
@@ -137,7 +136,6 @@ export interface IWorkingSetEntry {
 const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
-	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
 	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
@@ -165,39 +163,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public async getAttachedAndImplicitContext(sessionId: string): Promise<IChatRequestVariableEntry[]> {
-		const contextArr = [...this.attachmentModel.attachments];
+	public async getAttachedAndImplicitContext(sessionId: string): Promise<ChatRequestVariableSet> {
+
+		const contextArr = new ChatRequestVariableSet();
+
+		// get prompt file variables (instructions) and all rereferenced contents first
+		contextArr.add(... await this.attachmentModel.getPromptFileVariables());
+
+		// then add all other attachments (includes prompt file variables, but they will be ignored if already added)
+		contextArr.add(...this.attachmentModel.attachments);
+
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
-
 			const implicitChatVariables = await this.implicitContext.toBaseEntries();
-			contextArr.push(...implicitChatVariables);
+			contextArr.add(...implicitChatVariables);
 		}
-
-		// factor in nested file links of a prompt into the implicit context
-		const variables = this.variableService.getDynamicVariables(sessionId);
-		for (const variable of variables) {
-			if (!(variable instanceof ChatFileReference)) {
-				continue;
-			}
-
-			// the usual URIs list of prompt instructions is `bottom-up`, therefore
-			// we do the same here - first add all child references to the list
-			contextArr.push(
-				...variable.allValidReferences.map((link) => {
-					return toChatVariable(link, false);
-				}),
-			);
-		}
-
-		// prompt files may have nested child references to other prompt
-		// files that are resolved asynchronously, hence we need to wait
-		// for the entire prompt instruction tree to be processed
-		this.promptInstructionsAttachmentsPart
-			.allSettled.bind(this.promptInstructionsAttachmentsPart);
-
-		contextArr
-			.push(...this.promptInstructionsAttachmentsPart.chatAttachments);
-
 		return contextArr;
 	}
 
@@ -206,16 +185,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	get hasPromptFileAttachments(): boolean {
 		// if prompt attached explicitly as a "prompt" attachment
-		if (this.promptInstructionsAttachmentsPart.hasInstructions) {
-			return true;
-		}
-
-		if (this.implicitContext === undefined) {
-			return false;
-		}
-
-		// if prompt attached as an implicit "current file" context
-		return (this.implicitContext.isPromptFile && this.implicitContext.enabled);
+		return this._attachmentModel.hasPromptFiles(PROMPT_LANGUAGE_ID);
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
@@ -361,12 +331,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly getInputState: () => IChatInputState;
 
 	/**
-	 * Child widget of prompt instruction attachments.
-	 * See {@linkcode PromptInstructionsAttachmentsCollectionWidget}.
-	 */
-	private promptInstructionsAttachmentsPart: PromptInstructionsAttachmentsCollectionWidget;
-
-	/**
 	 * Number consumers holding the 'generating' lock.
 	 */
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
@@ -392,7 +356,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
@@ -427,7 +390,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentChatMode = this._register(new Emitter<void>());
 		this.onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
 		this._currentMode = ChatMode2.Ask;
-		this.inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
+		this.inputUri = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._chatEditsActionsDisposables = this._register(new DisposableStore());
 		this._chatEditsDisposables = this._register(new DisposableStore());
 		this._attemptedWorkingSetEntriesCount = 0;
@@ -464,23 +427,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar));
+		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
-
-		this.promptInstructionsAttachmentsPart = this._register(
-			instantiationService.createInstance(
-				PromptInstructionsAttachmentsCollectionWidget,
-				this.attachmentModel.promptInstructions,
-				this._contextResourceLabels,
-			),
-		);
-
-		// trigger re-layout of chat input when number of instruction attachment changes
-		this._register(this.promptInstructionsAttachmentsPart.onAttachmentsChange(() => {
-			this._handleAttachedContextChange();
-			this._onDidChangeHeight.fire();
-		}));
 
 		this.initSelectedModel();
 
@@ -1294,7 +1243,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.promptInstructionsAttachmentsPart.empty;
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value);
 		dom.setVisibility(Boolean(hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -1303,7 +1252,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
-		this.promptInstructionsAttachmentsPart.render(container);
 
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
@@ -1316,6 +1264,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+			} else if (resource && isPromptFileVariableEntry(attachment)) {
+				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
 				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isImageVariableEntry(attachment)) {

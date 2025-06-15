@@ -55,10 +55,12 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
+		const title = (<IActionViewItemOptions>this.options).keybinding ?
+			`${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label;
 		this.toggle = this._register(new Toggle({
 			actionClassName: this._action.class,
 			isChecked: !!this._action.checked,
-			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
+			title,
 			notFocusable: true,
 			inputActiveOptionBackground: options.toggleStyles?.inputActiveOptionBackground,
 			inputActiveOptionBorder: options.toggleStyles?.inputActiveOptionBorder,
@@ -92,6 +94,12 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 
 	protected override updateChecked(): void {
 		this.toggle.checked = !!this._action.checked;
+	}
+
+	protected override updateLabel(): void {
+		const title = (<IActionViewItemOptions>this.options).keybinding ?
+			`${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label;
+		this.toggle.setTitle(title);
 	}
 
 	override focus(): void {

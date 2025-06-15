@@ -18,6 +18,8 @@ import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
+import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -35,7 +37,8 @@ interface IAssertionCommandLineConfig {
 /**
  * Assert the set of completions exist exactly, including their order.
  */
-function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig) {
+function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig, pathSep?: string) {
+	const sep = pathSep ?? pathSeparator;
 	assert.deepStrictEqual(
 		actual?.map(e => ({
 			label: e.label,
@@ -44,8 +47,8 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 			replacementIndex: e.replacementIndex,
 			replacementLength: e.replacementLength,
 		})), expected.map(e => ({
-			label: e.label.replaceAll('/', pathSeparator),
-			detail: e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
+			label: e.label.replaceAll('/', sep),
+			detail: e.detail ? e.detail.replaceAll('/', sep) : '',
 			kind: e.kind ?? TerminalCompletionItemKind.Folder,
 			replacementIndex: expectedConfig.replacementIndex,
 			replacementLength: expectedConfig.replacementLength,
@@ -608,4 +611,70 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 	});
+
+	if (isWindows) {
+		suite('gitbash', () => {
+			test('should convert Git Bash absolute path to Windows absolute path', () => {
+				assert.strictEqual(gitBashToWindowsPath('/'), 'C:\\');
+				assert.strictEqual(gitBashToWindowsPath('/c/'), 'C:\\');
+				assert.strictEqual(gitBashToWindowsPath('/c/Users/foo'), 'C:\\Users\\foo');
+				assert.strictEqual(gitBashToWindowsPath('/d/bar'), 'D:\\bar');
+			});
+
+			test('should convert Windows absolute path to Git Bash absolute path', () => {
+				assert.strictEqual(windowsToGitBashPath('C:\\'), '/c/');
+				assert.strictEqual(windowsToGitBashPath('C:\\Users\\foo'), '/c/Users/foo');
+				assert.strictEqual(windowsToGitBashPath('D:\\bar'), '/d/bar');
+				assert.strictEqual(windowsToGitBashPath('E:\\some\\path'), '/e/some/path');
+			});
+			test('resolveResources with cwd as Windows path (relative)', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.file('C:\\Users\\foo'),
+					foldersRequested: true,
+					filesRequested: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.file('C:\\Users\\foo'),
+					URI.file('C:\\Users\\foo\\bar'),
+					URI.file('C:\\Users\\foo\\baz.txt')
+				];
+				childResources = [
+					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
+					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, './', 2, provider, capabilities, WindowsShellType.GitBash);
+				assertCompletions(result, [
+					{ label: './', detail: 'C:\\Users\\foo\\' },
+					{ label: './bar/', detail: 'C:\\Users\\foo\\bar\\' },
+					{ label: './baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
+					{ label: './../', detail: 'C:\\Users\\' }
+				], { replacementIndex: 0, replacementLength: 2 }, '/');
+			});
+
+			test('resolveResources with cwd as Windows path (absolute)', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.file('C:\\Users\\foo'),
+					foldersRequested: true,
+					filesRequested: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.file('C:\\Users\\foo'),
+					URI.file('C:\\Users\\foo\\bar'),
+					URI.file('C:\\Users\\foo\\baz.txt')
+				];
+				childResources = [
+					{ resource: URI.file('C:\\Users\\foo\\bar'), isDirectory: true },
+					{ resource: URI.file('C:\\Users\\foo\\baz.txt'), isFile: true }
+				];
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '/c/Users/foo/', 13, provider, capabilities, WindowsShellType.GitBash);
+				assertCompletions(result, [
+					{ label: '/c/Users/foo/', detail: 'C:\\Users\\foo\\' },
+					{ label: '/c/Users/foo/bar/', detail: 'C:\\Users\\foo\\bar\\' },
+					{ label: '/c/Users/foo/baz.txt', detail: 'C:\\Users\\foo\\baz.txt', kind: TerminalCompletionItemKind.File },
+				], { replacementIndex: 0, replacementLength: 13 }, '/');
+			});
+		});
+	}
 });

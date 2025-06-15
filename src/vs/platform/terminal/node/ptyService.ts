@@ -49,7 +49,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		let result: any;
+		let result: unknown;
 		try {
 			result = await fn.apply(this, args);
 		} catch (e) {

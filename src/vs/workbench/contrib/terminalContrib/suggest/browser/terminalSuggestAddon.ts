@@ -37,7 +37,7 @@ import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompl
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
-import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon } from './terminalSymbolIcons.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -93,6 +93,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
 		[TerminalCompletionItemKind.Folder, terminalSymbolFolderIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFile, terminalSymbolSymbolicLinkFileIcon],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, terminalSymbolSymbolicLinkFolderIcon],
 		[TerminalCompletionItemKind.Method, terminalSymbolMethodIcon],
 		[TerminalCompletionItemKind.Alias, terminalSymbolAliasIcon],
 		[TerminalCompletionItemKind.Argument, terminalSymbolArgumentIcon],
@@ -106,6 +108,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToKindLabelMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, localize('file', 'File')],
 		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
+		[TerminalCompletionItemKind.SymbolicLinkFile, localize('symbolicLinkFile', 'Symbolic Link File')],
+		[TerminalCompletionItemKind.SymbolicLinkFolder, localize('symbolicLinkFolder', 'Symbolic Link Folder')],
 		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
 		[TerminalCompletionItemKind.Alias, localize('alias', 'Alias')],
 		[TerminalCompletionItemKind.Argument, localize('argument', 'Argument')],
