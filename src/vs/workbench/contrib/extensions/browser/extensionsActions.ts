@@ -1649,15 +1649,21 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 		this.tooltip = localize('enableForWorkspaceActionToolTip', "Enable this extension only in this workspace");
 		this.update();
 	}
+update(): void {
+	this.enabled = false;
+	if (
+		this.extension &&
+		this.extension.local &&
+		!this.extension.isWorkspaceScoped
+	) {
+		const isInstalled = this.extension.state === ExtensionState.Installed;
+		const isDisabled = !this.extensionEnablementService.isEnabled(this.extension.local);
+		const canChange = this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
+		const isEnabledForWorkspace = this.extensionEnablementService.getEnablementState(this.extension.local) === EnablementState.EnabledWorkspace;
 
-	update(): void {
-		this.enabled = false;
-		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped) {
-			this.enabled = this.extension.state === ExtensionState.Installed
-				&& !this.extensionEnablementService.isEnabled(this.extension.local)
-				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
-		}
+		this.enabled = isInstalled && isDisabled && canChange && !isEnabledForWorkspace;
 	}
+}
 
 	override async run(): Promise<any> {
 		if (!this.extension) {
