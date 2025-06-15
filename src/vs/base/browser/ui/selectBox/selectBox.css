@@ -6,11 +6,11 @@
 .monaco-select-box {
 	width: 100%;
 	cursor: pointer;
-	border-radius: 2px;
+	border-radius: var(--vscode-selectbox-corner-radius);
 }
 
 .monaco-select-box-dropdown-container {
-	font-size: 13px;
+	font-size: var(--vscode-font-body1-size);
 	font-weight: normal;
 	text-transform: none;
 }
@@ -23,12 +23,12 @@
 
 .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
-	min-width: 100px;
-	min-height: 18px;
-	padding: 2px 23px 2px 8px;
+	min-width: var(--vscode-selectbox-min-width);
+	min-height: var(--vscode-selectbox-min-height);
+	padding: var(--vscode-base-spacing-xxs) calc(var(--vscode-base-default-control-size) + 1) var(--vscode-base-spacing-xxs) var(--vscode-base-spacing-s);
 }
 
 .mac .monaco-action-bar .action-item .monaco-select-box {
-	font-size: 11px;
-	border-radius: 5px;
+	font-size: var(--vscode-font-body3-size);
+	border-radius: var(--vscode-selectbox-mac-corner-radius);
 }

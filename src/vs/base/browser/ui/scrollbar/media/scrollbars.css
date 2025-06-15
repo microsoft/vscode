@@ -6,7 +6,7 @@
 /* Arrows */
 .monaco-scrollable-element > .scrollbar > .scra {
 	cursor: pointer;
-	font-size: 11px !important;
+	font-size: var(--vscode-font-body3-size) !important;
 }
 
 .monaco-scrollable-element > .visible {
@@ -34,29 +34,29 @@
 }
 .monaco-scrollable-element > .shadow.top {
 	display: block;
-	top: 0;
-	left: 3px;
-	height: 3px;
+	top: var(--vscode-base-spacing-none);
+	left: var(--vscode-scrollableelement-shadow-spacing);
+	height: var(--vscode-scrollableelement-shadow-height);
 	width: 100%;
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+	box-shadow: var(--vscode-scrollbar-shadow) var(--vscode-shadow-offset-none) var(--vscode-shadow-offset-m) var(--vscode-shadow-blur-radius-m) var(--vscode-shadow-spread-radius-m) inset;
 }
 .monaco-scrollable-element > .shadow.left {
 	display: block;
-	top: 3px;
-	left: 0;
+	top: var(--vscode-scrollableelement-shadow-spacing);
+	left: var(--vscode-base-spacing-none);
 	height: 100%;
-	width: 3px;
-	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+	width: var(--vscode-scrollableelement-shadow-width);
+	box-shadow: var(--vscode-scrollbar-shadow) var(--vscode-shadow-offset-m) var(--vscode-shadow-offset-none) var(--vscode-shadow-blur-radius-m) var(--vscode-shadow-spread-radius-m) inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
-	top: 0;
-	left: 0;
-	height: 3px;
-	width: 3px;
+	top: var(--vscode-base-spacing-none);
+	left: var(--vscode-base-spacing-none);
+	height: var(--vscode-scrollableelement-shadow-height);
+	width: var(--vscode-scrollableelement-shadow-width);
 }
 .monaco-scrollable-element > .shadow.top.left {
-	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
+	box-shadow: var(--vscode-scrollbar-shadow) var(--vscode-shadow-offset-m) var(--vscode-shadow-offset-none) var(--vscode-shadow-blur-radius-m) var(--vscode-shadow-spread-radius-m) inset;
 }
 
 .monaco-scrollable-element > .scrollbar > .slider {
