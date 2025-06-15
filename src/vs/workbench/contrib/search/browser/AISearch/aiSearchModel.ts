@@ -23,14 +23,18 @@ import { TextSearchHeadingImpl } from '../searchTreeModel/textSearchHeading.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { textSearchResultToMatches } from '../searchTreeModel/match.js';
 import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 
 export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery> {
+	public override hidden: boolean;
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(false, parent, instantiationService, uriIdentityService);
+
+		this.hidden = true;
 	}
 
 	override name(): string {
@@ -62,6 +66,20 @@ export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery>
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
 
 		this._query = query;
+	}
+
+	override fileCount(): number {
+		const uniqueFileUris = new ResourceSet();
+		for (const folderMatch of this.folderMatches()) {
+			if (folderMatch.isEmpty()) {
+				continue;
+			}
+			for (const fileMatch of folderMatch.allDownstreamFileMatches()) {
+				uniqueFileUris.add(fileMatch.resource);
+			}
+		}
+
+		return uniqueFileUris.size;
 	}
 
 	private _createBaseFolderMatch(resource: URI, id: string, index: number, query: IAITextQuery): ISearchTreeFolderMatch {

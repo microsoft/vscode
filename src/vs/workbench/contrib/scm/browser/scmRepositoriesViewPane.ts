@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { Event } from '../../../../base/common/event.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { append, $ } from '../../../../base/browser/dom.js';
-import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from '../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, IListContextMenuEvent, IListEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -76,7 +76,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer as IListRenderer<ISCMRepository, any>], {
 			identityProvider,
 			horizontalScrolling: false,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
@@ -92,6 +92,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		this._register(this.list);
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
+		this._register(this.list.onDidChangeFocus(this.onDidChangeFocus, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
 		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
@@ -166,6 +167,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			const scrollTop = this.list.scrollTop;
 			this.scmViewService.visibleRepositories = e.elements;
 			this.list.scrollTop = scrollTop;
+		}
+	}
+
+	private onDidChangeFocus(e: IListEvent<ISCMRepository>): void {
+		if (e.browserEvent && e.elements.length > 0) {
+			this.scmViewService.focus(e.elements[0]);
 		}
 	}
 

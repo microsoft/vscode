@@ -121,7 +121,7 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		],
 		availableCommands: 'foo',
 		testSpecs: [
-			{ input: 'foo |', expectedCompletions: ['--bar'] },
+			{ input: 'foo |', expectedCompletions: ['--bar <baz>'] },
 			{ input: 'foo --bar |', expectedCompletions: ['a', 'b', 'c'] },
 			{ input: 'foo --bar a|', expectedCompletions: ['a', 'b', 'c'] },
 			{ input: 'foo --bar b|', expectedCompletions: ['a', 'b', 'c'] },

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
@@ -36,6 +35,7 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -51,7 +51,6 @@ import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystem
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { IProcessMainService } from '../../platform/process/common/process.js';
 import { ProcessMainService } from '../../platform/process/electron-main/processMainService.js';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
 import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
@@ -84,7 +83,7 @@ import { ElectronURLListener } from '../../platform/url/electron-main/electronUr
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
 import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
-import { IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
@@ -122,6 +121,7 @@ import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName }
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -168,7 +168,10 @@ export class CodeApplication extends Disposable {
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const alwaysAllowedPermissions = new Set(['pointerLock']);
+
 		const allowedPermissionsInWebview = new Set([
+			...alwaysAllowedPermissions,
 			'clipboard-read',
 			'clipboard-sanitized-write',
 			// TODO(deepak1556): Should be removed once migration is complete
@@ -177,6 +180,7 @@ export class CodeApplication extends Disposable {
 		]);
 
 		const allowedPermissionsInCore = new Set([
+			...alwaysAllowedPermissions,
 			'media',
 			'local-fonts',
 			// TODO(deepak1556): Should be removed once migration is complete
@@ -232,7 +236,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Check to see if the request comes from one of the main windows (or shared process) and not from embedded content
-			const windows = BrowserWindow.getAllWindows();
+			const windows = getAllWindowsExcludingOffscreen();
 			for (const window of windows) {
 				if (frame.processId === window.webContents.mainFrame.processId) {
 					return true;
@@ -373,15 +377,6 @@ export class CodeApplication extends Disposable {
 
 	private registerListeners(): void {
 
-		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => {
-			if (!isSigPipeError(error)) {
-				onUnexpectedError(error);
-			}
-		});
-		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
-
 		// Dispose on shutdown
 		Event.once(this.lifecycleMainService.onWillShutdown)(() => this.dispose());
 
@@ -451,7 +446,7 @@ export class CodeApplication extends Disposable {
 		//#endregion
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
-		let runningTimeout: NodeJS.Timeout | undefined = undefined;
+		let runningTimeout: Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
 			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
 
@@ -528,25 +523,6 @@ export class CodeApplication extends Disposable {
 		//#endregion
 	}
 
-	private onUnexpectedError(error: Error): void {
-		if (error) {
-
-			// take only the message and stack property
-			const friendlyError = {
-				message: `[uncaught exception in main]: ${error.message}`,
-				stack: error.stack
-			};
-
-			// handle on client side
-			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-		}
-
-		this.logService.error(`[uncaught exception in main]: ${error}`);
-		if (error.stack) {
-			this.logService.error(error.stack);
-		}
-	}
-
 	async startup(): Promise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
@@ -602,6 +578,9 @@ export class CodeApplication extends Disposable {
 
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+
+		// Error telemetry
+		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
 
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
@@ -1038,11 +1017,11 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
-		// Process
-		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
-
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
+
+		// Browser Elements
+		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
@@ -1179,12 +1158,17 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Process
-		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);
+		const processChannel = ProxyChannel.fromService(new ProcessMainService(this.logService, accessor.get(IDiagnosticsService), accessor.get(IDiagnosticsMainService)), disposables);
 		mainProcessElectronServer.registerChannel('process', processChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Browser Elements
+		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
+		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
+		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

@@ -19,7 +19,7 @@ export = new class DeclareServiceBrand implements eslint.Rule.RuleModule {
 					node,
 					message: `The '_serviceBrand'-property should not have a value`,
 					fix: (fixer) => {
-						return fixer.replaceText(node, 'declare _serviceBrand: undefined;')
+						return fixer.replaceText(node, 'declare _serviceBrand: undefined;');
 					}
 				});
 			}

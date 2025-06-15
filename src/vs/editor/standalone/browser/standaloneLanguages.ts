@@ -812,6 +812,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		NewSymbolNameTriggerKind: standaloneEnums.NewSymbolNameTriggerKind,
 		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
 		HoverVerbosityAction: standaloneEnums.HoverVerbosityAction,
+		InlineCompletionEndOfLifeReasonKind: standaloneEnums.InlineCompletionEndOfLifeReasonKind,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

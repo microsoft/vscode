@@ -86,10 +86,10 @@ const tsPrinter = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
 const formatJsonValue = (value: unknown) => {
 	if (typeof value !== 'object') {
-		return JSON.stringify(value);
+		return JSON.stringify(value, undefined, '\t');
 	}
 
-	const src = ts.createSourceFile('', `(${JSON.stringify(value)})`, ts.ScriptTarget.ES5, true);
+	const src = ts.createSourceFile('', `(${JSON.stringify(value, undefined, '\t')})`, ts.ScriptTarget.ES5, true);
 	const outerExpression = src.statements[0] as ts.ExpressionStatement;
 	const parenExpression = outerExpression.expression as ts.ParenthesizedExpression;
 

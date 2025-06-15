@@ -146,7 +146,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						}
 					} else if (isUriComponents(e)) {
 						const extensionLocation = URI.revive(e);
-						if (this.extensionResourceLoaderService.isExtensionGalleryResource(extensionLocation)) {
+						if (await this.extensionResourceLoaderService.isExtensionGalleryResource(extensionLocation)) {
 							extensionGalleryResources.push(extensionLocation);
 						} else {
 							extensionLocations.push(extensionLocation);
@@ -651,7 +651,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IWebExtension> {
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+		const extensionLocation = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
 			publisher: galleryExtension.publisher,
 			name: galleryExtension.name,
 			version: galleryExtension.version,

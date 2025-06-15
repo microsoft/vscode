@@ -12,7 +12,7 @@ import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from '../../../../edi
 import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 import { LineSource, RenderOptions, renderLines } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';

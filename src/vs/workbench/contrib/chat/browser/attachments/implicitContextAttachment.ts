@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -19,11 +19,12 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestImplicitVariableEntry } from '../../common/chatVariableEntries.js';
+import { IChatWidgetService } from '../chat.js';
+import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -33,14 +34,15 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	constructor(
 		private readonly attachment: IChatRequestImplicitVariableEntry,
 		private readonly resourceLabels: ResourceLabels,
+		private readonly attachmentModel: ChatAttachmentModel,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -52,21 +54,22 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		dom.clearNode(this.domNode);
 		this.renderDisposables.clear();
 
-		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
+		this.domNode.classList.add('disabled');
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value!.uri;
-		const range = URI.isUri(this.attachment.value) || !this.attachment.isSelection ? undefined : this.attachment.value!.range;
+		const range = undefined;
+
+		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+		const ariaLabel = localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
-		const currentFile = localize('openEditor', "Current file context");
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
-		const title = `${currentFileHint}\n${uriLabel}`;
+		const currentFile = localize('openEditor', "Suggested context (current file)");
+		const title = `${currentFile}\n${uriLabel}`;
+
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
@@ -75,15 +78,18 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, 'Current file'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
-		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
-		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
-		toggleButton.icon = this.attachment.enabled ? Codicon.eye : Codicon.eyeClosed;
-		this.renderDisposables.add(toggleButton.onDidClick((e) => {
-			e.stopPropagation(); // prevent it from triggering the click handler on the parent immediately after rerendering
-			this.attachment.enabled = !this.attachment.enabled;
+		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
+			this.convertToRegularAttachment();
+		}));
+
+		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.convertToRegularAttachment();
+			}
 		}));
 
 		// Context menu
@@ -105,5 +111,15 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				},
 			});
 		}));
+	}
+
+	private convertToRegularAttachment(): void {
+		if (!this.attachment.value) {
+			return;
+		}
+
+		const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
+		this.attachmentModel.addFile(file);
+		this.chatWidgetService.lastFocusedWidget?.focusInput();
 	}
 }

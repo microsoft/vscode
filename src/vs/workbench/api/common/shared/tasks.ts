@@ -92,7 +92,6 @@ export enum TaskEventKind {
 	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
-
 export interface IShellExecutionOptionsDTO extends IExecutionOptionsDTO {
 	executable?: string;
 	shellArgs?: string[];
@@ -181,12 +180,20 @@ export interface ITaskSystemInfoDTO {
 	platform: string;
 }
 
-export interface ITaskStatus {
+export interface ITaskProblemMatcherStarted {
 	execution: ITaskExecution;
-	taskEventKind: TaskEventKind;
 }
 
-export interface ITaskStatusDTO {
+export interface ITaskProblemMatcherStartedDto {
 	execution: ITaskExecutionDTO;
-	taskEventKind: TaskEventKind;
+}
+
+export interface ITaskProblemMatcherEnded {
+	execution: ITaskExecution;
+	hasErrors: boolean;
+}
+
+export interface ITaskProblemMatcherEndedDto {
+	execution: ITaskExecutionDTO;
+	hasErrors: boolean;
 }

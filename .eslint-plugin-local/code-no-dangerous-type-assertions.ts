@@ -32,7 +32,7 @@ export = new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
 
 				context.report({
 					node,
-					message: "Don't use type assertions for creating objects as this can hide type errors."
+					message: `Don't use type assertions for creating objects as this can hide type errors.`
 				});
 			},
 		};

@@ -9,9 +9,10 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FocusMode } from '../../native/common/native.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
-import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -26,7 +27,7 @@ export interface IBaseWindow extends IDisposable {
 	readonly win: electron.BrowserWindow | null;
 
 	readonly lastFocusTime: number;
-	focus(options?: { force: boolean }): void;
+	focus(options?: { mode: FocusMode }): void;
 
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
@@ -196,5 +197,10 @@ export const enum WindowError {
 	/**
 	 * Maps to the `did-fail-load` event on a `WebContents`.
 	 */
-	LOAD = 3
+	LOAD = 3,
+
+	/**
+	 * Maps to the `responsive` event on a `BrowserWindow`.
+	 */
+	RESPONSIVE = 4,
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import electron, { Display, Rectangle } from 'electron';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
@@ -122,6 +122,7 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -210,6 +211,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 				};
 			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
 	}
 
 	return options;
@@ -345,20 +350,34 @@ export namespace WindowStateValidator {
 			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
-		if (
-			display &&														// we have a display matching the desired bounds
-			displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
+		if (display && validateWindowStateOnDisplay(state, display)) {
 			return state;
 		}
 
 		logService.trace('window#validateWindowState: state is outside of the multi-monitor working area');
 
 		return undefined;
+	}
+
+	export function validateWindowStateOnDisplay(state: IWindowState, display: Display): state is Rectangle {
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number' ||
+			state.width <= 0 || state.height <= 0
+		) {
+			return false;
+		}
+
+		const displayWorkingArea = getWorkingArea(display);
+		return Boolean(
+			displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		);
 	}
 
 	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
@@ -378,4 +397,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

@@ -179,6 +179,10 @@ export class MockSession implements IDebugSession {
 	readonly suppressDebugView = false;
 	readonly autoExpandLazyVariables = false;
 
+	dispose(): void {
+
+	}
+
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');
 	}

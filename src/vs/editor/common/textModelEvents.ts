@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from './core/range.js';
+import { IPosition } from './core/position.js';
+import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 
@@ -234,6 +235,37 @@ export class ModelRawLineChanged {
 	}
 }
 
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelLineHeightChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The decoration ID that has changed.
+	 */
+	public readonly decorationId: string;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
+	 * The line height on the line.
+	 */
+	public readonly lineHeight: number | null;
+
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+		this.ownerId = ownerId;
+		this.decorationId = decorationId;
+		this.lineNumber = lineNumber;
+		this.lineHeight = lineHeight;
+	}
+}
+
 /**
  * An event describing that line(s) have been deleted in a model.
  * @internal
@@ -358,6 +390,37 @@ export class ModelInjectedTextChangedEvent {
 
 	constructor(changes: ModelRawLineChanged[]) {
 		this.changes = changes;
+	}
+}
+
+/**
+ * An event describing a change of a line height.
+ * @internal
+ */
+export class ModelLineHeightChangedEvent {
+
+	public readonly changes: ModelLineHeightChanged[];
+
+	constructor(changes: ModelLineHeightChanged[]) {
+		this.changes = changes;
+	}
+
+	public affects(rangeOrPosition: IRange | IPosition) {
+		if (Range.isIRange(rangeOrPosition)) {
+			for (const change of this.changes) {
+				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			for (const change of this.changes) {
+				if (change.lineNumber === rangeOrPosition.lineNumber) {
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 }
 
