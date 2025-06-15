@@ -534,7 +534,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
 	interface NLSFormat {
-		[key: string]: string | { message: string; comment: string[] };
+		[key: string]: string | string[] | { message: string; comment: string[] };
 	}
 	const CharCode_PC = '%'.charCodeAt(0);
 	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
@@ -548,7 +548,15 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 			} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
 				const translated = packageNls[val.substr(1, val.length - 2)];
 				if (translated) {
-					obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
+					if (typeof translated === 'string') {
+						obj[key] = translated;
+					} else if (Array.isArray(translated)) {
+						obj[key] = translated.join('\n');
+					} else if (typeof translated.message === 'string') {
+						obj[key] = translated.message;
+					} else {
+						obj[key] = val;
+					}
 				}
 			}
 		}
