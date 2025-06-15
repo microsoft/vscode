@@ -172,22 +172,89 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
-
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
+		const selections = editor.getSelections() || [];
+
+		// If there are multiple selections, there is some extra logic required.
+		// Selections can be made by both keyboard or clicking, so the order of selections is not guaranteed.
+		// It's important to process the selections in sequential line order
+		const distinctSelectionsPerLine: Selection[] = []; // These are the selections that will actually operated on
+
+		// Same as initial selections, but with adjusted line numbers after the move
+		// These will however not be applied if it's a no-op
+		const selectionsAfterLineMove: Selection[] = [];
+
+		// Stash selections while processing, set new selections with +/- line-change only
+		// Selections should not be sorted before this step
 		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			const startCol = selection.getStartPosition().column;
+			const startLine = selection.getStartPosition().lineNumber;
+			const newStartLine = this.down ? startLine + 1 : startLine - 1;
+
+			const endCol = selection.getEndPosition().column;
+			const endLine = selection.getEndPosition().lineNumber;
+			const newEndLine = this.down ? endLine + 1 : endLine - 1;
+
+			selectionsAfterLineMove.push(new Selection(newStartLine, startCol, newEndLine, endCol));
 		}
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		// Sort selections by line to guarantee correct processing order of the move line command
+		selections.sort((a, b) => a.endLineNumber - b.endLineNumber);
+		let lastLineNumber = 0;
+
+		for (const selection of selections) {
+			// Work only with one selection per line, otherwise we risk to initiate multiple moves on a line
+			if (lastLineNumber !== selection.endLineNumber) {
+				distinctSelectionsPerLine.push(selection);
+				lastLineNumber = selection.endLineNumber;
+			}
+		}
+
+		if (this.down) {
+			// Selections are now sorted in ascending order
+			// Processing needs to be done in reversed order if we are moving lines down
+			// I.e. starting with the last selection in the bottom - otherwise we move the same line multiple times
+			distinctSelectionsPerLine.reverse();
+		}
+
+		const model = editor.getModel();
+		const lineCount = model !== null ? model.getLineCount() : 0;
+		const movingMultipleLines = distinctSelectionsPerLine.length > 1;
+
+		if (movingMultipleLines) {
+			editor.pushUndoStop();
+		}
+
+		for (const selection of distinctSelectionsPerLine) {
+			// If we are at the beginning/end of document, abort the command
+			if ((selection.startLineNumber === 1 && !this.down) || (selection.endLineNumber === lineCount && this.down)) {
+				editor.pushUndoStop();
+				return;
+			}
+
+			// Unfortunately passing a commands array doesn't work currently with multiple lines moved
+			// Remove this branching when it is fixed along with movingMultipleLines constant
+			if (movingMultipleLines) {
+				editor.executeCommand(this.id, new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			} else {
+				commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			}
+		}
+
+		if (!movingMultipleLines) {
+			editor.pushUndoStop();
+			editor.executeCommands(this.id, commands); // This will also set the selection
+		} else {
+			editor.setSelections(selectionsAfterLineMove);
+		}
+
 		editor.pushUndoStop();
 	}
 }
 
-class MoveLinesUpAction extends AbstractMoveLinesAction {
+export class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveLinesUpAction',
@@ -209,7 +276,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	}
 }
 
-class MoveLinesDownAction extends AbstractMoveLinesAction {
+export class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveLinesDownAction',
