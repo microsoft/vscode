@@ -45,7 +45,7 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from '../notebookCellList.js';
 import { preloadsScriptStr } from './webviewPreloads.js';
 import { transformWebviewThemeVars } from './webviewThemeMapping.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
-import { CellUri, ICellOutput, INotebookRendererInfo, RendererMessagingSpec } from '../../../common/notebookCommon.js';
+import { CellUri, ICellOutput, INotebookRendererInfo, isTextStreamMime, RendererMessagingSpec } from '../../../common/notebookCommon.js';
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { IScopedRendererMessaging } from '../../../common/notebookRendererMessagingService.js';
@@ -57,6 +57,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../services/edit
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages.js';
+import { getOutputText, getOutputStreamText, TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -1678,10 +1679,27 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		// Collect text alternates from the same cell output
+		const textAlternates: { mimeType: string; content: string }[] = [];
+		const cellOutput = output.model;
+
+		for (const outputItem of cellOutput.outputs) {
+			if (TEXT_BASED_MIMETYPES.includes(outputItem.mime)) {
+				const text = isTextStreamMime(outputItem.mime) ?
+					getOutputStreamText(output).text :
+					getOutputText(outputItem.mime, outputItem);
+				textAlternates.push({
+					mimeType: outputItem.mime,
+					content: text
+				});
+			}
+		}
+
 		this._sendMessageToWebview({
 			type: 'copyImage',
 			outputId: output.model.outputId,
-			altOutputId: output.model.alternativeOutputId
+			altOutputId: output.model.alternativeOutputId,
+			textAlternates: textAlternates.length > 0 ? textAlternates : undefined
 		});
 	}
 
