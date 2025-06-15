@@ -41,6 +41,15 @@ interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 }
 
 class ManageTrustedExtensionsForAccountActionImpl {
+	private readonly _viewDetailsButton = {
+		tooltip: localize('extensionDetails', "View extension details"),
+		iconClass: ThemeIcon.asClassName(Codicon.eye),
+	};
+	private readonly _managePreferencesButton = {
+		tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
+		iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+	};
+
 	constructor(
 		@IProductService private readonly _productService: IProductService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -188,10 +197,10 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			description,
 			tooltip,
 			disabled,
-			buttons: [{
-				tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
-				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-			}],
+			buttons: [
+				this._viewDetailsButton,
+				this._managePreferencesButton
+			],
 			picked: extension.allowed === undefined || extension.allowed
 		};
 	}
@@ -225,9 +234,15 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		disposableStore.add(quickPick.onDidCustom(() => {
 			quickPick.hide();
 		}));
-		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId)
-		));
+		disposableStore.add(quickPick.onDidTriggerItemButton(e => {
+			if (e.button === this._viewDetailsButton) {
+				// View extension details
+				this._commandService.executeCommand('workbench.extensions.search', `@id:${e.item.extension.id}`);
+			} else if (e.button === this._managePreferencesButton) {
+				// Manage account preferences
+				this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId);
+			}
+		}));
 		return quickPick;
 	}
 }
