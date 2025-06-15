@@ -98,3 +98,19 @@ body.error .error-message {
 	src: local("Segoe UI Bold"),url("https://c.s-microsoft.com/static/fonts/segoe-ui/west-european/bold/latest.woff2") format("woff"),url("https://c.s-microsoft.com/static/fonts/segoe-ui/west-european/bold/latest.woff") format("woff"),url("https://c.s-microsoft.com/static/fonts/segoe-ui/west-european/bold/latest.ttf") format("truetype"),url("https://c.s-microsoft.com/static/fonts/segoe-ui/west-european/bold/latest.svg#web") format("svg");
 	font-weight: 700
 }
+
+/* Light mode styles based on user's browser preference */
+@media (prefers-color-scheme: light) {
+	body {
+		background-color: #ffffff;
+		color: #1e1e1e;
+	}
+
+	.branding {
+		color: #1e1e1e;
+	}
+
+	.error-text {
+		color: #d73a4a;
+	}
+}
