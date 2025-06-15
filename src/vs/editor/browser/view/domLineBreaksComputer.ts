@@ -136,7 +136,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const characterMapping = characterMappings[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderedLineContents[i], characterMapping);
 		if (breakOffsets === null) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(lineNumbers[i]);
 			continue;
 		}
 
