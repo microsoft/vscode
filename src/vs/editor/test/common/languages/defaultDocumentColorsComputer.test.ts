@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { computeDefaultDocumentColors } from '../defaultDocumentColorsComputer.js';
+import { computeDefaultDocumentColors } from '../../../common/languages/defaultDocumentColorsComputer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('Default Document Colors Computer', () => {
 
@@ -27,11 +28,13 @@ suite('Default Document Colors Computer', () => {
 		}
 	}
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Hex colors in strings should be detected', () => {
 		// Test case from issue: hex color inside string is not detected
 		const model = new TestDocumentModel("const color = '#ff0000';");
 		const colors = computeDefaultDocumentColors(model);
-		
+
 		assert.strictEqual(colors.length, 1, 'Should detect one hex color');
 		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1 (255/255)');
 		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
@@ -42,7 +45,7 @@ suite('Default Document Colors Computer', () => {
 	test('Hex colors in double quotes should be detected', () => {
 		const model = new TestDocumentModel('const color = "#00ff00";');
 		const colors = computeDefaultDocumentColors(model);
-		
+
 		assert.strictEqual(colors.length, 1, 'Should detect one hex color');
 		assert.strictEqual(colors[0].color.red, 0, 'Red component should be 0');
 		assert.strictEqual(colors[0].color.green, 1, 'Green component should be 1 (255/255)');
@@ -52,9 +55,9 @@ suite('Default Document Colors Computer', () => {
 	test('Multiple hex colors in array should be detected', () => {
 		const model = new TestDocumentModel("const colors = ['#ff0000', '#00ff00', '#0000ff'];");
 		const colors = computeDefaultDocumentColors(model);
-		
+
 		assert.strictEqual(colors.length, 3, 'Should detect three hex colors');
-		
+
 		// First color: red
 		assert.strictEqual(colors[0].color.red, 1, 'First color red component should be 1');
 		assert.strictEqual(colors[0].color.green, 0, 'First color green component should be 0');
@@ -70,8 +73,6 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[2].color.green, 0, 'Third color green component should be 0');
 		assert.strictEqual(colors[2].color.blue, 1, 'Third color blue component should be 1');
 	});
-
-
 
 	test('Existing functionality should still work', () => {
 		// Test cases that were already working
@@ -91,7 +92,7 @@ suite('Default Document Colors Computer', () => {
 	test('8-digit hex colors should also work', () => {
 		const model = new TestDocumentModel("const color = '#ff0000ff';");
 		const colors = computeDefaultDocumentColors(model);
-		
+
 		assert.strictEqual(colors.length, 1, 'Should detect one 8-digit hex color');
 		assert.strictEqual(colors[0].color.red, 1, 'Red component should be 1');
 		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
