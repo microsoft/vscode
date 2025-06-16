@@ -32,6 +32,20 @@ export function groupBy<K extends string | number | symbol, V>(data: V[], groupF
 	return result;
 }
 
+export function groupByMap<K, V>(data: V[], groupFn: (element: V) => K): Map<K, V[]> {
+	const result = new Map<K, V[]>();
+	for (const element of data) {
+		const key = groupFn(element);
+		let target = result.get(key);
+		if (!target) {
+			target = [];
+			result.set(key, target);
+		}
+		target.push(element);
+	}
+	return result;
+}
+
 export function diffSets<T>(before: ReadonlySet<T>, after: ReadonlySet<T>): { removed: T[]; added: T[] } {
 	const removed: T[] = [];
 	const added: T[] = [];
