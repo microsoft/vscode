@@ -54,7 +54,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Terminal Suggest tests
-call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
+call npx @vscode/test-cli -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
