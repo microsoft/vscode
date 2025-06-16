@@ -76,6 +76,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 			// Reveal
 			const range = this.toRange(position.lineNumber, position.column);
+			this.revealRangeInCenter(context, range);
 
 			// Decorate
 			this.addDecorations(editor, range);

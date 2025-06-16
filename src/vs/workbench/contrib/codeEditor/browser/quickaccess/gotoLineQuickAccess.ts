@@ -38,7 +38,8 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 
 		return {
-			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview
+			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
+			goToLineRevealBehavior: editorConfig?.goToLineRevealBehavior
 		};
 	}
 
@@ -64,6 +65,12 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		// Otherwise let parent handle it
 		else {
 			super.gotoLocation(context, options);
+		}
+	}
+
+	protected override revealRangeInCenter(context: IQuickAccessTextEditorContext, range: IRange): void {
+		if (this.configuration.goToLineRevealBehavior === 'always') {
+			super.revealRangeInCenter(context, range);
 		}
 	}
 }
