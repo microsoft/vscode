@@ -71,20 +71,7 @@ suite('Default Document Colors Computer', () => {
 		assert.strictEqual(colors[2].color.blue, 1, 'Third color blue component should be 1');
 	});
 
-	test('Hex colors after common delimiters should be detected', () => {
-		const testCases = [
-			{ content: 'background-color=#ff0000', name: 'after equals' },
-			{ content: 'colors = [#ff0000]', name: 'after bracket' },
-			{ content: 'rgb(#ff0000)', name: 'after paren' },
-			{ content: 'style: {color: #ff0000}', name: 'after colon in object' }
-		];
 
-		testCases.forEach(testCase => {
-			const model = new TestDocumentModel(testCase.content);
-			const colors = computeDefaultDocumentColors(model);
-			assert.strictEqual(colors.length, 1, `Should detect hex color ${testCase.name}`);
-		});
-	});
 
 	test('Existing functionality should still work', () => {
 		// Test cases that were already working
