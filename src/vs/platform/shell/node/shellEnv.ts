@@ -139,7 +139,12 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		// Older versions of PowerShell removes double quotes sometimes
 		// so we use "double single quotes" which is how you escape single
 		// quotes inside of a single quoted string.
-		command = `chcp 65001; Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
+		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
+
+		// Improve unicode support on Windows by setting the code page to UTF-8
+		if (isWindows) {
+			command = `chcp 65001; ${command}`;
+		}
 
 		// -Login is not a supported argument on PowerShell 5, which is a version of
 		// powershell that is exclusive to Windows. Providing it would error. Also,
