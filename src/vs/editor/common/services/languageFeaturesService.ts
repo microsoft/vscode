@@ -36,7 +36,6 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly foldingRangeProvider = new LanguageFeatureRegistry<FoldingRangeProvider>(this._score.bind(this));
 	readonly linkProvider = new LanguageFeatureRegistry<LinkProvider>(this._score.bind(this));
 	readonly inlineCompletionsProvider = new LanguageFeatureRegistry<InlineCompletionsProvider>(this._score.bind(this));
-	readonly inlineEditProvider = new LanguageFeatureRegistry<InlineEditProvider>(this._score.bind(this));
 	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>(this._score.bind(this));
 	readonly linkedEditingRangeProvider = new LanguageFeatureRegistry<LinkedEditingRangeProvider>(this._score.bind(this));
 	readonly inlineValuesProvider = new LanguageFeatureRegistry<InlineValuesProvider>(this._score.bind(this));
