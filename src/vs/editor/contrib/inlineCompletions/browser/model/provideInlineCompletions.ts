@@ -49,7 +49,7 @@ export async function provideInlineCompletions(
 		return p.yieldsToGroupIds?.flatMap(groupId => providersByGroupId.get(groupId) ?? []) ?? [];
 	});
 	const { foundCycles } = yieldsToGraph.removeCycles();
-	if (foundCycles) {
+	if (foundCycles.length > 0) {
 		onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected.`
 			+ ` Path: ${foundCycles.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 	}
@@ -81,11 +81,12 @@ export async function provideInlineCompletions(
 		}
 		const data: InlineSuggestData[] = [];
 		const list = new InlineSuggestionList(result, data, provider);
+		runWhenCancelled(token, () => list.removeRef());
+
 		for (const item of result.items) {
 			data.push(createInlineCompletionItem(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid));
 		}
 
-		runWhenCancelled(token, () => list.removeRef());
 		return list;
 	});
 
