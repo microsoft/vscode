@@ -199,7 +199,12 @@ class CodeMain {
 		// enable atomic read / write operations.
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, userDataProfilesMainService, uriIdentityService, logService));
 
-		// Policy
+		// Policy service configuration:
+		// - Windows: Uses registry-based policies via NativePolicyService
+		// - macOS: Uses bundle-based policies via NativePolicyService  
+		// - Linux: Uses JSON file-based policies by default via FilePolicyService
+		//   Policy file location: ~/.config/{dataFolderName}/policy.json
+		// - Other platforms: Can use JSON policies if __enable-file-policy flag is set
 		let policyService: IPolicyService | undefined;
 		if (isWindows && productService.win32RegValueName) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
