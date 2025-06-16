@@ -8,6 +8,7 @@ import '../../platform/update/common/update.config.contribution.js';
 import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
+import { joinPath } from '../../base/common/resources.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
 import { Promises } from '../../base/common/async.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
@@ -18,7 +19,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
 import { basename, resolve } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isLinux, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
@@ -204,8 +205,15 @@ class CodeMain {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
-		} else if (environmentMainService.policyFile) {
-			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
+		} else if (isLinux || environmentMainService.policyFile) {
+			// Support JSON policies by default on Linux
+			const policyFile = environmentMainService.policyFile || 
+				(isLinux ? joinPath(environmentMainService.userHome, productService.dataFolderName, 'policy.json') : undefined);
+			if (policyFile) {
+				policyService = disposables.add(new FilePolicyService(policyFile, fileService, logService));
+			} else {
+				policyService = new NullPolicyService();
+			}
 		} else {
 			policyService = new NullPolicyService();
 		}
