@@ -251,7 +251,7 @@ class ManagePromptFilesAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 10,
 				group: '2_manage'
 			},
