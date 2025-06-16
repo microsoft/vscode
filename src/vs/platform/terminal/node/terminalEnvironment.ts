@@ -113,6 +113,7 @@ export async function getShellIntegrationInjection(
 
 	if (envMixin['VSCODE_SH_IS_BASH'] === '1' || (shell === 'sh' && await checkIfShIsActuallyBash())) {
 		shell = 'bash';
+		shellLaunchConfig.executable = '/bin/bash';
 	}
 
 	if (options.shellIntegration.nonce) {
