@@ -36,7 +36,7 @@ import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
 
 // --- adapter
 
@@ -1581,105 +1581,6 @@ class InlineCompletionAdapter {
 	}
 }
 
-class InlineEditAdapter {
-	private readonly _references = new ReferenceMap<{
-		dispose(): void;
-		item: vscode.InlineEdit;
-	}>();
-
-	private languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineEditTriggerKind, InlineEditTriggerKind> = {
-		[languages.InlineEditTriggerKind.Automatic]: InlineEditTriggerKind.Automatic,
-		[languages.InlineEditTriggerKind.Invoke]: InlineEditTriggerKind.Invoke,
-	};
-
-	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
-		const doc = this._documents.getDocument(uri);
-		const result = await this._provider.provideInlineEdit(doc, {
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
-			requestUuid: context.requestUuid,
-		}, token);
-
-		if (!result) {
-			// undefined and null are valid results
-			return undefined;
-		}
-
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
-		}
-		let disposableStore: DisposableStore | undefined = undefined;
-		const pid = this._references.createReferenceId({
-			dispose() {
-				disposableStore?.dispose();
-			},
-			item: result
-		});
-
-		let acceptCommand: languages.Command | undefined = undefined;
-		if (result.accepted) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			acceptCommand = this._commands.toInternal(result.accepted, disposableStore);
-		}
-		let rejectCommand: languages.Command | undefined = undefined;
-		if (result.rejected) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
-		}
-
-		let shownCommand: languages.Command | undefined = undefined;
-		if (result.shown) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			shownCommand = this._commands.toInternal(result.shown, disposableStore);
-		}
-
-		let action: languages.Command | undefined = undefined;
-		if (result.action) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			action = this._commands.toInternal(result.action, disposableStore);
-		}
-
-		if (!disposableStore) {
-			disposableStore = new DisposableStore();
-		}
-		const langResult: extHostProtocol.IdentifiableInlineEdit = {
-			pid,
-			text: result.text,
-			range: typeConvert.Range.from(result.range),
-			showRange: typeConvert.Range.from(result.showRange),
-			accepted: acceptCommand,
-			rejected: rejectCommand,
-			shown: shownCommand,
-			action,
-			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
-		};
-
-		return langResult;
-	}
-
-	disposeEdit(pid: number) {
-		const data = this._references.disposeReferenceId(pid);
-		data?.dispose();
-	}
-
-	constructor(
-		_extension: IExtensionDescription,
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineEditProvider,
-		private readonly _commands: CommandsConverter,
-	) {
-	}
-}
-
 class ReferenceMap<T> {
 	private readonly _references = new Map<number, T>();
 	private _idPool = 1;
@@ -2251,7 +2152,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentDropEditAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | NewSymbolNamesAdapter;
 
 class AdapterData {
 	constructor(
@@ -2777,23 +2678,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$freeInlineCompletionsList(handle: number, pid: number): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid); }, undefined, undefined);
-	}
-
-	// --- inline edit
-
-	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
-		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
-		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, provider.displayName || extension.name);
-		return this._createDisposable(handle);
-	}
-
-	$provideInlineEdit(handle: number, resource: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
-		return this._withAdapter(handle, InlineEditAdapter, adapter => adapter.provideInlineEdits(URI.revive(resource), context, token), undefined, token);
-	}
-
-	$freeInlineEdit(handle: number, pid: number): void {
-		this._withAdapter(handle, InlineEditAdapter, async adapter => { adapter.disposeEdit(pid); }, undefined, undefined);
 	}
 
 	// --- parameter hints
