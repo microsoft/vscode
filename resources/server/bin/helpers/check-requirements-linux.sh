@@ -1,23 +1,4 @@
-#!/usr/bin/env sh
-#
-# Copyright (c) Microsoft Corporation. All rights reserved.
-#
-
-set -e
-
-# The script checks necessary server requirements for the classic server
-# scenarios. Currently, the script can exit with any of the following
-# 2 exit codes and should be handled accordingly on the extension side.
-#
-# 0: All requirements are met, use the default server.
-# 99: Unsupported OS, abort server startup with appropriate error message.
-#
-
-# Do not remove this check.
-# Provides a way to skip the server requirements check from
-# outside the install flow. A system process can create this
-# file before the server is downloaded and installed.
-if [ -f "/tmp/vscode-skip-server-requirements-check" ] || [ -n "$VSCODE_SERVER_CUSTOM_GLIBC_LINKER" ]; then
+IyEvdXNyL2Jpbi9lbnYgc2gKIwojIENvcHlyaWdodCAoYykgTWljcm9zb2Z0IENvcnBvcmF0aW9uLiBBbGwgcmlnaHRzIHJlc2VydmVkLgojCgpzZXQgLWUKCiMgVGhlIHNjcmlwdCBjaGVja3MgbmVjZXNzYXJ5IHNlcnZlciByZXF1aXJlbWVudHMgZm9yIHRoZSBjbGFzc2ljIHNlcnZlcgojIHNjZW5hcmlvcy4gQ3VycmVudGx5LCB0aGUgc2NyaXB0IGNhbiBleGl0IHdpdGggYW55IG9mIHRoZSBmb2xsb3dpbmcKIyAyIGV4aXQgY29kZXMgYW5kIHNob3VsZCBiZSBoYW5kbGVkIGFjY29yZGluZ2x5IG9uIHRoZSBleHRlbnNpb24gc2lkZS4KIwojIDA6IEFsbCByZXF1aXJlbWVudHMgYXJlIG1ldCwgdXNlIHRoZSBkZWZhdWx0IHNlcnZlci4KIyA5OTogVW5zdXBwb3J0ZWQgT1MsIGFib3J0IHNlcnZlciBzdGFydHVwIHdpdGggYXBwcm9wcmlhdGUgZXJyb3IgbWVzc2FnZS4KIwoKIyBEbyBub3QgcmVtb3ZlIHRoaXMgY2hlY2suCiMgUHJvdmlkZXMgYSB3YXkgdG8gc2tpcCB0aGUgc2VydmVyIHJlcXVpcmVtZW50cyBjaGVjayBmcm9tCiMgb3V0c2lkZSB0aGUgaW5zdGFsbCBmbG93LiBBIHN5c3RlbSBwcm9jZXNzIGNhbiBjcmVhdGUgdGhpcyAjIGZpbGUgYmVmb3JlIHRoZSBzZXJ2ZXIgaXMgZG93bmxvYWRlZCBhbmQgaW5zdGFsbGVkLgp if [ -f "/tmp/vscode-skip-server-requirements-check" ] || [ -n "$VSCODE_SERVER_CUSTOM_GLIBC_LINKER" ]; then
     echo "!!! WARNING: Skipping server pre-requisite check !!!"
     echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
     exit 0
@@ -30,7 +11,7 @@ MIN_GLIBCXX_VERSION="3.4.25"
 
 # Extract the ID value from /etc/os-release
 if [ -f /etc/os-release ]; then
-    OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed -n '1s/ID=//p')"
+    OS_ID="$(. /etc/os-release && printf '%s' "${ID//\"/}")"
     if [ "$OS_ID" = "nixos" ]; then
         echo "Warning: NixOS detected, skipping GLIBC check"
         exit 0
@@ -82,9 +63,9 @@ if [ "$OS_ID" != "alpine" ]; then
 	    # (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
         libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
         libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
-        libstdcpp_version=$(grep -ao 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' "$libstdcpp_real_path" | sort -V | tail -1)
+        libstdcpp_version=$(grep -ao 'GLIBCXX_[0-9]*\\.[0-9]*\\.[0-9]*' "$libstdcpp_real_path" | sort -V | tail -1)
         libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
-        if [ "$(printf '%s\n' "$MIN_GLIBCXX_VERSION" "$libstdcpp_version_number" | sort -V | head -n1)" = "$MIN_GLIBCXX_VERSION" ]; then
+        if [ "$(printf '%s\\n' "$MIN_GLIBCXX_VERSION" "$libstdcpp_version_number" | sort -V | head -n1)" = "$MIN_GLIBCXX_VERSION" ]; then
             found_required_glibcxx=1
             break
         fi
@@ -106,7 +87,7 @@ if [ "$OS_ID" = "alpine" ]; then
             break
         fi
     done
-    if [ "$(printf '%s\n' "1.2.3" "$musl_version" | sort -V | head -n1)" != "1.2.3" ]; then
+    if [ "$(printf '%s\\n' "1.2.3" "$musl_version" | sort -V | head -n1)" != "1.2.3" ]; then
         echo "Error: Unsupported alpine distribution. Please refer to our supported distro section https://aka.ms/vscode-remote/linux for additional information."
         exit 99
     fi
@@ -139,8 +120,8 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
 		# we instead use the version of the cached libc.so.6 file itself.
         libc_path_line=$(echo "$libc_path" | head -n1)
         libc_real_path=$(readlink -f "$libc_path_line")
-        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
-        if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
+        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \\([0-9]\\+\\.[0-9]\\+\\).*/\\1/p')
+        if [ "$(printf '%s\\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
             break
         fi
