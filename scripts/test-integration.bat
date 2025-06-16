@@ -62,6 +62,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 echo.
 echo ### TypeScript tests
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\typescript-language-features --extensionTestsPath=%~dp0\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
+echo %errorlevel%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
