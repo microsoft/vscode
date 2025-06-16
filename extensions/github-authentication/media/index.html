@@ -27,7 +27,7 @@
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
 		const appName = urlParams.get('app_name');
-		document.querySelector('.branding').innerText = appName;
+		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
 
 		if (error) {
 			document.querySelector('.error-text')
