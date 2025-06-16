@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+--------------------------------------------------------------------------------*/
+
 import { localize } from '../../../../../../nls.js';
-import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, isValidPromptType, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
 import { type URI } from '../../../../../../base/common/uri.js';
@@ -59,7 +61,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILanguageService private readonly languageService: ILanguageService,
+<<<<<<< HEAD
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+=======
+>>>>>>> e49d6e46920 (Compute instructions references when making request, show why attachment was added (#251497))
 	) {
 		super();
 
@@ -283,7 +288,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			if (ignoreInstructions?.has(uri) || foundFiles.has(uri)) {
 				// the instruction file is already part of the input or has already been processed
+<<<<<<< HEAD
 				this.logger.trace(`[PromptsService#findInstructionFilesFor] Skipping already processed instruction file: ${uri}`);
+=======
+>>>>>>> e49d6e46920 (Compute instructions references when making request, show why attachment was added (#251497))
 				continue;
 			}
 
@@ -322,7 +330,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			};
 
 
+<<<<<<< HEAD
 			let matches = false;
+=======
+>>>>>>> e49d6e46920 (Compute instructions references when making request, show why attachment was added (#251497))
 			for (const pattern of patterns) {
 				const matchResult = patterMatches(pattern);
 				if (matchResult !== false) {
@@ -332,6 +343,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 					result.push({ uri, reason });
 					foundFiles.add(uri);
+<<<<<<< HEAD
 					this.logger.trace(`[PromptsService#findInstructionFilesFor] ${uri} selected: ${reason}`);
 					matches = true;
 					break;
@@ -340,6 +352,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (!matches) {
 				this.logger.trace(`[PromptsService#findInstructionFilesFor]  ${uri} no match: pattern: ${applyTo}`);
 			}
+=======
+					break;
+				}
+			}
+
+
+>>>>>>> e49d6e46920 (Compute instructions references when making request, show why attachment was added (#251497))
 		}
 		return result;
 	}
