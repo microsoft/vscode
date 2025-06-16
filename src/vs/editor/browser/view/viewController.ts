@@ -133,7 +133,10 @@ export class ViewController {
 		const options = this.configuration.options;
 		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
 		const columnSelection = options.get(EditorOption.columnSelection);
-		if (data.middleButton && !selectionClipboardIsOn) {
+		const scrollOnMiddleClick = options.get(EditorOption.scrollOnMiddleClick);
+		if (data.middleButton && !selectionClipboardIsOn && scrollOnMiddleClick) {
+			// nothing to do here, handled in the contribution
+		} else if (data.middleButton && !selectionClipboardIsOn && columnSelection) {
 			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line

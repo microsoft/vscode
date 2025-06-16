@@ -67,9 +67,7 @@ const serverResourceIncludes = [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',

@@ -368,9 +368,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			if (foldersRequested && child.isDirectory) {
-				kind = TerminalCompletionItemKind.Folder;
+				if (child.isSymbolicLink) {
+					kind = TerminalCompletionItemKind.SymbolicLinkFolder;
+				} else {
+					kind = TerminalCompletionItemKind.Folder;
+				}
 			} else if (filesRequested && child.isFile) {
-				kind = TerminalCompletionItemKind.File;
+				if (child.isSymbolicLink) {
+					kind = TerminalCompletionItemKind.SymbolicLinkFile;
+				} else {
+					kind = TerminalCompletionItemKind.File;
+				}
 			}
 			if (kind === undefined) {
 				continue;

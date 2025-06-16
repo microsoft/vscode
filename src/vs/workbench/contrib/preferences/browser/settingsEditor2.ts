@@ -59,7 +59,7 @@ import { nullRange, Settings2EditorModel } from '../../../services/preferences/c
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
 import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
@@ -164,6 +164,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
+	private searchContainer: HTMLElement | null = null;
 	private bodyContainer!: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
@@ -230,6 +231,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
+	private searchInputActionBar: ActionBar | null = null;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -280,6 +283,10 @@ export class SettingsEditor2 extends EditorPane {
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle)) {
+				const isToggleVisible = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
+				this.updateAISearchToggleVisibility(isToggleVisible);
+			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
 			}
@@ -326,6 +333,24 @@ export class SettingsEditor2 extends EditorPane {
 				.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 			this.onConfigUpdate(undefined, true);
 		});
+	}
+
+	private updateAISearchToggleVisibility(isVisible: boolean): void {
+		if (!this.searchContainer || !this.showAiResultsAction || !this.searchInputActionBar) {
+			return;
+		}
+
+		if (isVisible) {
+			this.searchInputActionBar.push(this.showAiResultsAction, {
+				index: 1,
+				label: false,
+				icon: true
+			});
+			this.searchContainer.classList.add('with-ai-toggle');
+		} else if (this.searchInputActionBar.hasAction(this.showAiResultsAction)) {
+			this.searchInputActionBar.pull(1);
+			this.searchContainer.classList.remove('with-ai-toggle');
+		}
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -621,42 +646,37 @@ export class SettingsEditor2 extends EditorPane {
 	 */
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
-
-		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
+		this.searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
 		const clearInputAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
 			localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false,
 			async () => this.clearSearchResults()
 		));
 
-		const setupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
-		const showSuggestions = this.configurationService.getValue<boolean>('workbench.settings.showAISearchToggle');
-		if (!setupHidden && showSuggestions) {
-			const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
-			const searchServiceEnabled = this.aiSettingsSearchService.isEnabled();
+		const showAiResultActionClassNames = ['action-label', ThemeIcon.asClassName(preferencesAiResultsIcon)];
+		const searchServiceEnabled = this.aiSettingsSearchService.isEnabled();
 
-			this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
-				searchServiceEnabled
-					? localize('showAiResultsDescription', "Search settings with AI")
-					: localize('showAiResultsNotReady', "AI search functionality loading..."),
-				showAiResultActionClassNames.join(' '), searchServiceEnabled
-			));
-			this._register(this.aiSettingsSearchService.onProviderRegistered(() => {
-				if (this.showAiResultsAction) {
-					this.showAiResultsAction.label = localize('showAiResultsDescription', "Search settings with AI");
-					this.showAiResultsAction.enabled = true;
-				}
-			}));
-			this._register(this.showAiResultsAction.onDidChange(() => {
-				this.onSearchInputChanged(true);
-			}));
-		}
+		this.showAiResultsAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS,
+			searchServiceEnabled
+				? localize('showAiResultsDescription', "Search settings with AI")
+				: localize('showAiResultsNotReady', "AI search functionality loading..."),
+			showAiResultActionClassNames.join(' '), searchServiceEnabled
+		));
+		this._register(this.aiSettingsSearchService.onProviderRegistered(() => {
+			if (this.showAiResultsAction) {
+				this.showAiResultsAction.label = localize('showAiResultsDescription', "Search settings with AI");
+				this.showAiResultsAction.enabled = true;
+			}
+		}));
+		this._register(this.showAiResultsAction.onDidChange(() => {
+			this.onSearchInputChanged(true);
+		}));
 
 		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS,
 			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
 		));
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
+		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, this.searchContainer, {
 			triggerCharacters: ['@', ':'],
 			provideResults: (query: string) => {
 				// Based on testing, the trigger character is always at the end of the query.
@@ -689,7 +709,7 @@ export class SettingsEditor2 extends EditorPane {
 			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 
-		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
+		this.countElement = DOM.append(this.searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
 
 		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
 		this.countElement.style.color = asCssVariable(badgeForeground);
@@ -723,9 +743,9 @@ export class SettingsEditor2 extends EditorPane {
 			}));
 		}
 
-		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
+		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.settings-clear-widget'));
 
-		const actionBar = this._register(new ActionBar(this.controlsElement, {
+		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === filterAction.id) {
 					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, options, this.actionRunner, this.searchWidget);
@@ -737,14 +757,12 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		if (!this.showAiResultsAction) {
-			const actionsToPush = [clearInputAction, filterAction];
-			actionBar.push(actionsToPush, { label: false, icon: true });
-		} else {
-			const actionsToPush = [clearInputAction, this.showAiResultsAction, filterAction];
-			searchContainer.classList.add('with-ai-toggle');
-			actionBar.push(actionsToPush, { label: false, icon: true });
-		}
+		const actionsToPush = [clearInputAction, filterAction];
+		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
+
+		const setupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
+		const showSuggestions = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
+		this.updateAISearchToggleVisibility(!setupHidden && showSuggestions);
 	}
 
 	toggleAiSearch(): void {

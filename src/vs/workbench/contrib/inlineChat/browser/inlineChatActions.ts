@@ -625,10 +625,10 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 			icon: _keep ? Codicon.check : Codicon.discard,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress.negate()),
 			keybinding: [{
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
 				primary: _keep
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace
+					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
+					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN
 			}],
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,

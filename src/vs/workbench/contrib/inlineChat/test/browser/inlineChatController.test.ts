@@ -202,7 +202,7 @@ suite('InlineChatController', function () {
 			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
 			[ILanguageModelToolsService, new SyncDescriptor(MockLanguageModelToolsService)],
 			[IPromptsService, new class extends mock<IPromptsService>() {
-				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly URI[]> {
+				override async findInstructionFilesFor(_file: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 					return [];
 				}
 			}],
@@ -667,7 +667,8 @@ suite('InlineChatController', function () {
 		await r;
 	});
 
-	test('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
+	// TODO@jrieken https://github.com/microsoft/vscode/issues/251429
+	test.skip('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
 
 		model.setValue('');
 
