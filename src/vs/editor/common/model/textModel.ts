@@ -834,15 +834,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLineTokens(lineNumber: number, ownerId: number = 0): LineTokens {
 		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;
-		const curInjectedTexts = this.getLineInjectedText(lineNumber, ownerId);
-		if (curInjectedTexts) {
-			injectionOptions = curInjectedTexts.map(t => t.options);
-			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		const lineInjectedText = this.getLineInjectedText(lineNumber, ownerId);
+		if (lineInjectedText) {
+			injectionOptions = lineInjectedText.map(t => t.options);
+			injectionOffsets = lineInjectedText.map(text => text.column - 1);
 		} else {
 			injectionOptions = null;
 			injectionOffsets = null;
 		}
-		let lineWithInjections: LineTokens;
+		let tokensWithInjections: LineTokens;
 		if (injectionOffsets) {
 			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
 			for (let idx = 0; idx < injectionOffsets.length; idx++) {
@@ -864,11 +864,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					});
 				}
 			}
-			lineWithInjections = this.tokenization.getLineTokens(lineNumber).withInserted(tokensToInsert);
+			tokensWithInjections = this.tokenization.getLineTokens(lineNumber).withInserted(tokensToInsert);
 		} else {
-			lineWithInjections = this.tokenization.getLineTokens(lineNumber);
+			tokensWithInjections = this.tokenization.getLineTokens(lineNumber);
 		}
-		return lineWithInjections;
+		return tokensWithInjections;
 	}
 
 	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
