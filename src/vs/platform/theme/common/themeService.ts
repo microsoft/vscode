@@ -22,6 +22,10 @@ export function themeColorFromId(id: ColorIdentifier) {
 	return { id };
 }
 
+export function sizeFromId(id: SizeIdentifier) {
+	return { id };
+}
+
 export const FileThemeIcon = Codicon.file;
 export const FolderThemeIcon = Codicon.folder;
 
