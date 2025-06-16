@@ -26,7 +26,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
-import { IChatWidgetService } from '../chat.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -43,7 +42,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
