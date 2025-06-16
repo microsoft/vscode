@@ -50,7 +50,6 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 echo.
 echo ### Colorize tests
 call npm run test-extension -- -l vscode-colorize-tests
-echo %errorlevel%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
