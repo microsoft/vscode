@@ -1306,6 +1306,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastOpenedContext = -1;
 		}
 
+		if (this.implicitContext?.value) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+			container.appendChild(implicitPart.domNode);
+		}
+
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
 		this.promptInstructionsAttachmentsPart.render(container);
 
@@ -1352,18 +1357,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		const implicitUri = this.implicitContext?.value;
-
-		if (URI.isUri(implicitUri)) {
-			const currentlyAttached = attachments.some(
-				([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, implicitUri)
-			);
-
-			if (implicitUri && !currentlyAttached) {
-				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
-				container.appendChild(implicitPart.domNode);
-			}
-		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
