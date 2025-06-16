@@ -33,14 +33,6 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		private readonly _terminal: Terminal,
 	) {
 		super();
-		this.add(this._terminal.onWriteParsed(e => {
-			if (
-				// Cursor has reset after the write
-				this._terminal.buffer.active.cursorX === 0
-			) {
-				this._onEnter();
-			}
-		}));
 		this.add(this._terminal.onData(e => this._onData(e)));
 		this.add(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
@@ -52,7 +44,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 	}
 
 	private _onData(data: string): void {
-		if (data === '\x0d') {
+		if (data.includes('\x0d')) {
 			this._onEnter();
 		}
 	}
