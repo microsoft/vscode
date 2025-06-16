@@ -203,7 +203,7 @@ class CodeMain {
 		// - Windows: Uses registry-based policies via NativePolicyService
 		// - macOS: Uses bundle-based policies via NativePolicyService  
 		// - Linux: Uses JSON file-based policies by default via FilePolicyService
-		//   Policy file location: ~/.config/{dataFolderName}/policy.json
+		//   Policy file location: /etc/{applicationName}/policy.json (system-wide, admin-only writable)
 		// - Other platforms: Can use JSON policies if __enable-file-policy flag is set
 		let policyService: IPolicyService | undefined;
 		if (isWindows && productService.win32RegValueName) {
@@ -211,9 +211,9 @@ class CodeMain {
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
 		} else if (isLinux || environmentMainService.policyFile) {
-			// Support JSON policies by default on Linux
+			// Support JSON policies by default on Linux from system-wide location
 			const policyFile = environmentMainService.policyFile || 
-				(isLinux ? joinPath(environmentMainService.userHome, productService.dataFolderName, 'policy.json') : undefined);
+				(isLinux ? URI.file(`/etc/${productService.applicationName}/policy.json`) : undefined);
 			if (policyFile) {
 				policyService = disposables.add(new FilePolicyService(policyFile, fileService, logService));
 			} else {

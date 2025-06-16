@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -18,10 +17,9 @@ suite('Linux Policy Support', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('FilePolicyService should handle Linux policy file path', async () => {
-		// Simulate Linux policy file path
-		const userHome = URI.file('/home/user');
-		const dataFolderName = 'vscode-data';
-		const policyFile = joinPath(userHome, dataFolderName, 'policy.json');
+		// Simulate Linux policy file path (system-wide location)
+		const applicationName = 'code-oss';
+		const policyFile = URI.file(`/etc/${applicationName}/policy.json`);
 
 		// Setup file service
 		const fileService = new FileService(new NullLogService());
@@ -52,10 +50,9 @@ suite('Linux Policy Support', () => {
 	});
 
 	test('FilePolicyService should handle non-existent policy file gracefully', async () => {
-		// Simulate Linux policy file path that doesn't exist
-		const userHome = URI.file('/home/user');
-		const dataFolderName = 'vscode-data';
-		const policyFile = joinPath(userHome, dataFolderName, 'policy.json');
+		// Simulate Linux policy file path that doesn't exist (system-wide location)
+		const applicationName = 'code-oss';
+		const policyFile = URI.file(`/etc/${applicationName}/policy.json`);
 
 		// Setup file service
 		const fileService = new FileService(new NullLogService());
@@ -75,12 +72,11 @@ suite('Linux Policy Support', () => {
 	});
 
 	test('Policy file path construction should match expected Linux pattern', () => {
-		const userHome = URI.file('/home/user');
-		const dataFolderName = 'vscode-data';
-		const policyFile = joinPath(userHome, dataFolderName, 'policy.json');
+		const applicationName = 'code-oss';
+		const policyFile = URI.file(`/etc/${applicationName}/policy.json`);
 
-		// Verify the constructed path matches the expected Linux pattern
-		assert.strictEqual(policyFile.path, '/home/user/vscode-data/policy.json');
+		// Verify the constructed path matches the expected Linux system-wide pattern
+		assert.strictEqual(policyFile.path, '/etc/code-oss/policy.json');
 		assert.strictEqual(policyFile.scheme, 'file');
 	});
 });
