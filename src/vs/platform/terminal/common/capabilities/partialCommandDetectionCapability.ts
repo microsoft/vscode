@@ -43,7 +43,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 	}
 
 	acceptInput(data: string): void {
-		if (data === '\x0d') {
+		if (data.includes('\x1b]633;P')) {
 			this._onEnter();
 		}
 	}
@@ -56,6 +56,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 			const marker = this._terminal.registerMarker(0);
 			if (marker) {
 				this._commands.push(marker);
+				console.log('fired command finished');
 				this._onCommandFinished.fire(marker);
 			}
 		}
