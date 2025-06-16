@@ -33,6 +33,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		private readonly _terminal: Terminal,
 	) {
 		super();
+		this.add(this._terminal.onData(e => this._onData(e)));
 		this.add(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
 				this._clearCommandsInViewport();
@@ -40,6 +41,12 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
 		}));
+	}
+
+	private _onData(data: string): void {
+		if (data === '\x0d') {
+			this._onEnter();
+		}
 	}
 
 	handleExecution(): void {
