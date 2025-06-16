@@ -53,7 +53,6 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		public readonly authorizationServers: ReadonlyArray<URI>,
-		private readonly notificationService: INotificationService,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super();
@@ -152,7 +151,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
 		const supportedAuthorizationServerUris = supportedAuthorizationServer.map(i => URI.revive(i));
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, this.notificationService, emitter);
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
