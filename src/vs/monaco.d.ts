@@ -6667,8 +6667,6 @@ declare namespace monaco.languages {
 	 */
 	export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: InlineCompletionsProvider): IDisposable;
 
-	export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: InlineEditProvider): IDisposable;
-
 	/**
 	 * Register an inlay hints provider.
 	 */
@@ -8268,32 +8266,6 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
-	}
-
-	export interface IInlineEdit {
-		text: string;
-		range: IRange;
-		showRange?: IRange;
-		accepted?: Command;
-		rejected?: Command;
-		shown?: Command;
-		commands?: Command[];
-		action?: Command;
-	}
-
-	export interface IInlineEditContext {
-		triggerKind: InlineEditTriggerKind;
-	}
-
-	export enum InlineEditTriggerKind {
-		Invoke = 0,
-		Automatic = 1
-	}
-
-	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-		displayName?: string;
-		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-		freeInlineEdit(edit: T): void;
 	}
 
 	export interface ILanguageExtensionPoint {
