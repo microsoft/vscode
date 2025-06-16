@@ -370,6 +370,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
+	acceptInput(data: string): void {
+		const partialCommandDetection = this.capabilities.get(TerminalCapability.PartialCommandDetection);
+		if (partialCommandDetection && partialCommandDetection.type === TerminalCapability.PartialCommandDetection) {
+			partialCommandDetection.acceptInput(data);
+		}
+	}
+
 	getMarkerId(terminal: Terminal, vscodeMarkerId: string) {
 		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}

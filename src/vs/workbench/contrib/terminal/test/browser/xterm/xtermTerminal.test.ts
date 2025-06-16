@@ -5,7 +5,7 @@
 
 import type { WebglAddon } from '@xterm/addon-webgl';
 import type { IEvent, Terminal } from '@xterm/xterm';
-import { deepStrictEqual, strictEqual } from 'assert';
+import assert, { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -23,6 +23,9 @@ import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/termin
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IXtermAddonNameToCtor, XtermAddonImporter } from '../../../browser/xterm/xtermAddonImporter.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
 
 registerColors();
 
@@ -93,6 +96,8 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let onInputDataEmitter: Emitter<string>;
+	let capabilityStore: TerminalCapabilityStore;
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({
@@ -112,8 +117,9 @@ suite('XtermTerminal', () => {
 		themeService = instantiationService.get(IThemeService) as TestThemeService;
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		onInputDataEmitter = store.add(new Emitter<string>());
 
-		const capabilityStore = store.add(new TerminalCapabilityStore());
+		capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
@@ -121,7 +127,8 @@ suite('XtermTerminal', () => {
 			capabilities: capabilityStore,
 			disableShellIntegrationReporting: true,
 			xtermAddonImporter: new TestXtermAddonImporter(),
-		}));
+		}, onInputDataEmitter.event));
+		capabilityStore.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm.raw));
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -145,7 +152,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true,
-			}));
+			}, onInputDataEmitter.event));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -181,7 +188,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => undefined },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true
-			}));
+			}, onInputDataEmitter.event));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',
@@ -265,6 +272,19 @@ suite('XtermTerminal', () => {
 				brightCyan: '#15000f',
 				brightWhite: '#16000f',
 			});
+		});
+		test('onInputData should call acceptInput on partial command detection', async () => {
+			xterm.raw.input('\x0d');
+			await writeP(xterm.raw, 'ls -a\r\n');
+			const partialCommandDetection = capabilityStore.get(TerminalCapability.PartialCommandDetection);
+			assert.ok(partialCommandDetection);
+			let onCommandFinishedFired = false;
+			store.add(partialCommandDetection.onCommandFinished(() => {
+				onCommandFinishedFired = true;
+			}));
+			onInputDataEmitter.fire('\x0d');
+			// Simulate command finish
+			assert.strictEqual(onCommandFinishedFired, true, 'onCommandFinished should fire');
 		});
 	});
 });
