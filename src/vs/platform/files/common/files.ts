@@ -494,6 +494,11 @@ export interface IStat {
 	 * The file permissions.
 	 */
 	readonly permissions?: FilePermission;
+
+	/**
+	 * The symbolic link target if the file is a symbolic link.
+	 */
+	readonly symbolicLinkTarget?: string;
 }
 
 export interface IWatchOptionsWithoutCorrelation {
@@ -1267,6 +1272,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly size: number;
 	readonly readonly: boolean;
 	readonly locked: boolean;
+	readonly symbolicLinkTarget?: string;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 

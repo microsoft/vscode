@@ -313,7 +313,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return resourceCompletions;
 		}
 
-		const stat = await this._fileService.resolve(lastWordFolderResource, { resolveSingleChildDescendants: true, resolveSymlinkTarget: true });
+		const stat = await this._fileService.resolve(lastWordFolderResource, { resolveSingleChildDescendants: true, resolveSymlinkTarget: true, resolveMetadata: true });
 		if (!stat?.children) {
 			return;
 		}
@@ -354,7 +354,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
+				detail: getFriendlyPath(lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType, stat.symbolicLinkTarget),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -399,7 +399,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind,
-				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
+				detail: getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType, child.symbolicLinkTarget),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -505,7 +505,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
+function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType, symbolicLinkTarget?: string): string {
 	let path = uri.fsPath;
 	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
 	// Ensure folders end with the path separator to differentiate presentation from files
@@ -515,6 +515,9 @@ function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompleti
 	// Ensure drive is capitalized on Windows
 	if (sep === '\\' && path.match(/^[a-zA-Z]:\\/)) {
 		path = `${path[0].toUpperCase()}:${path.slice(2)}`;
+	}
+	if (symbolicLinkTarget) {
+		return `${path} -> ${symbolicLinkTarget}`;
 	}
 	return path;
 }

@@ -248,13 +248,31 @@ export class FileService extends Disposable implements IFileService {
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, resolveSymlinkTarget: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
-
-		if (resource.path && resolveSymlinkTarget && (stat.type & FileType.SymbolicLink) !== 0) {
+		const isSymbolicLink = (stat.type & FileType.SymbolicLink) !== 0;
+		let symbolicLinkTarget: string | undefined = undefined;
+		if (resolveMetadata && isSymbolicLink) {
+			// Resolve with provider
 			try {
 				const resolvedSymlinkStat = await provider.stat?.(resource);
 				if (resolvedSymlinkStat) {
-					stat = resolvedSymlinkStat;
+					symbolicLinkTarget = resolvedSymlinkStat.symbolicLinkTarget;
 				}
+				const fileStatWithMetadata: IFileStatWithMetadata = {
+					resource,
+					name: providerExtUri.basename(resource),
+					isFile: (stat.type & FileType.File) !== 0,
+					isDirectory: (stat.type & FileType.Directory) !== 0,
+					isSymbolicLink,
+					mtime: stat.mtime!,
+					ctime: stat.ctime!,
+					size: stat.size!,
+					readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+					locked: Boolean((stat.permissions ?? 0) & FilePermission.Locked),
+					etag: etag({ mtime: stat.mtime, size: stat.size })!,
+					children: undefined,
+					symbolicLinkTarget
+				};
+				return fileStatWithMetadata;
 			} catch { }
 		}
 
@@ -264,15 +282,16 @@ export class FileService extends Disposable implements IFileService {
 			name: providerExtUri.basename(resource),
 			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
-			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+			isSymbolicLink,
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,
 			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			locked: Boolean((stat.permissions ?? 0) & FilePermission.Locked),
 			etag: etag({ mtime: stat.mtime, size: stat.size }),
-			children: undefined
+			children: undefined,
 		};
+
 
 		// check to recurse for directories
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stats, promises } from 'fs';
+import * as pfs from '../../../base/node/pfs.js';
 import { Barrier, retry } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -78,13 +79,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	async stat(resource: URI): Promise<IStat> {
 		try {
 			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
-
 			return {
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size,
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
+				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined,
+				symbolicLinkTarget: symbolicLink ? await pfs.Promises.realpath(resource.fsPath) : undefined
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
