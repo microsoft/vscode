@@ -963,7 +963,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return null;
 	}
 
-
 	private _adjustDecorationRangeForInjectedText(modelDecoration: model.IModelDecoration, lineNumber: number, ownerId?: number): Range {
 		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;

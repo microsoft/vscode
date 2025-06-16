@@ -430,6 +430,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 		this._register(this.model.onDidChangeFont((e) => {
+			console.log('ViewModel.onDidChangeFont', e);
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				const lineBreaksComputer = this._lines.createLineBreaksComputer(this._getLineBreaksComputerContext());
@@ -437,12 +438,13 @@ export class ViewModel extends Disposable implements IViewModel {
 					lineBreaksComputer.addRequest(change.lineNumber, null);
 				}
 				const lineBreaks = lineBreaksComputer.finalize();
+				console.log('lineBreaks', lineBreaks);
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 				let lineMappingHasChanged = false;
 				for (const change of e.changes) {
 					const changedLineBreakData = lineBreakQueue.dequeue()!;
-					const [lineMappingChanged, linesChangedEvent, _linesInsertedEvent, _linesDeletedEvent] =
-						this._lines.onModelLineChanged(change.versionId, change.lineNumber, changedLineBreakData);
+					console.log('changedLineBreakData', changedLineBreakData);
+					const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.versionId, change.lineNumber, changedLineBreakData);
 					lineMappingHasChanged = lineMappingChanged;
 					if (linesChangedEvent) {
 						eventsCollector.emitViewEvent(linesChangedEvent);

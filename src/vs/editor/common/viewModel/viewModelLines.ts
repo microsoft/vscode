@@ -34,6 +34,7 @@ export interface IViewModelLines extends IDisposable {
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
 	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
 	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
+	onModelFontChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null];
 	acceptVersionId(versionId: number): void;
 
 	getViewLineCount(): number;
@@ -409,6 +410,36 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const viewLinesDeletedEvent = (deleteFrom <= deleteTo ? new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo) : null);
 
 		return [lineMappingChanged, viewLinesChangedEvent, viewLinesInsertedEvent, viewLinesDeletedEvent];
+	}
+
+	public onModelFontChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null] {
+		const lineIndex = lineNumber - 1;
+		const oldOutputLineCount = this.modelLineProjections[lineIndex].getViewLineCount();
+		const isVisible = this.modelLineProjections[lineIndex].isVisible();
+		const line = createModelLineProjection(lineBreakData, isVisible);
+		this.modelLineProjections[lineIndex] = line;
+		const newOutputLineCount = this.modelLineProjections[lineIndex].getViewLineCount();
+
+		let lineMappingChanged = false;
+		let changeFrom = 0;
+		let changeTo = -1;
+
+		if (oldOutputLineCount > newOutputLineCount) {
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
+			changeTo = changeFrom + newOutputLineCount - 1;
+			lineMappingChanged = true;
+		} else if (oldOutputLineCount < newOutputLineCount) {
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
+			changeTo = changeFrom + oldOutputLineCount - 1;
+			lineMappingChanged = true;
+		} else {
+			changeFrom = this.projectedModelLineLineCounts.getPrefixSum(lineNumber - 1) + 1;
+			changeTo = changeFrom + newOutputLineCount - 1;
+		}
+
+		this.projectedModelLineLineCounts.setValue(lineIndex, newOutputLineCount);
+		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo - changeFrom + 1) : null);
+		return [lineMappingChanged, viewLinesChangedEvent];
 	}
 
 	public acceptVersionId(versionId: number): void {
@@ -1175,6 +1206,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, 1), null, null];
+	}
+
+	public onModelFontChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null] {
+		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, 1)];
 	}
 
 	public acceptVersionId(_versionId: number): void {
