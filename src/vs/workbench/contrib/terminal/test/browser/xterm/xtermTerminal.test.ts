@@ -96,7 +96,7 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
-	let onInputDataEmitter: Emitter<string>;
+	let onExecutedText: Emitter<void>;
 	let capabilityStore: TerminalCapabilityStore;
 
 	setup(async () => {
@@ -117,7 +117,7 @@ suite('XtermTerminal', () => {
 		themeService = instantiationService.get(IThemeService) as TestThemeService;
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		onInputDataEmitter = store.add(new Emitter<string>());
+		onExecutedText = store.add(new Emitter<void>());
 
 		capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
@@ -127,7 +127,7 @@ suite('XtermTerminal', () => {
 			capabilities: capabilityStore,
 			disableShellIntegrationReporting: true,
 			xtermAddonImporter: new TestXtermAddonImporter(),
-		}, onInputDataEmitter.event));
+		}, onExecutedText.event));
 		capabilityStore.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm.raw));
 
 		TestWebglAddon.shouldThrow = false;
@@ -152,7 +152,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true,
-			}, onInputDataEmitter.event));
+			}, onExecutedText.event));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -188,7 +188,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => undefined },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true
-			}, onInputDataEmitter.event));
+			}, onExecutedText.event));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',
@@ -282,7 +282,7 @@ suite('XtermTerminal', () => {
 			store.add(partialCommandDetection.onCommandFinished(() => {
 				onCommandFinishedFired = true;
 			}));
-			onInputDataEmitter.fire('\x0d');
+			onExecutedText.fire();
 			// Simulate command finish
 			assert.strictEqual(onCommandFinishedFired, true, 'onCommandFinished should fire');
 		});

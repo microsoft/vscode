@@ -105,7 +105,7 @@ suite('Buffer Content Tracker', () => {
 		// Write two characters to move cursorX to 2
 		await new Promise<void>(resolve => xterm.raw.write('ab', () => resolve()));
 		// Simulate enter key
-		partialCommandDetection.acceptInput('\x0d');
+		partialCommandDetection.handleExecution();
 		assert.strictEqual(fired, true, 'onCommandFinished should fire when acceptInput is called with enter');
 	});
 

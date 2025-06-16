@@ -174,7 +174,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
 		options: IXtermTerminalOptions,
-		onDidInputData: Event<string> | undefined,
+		onDidExecuteText: Event<void> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -280,8 +280,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		if (onDidInputData) {
-			this._register(onDidInputData((data) => this._shellIntegrationAddon.acceptInput(data)));
+		if (onDidExecuteText) {
+			this._register(onDidExecuteText(() => this._shellIntegrationAddon.executedText()));
 		}
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			if (this._store.isDisposed) {
