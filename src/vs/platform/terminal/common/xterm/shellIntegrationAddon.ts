@@ -370,7 +370,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
-	executedText(): void {
+	handleExecutedText(): void {
 		const partialCommandDetection = this.capabilities.get(TerminalCapability.PartialCommandDetection);
 		if (partialCommandDetection && partialCommandDetection.type === TerminalCapability.PartialCommandDetection) {
 			partialCommandDetection.handleExecution();
