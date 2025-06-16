@@ -9,6 +9,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +27,7 @@ suite('PartialCommandDetectionCapability', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
-		capability = store.add(new PartialCommandDetectionCapability(xterm));
+		capability = store.add(new PartialCommandDetectionCapability(xterm, new Emitter<string>().event));
 		addEvents = [];
 		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -97,21 +97,21 @@ suite('Workbench - TerminalProcessManager', () => {
 		} as any);
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
-		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
+		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined, new Emitter<string>().event));
 	});
 
 	suite('process persistence', () => {
 		suite('local', () => {
 			test('regular terminal should persist', async () => {
 				const p = await manager.createProcess({
-				}, 1, 1, false);
+				}, 1, 1, new Emitter<string>().event, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, true);
 			});
 			test('task terminal should not persist', async () => {
 				const p = await manager.createProcess({
 					isFeatureTerminal: true
-				}, 1, 1, false);
+				}, 1, 1, new Emitter<string>().event, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
 			});
@@ -125,7 +125,7 @@ suite('Workbench - TerminalProcessManager', () => {
 			test('regular terminal should persist', async () => {
 				const p = await manager.createProcess({
 					cwd: remoteCwd
-				}, 1, 1, false);
+				}, 1, 1, new Emitter<string>().event, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, true);
 			});
@@ -133,7 +133,7 @@ suite('Workbench - TerminalProcessManager', () => {
 				const p = await manager.createProcess({
 					isFeatureTerminal: true,
 					cwd: remoteCwd
-				}, 1, 1, false);
+				}, 1, 1, new Emitter<string>().event, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
 			});

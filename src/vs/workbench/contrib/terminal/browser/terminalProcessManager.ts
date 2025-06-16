@@ -136,6 +136,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		cwd: string | URI | undefined,
 		environmentVariableCollections: ReadonlyMap<string, IEnvironmentVariableCollection> | undefined,
 		shellIntegrationNonce: string | undefined,
+		private readonly _onDidInputData: Event<string>,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -231,6 +232,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
+		onDidInputData: Event<string>,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._shellLaunchConfig = shellLaunchConfig;
@@ -305,7 +307,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							this._terminalConfigurationService.config.unicodeVersion,
 							env, // TODO:
 							options,
-							shouldPersist
+							shouldPersist,
+							onDidInputData
 						);
 					} catch (e) {
 						if (e?.message === 'Could not fetch remote environment') {
@@ -330,7 +333,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					}
 				}
 				if (!newProcess) {
-					newProcess = await this._launchLocalProcess(backend, shellLaunchConfig, cols, rows, this.userHome, variableResolver);
+					newProcess = await this._launchLocalProcess(backend, shellLaunchConfig, cols, rows, this.userHome, variableResolver, onDidInputData);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(backend);
@@ -426,7 +429,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// triggered
 		this._hasWrittenData = false;
 
-		return this.createProcess(shellLaunchConfig, cols, rows, reset);
+		return this.createProcess(shellLaunchConfig, cols, rows, this._onDidInputData, reset);
 	}
 
 	// Fetch any extension environment additions and apply them
@@ -468,7 +471,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		cols: number,
 		rows: number,
 		userHome: string | undefined,
-		variableResolver: terminalEnvironment.VariableResolver | undefined
+		variableResolver: terminalEnvironment.VariableResolver | undefined,
+		onDidInputData: Event<string>
 	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 			remoteAuthority: undefined,
@@ -499,7 +503,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			workspaceFolder: this._cwdWorkspaceFolder,
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
-		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
+		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist, onDidInputData);
 	}
 
 	private _setupPtyHostListeners(backend: ITerminalBackend) {

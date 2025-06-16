@@ -7,6 +7,7 @@ import { UriComponents } from '../../../../../base/common/uri.js';
 import { IShellLaunchConfigDto, ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { ICompleteTerminalConfiguration } from '../terminal.js';
 import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -34,6 +35,7 @@ export interface ICreateTerminalProcessArguments {
 	rows: number;
 	unicodeVersion: '6' | '11';
 	resolverEnv: { [key: string]: string | null } | undefined;
+	onDidInputData: Event<string>;
 }
 
 export interface ICreateTerminalProcessResult {

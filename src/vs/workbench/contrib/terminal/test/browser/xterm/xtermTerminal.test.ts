@@ -121,7 +121,7 @@ suite('XtermTerminal', () => {
 			capabilities: capabilityStore,
 			disableShellIntegrationReporting: true,
 			xtermAddonImporter: new TestXtermAddonImporter(),
-		}));
+		}, new Emitter<string>().event));
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -145,7 +145,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true,
-			}));
+			}, new Emitter<string>().event));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -181,7 +181,7 @@ suite('XtermTerminal', () => {
 				xtermColorProvider: { getBackgroundColor: () => undefined },
 				capabilities: store.add(new TerminalCapabilityStore()),
 				disableShellIntegrationReporting: true
-			}));
+			}, new Emitter<string>().event));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',

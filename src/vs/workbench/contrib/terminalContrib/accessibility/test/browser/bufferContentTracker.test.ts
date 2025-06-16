@@ -32,6 +32,7 @@ import type { Terminal } from '@xterm/xterm';
 import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { TerminalConfigurationService } from '../../../../terminal/browser/terminalConfigurationService.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -85,7 +86,7 @@ suite('Buffer Content Tracker', () => {
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities,
 			disableShellIntegrationReporting: true
-		}));
+		}, new Emitter<string>().event));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });

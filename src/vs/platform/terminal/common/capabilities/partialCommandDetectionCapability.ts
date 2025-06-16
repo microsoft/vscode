@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IPartialCommandDetectionCapability, TerminalCapability } from './capabilities.js';
 import type { IMarker, Terminal } from '@xterm/headless';
@@ -31,16 +31,10 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 
 	constructor(
 		private readonly _terminal: Terminal,
+		onDidInputData: Event<string>
 	) {
 		super();
-		this.add(this._terminal.onWriteParsed(e => {
-			if (
-				// Cursor has reset after the write
-				this._terminal.buffer.active.cursorX === 0
-			) {
-				this._onEnter();
-			}
-		}));
+		this.add(onDidInputData(e => this._onData(e)));
 		this.add(this._terminal.onData(e => this._onData(e)));
 		this.add(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
