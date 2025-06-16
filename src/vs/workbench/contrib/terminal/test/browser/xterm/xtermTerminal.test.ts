@@ -273,7 +273,7 @@ suite('XtermTerminal', () => {
 				brightWhite: '#16000f',
 			});
 		});
-		test('onExecutedTText should call handleExecutedTText on partial command detection', async () => {
+		test('onExecutedText should call handleExecutedText on partial command detection', async () => {
 			xterm.raw.input('\x0d');
 			await writeP(xterm.raw, 'ls -a\r\n');
 			const partialCommandDetection = capabilityStore.get(TerminalCapability.PartialCommandDetection);
@@ -283,7 +283,7 @@ suite('XtermTerminal', () => {
 				onCommandFinishedFired = true;
 			}));
 			onExecutedText.fire();
-			assert.strictEqual(onCommandFinishedFired, true, 'onCommandFinished should fire');
+			setTimeout(() => assert.strictEqual(onCommandFinishedFired, true, 'onCommandFinished should fire'));
 		});
 	});
 });

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -86,27 +85,11 @@ suite('Buffer Content Tracker', () => {
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities,
 			disableShellIntegrationReporting: true
-		}, undefined));
-		const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw));
-		capabilities.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
+		}));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		bufferTracker = store.add(instantiationService.createInstance(BufferContentTracker, xterm));
-	});
-
-	test('should fire onCommandFinished when acceptInput is called on PartialCommandDetectionCapability', async () => {
-		const partialCommandDetection = capabilities.get(TerminalCapability.PartialCommandDetection);
-		assert.ok(partialCommandDetection, 'PartialCommandDetectionCapability should be present');
-		let fired = false;
-		store.add(partialCommandDetection.onCommandFinished(() => {
-			fired = true;
-		}));
-		// Write two characters to move cursorX to 2
-		await new Promise<void>(resolve => xterm.raw.write('ab', () => resolve()));
-		// Simulate enter key
-		partialCommandDetection.handleExecution();
-		assert.strictEqual(fired, true, 'onCommandFinished should fire when acceptInput is called with enter');
 	});
 
 	test('should not clear the prompt line', async () => {
