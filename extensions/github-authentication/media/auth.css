@@ -3,6 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+:root {
+	/* Dark theme colors (default) */
+	--vscode-foreground: #CCCCCC;
+	--vscode-editor-background: #1F1F1F;
+	--vscode-error-foreground: #F85149;
+	--vscode-textLink-foreground: #4daafc;
+}
+
+/* Light theme colors */
+@media (prefers-color-scheme: light) {
+	:root {
+		--vscode-foreground: #3B3B3B;
+		--vscode-editor-background: #FFFFFF;
+		--vscode-error-foreground: #F85149;
+		--vscode-textLink-foreground: #005FB8;
+	}
+}
+
 html {
 	height: 100%;
 }
@@ -14,9 +32,13 @@ body {
 	padding: 15px 30px;
 	display: flex;
 	flex-direction: column;
-	color: white;
+	color: var(--vscode-foreground);
 	font-family: "Segoe UI","Helvetica Neue","Helvetica",Arial,sans-serif;
-	background-color: #2C2C32;
+	background-color: var(--vscode-editor-background);
+}
+
+a {
+	color: var(--vscode-textLink-foreground);
 }
 
 .branding {
@@ -28,7 +50,7 @@ body {
 	font-size: 20px;
 	letter-spacing: -0.04rem;
 	font-weight: 400;
-	color: white;
+	color: var(--vscode-foreground);
 	text-decoration: none;
 }
 
@@ -60,7 +82,7 @@ body.error .error-message {
 }
 
 .error-text {
-	color: red;
+	color: var(--vscode-error-foreground);
 	font-size: 1rem;
 }
 
