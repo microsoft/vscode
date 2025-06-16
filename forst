@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gram Codes Course</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Gram Codes - Learn to Code!</h1>
+    <nav>
+      <button id="lessonsBtn">Lessons</button>
+      <button id="playgroundBtn">Playground</button>
+      <button id="progressBtn">Progress</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="lessonsSection" class="section active"></section>
+    <section id="playgroundSection" class="section"></section>
+    <section id="progressSection" class="section"></section>
+  </main>
+
+  <script src="lessons.js"></script>
+  <script src="playground.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
+
