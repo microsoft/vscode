@@ -42,6 +42,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { LineInjectedText } from '../textModelEvents.js';
+import { IViewLineTokens } from '../tokens/lineTokens.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -460,7 +461,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			// Update the configuration and reset the centered view line
 			const viewportStartWasValid = this._viewportStart.isValid;
 			this._viewportStart.invalidate();
-			this._configuration.setModelLineCount(this.model.getLineCount());
 			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport
@@ -816,32 +816,18 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
-		const viewLineRenderingData: Map<number, ViewLineRenderingData> = new Map();
-		const getViewLineRenderingData = (lineNumber: number): ViewLineRenderingData => {
-			if (viewLineRenderingData.has(lineNumber)) {
-				return viewLineRenderingData.get(lineNumber)!;
-			}
-			const renderingData = this.getViewLineRenderingData(lineNumber);
-			viewLineRenderingData.set(lineNumber, renderingData);
-			return renderingData;
-		};
 		return {
-			getLineContent: (lineNumber: number) => {
-				const renderingData = getViewLineRenderingData(lineNumber);
-				return renderingData.content;
+			getLineContent: (lineNumber: number): string => {
+				return this.model.getLineContent(lineNumber);
 			},
-			getLineTokens: (lineNumber: number) => {
-				const renderingData = getViewLineRenderingData(lineNumber);
-				return renderingData.tokens;
+			getLineTokens: (lineNumber: number): IViewLineTokens => {
+				return this.model.getLineTokens(lineNumber, this._editorId);
 			},
-			getInlineDecorations: (lineNumber: number) => {
-				const renderingData = getViewLineRenderingData(lineNumber);
-				return renderingData.inlineDecorations;
+			getLineInlineDecorations: (lineNumber: number): InlineDecorations => {
+				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
 			},
-			getLineInjectedText: (lineNumber: number) => {
-				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
+				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			}
 		};
 	}

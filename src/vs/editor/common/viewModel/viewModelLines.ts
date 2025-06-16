@@ -8,16 +8,16 @@ import { WrappingIndent } from '../config/editorOptions.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
-import { IModelDecoration, IModelDeltaDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
 import { ModelDecorationOptions } from '../model/textModel.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, SingleLineInlineDecoration, ViewLineData } from '../viewModel.js';
+import { ICoordinatesConverter, ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { InlineDecorations, isModelDecorationVisible } from './viewModelDecorations.js';
+import { InlineDecorations } from './viewModelDecorations.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 
@@ -991,187 +991,19 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
 		return {
-			getLineContent: (lineNumber: number) => {
+			getLineContent: (lineNumber: number): string => {
 				return this.model.getLineContent(lineNumber);
 			},
-			getLineTokens: (lineNumber: number) => {
-				let injectionOptions: InjectedTextOptions[] | null;
-				let injectionOffsets: number[] | null;
-				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
-				if (curInjectedTexts) {
-					injectionOptions = curInjectedTexts.map(t => t.options);
-					injectionOffsets = curInjectedTexts.map(text => text.column - 1);
-				} else {
-					injectionOptions = null;
-					injectionOffsets = null;
-				}
-				let lineWithInjections: LineTokens;
-				if (injectionOffsets) {
-					const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
-					for (let idx = 0; idx < injectionOffsets.length; idx++) {
-						const offset = injectionOffsets[idx];
-						const tokens = injectionOptions![idx].tokens;
-						if (tokens) {
-							tokens.forEach((range, info) => {
-								tokensToInsert.push({
-									offset,
-									text: range.substring(injectionOptions![idx].content),
-									tokenMetadata: info.metadata,
-								});
-							});
-						} else {
-							tokensToInsert.push({
-								offset,
-								text: injectionOptions![idx].content,
-								tokenMetadata: LineTokens.defaultTokenMetadata,
-							});
-						}
-					}
-					lineWithInjections = this.model.tokenization.getLineTokens(lineNumber).withInserted(tokensToInsert);
-				} else {
-					lineWithInjections = this.model.tokenization.getLineTokens(lineNumber);
-				}
-				return lineWithInjections;
+			getLineTokens: (lineNumber: number): LineTokens => {
+				return this.model.getLineTokens(lineNumber, this._editorId);
 			},
-			getLineInjectedText: (lineNumber: number) => {
-				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
+				return this.model.getLineInjectedText(lineNumber, this._editorId);
 			},
-			getInlineDecorations: (lineNumber: number): InlineDecorations => {
-				const inlineDecorationsFromModel = this._getInlineDecorationsFromModel(lineNumber);
-				const injectedTextDecorations = this._getInjectedInlineDecorations(lineNumber);
-				if (injectedTextDecorations) {
-					for (const inlineDecoration of injectedTextDecorations) {
-						inlineDecorationsFromModel.push(inlineDecoration.toInlineDecoration(lineNumber), inlineDecoration.affectsFont);
-					}
-				}
-				return inlineDecorationsFromModel;
+			getLineInlineDecorations: (lineNumber: number): InlineDecorations => {
+				return this.model.getLineInlineDecorations(lineNumber, this._editorId);
 			}
 		};
-	}
-
-	private _getInlineDecorationsFromModel(lineNumber: number): InlineDecorations {
-		const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-		const modelDecorations = this.model.getDecorationsInRange(modelRange);
-		const inlineDecorations = new InlineDecorations();
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			const modelDecoration = modelDecorations[i];
-			const decorationOptions = modelDecoration.options;
-			if (!isModelDecorationVisible(this.model, modelDecoration)) {
-				continue;
-			}
-			const decorationRange = modelDecoration.range;
-			if (lineNumber < decorationRange.startLineNumber || lineNumber > decorationRange.endLineNumber) {
-				continue;
-			}
-			const adjustedRange = this._adjustDecorationRangeForInjectedText(modelDecoration, lineNumber);
-			if (decorationOptions.inlineClassName) {
-				const inlineClassName = decorationOptions.inlineClassName;
-				const type = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
-				const inlineDecoration: InlineDecoration = { range: adjustedRange, inlineClassName, type };
-				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
-			}
-			if (decorationOptions.beforeContentClassName) {
-				const inlineClassName = decorationOptions.beforeContentClassName;
-				const type = InlineDecorationType.Before;
-				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.startLineNumber, adjustedRange.startColumn)), inlineClassName, type };
-				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
-			}
-			if (decorationOptions.afterContentClassName) {
-				const inlineClassName = decorationOptions.afterContentClassName;
-				const type = InlineDecorationType.After;
-				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.endLineNumber, adjustedRange.endColumn)), inlineClassName, type };
-				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
-			}
-		}
-		return inlineDecorations;
-	}
-
-	private _getInjectedInlineDecorations(lineNumber: number): SingleLineInlineDecoration[] | null {
-		let injectionOptions: InjectedTextOptions[] | null;
-		let injectionOffsets: number[] | null;
-		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-		const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
-		if (curInjectedTexts) {
-			injectionOptions = curInjectedTexts.map(t => t.options);
-			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
-		} else {
-			injectionOptions = null;
-			injectionOffsets = null;
-		}
-		if (injectionOffsets) {
-			let totalInjectedTextLengthBefore = 0;
-			let currentInjectedOffset = 0;
-			const inlineDecorations = new Array<SingleLineInlineDecoration>();
-			while (currentInjectedOffset < injectionOffsets.length) {
-				const length = injectionOptions![currentInjectedOffset].content.length;
-				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
-				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
-
-				const options = injectionOptions![currentInjectedOffset];
-				if (options.inlineClassName) {
-					const start = injectedTextStartOffsetInInputWithInjections;
-					const end = injectedTextEndOffsetInInputWithInjections;
-					if (start !== end) {
-						inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!, false));
-					}
-				}
-				totalInjectedTextLengthBefore += length;
-				currentInjectedOffset++;
-			}
-			return inlineDecorations;
-		}
-		return null;
-	}
-
-	private _adjustDecorationRangeForInjectedText(modelDecoration: IModelDecoration, lineNumber: number): Range {
-		let injectionOptions: InjectedTextOptions[] | null;
-		let injectionOffsets: number[] | null;
-		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
-		const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
-		if (curInjectedTexts) {
-			injectionOptions = curInjectedTexts.map(t => t.options);
-			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
-		} else {
-			injectionOptions = null;
-			injectionOffsets = null;
-		}
-		const modelRange = modelDecoration.range;
-		const options = modelDecoration.options;
-		let adjustedRange: Range;
-		if (options.isWholeLine) {
-			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, 1, PositionAffinity.Left));
-			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, this.model.getLineMaxColumn(lineNumber), PositionAffinity.Right));
-			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-		} else {
-			// For backwards compatibility reasons, we want injected text before any decoration.
-			// Thus, move decorations to the right.
-			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.startLineNumber < lineNumber ? 1 : modelRange.startColumn, PositionAffinity.Left));
-			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.endLineNumber > lineNumber ? this.model.getLineMaxColumn(lineNumber) : modelRange.endColumn, PositionAffinity.Right));
-			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-		}
-		return adjustedRange;
-	}
-
-	private _adjustOffsetForInjectedText(injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null, inputOffset: number, affinity: PositionAffinity): number {
-		let inputOffsetInInputWithInjection = inputOffset;
-		if (injectionOffsets !== null) {
-			for (let i = 0; i < injectionOffsets.length; i++) {
-				if (inputOffset < injectionOffsets[i]) {
-					break;
-				}
-				if (affinity !== PositionAffinity.Right && inputOffset === injectionOffsets[i]) {
-					break;
-				}
-				inputOffsetInInputWithInjection += injectionOptions![i].content.length;
-			}
-		}
-		return inputOffsetInInputWithInjection;
 	}
 }
 

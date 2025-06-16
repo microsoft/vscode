@@ -19,13 +19,14 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from './tokens/lineTokens.js';
+import { LineTokens, TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditReason } from './textModelEditReason.js';
+import { InlineDecorations } from './viewModel/viewModelDecorations.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -828,6 +829,24 @@ export interface ITextModel {
 	getLineContent(lineNumber: number): string;
 
 	/**
+	 * Get the line tokens for a certain line, including the injected text.
+	 * @internal
+	 */
+	getLineTokens(lineNumber: number, ownerId?: number): LineTokens;
+
+	/**
+	 * Get the line injected text for a certain line.
+	 * @internal
+	 */
+	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
+
+	/**
+	 * Get the inline decorations for a certain line.
+	 * @internal
+	 */
+	getLineInlineDecorations(lineNumber: number, ownerId?: number): InlineDecorations;
+
+	/**
 	 * Get the text length for a certain line.
 	 */
 	getLineLength(lineNumber: number): number;
@@ -1141,13 +1160,6 @@ export interface ITextModel {
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 */
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
-
-	/**
-	 * Gets the decorations that contain injected text in the given range
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @internal
-	 */
-	getInjectedTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations that contain custom line heights.

@@ -40,15 +40,18 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokens/tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens/abstractSyntaxTokenBackend.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelFontChangedEvent, ModelFontChanged, LineInjectedText } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from '../tokens/lineTokens.js';
+import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { TextModelEditReason } from '../textModelEditReason.js';
+import { InjectedTextOptions, PositionAffinity } from '../model.js';
+import { InlineDecorations, isModelDecorationVisible } from '../viewModel/viewModelDecorations.js';
+import { InlineDecoration, InlineDecorationType, SingleLineInlineDecoration } from '../viewModel.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -826,6 +829,185 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		return this._buffer.getLineContent(lineNumber);
+	}
+
+	public getLineTokens(lineNumber: number, ownerId: number = 0): LineTokens {
+		let injectionOptions: InjectedTextOptions[] | null;
+		let injectionOffsets: number[] | null;
+		const curInjectedTexts = this.getLineInjectedText(lineNumber, ownerId);
+		if (curInjectedTexts) {
+			injectionOptions = curInjectedTexts.map(t => t.options);
+			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		} else {
+			injectionOptions = null;
+			injectionOffsets = null;
+		}
+		let lineWithInjections: LineTokens;
+		if (injectionOffsets) {
+			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+			for (let idx = 0; idx < injectionOffsets.length; idx++) {
+				const offset = injectionOffsets[idx];
+				const tokens = injectionOptions![idx].tokens;
+				if (tokens) {
+					tokens.forEach((range, info) => {
+						tokensToInsert.push({
+							offset,
+							text: range.substring(injectionOptions![idx].content),
+							tokenMetadata: info.metadata,
+						});
+					});
+				} else {
+					tokensToInsert.push({
+						offset,
+						text: injectionOptions![idx].content,
+						tokenMetadata: LineTokens.defaultTokenMetadata,
+					});
+				}
+			}
+			lineWithInjections = this.tokenization.getLineTokens(lineNumber).withInserted(tokensToInsert);
+		} else {
+			lineWithInjections = this.tokenization.getLineTokens(lineNumber);
+		}
+		return lineWithInjections;
+	}
+
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
+		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const decorations = this._getInjectedTextDecorationsInRange(range, ownerId);
+		return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+	}
+
+	public getLineInlineDecorations(lineNumber: number, ownerId?: number): InlineDecorations {
+		const inlineDecorationsFromModel = this._getInlineDecorationsFromModel(lineNumber, ownerId);
+		const injectedTextDecorations = this._getInjectedInlineDecorations(lineNumber);
+		if (injectedTextDecorations) {
+			for (const inlineDecoration of injectedTextDecorations) {
+				inlineDecorationsFromModel.push(inlineDecoration.toInlineDecoration(lineNumber), inlineDecoration.affectsFont);
+			}
+		}
+		return inlineDecorationsFromModel;
+	}
+
+	private _getInlineDecorationsFromModel(lineNumber: number, ownerId?: number): InlineDecorations {
+		const modelRange = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const modelDecorations = this.getDecorationsInRange(modelRange, ownerId);
+		const inlineDecorations = new InlineDecorations();
+		for (let i = 0, len = modelDecorations.length; i < len; i++) {
+			const modelDecoration = modelDecorations[i];
+			const decorationOptions = modelDecoration.options;
+			if (!isModelDecorationVisible(this, modelDecoration)) {
+				continue;
+			}
+			const decorationRange = modelDecoration.range;
+			if (lineNumber < decorationRange.startLineNumber || lineNumber > decorationRange.endLineNumber) {
+				continue;
+			}
+			const adjustedRange = this._adjustDecorationRangeForInjectedText(modelDecoration, lineNumber);
+			if (decorationOptions.inlineClassName) {
+				const inlineClassName = decorationOptions.inlineClassName;
+				const type = decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular;
+				const inlineDecoration: InlineDecoration = { range: adjustedRange, inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+			if (decorationOptions.beforeContentClassName) {
+				const inlineClassName = decorationOptions.beforeContentClassName;
+				const type = InlineDecorationType.Before;
+				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.startLineNumber, adjustedRange.startColumn)), inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+			if (decorationOptions.afterContentClassName) {
+				const inlineClassName = decorationOptions.afterContentClassName;
+				const type = InlineDecorationType.After;
+				const inlineDecoration: InlineDecoration = { range: Range.fromPositions(new Position(adjustedRange.endLineNumber, adjustedRange.endColumn)), inlineClassName, type };
+				inlineDecorations.push(inlineDecoration, decorationOptions.affectsFont ?? false);
+			}
+		}
+		return inlineDecorations;
+	}
+
+	private _getInjectedInlineDecorations(lineNumber: number, ownerId?: number): SingleLineInlineDecoration[] | null {
+		let injectionOptions: InjectedTextOptions[] | null;
+		let injectionOffsets: number[] | null;
+		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const decorations = this._getInjectedTextDecorationsInRange(range, ownerId);
+		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+		if (curInjectedTexts) {
+			injectionOptions = curInjectedTexts.map(t => t.options);
+			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		} else {
+			injectionOptions = null;
+			injectionOffsets = null;
+		}
+		if (injectionOffsets) {
+			let totalInjectedTextLengthBefore = 0;
+			let currentInjectedOffset = 0;
+			const inlineDecorations = new Array<SingleLineInlineDecoration>();
+			while (currentInjectedOffset < injectionOffsets.length) {
+				const length = injectionOptions![currentInjectedOffset].content.length;
+				const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
+				const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+
+				const options = injectionOptions![currentInjectedOffset];
+				if (options.inlineClassName) {
+					const start = injectedTextStartOffsetInInputWithInjections;
+					const end = injectedTextEndOffsetInInputWithInjections;
+					if (start !== end) {
+						inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!, false));
+					}
+				}
+				totalInjectedTextLengthBefore += length;
+				currentInjectedOffset++;
+			}
+			return inlineDecorations;
+		}
+		return null;
+	}
+
+
+	private _adjustDecorationRangeForInjectedText(modelDecoration: model.IModelDecoration, lineNumber: number, ownerId?: number): Range {
+		let injectionOptions: InjectedTextOptions[] | null;
+		let injectionOffsets: number[] | null;
+		const range = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const decorations = this._getInjectedTextDecorationsInRange(range, ownerId);
+		const curInjectedTexts = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
+		if (curInjectedTexts) {
+			injectionOptions = curInjectedTexts.map(t => t.options);
+			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
+		} else {
+			injectionOptions = null;
+			injectionOffsets = null;
+		}
+		const modelRange = modelDecoration.range;
+		const options = modelDecoration.options;
+		let adjustedRange: Range;
+		if (options.isWholeLine) {
+			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, 1, PositionAffinity.Left));
+			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, this.getLineMaxColumn(lineNumber), PositionAffinity.Right));
+			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		} else {
+			// For backwards compatibility reasons, we want injected text before any decoration.
+			// Thus, move decorations to the right.
+			const start = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.startLineNumber < lineNumber ? 1 : modelRange.startColumn, PositionAffinity.Left));
+			const end = new Position(lineNumber, this._adjustOffsetForInjectedText(injectionOptions, injectionOffsets, modelRange.endLineNumber > lineNumber ? this.getLineMaxColumn(lineNumber) : modelRange.endColumn, PositionAffinity.Right));
+			adjustedRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		}
+		return adjustedRange;
+	}
+
+	private _adjustOffsetForInjectedText(injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null, inputOffset: number, affinity: PositionAffinity): number {
+		let inputOffsetInInputWithInjection = inputOffset;
+		if (injectionOffsets !== null) {
+			for (let i = 0; i < injectionOffsets.length; i++) {
+				if (inputOffset < injectionOffsets[i]) {
+					break;
+				}
+				if (affinity !== PositionAffinity.Right && inputOffset === injectionOffsets[i]) {
+					break;
+				}
+				inputOffsetInInputWithInjection += injectionOptions![i].content.length;
+			}
+		}
+		return inputOffsetInInputWithInjection;
 	}
 
 	public getLineLength(lineNumber: number): number {
@@ -1755,7 +1937,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
 	}
 
-	public getInjectedTextDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
+	private _getInjectedTextDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
 		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 		return this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);

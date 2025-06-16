@@ -332,7 +332,7 @@ export class OutputPosition {
 export interface ILineBreaksComputerContext {
 	getLineContent(lineNumber: number): string;
 	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
-	getInlineDecorations(lineNumber: number): InlineDecorations;
+	getLineInlineDecorations(lineNumber: number): InlineDecorations;
 	getLineTokens(lineNumber: number): IViewLineTokens;
 }
 
