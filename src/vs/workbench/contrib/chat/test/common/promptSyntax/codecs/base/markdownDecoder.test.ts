@@ -242,7 +242,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`• stop character - "${characterName}"`, async () => {
+					test(`stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);
@@ -334,7 +334,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`• stop character - "${characterName}"`, async () => {
+					test(`stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);
@@ -583,7 +583,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`• stop character - "${characterName}"`, async () => {
+					test(`stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);
@@ -678,7 +678,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`• stop character - "${characterName}"`, async () => {
+					test(`stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);

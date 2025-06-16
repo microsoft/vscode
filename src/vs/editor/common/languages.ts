@@ -2441,35 +2441,3 @@ export interface DocumentDropEditProvider {
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
-
-export interface IInlineEdit {
-	text: string;
-	range: IRange;
-	showRange?: IRange;
-	accepted?: Command;
-	rejected?: Command;
-	shown?: Command;
-	commands?: Command[];
-	action?: Command;
-}
-
-export interface IInlineEditContext {
-	triggerKind: InlineEditTriggerKind;
-
-	/**
-	 * @experimental
-	 * @internal
-	 */
-	requestUuid: string;
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-	displayName?: string;
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-	freeInlineEdit(edit: T): void;
-}

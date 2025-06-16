@@ -30,6 +30,7 @@ import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/ty
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -126,6 +127,7 @@ suite('PromptsService', () => {
 				return 'plaintext';
 			}
 		});
+		instaService.stub(ILabelService, { getUriLabel: (uri: URI) => uri.path });
 
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
@@ -874,7 +876,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.path),
+				instructions.map(i => i.uri.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -1055,7 +1057,7 @@ suite('PromptsService', () => {
 				]);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.path),
+				instructions.map(i => i.uri.path),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

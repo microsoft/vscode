@@ -15,7 +15,7 @@
 		<div class="message">
 			Sign-in successful! Returning to <span class="app-name"></span>...
 			<br><br>
-			If you're not redirected automatically, <a href="#" id="fallback-link" style="color: #85CEFF;">click here</a> or close this page.
+			If you're not redirected automatically, <a href="#" id="fallback-link">click here</a> or close this page.
 		</div>
 		<div class="error-message">
 			An error occurred while signing in:
@@ -24,9 +24,11 @@
 	</div>
 	<script>
 		const urlParams = new URLSearchParams(window.location.search);
+		const appName = urlParams.get('app_name');
+		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
+
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
-
 		if (error) {
 			document.querySelector('.error-text')
 				.textContent = error;
@@ -41,7 +43,7 @@
 
 			// Redirect after a delay
 			setTimeout(() => {
-				window.location = urlParams.get('redirect_uri');
+				window.location = redirectUri;
 			}, 1000);
 		}
 	</script>

@@ -25,7 +25,6 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -101,7 +100,8 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { PROMPT_LANGUAGE_ID } from '../common/promptSyntax/promptTypes.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
 const $ = dom.$;
 
@@ -163,18 +163,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public async getAttachedAndImplicitContext(sessionId: string): Promise<ChatRequestVariableSet> {
+	public getAttachedAndImplicitContext(sessionId: string): ChatRequestVariableSet {
 
 		const contextArr = new ChatRequestVariableSet();
 
-		// get prompt file variables (instructions) and all rereferenced contents first
-		contextArr.add(... await this.attachmentModel.getPromptFileVariables());
-
-		// then add all other attachments (includes prompt file variables, but they will be ignored if already added)
 		contextArr.add(...this.attachmentModel.attachments);
 
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
-			const implicitChatVariables = await this.implicitContext.toBaseEntries();
+			const implicitChatVariables = this.implicitContext.toBaseEntries();
 			contextArr.add(...implicitChatVariables);
 		}
 		return contextArr;
@@ -184,8 +180,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Check if the chat input part has any prompt file attachments.
 	 */
 	get hasPromptFileAttachments(): boolean {
-		// if prompt attached explicitly as a "prompt" attachment
-		return this._attachmentModel.hasPromptFiles(PROMPT_LANGUAGE_ID);
+		return this._attachmentModel.attachments.some(entry => {
+			return isPromptFileVariableEntry(entry) && entry.isRoot && this.promptsService.getPromptFileType(entry.value) === PromptsType.prompt;
+		});
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
@@ -361,6 +358,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 		this._onDidLoadInputState = this._register(new Emitter<any>());
@@ -1251,6 +1249,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastOpenedContext = -1;
 		}
 
+		if (this.implicitContext?.value) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+			container.appendChild(implicitPart.domNode);
+		}
+
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
 
 		for (const [index, attachment] of attachments) {
@@ -1298,18 +1301,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		const implicitUri = this.implicitContext?.value;
-
-		if (URI.isUri(implicitUri)) {
-			const currentlyAttached = attachments.some(
-				([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, implicitUri)
-			);
-
-			if (implicitUri && !currentlyAttached) {
-				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
-				container.appendChild(implicitPart.domNode);
-			}
-		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();

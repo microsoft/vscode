@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -64,7 +64,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		return this._proxy.$getSessions(this.id, scopes, options);
 	}
 
-	createSession(scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		return this._proxy.$createSession(this.id, scopes, options);
 	}
 
