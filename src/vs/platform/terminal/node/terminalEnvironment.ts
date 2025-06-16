@@ -17,6 +17,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import { exec } from 'child_process';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -87,13 +88,32 @@ export async function getShellIntegrationInjection(
 	}
 
 	const originalArgs = shellLaunchConfig.args;
-	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	let shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	const type = 'injection';
 	let newArgs: string[] | undefined;
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
 	};
+
+	async function checkIfShIsActuallyBash(): Promise<boolean> {
+		const versionString = await execShVersion();
+		const bashRegex = /\bbash\b/i;
+
+		if (!versionString) {
+			return false;
+		}
+		if (bashRegex.test(versionString)) {
+			envMixin['VSCODE_SH_IS_BASH'] = '1';
+			return true;
+		}
+
+		return false;
+	}
+
+	if (envMixin['VSCODE_SH_IS_BASH'] === '1' || (shell === 'sh' && await checkIfShIsActuallyBash())) {
+		shell = 'bash';
+	}
 
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
@@ -377,4 +397,23 @@ function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
 	}
 	return originalArgs === 'string' && shLoginArgs.includes(originalArgs.toLowerCase())
 		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
+}
+
+async function execShVersion(): Promise<string | undefined> {
+	try {
+		const execAsync = promisify(exec);
+		const { stdout, stderr } = await execAsync('sh --version');
+
+		if (stdout) {
+			return stdout.trim();
+		} else if (stderr) {
+			return stderr.trim();
+		} else {
+			return undefined;
+		}
+
+	} catch (error) {
+		console.error('Failed to execute "sh --version":', error);
+		return undefined;
+	}
 }
