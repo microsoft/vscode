@@ -286,6 +286,12 @@
 			"dependsOn": [
 				"Core - Build"
 			]
+		},
+		{
+		"label": "GPT Chat",
+		"type": "shell",
+		"command": "openai chat …",
+		"problemMatcher": []
 		}
 	]
 }
