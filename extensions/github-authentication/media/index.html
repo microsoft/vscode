@@ -26,6 +26,8 @@
 		const urlParams = new URLSearchParams(window.location.search);
 		const error = urlParams.get('error');
 		const redirectUri = urlParams.get('redirect_uri');
+		const appName = urlParams.get('app_name');
+		document.querySelector('.branding').innerText = appName;
 
 		if (error) {
 			document.querySelector('.error-text')
@@ -41,7 +43,7 @@
 
 			// Redirect after a delay
 			setTimeout(() => {
-				window.location = urlParams.get('redirect_uri');
+				window.location = redirectUri;
 			}, 1000);
 		}
 	</script>
