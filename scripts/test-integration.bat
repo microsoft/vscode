@@ -50,11 +50,13 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 echo.
 echo ### Colorize tests
 call npm run test-extension -- -l vscode-colorize-tests
+echo %errorlevel%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Terminal Suggest tests
 call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
+echo %errorlevel%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
