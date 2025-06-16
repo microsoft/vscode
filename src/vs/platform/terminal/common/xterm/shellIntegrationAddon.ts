@@ -373,7 +373,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	handleExecutedText(): void {
 		const partialCommandDetection = this.capabilities.get(TerminalCapability.PartialCommandDetection);
 		if (partialCommandDetection && partialCommandDetection.type === TerminalCapability.PartialCommandDetection) {
-			partialCommandDetection.handleExecution();
+			partialCommandDetection.handleTextExecution();
 		}
 	}
 

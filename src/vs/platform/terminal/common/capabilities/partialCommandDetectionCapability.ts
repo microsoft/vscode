@@ -49,7 +49,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		}
 	}
 
-	handleExecution(): void {
+	handleTextExecution(): void {
 		this._onEnter();
 	}
 
