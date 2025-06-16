@@ -2642,6 +2642,10 @@ declare namespace monaco.editor {
 		 */
 		getId(): string;
 		/**
+		 * Get a unique numbered id for this editor instance.
+		 */
+		getNumberId(): number;
+		/**
 		 * Get the editor type. Please see `EditorType`.
 		 * This is to avoid an instanceof check
 		 */

@@ -816,22 +816,32 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getLineBreaksComputerContext(): ILineBreaksComputerContext {
+		const viewLineRenderingData: Map<number, ViewLineRenderingData> = new Map();
+		const getViewLineRenderingData = (lineNumber: number): ViewLineRenderingData => {
+			if (viewLineRenderingData.has(lineNumber)) {
+				return viewLineRenderingData.get(lineNumber)!;
+			}
+			const renderingData = this.getViewLineRenderingData(lineNumber);
+			viewLineRenderingData.set(lineNumber, renderingData);
+			return renderingData;
+		};
 		return {
 			getLineContent: (lineNumber: number) => {
-				return this.model.getLineContent(lineNumber);
+				const renderingData = getViewLineRenderingData(lineNumber);
+				return renderingData.content;
 			},
 			getLineTokens: (lineNumber: number) => {
-				return this._lines.getViewLineData(lineNumber).tokens;
+				const renderingData = getViewLineRenderingData(lineNumber);
+				return renderingData.tokens;
 			},
 			getInlineDecorations: (lineNumber: number) => {
-				const inlineDecorations = this.getViewLineRenderingData(lineNumber).inlineDecorations;
-				return inlineDecorations;
+				const renderingData = getViewLineRenderingData(lineNumber);
+				return renderingData.inlineDecorations;
 			},
 			getLineInjectedText: (lineNumber: number) => {
 				const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
 				const decorations = this.model.getInjectedTextDecorationsInRange(range, this._editorId);
-				const injectedText = LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
-				return injectedText;
+				return LineInjectedText.fromDecorations(decorations).filter(injectedText => injectedText.lineNumber === lineNumber);
 			}
 		};
 	}

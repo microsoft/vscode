@@ -25,7 +25,7 @@ import { ICommandDelegate } from '../../view/viewController.js';
 import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
 import { CodeEditorContributions } from './codeEditorContributions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
-import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterFontDecorations, filterValidationDecorations } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { IDimension } from '../../../common/core/2d/dimension.js';
 import { editorUnnecessaryCodeOpacity } from '../../../common/core/editorColorRegistry.js';
@@ -396,7 +396,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getId(): string {
-		return this.getEditorType() + ':' + this._id;
+		return this.getEditorType() + ':' + this.getNumberId();
+	}
+
+	public getNumberId(): number {
+		return this._id;
 	}
 
 	public getEditorType(): string {
@@ -1298,7 +1302,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return null;
 		}
 		const options = this._configuration.options;
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), !options.get(EditorOption.effectiveAllowVariableFonts));
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
 	public getDecorationsInRange(range: Range): IModelDecoration[] | null {
@@ -1306,7 +1310,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return null;
 		}
 		const options = this._configuration.options;
-		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), !options.get(EditorOption.effectiveAllowVariableFonts));
+		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
 	public getFontDecorationsInRange(range: Range): IModelDecoration[] | null {
@@ -1919,8 +1923,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const view = new View(
 			this._domElement,
-			this._id,
-			this.getId(),
+			this.getNumberId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),

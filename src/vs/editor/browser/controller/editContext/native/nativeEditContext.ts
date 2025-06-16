@@ -72,7 +72,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
-		ownerID: string,
+		owner: number,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		private readonly _viewController: ViewController,
@@ -211,7 +211,7 @@ export class NativeEditContext extends AbstractEditContext {
 				reenableTracking = true;
 			}
 		}));
-		this._register(NativeEditContextRegistry.register(ownerID, this));
+		this._register(NativeEditContextRegistry.register(owner, this));
 	}
 
 	// --- Public methods ---

@@ -3785,6 +3785,17 @@ export function filterValidationDecorations(options: IComputedEditorOptions): bo
 
 //#endregion
 
+//#region font decorations
+
+/**
+ * @internal
+ */
+export function filterFontDecorations(options: IComputedEditorOptions): boolean {
+	return !options.get(EditorOption.effectiveAllowVariableFonts);
+}
+
+//#endregion
+
 //#region rulers
 
 export interface IRulerOption {

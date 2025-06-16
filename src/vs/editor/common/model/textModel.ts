@@ -1573,8 +1573,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
-			const affectedLinesByFontChange = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.versionId, customFontChange.lineNumber));
+			const affectedLines = Array.from(affectedFontLines);
+			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.versionId, fontChange.lineNumber));
 			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1859,7 +1859,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (node.options.affectsFont || options.affectsFont) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), node.id, nodeRange.startLineNumber);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, this.getVersionId(), decorationId, nodeRange.startLineNumber);
 		}
 
 		const movedInOverviewRuler = nodeWasInOverviewRuler !== nodeIsInOverviewRuler;
@@ -1913,7 +1913,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						}
 						if (node.options.affectsFont) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
-							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, node.id, nodeRange.startLineNumber);
+							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, versionId, decorationId, nodeRange.startLineNumber);
 						}
 						this._decorationsTree.delete(node);
 
