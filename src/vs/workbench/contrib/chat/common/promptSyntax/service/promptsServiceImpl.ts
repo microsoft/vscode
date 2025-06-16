@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from '../utils/treeUtils.js';
 import { localize } from '../../../../../../nls.js';
-import { isValidPromptType, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, isValidPromptType, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
 import { type URI } from '../../../../../../base/common/uri.js';
@@ -27,6 +26,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 
 /**
  * Provides prompt services.
@@ -56,6 +56,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -100,6 +101,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.onDidChangeCustomChatModesEvent = this._register(this.fileLocator.createFilesUpdatedEvent(PromptsType.mode)).event;
 		}
 		return this.onDidChangeCustomChatModesEvent;
+	}
+
+	public getPromptFileType(uri: URI): PromptsType | undefined {
+		const model = this.modelService.getModel(uri);
+		const languageId = model ? model.getLanguageId() : this.languageService.guessLanguageIdByFilepathOrFirstLine(uri);
+		return languageId ? getPromptsTypeForLanguageId(languageId) : undefined;
 	}
 
 
@@ -152,12 +159,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
+	public async resolvePromptSlashCommand(data: IChatPromptSlashCommand, token: CancellationToken): Promise<IPromptParserResult | undefined> {
 		const promptUri = await this.getPromptPath(data);
 		if (!promptUri) {
 			return undefined;
 		}
-		return await this.getMetadata(promptUri);
+		return await this.parse(promptUri, token);
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
@@ -248,23 +255,26 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 
-	public async findInstructionFilesFor(files: readonly URI[]): Promise<readonly URI[]> {
+	public async findInstructionFilesFor(files: readonly URI[], ignoreInstructions?: ResourceSet): Promise<readonly { uri: URI; reason: string }[]> {
 		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 		if (instructionFiles.length === 0) {
 			return [];
 		}
 
-		const instructions = await this.getAllMetadata(
-			instructionFiles.map(file => file.uri),
-		);
-
+		const result: { uri: URI; reason: string }[] = [];
 		const foundFiles = new ResourceSet();
-		for (const instruction of instructions.flatMap(flatten)) {
-			const { metadata, uri } = instruction;
+		for (const instructionFile of instructionFiles) {
+			const { metadata, uri } = await this.parse(instructionFile.uri, CancellationToken.None);
 
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
+
+			if (ignoreInstructions?.has(uri) || foundFiles.has(uri)) {
+				// the instruction file is already part of the input or has already been processed
+				continue;
+			}
+
 
 			const { applyTo } = metadata;
 			if (applyTo === undefined) {
@@ -272,7 +282,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			const patterns = splitGlobAware(applyTo, ',');
-			const patterMatches = (pattern: string) => {
+			const patterMatches = (pattern: string): URI | true | false => {
 				pattern = pattern.trim();
 				if (pattern.length === 0) {
 					// if glob pattern is empty, skip it
@@ -293,22 +303,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 				for (const file of files) {
 					// if the file is not a valid URI, skip it
 					if (match(pattern, file.path)) {
-						return true;
+						return file;
 					}
 				}
 				return false;
 			};
 
-			if (patterns.some(patterMatches)) {
-				foundFiles.add(uri);
-			}
-		}
-		return [...foundFiles];
-	}
 
-	public async getMetadata(promptFileUri: URI): Promise<IMetadata> {
-		const metaDatas = await this.getAllMetadata([promptFileUri]);
-		return metaDatas[0];
+			for (const pattern of patterns) {
+				const matchResult = patterMatches(pattern);
+				if (matchResult !== false) {
+					const reason = matchResult === true ?
+						localize('instruction.file.reason.allFiles', 'Automatically attached as pattern is **') :
+						localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this.labelService.getUriLabel(matchResult, { relative: true }));
+
+					result.push({ uri, reason });
+					foundFiles.add(uri);
+					break;
+				}
+			}
+
+
+		}
+		return result;
 	}
 
 	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {

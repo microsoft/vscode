@@ -8,9 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachments.js';
+import { IChatRequestFileEntry, IChatRequestVariableEntry, isPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -28,22 +26,17 @@ export interface IChatAttachmentChangeEvent {
 
 export class ChatAttachmentModel extends Disposable {
 
-	private readonly _promptInstructions: ChatPromptAttachmentsCollection;
 	private readonly _attachments = new Map<string, IChatRequestVariableEntry>();
 
 	private _onDidChange = this._register(new Emitter<IChatAttachmentChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@IInstantiationService instaService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
-
-		this._promptInstructions = this._register(instaService.createInstance(ChatPromptAttachmentsCollection));
-		this._register(this._promptInstructions.onUpdate(variable => this._onDidChange.fire({ updated: [variable], deleted: [], added: [] })));
 	}
 
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
@@ -75,23 +68,6 @@ export class ChatAttachmentModel extends Disposable {
 		}
 	}
 
-	addPromptFiles(promptFiles: readonly URI[]): void {
-		const variables = promptFiles.map(uri => toPromptFileVariableEntry(uri, true));
-		this.addContext(...variables);
-	}
-
-	hasPromptFiles(languageId: string): boolean {
-		return this._promptInstructions.hasPromptFiles(languageId);
-	}
-
-	/**
-	 * Get the list of all prompt instruction attachment variables, including all
-	 * nested child references of each attachment explicitly attached by user.
-	*/
-	getPromptFileVariables(): Promise<readonly IChatRequestVariableEntry[]> {
-		return this._promptInstructions.getAttachments();
-	}
-
 	addFolder(uri: URI) {
 		this.addContext({
 			kind: 'directory',
@@ -105,7 +81,6 @@ export class ChatAttachmentModel extends Disposable {
 		if (clearStickyAttachments) {
 			const deleted = Array.from(this._attachments.keys());
 			this._attachments.clear();
-			this._promptInstructions.clear();
 			this._onDidChange.fire({ deleted, added: [], updated: [] });
 		} else {
 			const deleted: string[] = [];
@@ -114,6 +89,7 @@ export class ChatAttachmentModel extends Disposable {
 				const entry = this._attachments.get(id);
 				if (entry && !isPromptFileVariableEntry(entry)) {
 					this._attachments.delete(id);
+					deleted.push(id);
 				}
 			}
 			this._onDidChange.fire({ deleted, added: [], updated: [] });
@@ -143,9 +119,6 @@ export class ChatAttachmentModel extends Disposable {
 			if (item) {
 				this._attachments.delete(id);
 				deleted.push(id);
-				if (isPromptFileVariableEntry(item)) {
-					this._promptInstructions.remove(item);
-				}
 			}
 		}
 
@@ -154,9 +127,6 @@ export class ChatAttachmentModel extends Disposable {
 			if (!oldItem) {
 				this._attachments.set(item.id, item);
 				added.push(item);
-				if (isPromptFileVariableEntry(item)) {
-					this._promptInstructions.add([item]);
-				}
 			} else if (!equals(oldItem, item)) {
 				this._attachments.set(item.id, item);
 				updated.push(item);
