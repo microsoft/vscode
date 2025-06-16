@@ -94,6 +94,7 @@ suite('Buffer Content Tracker', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		bufferTracker = store.add(instantiationService.createInstance(BufferContentTracker, xterm));
 	});
+
 	test('should fire onCommandFinished when acceptInput is called on PartialCommandDetectionCapability', async () => {
 		const partialCommandDetection = capabilities.get(TerminalCapability.PartialCommandDetection);
 		assert.ok(partialCommandDetection, 'PartialCommandDetectionCapability should be present');
