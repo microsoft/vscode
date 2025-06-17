@@ -136,9 +136,9 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
 		enumDescriptions: [
-			localize('terminal.integrated.selectionMode.partial', "Default, will show border"),
-			localize('terminal.integrated.selectionMode.always', "Always select, what enter does exactly depends on terminal.integrated.suggest.runOnEnter"),
-			localize('terminal.integrated.selectionMode.never', "User needs to press down to select, border will be shown.")
+			localize('terminal.integrated.selectionMode.partial', "Will show a border until navigation has occurred. After that, it will show selection."),
+			localize('terminal.integrated.selectionMode.always', "Always select."),
+			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
 		],
 		default: 'partial',
 		tags: ['preview']

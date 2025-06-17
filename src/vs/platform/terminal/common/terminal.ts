@@ -1217,7 +1217,7 @@ export interface ITerminalLogService extends ILogService {
  */
 export const enum TerminalSelectionMode {
 	/**
-	 * Default, will show border.
+	 * Default. Will show a border until navigation has occurred. After that, it will show selection..
 	 */
 	Partial = 'partial',
 	/**
@@ -1225,7 +1225,7 @@ export const enum TerminalSelectionMode {
 	 */
 	Always = 'always',
 	/**
-	 * User needs to press down to select, border will be shown.
+	 * User needs to press down to select.
 	 */
 	Never = 'never'
 }
