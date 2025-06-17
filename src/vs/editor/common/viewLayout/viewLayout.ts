@@ -314,8 +314,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	private _computeContentWidth(): number {
+		console.log('_computeContentWidth');
 		const options = this._configuration.options;
 		const maxLineWidth = this._maxLineWidth;
+		console.log('maxLineWidth', maxLineWidth);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -348,9 +350,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	private _updateContentWidth(): void {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
+		const contentWidth = this._computeContentWidth();
+		console.log('contentWidth', contentWidth);
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 			scrollDimensions.width,
-			this._computeContentWidth(),
+			contentWidth,
 			scrollDimensions.height,
 			scrollDimensions.contentHeight
 		));

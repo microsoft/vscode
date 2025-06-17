@@ -126,6 +126,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (e.scrollTopChanged) {
 				this._viewportStart.invalidate();
 			}
+			console.log('ViewModel: onDidScroll', e);
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ScrollChangedEvent(
 				e.oldScrollWidth, e.oldScrollLeft, e.oldScrollHeight, e.oldScrollTop,
