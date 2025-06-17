@@ -33,7 +33,7 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -648,7 +648,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
 			},
-			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
+			disposeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			},
 			handleRejection: async (completions, item): Promise<void> => {
@@ -678,20 +678,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		if (obj instanceof Emitter) {
 			obj.fire(undefined);
 		}
-	}
-
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
-			displayName,
-			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
-				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
-			},
-			freeInlineEdit: (edit: IdentifiableInlineEdit): void => {
-				this._proxy.$freeInlineEdit(handle, edit.pid);
-			}
-
-		};
-		this._registrations.set(handle, this._languageFeaturesService.inlineEditProvider.register(selector, provider));
 	}
 
 	// --- parameter hints

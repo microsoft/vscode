@@ -78,7 +78,7 @@ import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescrip
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { RelatedInformationResult, RelatedInformationType } from '../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
-import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions } from '../../services/authentication/common/authentication.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
@@ -450,10 +450,6 @@ export interface IdentifiableInlineCompletion extends languages.InlineCompletion
 	idx: number;
 }
 
-export interface IdentifiableInlineEdit extends languages.IInlineEdit {
-	pid: number;
-}
-
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
@@ -484,7 +480,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void;
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$emitInlineCompletionsChange(handle: number): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
@@ -1986,7 +1981,7 @@ export interface ExtHostLabelServiceShape {
 }
 
 export interface ExtHostAuthenticationShape {
-	$getSessions(id: string, scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions): Promise<ReadonlyArray<AuthenticationSession>>;
+	$getSessions(id: string, scopes: string[] | undefined, options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
@@ -2396,8 +2391,6 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
 	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void;
-	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
-	$freeInlineEdit(handle: number, pid: number): void;
 }
 
 export interface ExtHostQuickOpenShape {

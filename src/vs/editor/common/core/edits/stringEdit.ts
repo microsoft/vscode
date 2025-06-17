@@ -158,6 +158,10 @@ export class StringEdit extends BaseEdit<StringReplacement, StringEdit> {
 		}
 		return new StringEdit(edits);
 	}
+
+	public normalizeEOL(eol: '\r\n' | '\n'): StringEdit {
+		return new StringEdit(this.replacements.map(edit => edit.normalizeEOL(eol)));
+	}
 }
 
 /**
@@ -181,6 +185,10 @@ export class StringReplacement extends BaseReplacement<StringReplacement> {
 
 	public static replace(range: OffsetRange, text: string): StringReplacement {
 		return new StringReplacement(range, text);
+	}
+
+	public static delete(range: OffsetRange): StringReplacement {
+		return new StringReplacement(range, '');
 	}
 
 	public static fromJson(data: ISerializedStringReplacement): StringReplacement {
@@ -240,6 +248,11 @@ export class StringReplacement extends BaseReplacement<StringReplacement> {
 		const newText = this.newText.substring(prefixLen, this.newText.length - suffixLen);
 
 		return new StringReplacement(replaceRange, newText);
+	}
+
+	normalizeEOL(eol: '\r\n' | '\n'): StringReplacement {
+		const newText = this.newText.replace(/\r\n|\n/g, eol);
+		return new StringReplacement(this.replaceRange, newText);
 	}
 }
 

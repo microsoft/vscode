@@ -8,7 +8,6 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
@@ -96,7 +95,6 @@ export interface ISnapshotEntry {
 	readonly snapshotUri: URI;
 	readonly original: string;
 	readonly current: string;
-	readonly originalToCurrentEdit: StringEdit;
 	readonly state: ModifiedFileEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
 }

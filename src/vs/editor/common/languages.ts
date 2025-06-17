@@ -852,7 +852,7 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -861,6 +861,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 */
 	readonly enableForwardStability?: boolean | undefined;
 }
+
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
 
 export type InlineCompletionProviderGroupId = string;
 
@@ -899,7 +901,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
 	onDidChangeInlineCompletions?: Event<void>;
 
@@ -921,6 +923,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	toString?(): string;
 }
+
+export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
@@ -2440,36 +2444,4 @@ export interface DocumentDropEditProvider {
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
-}
-
-export interface IInlineEdit {
-	text: string;
-	range: IRange;
-	showRange?: IRange;
-	accepted?: Command;
-	rejected?: Command;
-	shown?: Command;
-	commands?: Command[];
-	action?: Command;
-}
-
-export interface IInlineEditContext {
-	triggerKind: InlineEditTriggerKind;
-
-	/**
-	 * @experimental
-	 * @internal
-	 */
-	requestUuid: string;
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-	displayName?: string;
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-	freeInlineEdit(edit: T): void;
 }

@@ -8,7 +8,9 @@
   "engines": {
     "vscode": "^1.20.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -80,21 +82,39 @@
       "[prompt]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       },
       "[instructions]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       },
       "[chatmode]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       }
     },
     "snippets": [
-     {
+      {
         "language": "prompt",
         "path": "./snippets/prompt.code-snippets"
       },
