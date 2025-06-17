@@ -254,7 +254,6 @@ export interface ICopyImageMessage {
 	readonly type: 'copyImage';
 	readonly outputId: string;
 	readonly altOutputId: string;
-	readonly textAlternates?: { mimeType: string; content: string }[];
 }
 
 export interface IFocusOutputMessage {

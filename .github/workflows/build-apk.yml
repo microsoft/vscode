@@ -23,29 +23,25 @@ jobs:
 
       - name: Build VS Code Web
         run: node ./node_modules/gulp/bin/gulp.js compile-web
-        # This command is based on package.json's "compile-web" script.
         # The web output directory is assumed to be 'out-vscode-web' as per capacitor.config.ts.
-        # If this is incorrect, capacitor.config.ts and this step might need adjustment.
 
-      - name: Install Capacitor CLI (if not already a dev dep, but it should be)
-        run: npm install -g @capacitor/cli # Or ensure it's available via npx
+      - name: Install Capacitor CLI (if not already a dev dep)
+        run: npm install -g @capacitor/cli
 
       - name: Copy web assets to Capacitor
         run: npx cap copy android
 
       - name: Update Android project
-        run: npx cap update android # This might install required Android tooling if missing
+        run: npx cap update android
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # Common requirement for modern Android builds
+          java-version: '17'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        # This action will install the Android SDK and platform tools.
-        # You might need to specify api-level or build-tools-version if defaults are not suitable.
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
@@ -54,7 +50,6 @@ jobs:
       - name: Build APK with Gradle
         run: ./gradlew assembleDebug --no-daemon
         working-directory: ./android
-        # --no-daemon is recommended for CI environments
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

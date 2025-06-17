@@ -177,7 +177,7 @@ class UrlHandlerFlow implements IFlow {
 		callbackUri,
 		enterpriseUri,
 		nonce,
-		signInProvider,
+		signInProvider: authProvider,
 		uriHandler,
 		existingLogin,
 		logger,
@@ -205,14 +205,11 @@ class UrlHandlerFlow implements IFlow {
 			} else {
 				searchParams.append('prompt', 'select_account');
 			}
-			if (signInProvider) {
-				searchParams.append('provider', signInProvider);
-			}
 
 			// The extra toString, parse is apparently needed for env.openExternal
 			// to open the correct URL.
 			const uri = Uri.parse(baseUri.with({
-				path: '/login/oauth/authorize',
+				path: getAuthorizeUrlPath(authProvider),
 				query: searchParams.toString()
 			}).toString(true));
 			await env.openExternal(uri);
@@ -256,7 +253,7 @@ class LocalServerFlow implements IFlow {
 		redirectUri,
 		callbackUri,
 		enterpriseUri,
-		signInProvider,
+		signInProvider: authProvider,
 		existingLogin,
 		logger
 	}: IFlowTriggerOptions): Promise<string> {
@@ -280,12 +277,9 @@ class LocalServerFlow implements IFlow {
 			} else {
 				searchParams.append('prompt', 'select_account');
 			}
-			if (signInProvider) {
-				searchParams.append('provider', signInProvider);
-			}
 
 			const loginUrl = baseUri.with({
-				path: '/login/oauth/authorize',
+				path: getAuthorizeUrlPath(authProvider),
 				query: searchParams.toString()
 			});
 			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
@@ -570,4 +564,13 @@ export const enum GitHubSocialSignInProvider {
 
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
 	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
+}
+
+export function getAuthorizeUrlPath(provider: GitHubSocialSignInProvider | undefined): string {
+	switch (provider) {
+		case GitHubSocialSignInProvider.Google:
+			// case GitHubSocialSignInProvider.Apple:
+			return `/sessions/social/${provider}/initiate`;
+	}
+	return '/login/oauth/authorize';
 }
