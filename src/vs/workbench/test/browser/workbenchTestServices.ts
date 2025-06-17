@@ -1116,12 +1116,12 @@ export class TestFileService implements IFileService {
 		return createFileStat(resource, this.readonly);
 	}
 
-	resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
-		return Promise.resolve(undefined);
-	}
-
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {

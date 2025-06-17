@@ -134,6 +134,12 @@ export interface IFileService {
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
+	 * Attempts to resolve the real path of the provided resource. The real path can be
+	 * different from the resource path for example when it is a symlink.
+	 */
+	realpath(resource: URI): Promise<URI>;
+
+	/**
 	 * Finds out if a file/folder identified by the resource exists.
 	 */
 	exists(resource: URI): Promise<boolean>;
@@ -253,14 +259,6 @@ export interface IFileService {
 	 * use correlated watchers (via `IWatchOptionsWithCorrelation`) to limit events to your listener.
 	*/
 	watch(resource: URI, options?: IWatchOptionsWithoutCorrelation): IDisposable;
-
-	/**
-	 * Resolves the realpath of a symbolic link.
-	 *
-	 * @param resource The URI of the symbolic link
-	 * @returns The realpath that the symlink points to, or undefined if resolution fails or the resource is not a symlink
-	 */
-	resolveSymlinkRealpath(resource: URI): Promise<string | undefined>;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -646,9 +644,9 @@ export const enum FileSystemProviderCapabilities {
 	FileClone = 1 << 17,
 
 	/**
-	 * Symlink resolution
+	 * Provider support to resolve real paths.
 	 */
-	FileSymlinkResolution = 1 << 18
+	FileRealpath = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -704,6 +702,14 @@ export interface IFileSystemProviderWithFileCloneCapability extends IFileSystemP
 
 export function hasFileCloneCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileCloneCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
+}
+
+export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
+	realpath(resource: URI): Promise<string | undefined>;
+}
+
+export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileRealpath);
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
@@ -772,16 +778,6 @@ export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemPr
 
 export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
-}
-
-export interface IFileSystemProviderWithSymlinkResolutionCapability extends IFileSystemProvider {
-	/**
-	 * Resolves the realpath of a symbolic link.
-	 *
-	 * @param resource The URI of the symbolic link
-	 * @returns The realpath that the symlink points to, or undefined if resolution fails or the resource is not a symlink
-	 */
-	resolveSymlinkRealpath(resource: URI): Promise<string | undefined>;
 }
 
 export enum FileSystemProviderErrorCode {

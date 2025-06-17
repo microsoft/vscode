@@ -57,7 +57,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone |
-				FileSystemProviderCapabilities.FileSymlinkResolution;
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (this.extraCapabilities.pathCaseSensitive) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -79,8 +79,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('stat', [resource]);
 	}
 
-	async resolveSymlinkRealpath(resource: URI): Promise<IStat | undefined> {
-		return this.channel.call('resolveSymlinkRealpath', [resource]) as Promise<IStat | undefined>;
+	realpath(resource: URI): Promise<string | undefined> {
+		return this.channel.call('realpath', [resource]);
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {

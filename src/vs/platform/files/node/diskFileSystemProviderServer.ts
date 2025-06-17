@@ -38,6 +38,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 		switch (command) {
 			case 'stat': return this.stat(uriTransformer, arg[0]);
+			case 'realpath': return this.realpath(uriTransformer, arg[0]);
 			case 'readdir': return this.readdir(uriTransformer, arg[0]);
 			case 'open': return this.open(uriTransformer, arg[0], arg[1]);
 			case 'close': return this.close(arg[0]);
@@ -52,7 +53,6 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'delete': return this.delete(uriTransformer, arg[0], arg[1]);
 			case 'watch': return this.watch(uriTransformer, arg[0], arg[1], arg[2], arg[3]);
 			case 'unwatch': return this.unwatch(arg[0], arg[1]);
-			case 'resolveSymlinkRealpath': return this.resolveSymlinkRealpath(arg[0]);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -81,8 +81,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.stat(resource);
 	}
 
-	resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
-		return this.provider.resolveSymlinkRealpath(resource);
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string | undefined> {
+		const resource = this.transformIncoming(uriTransformer, _resource, true);
+
+		return this.provider.realpath(resource);
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {

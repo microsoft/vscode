@@ -124,13 +124,13 @@ suite('TerminalCompletionService', () => {
 				});
 				return createFileStat(resource, undefined, undefined, undefined, undefined, children);
 			},
-			async resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
+			async realpath(resource: URI): Promise<URI> {
 				if (resource.path.includes('symlink-file')) {
-					return '/target/actual-file.txt';
+					return resource.with({ path: '/target/actual-file.txt' });
 				} else if (resource.path.includes('symlink-folder')) {
-					return '/target/actual-folder';
+					return resource.with({ path: '/target/actual-folder' });
 				}
-				return undefined;
+				return resource;
 			}
 		});
 		terminalCompletionService = store.add(instantiationService.createInstance(TerminalCompletionService));

@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from '../../../
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation } from './files.js';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability } from './files.js';
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
@@ -315,6 +315,18 @@ export class FileService extends Disposable implements IFileService {
 		const stat = await provider.stat(resource);
 
 		return this.toFileStat(provider, resource, stat, undefined, true, () => false /* Do not resolve any children */);
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		const provider = await this.withProvider(resource);
+
+		if (hasFileRealpathCapability(provider)) {
+			const realpath = await provider.realpath(resource);
+
+			return resource.with({ path: realpath });
+		}
+
+		return resource;
 	}
 
 	async exists(resource: URI): Promise<boolean> {
@@ -1228,26 +1240,6 @@ export class FileService extends Disposable implements IFileService {
 				}
 			}
 		});
-	}
-
-	async resolveSymlinkRealpath(resource: URI): Promise<string | undefined> {
-		// Get the file system provider for this resource
-		try {
-			const provider = this.getProvider(resource.scheme);
-			if (!provider) {
-				return;
-			}
-			// Check if the provider supports symlink resolution
-			if ('resolveSymlinkRealpath' in provider && typeof provider.resolveSymlinkRealpath === 'function' && this.hasCapability(resource, FileSystemProviderCapabilities.FileSymlinkResolution)) {
-				return provider.resolveSymlinkRealpath(resource);
-			}
-
-			// Provider doesn't support symlink resolution
-			return undefined;
-		} catch (error) {
-			// Provider not found or other error
-			return undefined;
-		}
 	}
 
 	override dispose(): void {

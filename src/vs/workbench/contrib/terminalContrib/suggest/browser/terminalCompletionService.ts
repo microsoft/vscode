@@ -18,6 +18,7 @@ import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -407,9 +408,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			// Try to resolve symlink target for symbolic links
 			if (child.isSymbolicLink) {
 				try {
-					detail = await this._fileService.resolveSymlinkRealpath(child.resource);
-					if (detail) {
-						detail = getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType) + ` -> ${detail}`;
+					const realpath = await this._fileService.realpath(child.resource);
+					if (!isEqual(child.resource, realpath)) {
+						detail = `${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType)} -> ${getFriendlyPath(realpath, resourceRequestConfig.pathSeparator, kind, shellType)}`;
 					}
 				} catch (error) {
 					// Ignore errors resolving symlink targets - they may be dangling links
