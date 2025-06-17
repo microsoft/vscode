@@ -1635,6 +1635,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * such instructions to the context.
 	 */
 	private async _autoAttachInstructions(attachedContext: ChatRequestVariableSet): Promise<void> {
+		const copilotInstructions = await this.promptsService.findCopilotInstructions();
+		if (copilotInstructions.length) {
+			attachedContext.add(...copilotInstructions.map(instruction => toPromptFileVariableEntry(instruction, true)));
+		}
 		const existingInstructions = new ResourceSet();
 		const fileInContext = [];
 
@@ -1650,13 +1654,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const automaticInstructions = await this.promptsService.findInstructionFilesFor(fileInContext, existingInstructions);
-		const promptVariableEntries = automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction.uri, true, instruction.reason));
+		if (automaticInstructions.length) {
+			const promptVariableEntries = automaticInstructions.map(instruction => toPromptFileVariableEntry(instruction.uri, true, instruction.reason));
 
-		// add instructions to the final context list
-		attachedContext.add(...promptVariableEntries);
+			// add instructions to the final context list
+			attachedContext.add(...promptVariableEntries);
 
-		// add to attached list to make the instructions sticky
-		this.inputPart.attachmentModel.addContext(...promptVariableEntries);
+			// add to attached list to make the instructions sticky
+			this.inputPart.attachmentModel.addContext(...promptVariableEntries);
+		}
+
 	}
 }
 

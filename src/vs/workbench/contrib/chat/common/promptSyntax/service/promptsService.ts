@@ -187,6 +187,11 @@ export interface IPromptsService extends IDisposable {
 	findInstructionFilesFor(fileUris: readonly URI[], ignoreInstructions?: ResourceSet): Promise<readonly { uri: URI; reason: string }[]>;
 
 	/**
+	 * Looks in the workspace for the copilot instructions files.
+	 */
+	findCopilotInstructions(): Promise<readonly URI[]>;
+
+	/**
 	 * Event that is triggered when the list of custom chat modes changes.
 	 */
 	readonly onDidChangeCustomChatModes: Event<void>;

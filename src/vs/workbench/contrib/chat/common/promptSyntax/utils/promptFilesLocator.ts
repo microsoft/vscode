@@ -58,6 +58,20 @@ export class PromptFilesLocator extends Disposable {
 		return files.filter(file => getPromptFileType(file) === type);
 	}
 
+	public async getCopilotInstructionsFiles(instructionFilePaths: Iterable<string>): Promise<URI[]> {
+		const { folders } = this.workspaceService.getWorkspace();
+		const result: URI[] = [];
+		for (const folder of folders) {
+			for (const instructionFilePath of instructionFilePaths) {
+				const file = joinPath(folder.uri, instructionFilePath);
+				if (await this.fileService.exists(file)) {
+					result.push(file);
+				}
+			}
+		}
+		return result;
+	}
+
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
 		const disposables = new DisposableStore();
 		const eventEmitter = disposables.add(new Emitter<void>());

@@ -25,10 +25,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
-import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { isObject, isString } from '../../../../../../base/common/types.js';
 
 /**
  * Provides prompt services.
@@ -342,6 +343,36 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 		return result;
+	}
+
+	public async findCopilotInstructions(): Promise<readonly URI[]> {
+		const instructionMessages: string[] = [];
+		const instructionFiles = new Set<string>();
+
+		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		if (useCopilotInstructionsFiles) {
+			instructionFiles.add(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+		}
+
+		const config = this.configurationService.inspect(PromptsConfig.COPILOT_INSTRUCTIONS);
+
+		[config.workspaceFolderValue, config.workspaceValue, config.userValue].forEach((value: any) => {
+			if (Array.isArray(value)) {
+				for (const item of value) {
+					if (isString(item)) {
+						instructionMessages.push(item);
+					} else if (item && isObject(item)) {
+						if (isString(item.text)) {
+							instructionMessages.push(item.text);
+						} else if (isString(item.file)) {
+							instructionFiles.add(item.file);
+						}
+					}
+				}
+			}
+		});
+
+		return this.fileLocator.getCopilotInstructionsFiles(instructionFiles);
 	}
 
 	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {

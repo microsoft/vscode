@@ -39,6 +39,9 @@ export class MockPromptsService implements IPromptsService {
 	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 		throw new Error('Method not implemented.');
 	}
+	findCopilotInstructions(): Promise<readonly URI[]> {
+		throw new Error('Method not implemented.');
+	}
 	onDidChangeCustomChatModes: Event<void> = Event.None;
 	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		throw new Error('Method not implemented.');
