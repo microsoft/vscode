@@ -855,6 +855,11 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		return true;
 	}
 
+	firstItemFocused(): boolean {
+		const selected = this.getFocusedItem()?.item;
+		return selected ? this._list.indexOf(selected) === 0 : false;
+	}
+
 	getFocusedItem(): ISimpleSelectedSuggestion<TItem> | undefined {
 		if (this._completionModel) {
 			return {

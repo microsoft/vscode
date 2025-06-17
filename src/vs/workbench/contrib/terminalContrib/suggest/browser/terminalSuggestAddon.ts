@@ -138,6 +138,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _shouldSyncWhenReady: boolean = false;
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
+	private _hasNavigated: boolean = false;
+
 	constructor(
 		shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -228,15 +230,23 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _setSelectionMode(selectionMode: TerminalSelectionMode): void {
+		if (!this._suggestWidget) {
+			return;
+		}
 		switch (selectionMode) {
 			case TerminalSelectionMode.Always:
-				this._suggestWidget?.element.domNode.classList.remove('partial-selection');
+				this._suggestWidget.element.domNode.classList.remove('partial-selection');
 				break;
 			case TerminalSelectionMode.Partial:
-				this._suggestWidget?.element.domNode.classList.add('partial-selection');
+				// check if focused item is the first item
+				if (!this._hasNavigated) {
+					this._suggestWidget.element.domNode.classList.add('partial-selection');
+				} else {
+					this._suggestWidget.element.domNode.classList.remove('partial-selection');
+				}
 				break;
 			case TerminalSelectionMode.Never:
-				this._suggestWidget?.element.domNode.classList.add('partial-selection');
+				this._suggestWidget.element.domNode.classList.add('partial-selection');
 				break;
 		}
 	}
@@ -678,7 +688,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
-		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
+		this._register(suggestWidget.onDidFocus(() => {
+			this._hasNavigated = this._hasNavigated || !this._suggestWidget?.firstItemFocused();
+			this._updateSelectionMode();
+			this._terminal?.focus();
+		}));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
 		}
@@ -695,6 +709,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		}, selectionMode === 'never');
+		this._updateSelectionMode();
 	}
 
 
@@ -745,7 +760,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				this._suggestWidget?.hide();
 			}));
-			this._updateSelectionMode();
 			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
@@ -871,6 +885,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
+		this._hasNavigated = false;
 	}
 }
 
