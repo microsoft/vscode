@@ -48,6 +48,8 @@ export interface ISuggestController {
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
+
+const partialClassName = 'partial-selection';
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -235,18 +237,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		switch (selectionMode) {
 			case TerminalSelectionMode.Always:
-				this._suggestWidget.element.domNode.classList.remove('partial-selection');
+				this._suggestWidget.element.domNode.classList.remove(partialClassName);
 				break;
 			case TerminalSelectionMode.Partial:
-				// check if focused item is the first item
 				if (!this._hasNavigated) {
-					this._suggestWidget.element.domNode.classList.add('partial-selection');
+					this._suggestWidget.element.domNode.classList.add(partialClassName);
 				} else {
-					this._suggestWidget.element.domNode.classList.remove('partial-selection');
+					this._suggestWidget.element.domNode.classList.remove(partialClassName);
 				}
 				break;
 			case TerminalSelectionMode.Never:
-				this._suggestWidget.element.domNode.classList.add('partial-selection');
+				this._suggestWidget.element.domNode.classList.add(partialClassName);
 				break;
 		}
 	}
@@ -708,7 +709,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
-		}, selectionMode === 'never');
+		}, selectionMode === TerminalSelectionMode.Never);
 		this._updateSelectionMode();
 	}
 
