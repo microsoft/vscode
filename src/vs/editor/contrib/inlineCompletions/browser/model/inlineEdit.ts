@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { Command } from '../../../../common/languages.js';
+import { InlineCompletionCommand } from '../../../../common/languages.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 
 export class InlineEdit {
 	constructor(
 		public readonly edit: TextReplacement,
-		public readonly commands: readonly Command[],
+		public readonly commands: readonly InlineCompletionCommand[],
 		public readonly inlineCompletion: InlineSuggestionItem,
 	) { }
 

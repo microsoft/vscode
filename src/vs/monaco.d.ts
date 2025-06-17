@@ -7387,13 +7387,18 @@ declare namespace monaco.languages {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		readonly commands?: Command[];
+		readonly commands?: InlineCompletionCommand[];
 		readonly suppressSuggestions?: boolean | undefined;
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
 		 */
 		readonly enableForwardStability?: boolean | undefined;
 	}
+
+	export type InlineCompletionCommand = {
+		command: Command;
+		icon?: editor.ThemeIcon;
+	};
 
 	export type InlineCompletionProviderGroupId = string;
 

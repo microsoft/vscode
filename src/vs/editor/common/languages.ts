@@ -852,7 +852,7 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -861,6 +861,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 */
 	readonly enableForwardStability?: boolean | undefined;
 }
+
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
 
 export type InlineCompletionProviderGroupId = string;
 
