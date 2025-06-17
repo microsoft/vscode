@@ -61,13 +61,14 @@ import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { addPromptFileChatVariable, isPromptFileChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
-import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 
 const $ = dom.$;
@@ -152,7 +153,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastItem: ChatTreeItem | undefined;
 
 	private inputPart!: ChatInputPart;
+	private currentElement: IChatListItemTemplate | undefined;
 	private editorOptions!: ChatEditorOptions;
+	private inputOverlay!: HTMLElement;
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
@@ -274,6 +277,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -665,6 +669,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
+							// Re-render if element becomes enabled/disabled due to checkpointing
+							`_${element.shouldBeBlocked ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '') +
@@ -801,6 +807,99 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 		));
+
+		this.renderer.onDidClickRequest(async item => {
+			this.currentElement = item;
+			const curr = this.currentElement.currentElement;
+			if (isRequestVM(curr)) {
+
+				const requests = this.viewModel?.model.getRequests();
+				if (curr.id === this.viewModel?.model.checkpoint?.id) {
+					// Unset the existing checkpoint
+					this.viewModel?.model.setCheckpoint(undefined);
+				} else {
+					this.viewModel?.model.setCheckpoint(curr.id);
+				}
+				this.onDidChangeItems();
+
+				if (!requests) {
+					return;
+				}
+
+
+
+				const currentContext: IChatRequestVariableEntry[] = [];
+				for (let i = requests.length - 1; i >= 0; i -= 1) {
+					const request = requests[i];
+					if (request.id === curr.id) {
+						if (request.attachedContext) {
+							currentContext.push(...request.attachedContext);
+						}
+					}
+				}
+
+
+				item.disabledOverlay.classList.remove('disabled');
+				const rowContainer = item.rowContainer;
+				const inputContainer = dom.$('.chat-edit-input-container');
+				rowContainer.appendChild(inputContainer);
+
+				ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(true);
+
+
+
+				const currentInput = this.inputPart;
+				currentInput.toggleChatInputOverlay(ChatContextKeys.currentlyEditing.getValue(this.contextKeyService));
+				// console.log(ChatContextKeys.currentlyEditing.getValue(item.contextKeyService), 'ChatWidget#renderer#onDidClickRequest: currentlyEditing context key');
+				// input in place
+				this.createInput(inputContainer);
+				if (currentContext.length > 0) {
+					this.inputPart.attachmentModel.addContext(...currentContext);
+				}
+				this.inputPart.renderAttachedContext();
+				this.renderer.updateItemHeightOnRender(curr, item);
+				const value = item.value.textContent || '';
+				this.inputPart.focus();
+				this.inputPart.setValue(curr.messageText, false);
+				this.inputPart.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+
+				this.inputPart.onDidDispose(() => {
+					this.inputPart = currentInput;
+					ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(false);
+					currentInput.toggleChatInputOverlay(ChatContextKeys.currentlyEditing.getValue(this.contextKeyService));
+					item.rowContainer.removeChild(inputContainer);
+					item.rowContainer.classList.remove('clicked');
+					this.onDidChangeItems();
+					if (curr) {
+						this.renderer.updateItemHeightOnRender(curr, this.currentElement!);
+					}
+				});
+
+				// this.inputPart.onDidBlur(() => {
+				// 	if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+				// 		this.viewModel?.model.setCheckpoint(undefined);
+				// 		this.inputPart.dispose();
+				// 	}
+
+				// 	// this.inputPart = currentInput;
+				// 	// ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(false);
+				// 	// item.rowContainer.removeChild(inputContainer);
+				// 	// item.rowContainer.classList.remove('clicked');
+				// 	// this.onDidChangeItems();
+				// 	// if (curr) {
+				// 	// 	this.renderer.updateItemHeightOnRender(curr, this.currentElement!);
+				// 	// }
+				// });
+			}
+		});
+
+		this._register(this.renderer.onDidFocusOutside(() => {
+			if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+				this.viewModel?.model.setCheckpoint(undefined);
+				this.inputPart.dispose();
+			}
+		}));
+
 		this._register(this.renderer.onDidClickFollowup(item => {
 			// is this used anymore?
 			this.acceptInput(item.message);
@@ -1001,9 +1100,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => {
+
+			if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+				// If we are currently editing, we need to update the height of the input part
+				this.renderer.updateItemHeightOnRender(this.currentElement?.currentElement!, this.currentElement!);
+				return;
+			}
+
 			if (this.bodyDimension) {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
+
 			this._onDidChangeContentHeight.fire();
 		}));
 		this._register(this.inputPart.attachmentModel.onDidChange(() => {
@@ -1258,6 +1365,80 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+			// reset the next requests:
+			const element = this.currentElement?.currentElement;
+			if (isRequestVM(element)) {
+
+				if (!element) {
+					return;
+				}
+
+				const chatModel = this.chatService.getSession(element.sessionId);
+				if (!chatModel) {
+					return;
+				}
+
+				const session = chatModel.editingSession;
+				if (!session) {
+					return;
+				}
+
+				const requestId = isRequestVM(element) ? element.id : undefined;
+
+
+				if (requestId) {
+					const chatRequests = chatModel.getRequests();
+					const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+					const editsToUndo = chatRequests.length - itemIndex;
+
+					const requestsToRemove = chatRequests.slice(itemIndex);
+					const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+					const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+					const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && this.configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+					let message: string;
+					if (editsToUndo === 1) {
+						if (entriesModifiedInRequestsToRemove.length === 1) {
+							message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+						} else {
+							message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+						}
+					} else {
+						if (entriesModifiedInRequestsToRemove.length === 1) {
+							message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+						} else {
+							message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+						}
+					}
+
+					const confirmation = shouldPrompt
+						? await this.dialogService.confirm({
+							title: editsToUndo === 1
+								? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+								: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+							message: message,
+							primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+							checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
+							type: 'info'
+						})
+						: { confirmed: true };
+
+					if (!confirmation.confirmed) {
+						return;
+					}
+
+					if (confirmation.checkboxChecked) {
+						await this.configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
+					}
+
+					// Restore the snapshot to what it was before the request(s) that we deleted
+					const snapshotRequestId = chatRequests[itemIndex].id;
+					await session.restoreSnapshot(snapshotRequestId, undefined);
+				}
+			}
+		}
+
 		if (!query && this.inputPart.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -1324,6 +1505,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.input.validateAgentMode();
 
+			if (this.viewModel.model.checkpoint) {
+				const requests = this.viewModel.model.getRequests();
+				for (let i = requests.length - 1; i >= 0; i -= 1) {
+					const request = requests[i];
+					if (request.shouldBeBlocked) {
+						this.chatService.removeRequest(this.viewModel.sessionId, request.id);
+					}
+				}
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, requestInputs.input, {
 				mode: this.inputPart.currentMode,
 				userSelectedModelId: this.inputPart.currentLanguageModel,
@@ -1351,7 +1542,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				});
-
+				if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+					this.inputPart.dispose();
+				}
 				return result.responseCreatedPromise;
 			}
 		}

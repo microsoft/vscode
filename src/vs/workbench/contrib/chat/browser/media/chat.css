@@ -2007,11 +2007,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			outline: 1px solid var(--vscode-focusBorder);
 		}
 
-		.request-hover {
+		/* .request-hover {
 			display: block !important;
-		}
-
+		} */
 	}
+
+	.interactive-request.clicked .rendered-markdown,
+	.interactive-request.clicked .value {
+		display: none;
+	}
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable {
+	cursor: pointer;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.chat-request-clickable:focus {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .chat-buttons-container {
@@ -2033,4 +2049,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.interactive-item-container.interactive-request.chat-request-clickable {
+	cursor: pointer;
+}
+
+.interactive-item-container.interactive-request.chat-request-clickable:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.interactive-item-container .chat-edit-input-container {
+	margin-right: -15px;
+}
+
+/* do not show editing session when editing request */
+.interactive-item-container .chat-edit-input-container .chat-editing-session {
+	display: none;
+}
+
+.disabled-overlay {
+	display: none;
+}
+
+.disabled-overlay.disabled,
+.chat-input-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.4);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 100;
+	user-select: none;
 }

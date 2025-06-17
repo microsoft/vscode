@@ -85,7 +85,7 @@ const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
 
-interface IChatListItemTemplate {
+export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	/**
 	 * The parts that are currently rendered in the template. Note that these are purposely not added to elementDisposables-
@@ -106,6 +106,7 @@ interface IChatListItemTemplate {
 	readonly elementDisposables: DisposableStore;
 	readonly agentHover: ChatAgentHover;
 	readonly requestHover: HTMLElement;
+	readonly disabledOverlay: HTMLElement;
 }
 
 interface IItemHeightChangeParams {
@@ -144,6 +145,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<{ sessionId: string; requestId: string }>();
 	readonly onDidClickRerunWithAgentOrCommandDetection: Event<{ sessionId: string; requestId: string }> = this._onDidClickRerunWithAgentOrCommandDetection.event;
+
+
+	private readonly _onDidClickRequest = this._register(new Emitter<IChatListItemTemplate>());
+	readonly onDidClickRequest: Event<IChatListItemTemplate> = this._onDidClickRequest.event;
+
+	private readonly _onDidFocusOutside = this._register(new Emitter<void>());
+	readonly onDidFocusOutside: Event<void> = this._onDidFocusOutside.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -282,6 +290,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	renderTemplate(container: HTMLElement): IChatListItemTemplate {
 		const templateDisposables = new DisposableStore();
+		const disabledOverlay = dom.append(container, $('.disabled-overlay'));
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
@@ -325,17 +334,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				},
 			}));
 		}
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
-			if (isRequestVM(template.currentElement)) {
-				dom.show(requestHover);
-			}
-		}));
+		// templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseenter', () => {
+		// 	if (isRequestVM(template.currentElement)) {
+		// 		dom.show(requestHover);
+		// 	}
+		// }));
 
-		templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
-			if (isRequestVM(template.currentElement)) {
-				dom.hide(requestHover);
-			}
-		}));
+		// templateDisposables.add(dom.addDisposableListener(rowContainer, 'mouseleave', () => {
+		// 	if (isRequestVM(template.currentElement)) {
+		// 		dom.hide(requestHover);
+		// 	}
+		// }));
 		dom.hide(requestHover);
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
@@ -382,7 +391,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, disabledOverlay };
 		return template;
 	}
 
@@ -436,7 +445,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !element.model.isPaused.get() && !progressMessageAtBottomOfResponse);
-		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
@@ -450,6 +458,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
 		}
+
+		templateData.disabledOverlay.classList.toggle('disabled', element.shouldBeBlocked);
+		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
+			if (ChatContextKeys.currentlyEditing.getValue(templateData.contextKeyService) && ChatContextKeys.inChatSession.getValue(templateData.contextKeyService) && (!ChatContextKeys.inChatInput.getValue(templateData.contextKeyService) && !ChatContextKeys.inputHasFocus.getValue(templateData.contextKeyService))) {
+				this._onDidFocusOutside.fire();
+			}
+		}));
 
 		// hack @joaomoreno
 		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
@@ -588,6 +603,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 
+		// Make the entire row container clickable for requests
+		templateData.rowContainer.classList.add('chat-request-clickable');
+
+		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, () => {
+			if (!ChatContextKeys.currentlyEditing.getValue(templateData.contextKeyService) && !ChatContextKeys.requestInProgress.getValue(templateData.contextKeyService)) {
+				templateData.rowContainer.classList.add('clicked');
+				this._onDidClickRequest.fire(templateData);
+			}
+		}));
+
 		let content: IChatRendererContent[] = [];
 		if (!element.confirmation) {
 			const markdown = 'message' in element.message ?
@@ -658,7 +683,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.updateItemHeightOnRender(element, templateData);
 	}
 
-	private updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
+	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
@@ -1157,12 +1182,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
-				dom.show(templateData.requestHover);
-			}));
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
-				dom.hide(templateData.requestHover);
-			}));
+			// markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'focus', () => {
+			// 	dom.show(templateData.requestHover);
+			// }));
+			// markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, 'blur', () => {
+			// 	dom.hide(templateData.requestHover);
+			// }));
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
