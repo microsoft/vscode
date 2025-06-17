@@ -852,7 +852,7 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -861,6 +861,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 */
 	readonly enableForwardStability?: boolean | undefined;
 }
+
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
 
 export type InlineCompletionProviderGroupId = string;
 
@@ -899,7 +901,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
 	onDidChangeInlineCompletions?: Event<void>;
 
@@ -921,6 +923,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	toString?(): string;
 }
+
+export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
