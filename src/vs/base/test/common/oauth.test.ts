@@ -315,8 +315,14 @@ suite('OAuth', () => {
 				json: async () => mockResponse
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			const result = await fetchDynamicRegistration(
-				'https://auth.example.com/register',
+				serverMetadata,
 				'Test Client'
 			);
 
@@ -352,8 +358,14 @@ suite('OAuth', () => {
 				statusText: 'Bad Request'
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Registration failed: Bad Request/
 			);
 		});
@@ -364,10 +376,76 @@ suite('OAuth', () => {
 				json: async () => ({ invalid: 'response' }) // Missing required fields
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Invalid authorization dynamic client registration response/
 			);
+		});
+
+		test('fetchDynamicRegistration should filter grant types based on server metadata', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code'],
+				grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'] // Mix of supported and unsupported
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains only the intersection of supported grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token']); // client_credentials should be filtered out
+		});
+
+		test('fetchDynamicRegistration should use default grant types when server metadata has none', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+				// No grant_types_supported specified
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains default grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
 		});
 	});
 });
