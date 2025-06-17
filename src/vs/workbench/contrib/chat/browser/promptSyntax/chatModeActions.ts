@@ -38,7 +38,7 @@ class ManageModeAction extends Action2 {
 					when: ChatContextKeys.Modes.hasCustomChatModes
 				}, {
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
+					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 12,
 					group: '2_manage'
 				}
