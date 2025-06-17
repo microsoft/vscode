@@ -47,7 +47,7 @@ export async function provideInlineCompletions(
 	const lostRaceToken = lostRaceTokenSource.token;
 
 	const combinedTokenSource = new CancellationTokenSource(baseToken);
-	lostRaceToken.onCancellationRequested(() => combinedTokenSource.dispose(true));
+	runWhenCancelled(lostRaceToken, () => combinedTokenSource.dispose(true));
 	const combinedToken = combinedTokenSource.token;
 
 	const contextWithUuid: InlineCompletionContext = { ...context, requestUuid: requestUuid };
@@ -143,10 +143,11 @@ export async function provideInlineCompletions(
 	const result = new InlineCompletionProviderResult(Array.from(itemsByHash.values()), new Set(itemsByHash.keys()), lists);
 
 	lostRaceTokenSource.dispose(true); // This disposes results that are not referenced by now.
+	combinedTokenSource.dispose(true);
 	return result;
 }
 
-/** If the token does not leak, this will not leak either. */
+/** If the token is eventually cancelled, this will not leak either. */
 function runWhenCancelled(token: CancellationToken, callback: () => void): IDisposable {
 	if (token.isCancellationRequested) {
 		callback();
