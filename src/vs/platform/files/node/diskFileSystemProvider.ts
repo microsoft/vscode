@@ -18,7 +18,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { URI } from '../../../base/common/uri.js';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange } from '../common/files.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability } from '../common/files.js';
 import { readFileIntoStream } from '../common/io.js';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher.js';
 import { ILogService } from '../../log/common/log.js';
@@ -34,7 +34,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileAtomicDeleteCapability,
-	IFileSystemProviderWithFileCloneCapability {
+	IFileSystemProviderWithFileCloneCapability,
+	IFileSystemProviderWithFileRealpathCapability {
 
 	private static TRACE_LOG_RESOURCE_LOCKS = false; // not enabled by default because very spammy
 
@@ -61,7 +62,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -97,6 +99,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} catch (error) {
 			return undefined;
 		}
+	}
+
+	async realpath(resource: URI): Promise<string> {
+		const filePath = this.toFilePath(resource);
+
+		return Promises.realpath(filePath);
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
