@@ -281,7 +281,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		if (onDidExecuteText) {
-			this._register(onDidExecuteText(() => this._shellIntegrationAddon.handleExecutedText()));
+			this._register(onDidExecuteText(() => this._shellIntegrationAddon.handleTextExecution()));
 		}
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			if (this._store.isDisposed) {
