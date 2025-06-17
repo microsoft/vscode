@@ -68,7 +68,6 @@ import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -157,7 +156,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private inputPart!: ChatInputPart;
 	private currentElement: IChatListItemTemplate | undefined;
 	private editorOptions!: ChatEditorOptions;
-	private inputOverlay!: HTMLElement;
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
@@ -810,6 +808,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			overflowWidgetsContainer,
 		));
 
+
 		this.renderer.onDidClickRequest(async item => {
 			this.currentElement = item;
 			const curr = this.currentElement.currentElement;
@@ -827,9 +826,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (!requests) {
 					return;
 				}
-
-
-
 				const currentContext: IChatRequestVariableEntry[] = [];
 				for (let i = requests.length - 1; i >= 0; i -= 1) {
 					const request = requests[i];
@@ -840,21 +836,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
-
 				item.disabledOverlay.classList.remove('disabled');
 				const rowContainer = item.rowContainer;
 				const inputContainer = dom.$('.chat-edit-input-container');
 				rowContainer.appendChild(inputContainer);
 
-				ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(true);
-
-
-
 				const currentInput = this.inputPart;
-				currentInput.toggleChatInputOverlay(ChatContextKeys.currentlyEditing.getValue(this.contextKeyService));
-				// console.log(ChatContextKeys.currentlyEditing.getValue(item.contextKeyService), 'ChatWidget#renderer#onDidClickRequest: currentlyEditing context key');
-				// input in place
 				this.createInput(inputContainer);
+				ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(true);
+				currentInput.toggleChatInputOverlay(ChatContextKeys.currentlyEditing.getValue(this.contextKeyService));
 				if (currentContext.length > 0) {
 					this.inputPart.attachmentModel.addContext(...currentContext);
 				}
@@ -876,22 +866,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						this.renderer.updateItemHeightOnRender(curr, this.currentElement!);
 					}
 				});
-
-				// this.inputPart.onDidBlur(() => {
-				// 	if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
-				// 		this.viewModel?.model.setCheckpoint(undefined);
-				// 		this.inputPart.dispose();
-				// 	}
-
-				// 	// this.inputPart = currentInput;
-				// 	// ChatContextKeys.currentlyEditing.bindTo(this.contextKeyService).set(false);
-				// 	// item.rowContainer.removeChild(inputContainer);
-				// 	// item.rowContainer.classList.remove('clicked');
-				// 	// this.onDidChangeItems();
-				// 	// if (curr) {
-				// 	// 	this.renderer.updateItemHeightOnRender(curr, this.currentElement!);
-				// 	// }
-				// });
 			}
 		});
 
@@ -1031,6 +1005,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
+		// if (ChatContextKeys.currentlyEditing.getValue(this.contextKeyService)) {
+		// 	this.inputPart?.dispose();
+		// }
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
 			this.location,
 			{
