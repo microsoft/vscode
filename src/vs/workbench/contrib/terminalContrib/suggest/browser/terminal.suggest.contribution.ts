@@ -40,6 +40,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 
+
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
 // #region Terminal Contributions
