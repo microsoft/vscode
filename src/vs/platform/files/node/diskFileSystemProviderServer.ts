@@ -81,7 +81,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.stat(resource);
 	}
 
-	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string | undefined> {
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
 		return this.provider.realpath(resource);

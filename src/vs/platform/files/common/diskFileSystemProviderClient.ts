@@ -79,7 +79,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('stat', [resource]);
 	}
 
-	realpath(resource: URI): Promise<string | undefined> {
+	realpath(resource: URI): Promise<string> {
 		return this.channel.call('realpath', [resource]);
 	}
 

@@ -707,7 +707,7 @@ export function hasFileCloneCapability(provider: IFileSystemProvider): provider 
 }
 
 export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
-	realpath(resource: URI): Promise<string | undefined>;
+	realpath(resource: URI): Promise<string>;
 }
 
 export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {

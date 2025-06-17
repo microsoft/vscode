@@ -322,9 +322,6 @@ export class FileService extends Disposable implements IFileService {
 
 		if (hasFileRealpathCapability(provider)) {
 			const realpath = await provider.realpath(resource);
-			if (!realpath) {
-				return undefined;
-			}
 
 			return resource.with({ path: realpath });
 		}
