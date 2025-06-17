@@ -8,6 +8,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, type IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -17,6 +18,7 @@ import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../..
 import type { ITerminalContribution, ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TERMINAL_VIEW_ID } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
@@ -115,6 +117,15 @@ registerActiveInstanceAction({
 		when: TerminalContextKeys.focus,
 		weight: KeybindingWeight.WorkbenchContrib
 	},
+	menu: [
+		{
+			id: MenuId.ViewTitle,
+			group: 'shellIntegration',
+			order: 0,
+			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+			isHiddenByDefault: true
+		}
+	],
 	run: async (activeInstance, c) => {
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
@@ -144,6 +155,15 @@ registerTerminalAction({
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
+		}
+	],
+	menu: [
+		{
+			id: MenuId.ViewTitle,
+			group: 'shellIntegration',
+			order: 1,
+			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+			isHiddenByDefault: true
 		}
 	],
 	run: async (c, accessor) => {

@@ -75,7 +75,6 @@ const vscodeResourceIncludes = [
 
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',

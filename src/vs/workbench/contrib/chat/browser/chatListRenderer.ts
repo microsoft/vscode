@@ -83,6 +83,8 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 
 const $ = dom.$;
 
+const COPILOT_USERNAME = 'GitHub Copilot';
+
 interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	/**
@@ -185,7 +187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
-		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined));
+		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
@@ -438,6 +440,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
+
+		templateData.username.textContent = element.username;
+		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME);
+		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME);
 
 		dom.hide(templateData.requestHover);
 		dom.clearNode(templateData.detail);

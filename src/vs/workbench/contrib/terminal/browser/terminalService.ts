@@ -1038,7 +1038,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
 			capabilities: options.capabilities || new TerminalCapabilityStore(),
-		});
+		}, undefined);
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);

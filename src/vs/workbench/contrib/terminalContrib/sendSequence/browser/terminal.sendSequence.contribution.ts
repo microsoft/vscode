@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isIOS, isWindows } from '../../../../../base/common/platform.js';
+import { isIOS, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -155,6 +155,26 @@ registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine)
 registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell)),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
+});
+
+// Map alt+arrow to ctrl+arrow to allow word navigation in most shells to just work with alt. This
+// is non-standard behavior, but a lot of terminals act like this (see #190629). Note that
+// macOS uses different sequences here to get the desired behavior.
+registerSendSequenceKeybinding('\x1b[1;5A', {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus),
+	primary: KeyMod.Alt | KeyCode.UpArrow
+});
+registerSendSequenceKeybinding('\x1b[1;5B', {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus),
+	primary: KeyMod.Alt | KeyCode.DownArrow
+});
+registerSendSequenceKeybinding('\x1b' + (isMacintosh ? 'f' : '[1;5C'), {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus),
+	primary: KeyMod.Alt | KeyCode.RightArrow
+});
+registerSendSequenceKeybinding('\x1b' + (isMacintosh ? 'b' : '[1;5D'), {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus),
+	primary: KeyMod.Alt | KeyCode.LeftArrow
 });
 
 // Map ctrl+alt+r -> ctrl+r when in accessibility mode due to default run recent command keybinding

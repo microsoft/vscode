@@ -104,8 +104,6 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 	logService.trace('doResolveShellEnv#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-	const regex = new RegExp(mark + '([\\s\\S]*?)' + mark);
-
 	const env = {
 		...process.env,
 		ELECTRON_RUN_AS_NODE: '1',
@@ -143,6 +141,11 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		// quotes inside of a single quoted string.
 		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
 
+		// Improve unicode support on Windows by setting the code page to UTF-8
+		if (isWindows) {
+			command = `chcp 65001; ${command}`;
+		}
+
 		// -Login is not a supported argument on PowerShell 5, which is a version of
 		// powershell that is exclusive to Windows. Providing it would error. Also,
 		// -Login is documented as a no-op on Windows on Powershell 7, so simply omit
@@ -178,6 +181,9 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		});
 
 		token.onCancellationRequested(() => {
+			logService.error('doResolveShellEnv#timeout', 'Shell environment resolution timed out, buffers so far:');
+			logService.error('doResolveShellEnv#stdout', Buffer.concat(buffers).toString('utf8') || '<empty>');
+			logService.error('doResolveShellEnv#stderr', Buffer.concat(stderr).toString('utf8') || '<empty>');
 			child.kill();
 
 			return reject(new CancellationError());
@@ -207,8 +213,9 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 				return reject(new Error(localize('resolveShellEnvExitError', "Unexpected exit code from spawned shell (code {0}, signal {1})", code, signal)));
 			}
 
-			const match = regex.exec(raw);
-			const rawStripped = match ? match[1] : '{}';
+			const startIndex = raw.indexOf(mark);
+			const endIndex = raw.lastIndexOf(mark);
+			const rawStripped = startIndex !== -1 && endIndex !== -1 && startIndex < endIndex ? raw.substring(startIndex + mark.length, endIndex).trim() : '{}';
 
 			try {
 				const env = JSON.parse(rawStripped);

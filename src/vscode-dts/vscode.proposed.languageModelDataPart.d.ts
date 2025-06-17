@@ -68,6 +68,7 @@ declare module 'vscode' {
 		 * @param data Binary image data
 		 * @param mimeType The MIME type of the image
 		 */
+		// TODO@API just use string, no enum required
 		static image(data: Uint8Array, mimeType: ChatImageMimeType): LanguageModelDataPart;
 
 		static json(value: any, mime?: string): LanguageModelDataPart;

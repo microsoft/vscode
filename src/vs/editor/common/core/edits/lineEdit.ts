@@ -64,6 +64,10 @@ export class LineEdit {
 		assert(checkAdjacentItems(edits, (i1, i2) => i1.lineRange.endLineNumberExclusive <= i2.lineRange.startLineNumber));
 	}
 
+	public isEmpty(): boolean {
+		return this.edits.length === 0;
+	}
+
 	public toEdit(initialValue: AbstractText): StringEdit {
 		const edits: StringReplacement[] = [];
 		for (const edit of this.edits) {
@@ -108,6 +112,17 @@ export class LineEdit {
 			this.mapLineNumber(lineRange.startLineNumber),
 			this.mapLineNumber(lineRange.endLineNumberExclusive),
 		);
+	}
+
+
+	/** TODO improve, dont require originalLines */
+	public mapBackLineRange(lineRange: LineRange, originalLines: string[]): LineRange {
+		const i = this.inverse(originalLines);
+		return i.mapLineRange(lineRange);
+	}
+
+	public touches(other: LineEdit): boolean {
+		return this.edits.some(e1 => other.edits.some(e2 => e1.lineRange.intersect(e2.lineRange)));
 	}
 
 	public rebase(base: LineEdit): LineEdit {
@@ -203,13 +218,17 @@ export class LineEdit {
 		return result;
 	}
 
-	public toSingleEdit() {
-
+	public inverse(originalLines: string[]): LineEdit {
+		const newRanges = this.getNewLineRanges();
+		return new LineEdit(this.edits.map((e, idx) => new LineReplacement(
+			newRanges[idx],
+			originalLines.slice(e.lineRange.startLineNumber - 1, e.lineRange.endLineNumberExclusive - 1),
+		)));
 	}
 }
 
 export class LineReplacement {
-	public static deserialize(e: SerializedSingleLineEdit): LineReplacement {
+	public static deserialize(e: SerializedLineReplacement): LineReplacement {
 		return new LineReplacement(
 			LineRange.ofLength(e[0], e[1] - e[0]),
 			e[2],
@@ -335,7 +354,7 @@ export class LineReplacement {
 		return `${this.lineRange}->${JSON.stringify(this.newLines)}`;
 	}
 
-	public serialize(): SerializedSingleLineEdit {
+	public serialize(): SerializedLineReplacement {
 		return [
 			this.lineRange.startLineNumber,
 			this.lineRange.endLineNumberExclusive,
@@ -376,5 +395,18 @@ export class LineReplacement {
 	}
 }
 
-export type SerializedLineEdit = SerializedSingleLineEdit[];
-export type SerializedSingleLineEdit = [startLineNumber: number, endLineNumber: number, newLines: readonly string[]];
+export type SerializedLineEdit = SerializedLineReplacement[];
+export type SerializedLineReplacement = [startLineNumber: number, endLineNumber: number, newLines: readonly string[]];
+
+export namespace SerializedLineReplacement {
+	export function is(thing: unknown): thing is SerializedLineReplacement {
+		return (
+			Array.isArray(thing)
+			&& thing.length === 3
+			&& typeof thing[0] === 'number'
+			&& typeof thing[1] === 'number'
+			&& Array.isArray(thing[2])
+			&& thing[2].every((e: any) => typeof e === 'string')
+		);
+	}
+}
