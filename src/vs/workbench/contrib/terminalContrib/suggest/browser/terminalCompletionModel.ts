@@ -26,6 +26,18 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
+	// Boost LSP provider completions
+	const lspProviderId = 'python';
+	const aIsLsp = a.completion.provider.includes(lspProviderId);
+	const bIsLsp = b.completion.provider.includes(lspProviderId);
+
+	if (aIsLsp && !bIsLsp) {
+		return -1;
+	}
+	if (bIsLsp && !aIsLsp) {
+		return 1;
+	}
+
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
@@ -66,6 +78,23 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		score = a.fileExtLow.length - b.fileExtLow.length;
 		if (score !== 0) {
 			return score;
+		}
+	}
+
+	// Boost main and master branches for git commands
+	// HACK: Currently this just matches leading line content, it should eventually check the
+	//       completion type is a branch
+	if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind === TerminalCompletionItemKind.Argument && /^\s*git\b/.test(leadingLineContent)) {
+		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
+		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
+		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
+		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
+
+		if (aIsMainOrMaster && !bIsMainOrMaster) {
+			return -1;
+		}
+		if (bIsMainOrMaster && !aIsMainOrMaster) {
+			return 1;
 		}
 	}
 

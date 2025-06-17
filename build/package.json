@@ -28,7 +28,7 @@
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
@@ -36,7 +36,7 @@
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/ripgrep": "^1.15.10",
+    "@vscode/ripgrep": "^1.15.13",
     "@vscode/vsce": "2.20.1",
     "byline": "^5.0.0",
     "debug": "^4.3.2",
@@ -54,7 +54,8 @@
     "tree-sitter": "^0.22.4",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
-    "yauzl": "^2.10.0"
+    "yauzl": "^2.10.0",
+    "zx": "8.5.0"
   },
   "type": "commonjs",
   "scripts": {

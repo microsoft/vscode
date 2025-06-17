@@ -290,6 +290,7 @@ export class BreadcrumbsControl {
 	dispose(): void {
 		this._disposables.dispose();
 		this._breadcrumbsDisposables.dispose();
+		this._model.dispose();
 		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
@@ -575,7 +576,7 @@ export class BreadcrumbsControl {
 		}
 	}
 
-	private _getEditorGroup(data: object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
+	private _getEditorGroup(data: unknown): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
 		if (data === BreadcrumbsControl.Payload_RevealAside) {
 			return SIDE_GROUP;
 		} else if (data === BreadcrumbsControl.Payload_Reveal) {

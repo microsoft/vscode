@@ -3,36 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { mcpEnabledSection } from './mcpConfiguration.js';
+import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
 	key: 'mcp.trustedCollections'
 });
-
-const collectionPrefixLen = 3;
 
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
@@ -40,50 +41,26 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _trustPrompts = new Map</* collection ID */string, Promise<boolean | undefined>>();
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
-	private readonly _delegates: IMcpHostDelegate[] = [];
-	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
-
-	private readonly _collectionToPrefixes = this._collections.map(c => {
-		// This creates tool prefixes based on a hash of the collection ID. This is
-		// a short prefix because tool names that are too long can cause errors (#243602).
-		// So we take a hash (in order for tools to be stable, because randomized
-		// names can cause hallicinations if present in history) and then adjust
-		// them if there are any collisions.
-		type CollectionHash = { view: number; hash: string; collection: McpCollectionDefinition };
-
-		const hashes = c.map((collection): CollectionHash => {
-			const sha = new StringSHA1();
-			sha.update(collection.id);
-			return { view: 0, hash: sha.digest(), collection };
-		});
-
-		const view = (h: CollectionHash) => h.hash.slice(h.view, h.view + collectionPrefixLen);
-
-		let collided = false;
-		do {
-			hashes.sort((a, b) => view(a).localeCompare(view(b)) || a.collection.id.localeCompare(b.collection.id));
-			collided = false;
-			for (let i = 1; i < hashes.length; i++) {
-				const prev = hashes[i - 1];
-				const curr = hashes[i];
-				if (view(prev) === view(curr) && curr.view + collectionPrefixLen < curr.hash.length) {
-					curr.view++;
-					collided = true;
-				}
-			}
-		} while (collided);
-
-		return Object.fromEntries(hashes.map(h => [h.collection.id, view(h) + '.']));
+	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
+	private readonly _enabled: IObservable<boolean>;
+	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
+		if (!this._enabled.read(reader)) {
+			return [];
+		}
+		return this._collections.read(reader);
 	});
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
 	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
-	private readonly _lazyCollectionsToUpdate = new Set</* collection ID*/string>();
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
+		if (this._enabled.read(reader) === false) {
+			return LazyCollectionState.AllKnown;
+		}
+
 		if (this._ongoingLazyActivations.read(reader) > 0) {
 			return LazyCollectionState.LoadingUnknown;
 		}
@@ -91,7 +68,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
 	});
 
-	public get delegates(): readonly IMcpHostDelegate[] {
+	public get delegates(): IObservable<readonly IMcpHostDelegate[]> {
 		return this._delegates;
 	}
 
@@ -106,18 +83,22 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IProductService private readonly _productService: IProductService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._enabled = observableConfigValue(mcpEnabledSection, true, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
-		this._delegates.push(delegate);
+		const delegates = this._delegates.get().slice();
+		delegates.push(delegate);
+		delegates.sort((a, b) => b.priority - a.priority);
+		this._delegates.set(delegates, undefined);
+
 		return {
 			dispose: () => {
-				const index = this._delegates.indexOf(delegate);
-				if (index !== -1) {
-					this._delegates.splice(index, 1);
-				}
+				const delegates = this._delegates.get().filter(d => d !== delegate);
+				this._delegates.set(delegates, undefined);
 			}
 		};
 	}
@@ -128,10 +109,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
 		if (toReplace) {
-			this._lazyCollectionsToUpdate.add(collection.id);
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
-			this._collections.set([...currentCollections, collection], undefined);
+			this._collections.set([...currentCollections, collection]
+				.sort((a, b) => (a.presentation?.order || 0) - (b.presentation?.order || 0)), undefined);
 		}
 
 		return {
@@ -142,8 +123,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		};
 	}
 
-	public collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
-		return this._collectionToPrefixes.map(p => p[collection.id] ?? '');
+	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+		const collectionObs = this._collections.map(cols => cols.find(c => c.id === collectionRef.id));
+		return collectionObs.map((collection, reader) => {
+			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
+			return { collection, server };
+		});
 	}
 
 	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
@@ -204,6 +189,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		await this._updateStorageWithExpressionInputs(storage, expr);
 	}
 
+	public async setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void> {
+		const storage = this._getInputStorageInConfigTarget(target);
+		const expr = ConfigurationResolverExpression.parse(inputId);
+		for (const unresolved of expr.unresolved()) {
+			expr.resolve(unresolved, value);
+			break;
+		}
+		await this._updateStorageWithExpressionInputs(storage, expr);
+	}
+
 	public getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }> {
 		return this._getInputStorage(scope).getMap();
 	}
@@ -244,9 +239,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			{
 				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
 				custom: {
+					icon: Codicon.shield,
 					markdownDetails: [{
 						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
-						dismissOnLinkClick: true,
+						actionHandler: () => {
+							const editor = this._editorService.openEditor({ resource: collection.presentation!.origin! }, AUX_WINDOW_GROUP);
+							return editor.then(Boolean);
+						},
 					}]
 				},
 				buttons: [
@@ -301,14 +300,19 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return await this._configurationResolverService.resolveAsync(folder, expr);
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
-		const collection = this._collections.get().find(c => c.id === collectionRef.id);
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger, debug }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+		let collection = this._collections.get().find(c => c.id === collectionRef.id);
+		if (collection?.lazy) {
+			await collection.lazy.load();
+			collection = this._collections.get().find(c => c.id === collectionRef.id);
+		}
+
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
 			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
 		}
 
-		const delegate = this._delegates.find(d => d.canStart(collection, definition));
+		const delegate = this._delegates.get().find(d => d.canStart(collection, definition));
 		if (!delegate) {
 			throw new Error('No delegate found that can handle the connection');
 		}
@@ -332,9 +336,20 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		let launch: McpServerLaunch | undefined;
+		let launch: McpServerLaunch | undefined = definition.launch;
+		if (collection.resolveServerLanch) {
+			launch = await collection.resolveServerLanch(definition);
+			if (!launch) {
+				return undefined; // interaction cancelled by user
+			}
+		}
+
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+			launch = await this._replaceVariablesInLaunch(definition, launch);
+
+			if (definition.devMode && debug) {
+				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
+			}
 		} catch (e) {
 			this._notificationService.notify({
 				severity: Severity.Error,

@@ -10,12 +10,12 @@
 </head>
 
 <body>
-	<a class="branding" href="https://code.visualstudio.com/">
-		Visual Studio Code
-	</a>
+	<a class="branding app-name" href="https://code.visualstudio.com/"></a>
 	<div class="message-container">
 		<div class="message">
-			You are signed in now and can close this page.
+			Sign-in successful! Returning to <span class="app-name"></span>...
+			<br><br>
+			If you're not redirected automatically, <a href="#" id="fallback-link">click here</a> or close this page.
 		</div>
 		<div class="error-message">
 			An error occurred while signing in:
@@ -23,13 +23,28 @@
 		</div>
 	</div>
 	<script>
-		var search = window.location.search;
-		var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
+		const urlParams = new URLSearchParams(window.location.search);
+		const appName = urlParams.get('app_name');
+		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
+
+		const error = urlParams.get('error');
+		const redirectUri = urlParams.get('redirect_uri');
 		if (error) {
 			document.querySelector('.error-text')
-				.textContent = decodeURIComponent(error);
+				.textContent = error;
 			document.querySelector('body')
 				.classList.add('error');
+		} else if (redirectUri) {
+			// Set up the fallback link
+			const fallbackLink = document.getElementById('fallback-link');
+			if (fallbackLink) {
+				fallbackLink.href = redirectUri;
+			}
+
+			// Redirect after a delay
+			setTimeout(() => {
+				window.location = redirectUri;
+			}, 1000);
 		}
 	</script>
 </body>

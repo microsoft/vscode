@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../nls.js';
 import { IMcpCollectionContribution } from '../../../../platform/extensions/common/extensions.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
@@ -14,16 +14,44 @@ export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration 
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
-export const mcpActivationEvent = (collectionId: string) => mcpActivationEventPrefix + collectionId;
+/**
+ * note: `contributedCollectionId` is _not_ the collection ID. The collection
+ * ID is formed by passing the contributed ID through `extensionPrefixedIdentifier`
+ */
+export const mcpActivationEvent = (contributedCollectionId: string) =>
+	mcpActivationEventPrefix + contributedCollectionId;
 
-const mcpSchemaExampleServer = {
-	command: 'node',
-	args: ['my-mcp-server.js'],
-	env: {},
+export const enum DiscoverySource {
+	ClaudeDesktop = 'claude-desktop',
+	Windsurf = 'windsurf',
+	CursorGlobal = 'cursor-global',
+	CursorWorkspace = 'cursor-workspace',
+}
+
+export const allDiscoverySources = Object.keys({
+	[DiscoverySource.ClaudeDesktop]: true,
+	[DiscoverySource.Windsurf]: true,
+	[DiscoverySource.CursorGlobal]: true,
+	[DiscoverySource.CursorWorkspace]: true,
+} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+
+export const discoverySourceLabel: Record<DiscoverySource, string> = {
+	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
+export const mcpEnabledSection = 'chat.mcp.enabled';
+export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+
+export interface IMcpServerSamplingConfiguration {
+	allowedDuringChat?: boolean;
+	allowedOutsideChat?: boolean;
+	allowedModels?: string[];
+}
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
@@ -33,10 +61,67 @@ export const mcpSchemaExampleServers = {
 	}
 };
 
+const httpSchemaExamples = {
+	'my-mcp-server': {
+		url: 'http://localhost:3001/mcp',
+		headers: {},
+	}
+};
+
+const mcpDevModeProps = (stdio: boolean): IJSONSchemaMap => ({
+	dev: {
+		type: 'object',
+		markdownDescription: localize('app.mcp.dev', 'Enabled development mode for the server. When present, the server will be started eagerly and output will be included in its output. Properties inside the `dev` object can configure additional behavior.'),
+		examples: [{ watch: 'src/**/*.ts', debug: { type: 'node' } }],
+		properties: {
+			watch: {
+				description: localize('app.mcp.dev.watch', 'A glob pattern or list of glob patterns relative to the workspace folder to watch. The MCP server will be restarted when these files change.'),
+				examples: ['src/**/*.ts'],
+				oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+			},
+			...(stdio && {
+				debug: {
+					markdownDescription: localize('app.mcp.dev.debug', 'If set, debugs the MCP server using the given runtime as it\'s started.'),
+					oneOf: [
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['node'],
+									description: localize('app.mcp.dev.debug.type.node', "Debug the MCP server using Node.js.")
+								}
+							},
+							additionalProperties: false
+						},
+						{
+							type: 'object',
+							required: ['type'],
+							properties: {
+								type: {
+									type: 'string',
+									enum: ['debugpy'],
+									description: localize('app.mcp.dev.debug.type.python', "Debug the MCP server using Python and debugpy.")
+								},
+								debugpyPath: {
+									type: 'string',
+									description: localize('app.mcp.dev.debug.debugpyPath', "Path to the debugpy executable.")
+								},
+							},
+							additionalProperties: false
+						}
+					]
+				}
+			})
+		}
+	}
+});
+
 export const mcpStdioServerSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
-	examples: [mcpSchemaExampleServer],
+	examples: [mcpSchemaExampleServers['mcp-server-time']],
 	properties: {
 		type: {
 			type: 'string',
@@ -46,6 +131,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
+		},
+		cwd: {
+			type: 'string',
+			description: localize('app.mcp.json.cwd', "The working directory for the server command. Defaults to the workspace folder when run in a workspace."),
+			examples: ['${workspaceFolder}'],
 		},
 		args: {
 			type: 'array',
@@ -69,6 +159,7 @@ export const mcpStdioServerSchema: IJSONSchema = {
 				]
 			}
 		},
+		...mcpDevModeProps(true),
 	}
 };
 
@@ -81,34 +172,39 @@ export const mcpServerSchema: IJSONSchema = {
 	additionalProperties: false,
 	properties: {
 		servers: {
-			examples: [mcpSchemaExampleServers],
+			examples: [
+				mcpSchemaExampleServers,
+				httpSchemaExamples,
+			],
 			additionalProperties: {
-				oneOf: [mcpStdioServerSchema, {
-					type: 'object',
-					additionalProperties: false,
-					required: ['url', 'type'],
-					examples: [{
-						type: 'sse',
-						url: 'http://localhost:3001',
-						headers: {},
-					}],
-					properties: {
-						type: {
-							type: 'string',
-							enum: ['sse'],
-							description: localize('app.mcp.json.type', "The type of the server.")
-						},
-						url: {
-							type: 'string',
-							format: 'uri',
-							description: localize('app.mcp.json.url', "The URL of the server-sent-event (SSE) server.")
-						},
-						env: {
-							description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
-							additionalProperties: { type: 'string' },
-						},
-					}
-				}]
+				oneOf: [
+					mcpStdioServerSchema, {
+						type: 'object',
+						additionalProperties: false,
+						required: ['url'],
+						examples: [httpSchemaExamples['my-mcp-server']],
+						properties: {
+							type: {
+								type: 'string',
+								enum: ['http', 'sse'],
+								description: localize('app.mcp.json.type', "The type of the server.")
+							},
+							url: {
+								type: 'string',
+								format: 'uri',
+								pattern: '^https?:\\/\\/.+',
+								patternErrorMessage: localize('app.mcp.json.url.pattern', "The URL must start with 'http://' or 'https://'."),
+								description: localize('app.mcp.json.url', "The URL of the Streamable HTTP or SSE endpoint.")
+							},
+							headers: {
+								type: 'object',
+								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
+								additionalProperties: { type: 'string' },
+							},
+							...mcpDevModeProps(false),
+						}
+					},
+				]
 			}
 		},
 		inputs: inputsSchema.definitions!.inputs
@@ -116,7 +212,7 @@ export const mcpServerSchema: IJSONSchema = {
 };
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
-	extensionPoint: 'modelContextServerCollections',
+	extensionPoint: 'mcpServerDefinitionProviders',
 	activationEventsGenerator(contribs, result) {
 		for (const contrib of contribs) {
 			if (contrib.id) {

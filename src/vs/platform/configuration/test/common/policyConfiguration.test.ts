@@ -66,6 +66,14 @@ suite('PolicyConfiguration', () => {
 					minimumVersion: '1.0.0',
 				}
 			},
+			'policy.booleanSetting': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicyBooleanSetting',
+					minimumVersion: '1.0.0',
+				}
+			},
 			'policy.internalSetting': {
 				'type': 'string',
 				'default': 'defaultInternalValue',
@@ -157,6 +165,24 @@ suite('PolicyConfiguration', () => {
 		const acutal = testObject.configurationModel;
 
 		assert.deepStrictEqual(acutal.getValue('policy.arraySetting'), [1]);
+	});
+
+	test('initialize: with boolean type policy as false', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': false })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), false);
+	});
+
+	test('initialize: with boolean type policy as true', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': true })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), true);
 	});
 
 	test('initialize: with object type policy ignores policy if value is not valid', async () => {

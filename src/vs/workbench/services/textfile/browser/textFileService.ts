@@ -273,11 +273,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.fileService.writeFile(resource, readable, options);
 	}
 
-	getEncoding(resource: URI): string {
-		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
-		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
-	}
-
 	async getEncodedReadable(resource: URI | undefined, value: ITextSnapshot): Promise<VSBufferReadable>;
 	async getEncodedReadable(resource: URI | undefined, value: string): Promise<VSBuffer | VSBufferReadable>;
 	async getEncodedReadable(resource: URI | undefined, value?: ITextSnapshot): Promise<VSBufferReadable | undefined>;
@@ -317,12 +312,35 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			candidateGuessEncodings:
 				options?.candidateGuessEncodings ||
 				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
-			overwriteEncoding: async detectedEncoding => {
-				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
-
-				return encoding;
-			}
+			overwriteEncoding: async detectedEncoding => this.validateDetectedEncoding(resource, detectedEncoding ?? undefined, options)
 		});
+	}
+
+	getEncoding(resource: URI): string {
+		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
+		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
+	}
+
+	async resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<{ preferredEncoding: string; guessEncoding: boolean; candidateGuessEncodings: string[] }> {
+		return {
+			preferredEncoding: (await this.encoding.getPreferredReadEncoding(resource, options, undefined)).encoding,
+			guessEncoding:
+				options?.autoGuessEncoding ||
+				this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			candidateGuessEncodings:
+				options?.candidateGuessEncodings ||
+				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
+		};
+	}
+
+	async validateDetectedEncoding(resource: URI | undefined, detectedEncoding: string | undefined, options?: IReadTextFileEncodingOptions): Promise<string> {
+		const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding);
+
+		return encoding;
+	}
+
+	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
+		return this.encoding.getWriteEncoding(resource, options);
 	}
 
 	//#endregion

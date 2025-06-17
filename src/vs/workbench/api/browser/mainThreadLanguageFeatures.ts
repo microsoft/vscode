@@ -33,7 +33,7 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -614,7 +614,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
@@ -630,6 +630,22 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			handlePartialAccept: async (completions, item, acceptedCharacters, info: languages.PartialAcceptInfo): Promise<void> => {
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, info);
+				}
+			},
+			handleEndOfLifetime: async (completions, item, reason) => {
+
+				function mapReason<T1, T2>(reason: languages.InlineCompletionEndOfLifeReason<T1>, f: (reason: T1) => T2): languages.InlineCompletionEndOfLifeReason<T2> {
+					if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Ignored) {
+						return {
+							...reason,
+							supersededBy: reason.supersededBy ? f(reason.supersededBy) : undefined,
+						};
+					}
+					return reason;
+				}
+
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
@@ -649,20 +665,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineCompletions = emitter.event;
+		}
 	}
 
-	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
-			displayName,
-			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
-				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
-			},
-			freeInlineEdit: (edit: IdentifiableInlineEdit): void => {
-				this._proxy.$freeInlineEdit(handle, edit.pid);
-			}
-
-		};
-		this._registrations.set(handle, this._languageFeaturesService.inlineEditProvider.register(selector, provider));
+	$emitInlineCompletionsChange(handle: number): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
 	}
 
 	// --- parameter hints

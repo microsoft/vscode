@@ -6,6 +6,7 @@
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -31,7 +32,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -62,7 +63,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			sendChatRequest: async (messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
-				const stream = new AsyncIterableSource<IChatResponseFragment>();
+				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
@@ -94,7 +95,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
 		if (data) {
@@ -153,7 +154,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				}
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
-				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', toErrorMessage(err, true), extension.value, requestId);
 				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
@@ -163,7 +164,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
-			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			this._logService.error('[CHAT] extension request ERRORED', toErrorMessage(err, true), extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}

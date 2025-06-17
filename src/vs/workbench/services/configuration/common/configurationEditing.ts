@@ -112,7 +112,7 @@ export class ConfigurationEditingError extends ErrorNoTelemetry {
 
 export interface IConfigurationValue {
 	key: string;
-	value: any;
+	value: unknown;
 }
 
 export interface IConfigurationEditingOptions extends IConfigurationUpdateOptions {

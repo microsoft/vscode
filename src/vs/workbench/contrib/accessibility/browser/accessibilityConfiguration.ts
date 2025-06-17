@@ -290,6 +290,20 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.nextEditSuggestion': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.nextEditSuggestion', "Plays a signal - sound / audio cue and/or announcement (alert) when there is a next edit suggestion."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.nextEditSuggestion.sound', "Plays a sound when there is a next edit suggestion."),
+					...soundFeatureBase,
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.nextEditSuggestion.announcement', "Announces when there is a next edit suggestion."),
+					...announcementFeatureBase,
+				},
+			}
+		},
 		'accessibility.signals.lineHasError': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasError', "Plays a signal - sound (audio cue) and/or announcement (alert) - when the active line has an error."),
@@ -736,6 +750,31 @@ const configuration: IConfigurationNode = {
 				'sound': 'never',
 				'announcement': 'never'
 			}
+		},
+		'accessibility.signals.chatUserActionRequired': {
+			...signalFeatureBase,
+			'markdownDescription': localize('accessibility.signals.chatUserActionRequired', "Plays a signal - sound (audio cue) and/or announcement (alert) - when user action is required in the chat."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatUserActionRequired.sound', "Plays a sound when user action is required in the chat."),
+					'type': 'string',
+					'enum': ['auto', 'on', 'off'],
+					'enumDescriptions': [
+						localize('sound.enabled.autoWindow', "Enable sound when a screen reader is attached or when the current window is not focused."),
+						localize('sound.enabled.on', "Enable sound."),
+						localize('sound.enabled.off', "Disable sound.")
+					],
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatUserActionRequired.announcement', "Announces when a user action is required in the chat - including information about the action and how to take it."),
+					...announcementFeatureBase
+				},
+			},
+			default: {
+				'sound': 'off',
+				'announcement': 'auto'
+			},
+			tags: ['accessibility']
 		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',

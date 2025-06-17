@@ -32,6 +32,7 @@
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -74,6 +75,7 @@
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
@@ -98,7 +100,9 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined
     }
   ]
 }

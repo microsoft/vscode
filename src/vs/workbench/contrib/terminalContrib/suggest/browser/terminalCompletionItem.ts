@@ -5,6 +5,7 @@
 
 import { basename } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { CompletionItemKind } from '../../../../../editor/common/languages.js';
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export enum TerminalCompletionItemKind {
@@ -16,9 +17,35 @@ export enum TerminalCompletionItemKind {
 	Option = 5,
 	OptionValue = 6,
 	Flag = 7,
+	SymbolicLinkFile = 8,
+	SymbolicLinkFolder = 9,
 	// Kinds only for core
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
+}
+
+// Maps CompletionItemKind from language server based completion to TerminalCompletionItemKind
+export function mapLspKindToTerminalKind(lspKind: CompletionItemKind): TerminalCompletionItemKind {
+	// TODO: Add more types for different [LSP providers](https://github.com/microsoft/vscode/issues/249480)
+
+	switch (lspKind) {
+		case CompletionItemKind.File:
+			return TerminalCompletionItemKind.File;
+		case CompletionItemKind.Folder:
+			return TerminalCompletionItemKind.Folder;
+		case CompletionItemKind.Method:
+			return TerminalCompletionItemKind.Method;
+		case CompletionItemKind.Text:
+			return TerminalCompletionItemKind.Argument; // consider adding new type?
+		case CompletionItemKind.Variable:
+			return TerminalCompletionItemKind.Argument; // ""
+		case CompletionItemKind.EnumMember:
+			return TerminalCompletionItemKind.OptionValue; // ""
+		case CompletionItemKind.Keyword:
+			return TerminalCompletionItemKind.Alias;
+		default:
+			return TerminalCompletionItemKind.Method;
+	}
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {

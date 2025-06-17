@@ -27,7 +27,7 @@ import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js'
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { IProductService } from '../../product/common/productService.js';
-import { join } from 'path';
+import { join } from '../../../base/common/path.js';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
@@ -49,7 +49,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		let result: any;
+		let result: unknown;
 		try {
 			result = await fn.apply(this, args);
 		} catch (e) {
@@ -78,7 +78,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	private readonly _autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+	private readonly _autoRepliesContribution: AutoRepliesPtyServiceContribution;
 	@traceRpc
 	async installAutoReply(match: string, reply: string) {
 		await this._autoRepliesContribution.installAutoReply(match, reply);
@@ -90,9 +90,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #endregion
 
-	private readonly _contributions: IPtyServiceContribution[] = [
-		this._autoRepliesContribution
-	];
+	private readonly _contributions: IPtyServiceContribution[];
 
 	private _lastPtyId: number = 0;
 
@@ -148,6 +146,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+
+		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+
+		this._contributions = [this._autoRepliesContribution];
+
 	}
 
 	@traceRpc
@@ -417,6 +420,10 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			pty.input(data);
 		}
+	}
+	@traceRpc
+	async sendSignal(id: number, signal: string): Promise<void> {
+		return this._throwIfNoPty(id).sendSignal(signal);
 	}
 	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
@@ -852,6 +859,12 @@ class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		return this._terminalProcess.input(data);
+	}
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+		return this._terminalProcess.sendSignal(signal);
 	}
 	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);

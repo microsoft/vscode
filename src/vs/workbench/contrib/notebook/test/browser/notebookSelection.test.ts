@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('NotebookSelection', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('focus is never empty', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
@@ -25,6 +25,64 @@ suite('NotebookSelection', () => {
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 		selectionCollection.dispose();
 	});
+
+	test('selection is never empty', function () {
+		const selectionCollection = new NotebookCellSelectionCollection();
+		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
+
+		selectionCollection.setState(null, [], true, 'model');
+		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
+		selectionCollection.dispose();
+	});
+
+	test('selections does not change when setting to empty', function () {
+		const selectionCollection = new NotebookCellSelectionCollection();
+		let changed = false;
+		store.add(selectionCollection.onDidChangeSelection(() => {
+			changed = true;
+		}));
+
+		selectionCollection.setState(null, [], false, 'model');
+		assert.strictEqual(changed, false);
+		selectionCollection.setState({ start: 0, end: 0 }, [], false, 'model');
+		assert.strictEqual(changed, false);
+		selectionCollection.setState({ start: 0, end: 0 }, [{ start: 0, end: 0 }], false, 'model');
+		assert.strictEqual(changed, false);
+		selectionCollection.setState(null, [], false, 'model');
+		assert.strictEqual(changed, false);
+		selectionCollection.dispose();
+	});
+
+	test('event fires when selection or focus changes', function () {
+		const selectionCollection = new NotebookCellSelectionCollection();
+		let eventCount = 0;
+		store.add(selectionCollection.onDidChangeSelection(() => {
+			eventCount++;
+		}));
+
+		// Change focus
+		selectionCollection.setState({ start: 1, end: 1 }, [{ start: 1, end: 2 }], false, 'model');
+		assert.strictEqual(eventCount, 1);
+
+		// Change selections
+		selectionCollection.setState({ start: 1, end: 1 }, [{ start: 1, end: 2 }, { start: 2, end: 3 }], false, 'model');
+		assert.strictEqual(eventCount, 2);
+
+		// no change
+		selectionCollection.setState({ start: 1, end: 1 }, [{ start: 1, end: 2 }, { start: 2, end: 3 }], false, 'model');
+		assert.strictEqual(eventCount, 2);
+
+		// change to empty focus
+		selectionCollection.setState({ start: 0, end: 0 }, [{ start: 4, end: 5 }], false, 'model');
+		assert.strictEqual(eventCount, 3);
+
+		// change to empty selections
+		selectionCollection.setState({ start: 0, end: 0 }, [], false, 'model');
+		assert.strictEqual(eventCount, 4);
+
+		selectionCollection.dispose();
+	});
+
 });
 
 suite('NotebookCellList focus/selection', () => {
@@ -312,6 +370,9 @@ suite('NotebookCellList focus/selection', () => {
 				// viewModel.deleteCell(1, true, false);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+				runDeleteAction(editor, viewModel.cellAt(0)!);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 0 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 0 }]);
 			});
 	});
 

@@ -77,6 +77,12 @@ function setNpmrcConfig(dir, env) {
 		}
 	}
 
+	// Use our bundled node-gyp version
+	env['npm_config_node_gyp'] =
+		process.platform === 'win32'
+			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
 	// run into compilation errors due to incorrect compiler
@@ -162,26 +168,8 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		const globalGypPath = path.join(os.homedir(), '.gyp');
-		const globalInclude = path.join(globalGypPath, 'include.gypi');
-		const tempGlobalInclude = path.join(globalGypPath, 'include.gypi.bak');
-		if (process.platform === 'linux' &&
-			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
-			// Following include file rename should be removed
-			// when `Override gnu target for arm64 and arm` step
-			// is removed from the product build pipeline.
-			if (fs.existsSync(globalInclude)) {
-				fs.renameSync(globalInclude, tempGlobalInclude);
-			}
-		}
 		setNpmrcConfig('remote', opts.env);
 		npmInstall(dir, opts);
-		if (process.platform === 'linux' &&
-			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
-			if (fs.existsSync(tempGlobalInclude)) {
-				fs.renameSync(tempGlobalInclude, globalInclude);
-			}
-		}
 		continue;
 	}
 

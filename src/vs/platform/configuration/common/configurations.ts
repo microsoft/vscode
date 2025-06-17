@@ -7,28 +7,30 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 import { isEmptyObject, isString } from '../../../base/common/types.js';
 import { ConfigurationModel } from './configurationModels.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
 import { ILogService, NullLogService } from '../../log/common/log.js';
-import { IPolicyService, PolicyDefinition, PolicyName } from '../../policy/common/policy.js';
+import { IPolicyService, PolicyDefinition } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import * as json from '../../../base/common/json.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class DefaultConfiguration extends Disposable {
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel(): ConfigurationModel {
 		return this._configurationModel;
 	}
 
 	constructor(private readonly logService: ILogService) {
 		super();
+		this._configurationModel = ConfigurationModel.createEmptyModel(logService);
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -65,7 +67,7 @@ export class DefaultConfiguration extends Disposable {
 			if (defaultOverrideValue !== undefined) {
 				this._configurationModel.setValue(key, defaultOverrideValue);
 			} else if (propertySchema) {
-				this._configurationModel.setValue(key, propertySchema.default);
+				this._configurationModel.setValue(key, deepClone(propertySchema.default));
 			} else {
 				this._configurationModel.removeValue(key);
 			}
@@ -93,7 +95,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 	private readonly configurationRegistry: IConfigurationRegistry;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel() { return this._configurationModel; }
 
 	constructor(
@@ -102,6 +104,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 		this.configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	}
 
@@ -134,8 +137,13 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
+				const { defaultValue, previewFeature } = config.policy;
 				keys.push(key);
-				policyDefinitions[config.policy.name] = { type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string' };
+				policyDefinitions[config.policy.name] = {
+					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
+					previewFeature,
+					defaultValue,
+				};
 			}
 		}
 
