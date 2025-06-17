@@ -1120,6 +1120,10 @@ export class TestFileService implements IFileService {
 		return this.resolve(resource, { resolveMetadata: true });
 	}
 
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
+	}
+
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
 		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
 

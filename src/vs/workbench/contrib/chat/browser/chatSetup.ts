@@ -575,7 +575,8 @@ enum ChatSetupStrategy {
 	DefaultSetup = 1,
 	SetupWithoutEnterpriseProvider = 2,
 	SetupWithEnterpriseProvider = 3,
-	SetupWithAccountCreate = 4
+	SetupWithAccountCreate = 4,
+	SetupWithAlternateProvider = 5
 }
 
 type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;
@@ -664,10 +665,13 @@ class ChatSetup {
 		try {
 			switch (setupStrategy) {
 				case ChatSetupStrategy.SetupWithEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: true });
+					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: true, useAlternateProvider: false });
 					break;
 				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false });
+					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useAlternateProvider: false });
+					break;
+				case ChatSetupStrategy.SetupWithAlternateProvider:
+					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useAlternateProvider: true });
 					break;
 				case ChatSetupStrategy.DefaultSetup:
 					success = await this.controller.value.setup();
@@ -771,7 +775,7 @@ class ChatSetup {
 								separator?.appendChild($('.buttons-separator-right'));
 							}
 						}],
-						supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+						supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
 							styleButton: button => {
 								button.element.classList.add('continue-button', 'alternate');
 							}
@@ -791,7 +795,7 @@ class ChatSetup {
 									button.element.classList.add('continue-button', 'default');
 								}
 							}],
-							supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+							supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
 								styleButton: button => {
 									button.element.classList.add('continue-button', 'alternate');
 								}
@@ -813,7 +817,7 @@ class ChatSetup {
 									button.element.classList.add('continue-button', 'default');
 								}
 							}],
-							supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithoutEnterpriseProvider, {
+							supportAlternateProvider ? [localize('continueWith', "Continue with {0}", defaultChat.alternativeProviderName), ChatSetupStrategy.SetupWithAlternateProvider, {
 								styleButton: button => {
 									button.element.classList.add('continue-button', 'alternate');
 								}
@@ -1375,7 +1379,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean }): Promise<ChatSetupResultValue> {
+	async setup(options?: { forceSignIn?: boolean; useAlternateProvider?: boolean }): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
@@ -1393,7 +1397,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async doSetup(options: { forceSignIn?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
+	private async doSetup(options: { forceSignIn?: boolean; useAlternateProvider?: boolean }, watch: StopWatch): Promise<ChatSetupResultValue> {
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -1405,7 +1409,7 @@ class ChatSetupController extends Disposable {
 			// Entitlement Unknown or `forceSignIn`: we need to sign-in user
 			if (this.context.state.entitlement === ChatEntitlement.Unknown || options.forceSignIn) {
 				this.setStep(ChatSetupStep.SigningIn);
-				const result = await this.signIn(providerId);
+				const result = await this.signIn({ useAlternateProvider: options.useAlternateProvider });
 				if (!result.session) {
 					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
 
@@ -1436,11 +1440,11 @@ class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(providerId: string): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(options: { useAlternateProvider?: boolean }): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
 		let session: AuthenticationSession | undefined;
 		let entitlements;
 		try {
-			({ session, entitlements } = await this.requests.signIn());
+			({ session, entitlements } = await this.requests.signIn(options));
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
@@ -1448,13 +1452,13 @@ class ChatSetupController extends Disposable {
 		if (!session && !this.lifecycleService.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", options?.useAlternateProvider ? defaultChat.alternativeProviderId : ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
 				detail: localize('unknownSignInErrorDetail', "You must be signed in to use Copilot."),
 				primaryButton: localize('retry', "Retry")
 			});
 
 			if (confirmed) {
-				return this.signIn(providerId);
+				return this.signIn(options);
 			}
 		}
 
@@ -1547,7 +1551,7 @@ class ChatSetupController extends Disposable {
 		}, ChatViewId);
 	}
 
-	async setupWithProvider(options: { useEnterpriseProvider: boolean }): Promise<ChatSetupResultValue> {
+	async setupWithProvider(options: { useEnterpriseProvider: boolean; useAlternateProvider: boolean }): Promise<ChatSetupResultValue> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',

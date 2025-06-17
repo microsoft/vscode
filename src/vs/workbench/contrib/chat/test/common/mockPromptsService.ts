@@ -18,9 +18,6 @@ export class MockPromptsService implements IPromptsService {
 	getAllMetadata(_files: readonly URI[]): Promise<readonly IMetadata[]> {
 		throw new Error('Method not implemented.');
 	}
-	getMetadata(_file: URI): Promise<IMetadata> {
-		throw new Error('Method not implemented.');
-	}
 	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
 		throw new Error('Method not implemented.');
 	}
@@ -33,13 +30,13 @@ export class MockPromptsService implements IPromptsService {
 	asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
 		return undefined;
 	}
-	resolvePromptSlashCommand(_data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
+	resolvePromptSlashCommand(_data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly URI[]> {
+	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 		throw new Error('Method not implemented.');
 	}
 	onDidChangeCustomChatModes: Event<void> = Event.None;
@@ -47,6 +44,9 @@ export class MockPromptsService implements IPromptsService {
 		throw new Error('Method not implemented.');
 	}
 	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+		throw new Error('Method not implemented.');
+	}
+	getPromptFileType(resource: URI): PromptsType | undefined {
 		throw new Error('Method not implemented.');
 	}
 	dispose(): void { }

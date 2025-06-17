@@ -12,10 +12,6 @@ import { AcceptInlineCompletion, AcceptNextLineOfInlineCompletion, AcceptNextWor
 import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
 import { InlineCompletionsHoverParticipant } from './hintsWidget/hoverParticipant.js';
 import { InlineCompletionsAccessibleView } from './inlineCompletionsAccessibleView.js';
-import { InlineEditsAdapterContribution } from './model/inlineEditsAdapter.js';
-
-registerEditorContribution(InlineEditsAdapterContribution.ID, InlineEditsAdapterContribution, EditorContributionInstantiation.Eventually);
-
 
 registerEditorContribution(InlineCompletionsController.ID, wrapInHotClass1(InlineCompletionsController.hot), EditorContributionInstantiation.Eventually);
 

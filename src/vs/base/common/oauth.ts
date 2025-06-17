@@ -678,6 +678,11 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
 }
 
 /**
+ * The grant types that we support
+ */
+const grantTypesSupported = ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'];
+
+/**
  * Default port for the authorization flow. We try to use this port so that
  * the redirect URI does not change when running on localhost. This is useful
  * for servers that only allow exact matches on the redirect URI. The spec
@@ -685,8 +690,11 @@ export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetad
  * the spec and require an exact match.
  */
 export const DEFAULT_AUTH_FLOW_PORT = 33418;
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
-	const response = await fetch(registrationEndpoint, {
+export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+	if (!serverMetadata.registration_endpoint) {
+		throw new Error('Server does not support dynamic registration');
+	}
+	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -694,7 +702,9 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 		body: JSON.stringify({
 			client_name: clientName,
 			client_uri: 'https://code.visualstudio.com',
-			grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+			grant_types: serverMetadata.grant_types_supported
+				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+				: grantTypesSupported,
 			response_types: ['code'],
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',

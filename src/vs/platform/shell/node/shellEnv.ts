@@ -141,6 +141,11 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		// quotes inside of a single quoted string.
 		command = `Write-Output '${mark}'; [System.Environment]::GetEnvironmentVariables() | ConvertTo-Json -Compress; Write-Output '${mark}'`;
 
+		// Improve unicode support on Windows by setting the code page to UTF-8
+		if (isWindows) {
+			command = `chcp 65001; ${command}`;
+		}
+
 		// -Login is not a supported argument on PowerShell 5, which is a version of
 		// powershell that is exclusive to Windows. Providing it would error. Also,
 		// -Login is documented as a no-op on Windows on Powershell 7, so simply omit
@@ -176,6 +181,9 @@ async function doResolveShellEnv(logService: ILogService, token: CancellationTok
 		});
 
 		token.onCancellationRequested(() => {
+			logService.error('doResolveShellEnv#timeout', 'Shell environment resolution timed out, buffers so far:');
+			logService.error('doResolveShellEnv#stdout', Buffer.concat(buffers).toString('utf8') || '<empty>');
+			logService.error('doResolveShellEnv#stderr', Buffer.concat(stderr).toString('utf8') || '<empty>');
 			child.kill();
 
 			return reject(new CancellationError());

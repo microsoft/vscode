@@ -127,6 +127,7 @@ const defaultChat = {
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	alternativeProviderId: product.defaultChatAgent?.alternativeProviderId ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -845,9 +846,9 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn() {
+	async signIn(options?: { useAlternateProvider?: boolean }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useAlternateProvider ? { provider: defaultChat.alternativeProviderId } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);

@@ -25,7 +25,6 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -77,10 +76,9 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, ChatRequestVariableSet, isPromptFileVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, ChatRequestVariableSet, isPromptFileVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatMode2, IChatMode, IChatModeService, isBuiltinChatMode, validateChatMode2 } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, isChatMode, validateChatMode } from '../common/constants.js';
@@ -97,13 +95,13 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEdi
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
-import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { PROMPT_LANGUAGE_ID } from '../common/promptSyntax/promptTypes.js';
+import { PromptsType } from '../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
 const $ = dom.$;
 
@@ -165,36 +163,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public async getAttachedAndImplicitContext(sessionId: string): Promise<ChatRequestVariableSet> {
-
-		// prompt files may have nested child references to other prompt
-		// files that are resolved asynchronously, hence we need to wait
-		// for the entire prompt instruction tree to be processed
+	public getAttachedAndImplicitContext(sessionId: string): ChatRequestVariableSet {
 
 		const contextArr = new ChatRequestVariableSet();
 
-		contextArr.add(... await this.attachmentModel.getPromptFileVariables());
 		contextArr.add(...this.attachmentModel.attachments);
 
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
-			const implicitChatVariables = await this.implicitContext.toBaseEntries();
+			const implicitChatVariables = this.implicitContext.toBaseEntries();
 			contextArr.add(...implicitChatVariables);
-		}
-
-		// factor in nested file links of a prompt into the implicit context
-		const variables = this.variableService.getDynamicVariables(sessionId);
-		for (const variable of variables) {
-			if (!(variable instanceof ChatFileReference)) {
-				continue;
-			}
-
-			// the usual URIs list of prompt instructions is `bottom-up`, therefore
-			// we do the same here - first add all child references to the list
-			contextArr.add(
-				...variable.allValidReferences.map((link) => {
-					return toPromptFileVariableEntry(link.uri, false);
-				}),
-			);
 		}
 		return contextArr;
 	}
@@ -203,8 +180,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Check if the chat input part has any prompt file attachments.
 	 */
 	get hasPromptFileAttachments(): boolean {
-		// if prompt attached explicitly as a "prompt" attachment
-		return this._attachmentModel.hasPromptFiles(PROMPT_LANGUAGE_ID);
+		return this._attachmentModel.attachments.some(entry => {
+			return isPromptFileVariableEntry(entry) && entry.isRoot && this.promptsService.getPromptFileType(entry.value) === PromptsType.prompt;
+		});
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number;
@@ -375,12 +353,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 		this._onDidLoadInputState = this._register(new Emitter<any>());
@@ -1271,6 +1249,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastOpenedContext = -1;
 		}
 
+		if (this.implicitContext?.value) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+			container.appendChild(implicitPart.domNode);
+		}
+
 		this.promptFileAttached.set(this.hasPromptFileAttachments);
 
 		for (const [index, attachment] of attachments) {
@@ -1318,18 +1301,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		const implicitUri = this.implicitContext?.value;
-
-		if (URI.isUri(implicitUri)) {
-			const currentlyAttached = attachments.some(
-				([, attachment]) => URI.isUri(attachment.value) && isEqual(attachment.value, implicitUri)
-			);
-
-			if (implicitUri && !currentlyAttached) {
-				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
-				container.appendChild(implicitPart.domNode);
-			}
-		}
 
 		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();

@@ -281,7 +281,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
 				}
 			}
-			return await authProvider.getSessions(scopes, { account: options?.account, authorizationServer: options?.authorizationServer });
+			return await authProvider.getSessions(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -294,10 +294,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes, {
-				account: options?.account,
-				authorizationServer: options?.authorizationServer
-			});
+			return await authProvider.createSession(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

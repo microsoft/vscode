@@ -60,15 +60,46 @@ export interface IFlowQuery {
 }
 
 interface IFlowTriggerOptions {
+	/**
+	 * The scopes to request for the OAuth flow.
+	 */
 	scopes: string;
+	/**
+	 * The base URI for the flow. This is used to determine which GitHub instance to authenticate against.
+	 */
 	baseUri: Uri;
-	logger: Log;
+	/**
+	 * The specific auth provider to use for the flow.
+	 */
+	signInProvider?: GitHubSocialSignInProvider;
+	/**
+	 * The Uri that the OAuth flow will redirect to. (i.e. vscode.dev/redirect)
+	 */
 	redirectUri: Uri;
-	nonce: string;
+	/**
+	 * The Uri to redirect to after redirecting to the redirect Uri. (i.e. vscode://....)
+	 */
 	callbackUri: Uri;
-	uriHandler: UriEventHandler;
+	/**
+	 * The enterprise URI for the flow, if applicable.
+	 */
 	enterpriseUri?: Uri;
+	/**
+	 * The existing login which will be used to pre-fill the login prompt.
+	 */
 	existingLogin?: string;
+	/**
+	 * The nonce for this particular flow. This is used to prevent replay attacks.
+	 */
+	nonce: string;
+	/**
+	 * The instance of the Uri Handler for this extension
+	 */
+	uriHandler: UriEventHandler;
+	/**
+	 * The logger to use for this flow.
+	 */
+	logger: Log;
 }
 
 interface IFlow {
@@ -143,12 +174,13 @@ class UrlHandlerFlow implements IFlow {
 		scopes,
 		baseUri,
 		redirectUri,
-		logger,
-		nonce,
 		callbackUri,
-		uriHandler,
 		enterpriseUri,
-		existingLogin
+		nonce,
+		signInProvider,
+		uriHandler,
+		existingLogin,
+		logger,
 	}: IFlowTriggerOptions): Promise<string> {
 		logger.info(`Trying without local server... (${scopes})`);
 		return await window.withProgress<string>({
@@ -172,6 +204,9 @@ class UrlHandlerFlow implements IFlow {
 				searchParams.append('login', existingLogin);
 			} else {
 				searchParams.append('prompt', 'select_account');
+			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
 			}
 
 			// The extra toString, parse is apparently needed for env.openExternal
@@ -219,10 +254,11 @@ class LocalServerFlow implements IFlow {
 		scopes,
 		baseUri,
 		redirectUri,
-		logger,
 		callbackUri,
 		enterpriseUri,
-		existingLogin
+		signInProvider,
+		existingLogin,
+		logger
 	}: IFlowTriggerOptions): Promise<string> {
 		logger.info(`Trying with local server... (${scopes})`);
 		return await window.withProgress<string>({
@@ -243,6 +279,9 @@ class LocalServerFlow implements IFlow {
 				searchParams.append('login', existingLogin);
 			} else {
 				searchParams.append('prompt', 'select_account');
+			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
 			}
 
 			const loginUrl = baseUri.with({
@@ -519,4 +558,16 @@ export function getFlows(query: IFlowQuery) {
 		}
 		return useFlow;
 	});
+}
+
+/**
+ * Social authentication providers for GitHub
+ */
+export const enum GitHubSocialSignInProvider {
+	Google = 'google',
+	// Apple = 'apple',
+}
+
+export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
+	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
 }
