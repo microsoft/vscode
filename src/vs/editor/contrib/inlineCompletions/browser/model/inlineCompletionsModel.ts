@@ -923,7 +923,7 @@ export class InlineCompletionsModel extends Disposable {
 		const cursorPosition = positions[0];
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
-		completion.source.addRef();
+		completion.addRef();
 		try {
 			this._isAcceptingPartially = true;
 			try {
@@ -949,7 +949,7 @@ export class InlineCompletionsModel extends Disposable {
 			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
 
 		} finally {
-			completion.source.removeRef();
+			completion.removeRef();
 		}
 	}
 

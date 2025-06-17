@@ -901,7 +901,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
 	onDidChangeInlineCompletions?: Event<void>;
 
@@ -923,6 +923,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	toString?(): string;
 }
+
+export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
 
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
