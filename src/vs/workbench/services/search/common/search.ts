@@ -437,6 +437,7 @@ export interface ISearchConfigurationProperties {
 	useParentIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
+	confirmReplaceAll?: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
 	useReplacePreview: boolean;

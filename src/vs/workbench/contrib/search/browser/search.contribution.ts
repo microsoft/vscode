@@ -406,6 +406,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['preview'],
 		},
+		'search.confirmReplaceAll': {
+			type: 'boolean',
+			description: nls.localize('confirmReplaceAll', "Controls whether the Search view should ask for confirmation when doing a replace all operation."),
+			default: true
+		},
 	}
 });
 
