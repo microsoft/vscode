@@ -648,7 +648,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
 			},
-			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
+			disposeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			},
 			handleRejection: async (completions, item): Promise<void> => {

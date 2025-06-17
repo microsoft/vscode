@@ -98,7 +98,7 @@ suite('TerminalCompletionService', () => {
 	let configurationService: TestConfigurationService;
 	let capabilities: TerminalCapabilityStore;
 	let validResources: URI[];
-	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean }[];
+	let childResources: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[];
 	let terminalCompletionService: TerminalCompletionService;
 	const provider = 'testProvider';
 
@@ -122,8 +122,16 @@ suite('TerminalCompletionService', () => {
 						count(childFsPath, '/') === count(parentFsPath, '/') + 1
 					);
 				});
-				return createFileStat(resource, undefined, undefined, undefined, children);
+				return createFileStat(resource, undefined, undefined, undefined, undefined, children);
 			},
+			async realpath(resource: URI): Promise<URI | undefined> {
+				if (resource.path.includes('symlink-file')) {
+					return resource.with({ path: '/target/actual-file.txt' });
+				} else if (resource.path.includes('symlink-folder')) {
+					return resource.with({ path: '/target/actual-folder' });
+				}
+				return undefined;
+			}
 		});
 		terminalCompletionService = store.add(instantiationService.createInstance(TerminalCompletionService));
 		terminalCompletionService.processEnv = testEnv;
@@ -677,4 +685,36 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+	if (!isWindows) {
+		suite('symlink support', () => {
+			test('should include symlink target information in completions', async () => {
+				const resourceRequestConfig: TerminalResourceRequestConfig = {
+					cwd: URI.parse('file:///test'),
+					pathSeparator,
+					filesRequested: true,
+					foldersRequested: true
+				};
+
+				validResources = [URI.parse('file:///test')];
+
+				// Create mock children including a symbolic link
+				childResources = [
+					{ resource: URI.parse('file:///test/regular-file.txt'), isFile: true },
+					{ resource: URI.parse('file:///test/symlink-file'), isFile: true, isSymbolicLink: true },
+					{ resource: URI.parse('file:///test/symlink-folder'), isDirectory: true, isSymbolicLink: true },
+					{ resource: URI.parse('file:///test/regular-folder'), isDirectory: true },
+				];
+
+				const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'ls ', 3, provider, capabilities);
+
+				// Find the symlink completion
+				const symlinkFileCompletion = result?.find(c => c.label === './symlink-file');
+				const symlinkFolderCompletion = result?.find(c => c.label === './symlink-folder/');
+				assert.strictEqual(symlinkFileCompletion?.detail, '/test/symlink-file -> /target/actual-file.txt', 'Symlink file detail should match target');
+				assert.strictEqual(symlinkFolderCompletion?.detail, '/test/symlink-folder -> /target/actual-folder', 'Symlink folder detail should match target');
+			});
+		});
+	}
 });
+
+

@@ -1381,12 +1381,6 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
-		}
-
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
 		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
@@ -1444,7 +1438,7 @@ class InlineCompletionAdapter {
 				if (!disposableStore) {
 					disposableStore = new DisposableStore();
 				}
-				return this._commands.toInternal(c, disposableStore);
+				return typeConvert.CompletionCommand.from(c, this._commands, disposableStore);
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,
@@ -1530,7 +1524,7 @@ class InlineCompletionAdapter {
 				if (!disposableStore) {
 					disposableStore = new DisposableStore();
 				}
-				return this._commands.toInternal(c, disposableStore);
+				return typeConvert.CompletionCommand.from(c, this._commands, disposableStore);
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,

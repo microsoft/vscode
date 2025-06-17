@@ -7387,13 +7387,18 @@ declare namespace monaco.languages {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		readonly commands?: Command[];
+		readonly commands?: InlineCompletionCommand[];
 		readonly suppressSuggestions?: boolean | undefined;
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
 		 */
 		readonly enableForwardStability?: boolean | undefined;
 	}
+
+	export type InlineCompletionCommand = {
+		command: Command;
+		icon?: editor.ThemeIcon;
+	};
 
 	export type InlineCompletionProviderGroupId = string;
 
@@ -7421,7 +7426,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
-		freeInlineCompletions(completions: T): void;
+		disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 		onDidChangeInlineCompletions?: IEvent<void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
@@ -7437,6 +7442,8 @@ declare namespace monaco.languages {
 		debounceDelayMs?: number;
 		toString?(): string;
 	}
+
+	export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
 
 	export enum InlineCompletionEndOfLifeReasonKind {
 		Accepted = 0,
