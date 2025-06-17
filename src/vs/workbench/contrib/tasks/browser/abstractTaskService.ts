@@ -49,11 +49,11 @@ import { ITerminalProfileResolverService } from '../../terminal/common/terminal.
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy } from '../common/tasks.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
+import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
 import * as TaskConfig from '../common/taskConfiguration.js';
-import { TerminalTaskSystem, VerifiedTask } from './terminalTaskSystem.js';
+import { TerminalTaskSystem } from './terminalTaskSystem.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 
@@ -337,7 +337,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							const realUniqueId = task._id;
 
 							console.log(`  Task Label: '${task._label}', Unique ID: ${uniqueId}`);
-							const last_task = this._taskSystem!._lastTask?.task._id;
+							const last_task = this._taskSystem?.LastTask?.task._id;
+
 							console.log(`  Last Task ID: ${last_task}`);
 
 							if (last_task && last_task === realUniqueId) {
@@ -345,9 +346,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								// TODO: Replace last_task with updated task.
 								if (folderUri !== 'setting') {
 									// this._taskSystem!._lastTask = task;
-									const verified_last_task = new VerifiedTask(task, this._taskSystem!._lastTask?.resolver!, Triggers.command);
-									this._taskSystem!._lastTask = verified_last_task;
-									console.log('i was here');
+									const verified_last_task = new VerifiedTask(task, this._taskSystem!.LastTask!.resolver, Triggers.command);
+									this._taskSystem!.LastTask = verified_last_task;
 								}
 							}
 

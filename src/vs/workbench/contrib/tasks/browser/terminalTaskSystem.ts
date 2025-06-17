@@ -39,7 +39,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
-import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
+import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
@@ -108,37 +108,6 @@ class VariableResolver {
 	}
 }
 
-export class VerifiedTask {
-	readonly task: Task;
-	readonly resolver: ITaskResolver;
-	readonly trigger: string;
-	resolvedVariables?: IResolvedVariables;
-	systemInfo?: ITaskSystemInfo;
-	workspaceFolder?: IWorkspaceFolder;
-	shellLaunchConfig?: IShellLaunchConfig;
-
-	constructor(task: Task, resolver: ITaskResolver, trigger: string) {
-		this.task = task;
-		this.resolver = resolver;
-		this.trigger = trigger;
-	}
-
-	public verify(): boolean {
-		let verified = false;
-		if (this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined)) {
-			verified = true;
-		}
-		return verified;
-	}
-
-	public getVerifiedTask(): { task: Task; resolver: ITaskResolver; trigger: string; resolvedVariables: IResolvedVariables; systemInfo: ITaskSystemInfo; workspaceFolder: IWorkspaceFolder; shellLaunchConfig: IShellLaunchConfig } {
-		if (this.verify()) {
-			return { task: this.task, resolver: this.resolver, trigger: this.trigger, resolvedVariables: this.resolvedVariables!, systemInfo: this.systemInfo!, workspaceFolder: this.workspaceFolder!, shellLaunchConfig: this.shellLaunchConfig! };
-		} else {
-			throw new Error('VerifiedTask was not checked. verify must be checked before getVerifiedTask.');
-		}
-	}
-}
 
 export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
@@ -188,7 +157,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
-	public _lastTask: VerifiedTask | undefined; // need to update this when tasks.json scheme changes.
+	private _lastTask: VerifiedTask | undefined; // need to update this when tasks.json scheme changes.
 	// Should always be set in run
 	private _currentTask!: VerifiedTask;
 	private _isRerun: boolean = false;
@@ -251,6 +220,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
 		this._taskTerminalActive = TASK_TERMINAL_ACTIVE.bindTo(contextKeyService);
 		this._register(this._terminalService.onDidChangeActiveInstance((e) => this._taskTerminalActive.set(e?.shellLaunchConfig.type === 'Task')));
+	}
+	get LastTask(): VerifiedTask | undefined {
+		throw new Error('Method not implemented.');
+	}
+	set LastTask(task: VerifiedTask | undefined) {
+		throw new Error('Method not implemented.');
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -317,6 +292,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			return undefined;
 		}
+	}
+
+	public get lastTask(): VerifiedTask | undefined {
+		return this._lastTask;
+	}
+
+	public set lastTask(task: VerifiedTask | undefined) {
+		this._lastTask = task;
 	}
 
 	private _showTaskLoadErrors(task: Task) {
