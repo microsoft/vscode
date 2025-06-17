@@ -1,0 +1,58 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main # Or your default branch
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x' # Capacitor CLI requires Node 20+
+
+      - name: Install dependencies
+        run: npm install # Assuming npm, adjust if yarn is standard
+
+      - name: Build VS Code Web
+        run: node ./node_modules/gulp/bin/gulp.js compile-web
+        # The web output directory is assumed to be 'out-vscode-web' as per capacitor.config.ts.
+
+      - name: Install Capacitor CLI (if not already a dev dep)
+        run: npm install -g @capacitor/cli
+
+      - name: Copy web assets to Capacitor
+        run: npx cap copy android
+
+      - name: Update Android project
+        run: npx cap update android
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+        working-directory: ./ # Assuming gradlew is in the android subdirectory
+
+      - name: Build APK with Gradle
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: ./android
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-mobile-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

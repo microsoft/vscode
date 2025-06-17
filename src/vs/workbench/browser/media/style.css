@@ -318,3 +318,26 @@ body {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
+
+@media (max-width: 768px) {
+  /* Reduce base font size for smaller screens */
+  .monaco-workbench {
+    font-size: 12px; /* Slightly smaller base font */
+  }
+
+  /* Adjust global padding/margins if necessary, example: */
+  body {
+    /* Potentially remove or reduce margins/paddings if they exist and are problematic */
+  }
+}
+
+@media (max-width: 480px) {
+  .monaco-workbench {
+    font-size: 11px; /* Even smaller font for very small devices */
+  }
+
+  /* Example: Make codicons slightly smaller if they cause overflow */
+  .monaco-workbench .codicon[class*='codicon-'] {
+    font-size: 14px;
+  }
+}

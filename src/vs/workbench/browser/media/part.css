@@ -96,3 +96,48 @@
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
 }
+
+@media (max-width: 768px) {
+  /* Adjust part titles or headers if they are too large */
+  .monaco-workbench .part > .title,
+  .monaco-workbench .part > .header-or-footer {
+    height: 30px; /* Reduce height of title bars */
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .monaco-workbench .part > .title > .title-label {
+    line-height: 30px;
+    padding-left: 8px;
+  }
+
+  .monaco-workbench .part > .title > .title-label h2 {
+    font-size: 10px;
+  }
+
+  .monaco-workbench .part > .title > .title-actions {
+    height: 30px;
+  }
+
+  /* Example: If parts have fixed padding that's too large, reduce it */
+  .monaco-workbench .part > .content {
+     /* font-size: 12px; /* If content font needs to be smaller */
+  }
+}
+
+@media (max-width: 480px) {
+  /* Further reduce title heights or hide non-essential elements in titles */
+  .monaco-workbench .part > .title,
+  .monaco-workbench .part > .header-or-footer {
+    height: 28px;
+  }
+
+  .monaco-workbench .part > .title > .title-label {
+    line-height: 28px;
+    padding-left: 6px;
+  }
+
+  .monaco-workbench .part > .title > .title-actions .action-label {
+     padding: 1px; /* Reduce padding for action buttons */
+  }
+}

@@ -69,6 +69,7 @@
     "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
+    "@capacitor/android": "^7.3.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.5.1",
@@ -115,6 +116,8 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.3.0",
+    "@capacitor/core": "^7.3.0",
     "@playwright/test": "^1.52.0",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
