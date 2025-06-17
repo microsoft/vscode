@@ -17,10 +17,10 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
+import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
-import { IToolData, ToolSet, ToolDataSource, ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 
@@ -86,7 +86,7 @@ export async function showToolsPicker(
 		picked: false,
 	};
 
-	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
+	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(McpCommandIds.AddConfiguration) };
 	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.gear), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
 	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
 	const addPick: CallbackPick = {

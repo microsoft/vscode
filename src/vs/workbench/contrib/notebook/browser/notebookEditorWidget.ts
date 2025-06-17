@@ -496,7 +496,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	getSelections() {
-		return this.viewModel?.getSelections() ?? [];
+		return this.viewModel?.getSelections() ?? [{ start: 0, end: 0 }];
 	}
 
 	setSelections(selections: ICellRange[]) {

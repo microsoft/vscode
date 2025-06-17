@@ -143,14 +143,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		this.resolvableVariables.add('input');
 	}
 
-	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		const parsed = ConfigurationResolverExpression.parse(config);
 		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
 		return parsed.toObject();
 	}
 
-	override async resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variableToCommandMap?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	override async resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variableToCommandMap?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		const expr = ConfigurationResolverExpression.parse(config);
 
 		// Get values for input variables from UI

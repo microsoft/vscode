@@ -17,6 +17,8 @@ import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 
 
@@ -1389,3 +1391,5 @@ export namespace TaskDefinition {
 		return KeyedTaskIdentifier.create(literal);
 	}
 }
+
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.')); export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';

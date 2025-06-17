@@ -58,7 +58,8 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../common/chatEntitlementService.js';
-import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestToolEntry, IChatRequestVariableData } from '../common/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
+import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
@@ -389,7 +390,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
-		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
+		const widget = chatWidgetService.getWidgetBySessionId(request.sessionId);
+		const requestModel = widget?.viewModel?.model.getRequests().at(-1);
 
 		const setupListener = Event.runAndSubscribe(this.controller.value.onDidChange, (() => {
 			switch (this.controller.value.step) {
@@ -421,10 +423,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		if (typeof result?.success === 'boolean') {
 			if (result.success) {
 				if (result.dialogSkipped) {
-					progress({
-						kind: 'markdownContent',
-						content: new MarkdownString(localize('copilotSetupSuccess', "Copilot setup finished successfully."))
-					});
+					widget?.clear(); // make room for the Chat welcome experience
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Copilot agent...
 					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Copilot tools

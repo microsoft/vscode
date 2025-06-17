@@ -26,8 +26,8 @@ class ManageModeAction extends Action2 {
 	constructor() {
 		super({
 			id: COMFIGURE_MODES_ACTION_ID,
-			title: localize2('configure-modes', "Configure Chat Modes"),
-			shortTitle: localize('manage-mode', "Configure Modes"),
+			title: localize2('configure-modes', "Configure Chat Modes..."),
+			shortTitle: localize('manage-mode', "Configure Modes..."),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -38,7 +38,7 @@ class ManageModeAction extends Action2 {
 					when: ChatContextKeys.Modes.hasCustomChatModes
 				}, {
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
+					when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 12,
 					group: '2_manage'
 				}

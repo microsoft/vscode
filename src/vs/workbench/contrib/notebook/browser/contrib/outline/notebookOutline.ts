@@ -740,7 +740,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const notebookEditorOptions: INotebookEditorOptions = {
 			...options,
 			override: this._editor.input?.editorId,
-			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
+			cellRevealType: CellRevealType.Top,
 			selection: entry.position,
 			viewState: undefined,
 		};

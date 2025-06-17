@@ -6,8 +6,9 @@
 import { type TSimpleDecoderToken } from '../../../simpleCodec/simpleDecoder.js';
 import { FrontMatterRecordName, type TRecordNameToken } from '../../tokens/index.js';
 import { Colon, Word, Dash, SpacingToken } from '../../../simpleCodec/tokens/tokens.js';
-import { PartialFrontMatterRecordNameWithDelimiter } from './frontMatterRecordNameWithDelimiter.js';
+import { type PartialFrontMatterRecordNameWithDelimiter } from './frontMatterRecordNameWithDelimiter.js';
 import { assertNotConsumed, ParserBase, type TAcceptTokenResult } from '../../../simpleCodec/parserBase.js';
+import { type FrontMatterParserFactory } from '../frontMatterParserFactory.js';
 
 /**
  * Tokens that can be used inside a record name.
@@ -30,6 +31,7 @@ type TNextParser = PartialFrontMatterRecordName | PartialFrontMatterRecordNameWi
  */
 export class PartialFrontMatterRecordName extends ParserBase<TRecordNameToken, TNextParser> {
 	constructor(
+		private readonly factory: FrontMatterParserFactory,
 		startToken: Word,
 	) {
 		super([startToken]);
@@ -57,7 +59,7 @@ export class PartialFrontMatterRecordName extends ParserBase<TRecordNameToken, T
 			this.isConsumed = true;
 			return {
 				result: 'success',
-				nextParser: new PartialFrontMatterRecordNameWithDelimiter([recordName, token]),
+				nextParser: this.factory.createRecordNameWithDelimiter([recordName, token]),
 				wasTokenConsumed: true,
 			};
 		}

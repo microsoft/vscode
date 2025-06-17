@@ -244,14 +244,14 @@ class ManagePromptFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_PROMPTS_ACTION_ID,
-			title: localize2('configure-prompts', "Configure Prompt Files"),
+			title: localize2('configure-prompts', "Configure Prompt Files..."),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 10,
 				group: '2_manage'
 			},

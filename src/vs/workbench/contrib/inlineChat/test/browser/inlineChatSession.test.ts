@@ -155,6 +155,7 @@ suite('InlineChatSession', function () {
 		});
 
 
+		store.add(instaService.get(IEditorWorkerService) as TestWorkerService);
 		model = store.add(instaService.get(IModelService).createModel('one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven', null));
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});

@@ -82,7 +82,7 @@ export abstract class BreadcrumbsPicker {
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
 	}
 
-	async show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
+	async show(input: FileElement | OutlineElement2, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
 
 		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);

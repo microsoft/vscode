@@ -32,7 +32,7 @@ export interface IBreadcrumbsItemEvent {
 	type: 'select' | 'focus';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
-	payload: any;
+	payload: unknown;
 }
 
 export class BreadcrumbsWidget {

@@ -847,6 +847,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 	async signIn() {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
+		// TODO: Pass in { provider: 'google' } for google sign-in
 		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);

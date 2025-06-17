@@ -22,7 +22,7 @@ import { IEditorPane, IEditorPaneWithSelection } from '../../../common/editor.js
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from './notebookViewEvents.js';
 import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from '../common/notebookCommon.js';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID, NOTEBOOK_DIFF_EDITOR_ID } from '../common/notebookCommon.js';
 import { isCompositeNotebookEditorInput } from '../common/notebookEditorInput.js';
 import { INotebookKernel } from '../common/notebookKernelService.js';
 import { NotebookOptions } from './notebookOptions.js';
@@ -32,7 +32,6 @@ import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/commo
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IObservable } from '../../../../base/common/observable.js';
-import { NotebookTextDiffEditor } from './diff/notebookDiffEditor.js';
 import { INotebookTextDiffEditor } from './diff/notebookDiffEditorBrowser.js';
 
 //#region Shared commands
@@ -931,7 +930,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 		return editorPane.getControl() as INotebookEditor | undefined;
 	}
 
-	if (editorPane.getId() === NotebookTextDiffEditor.ID) {
+	if (editorPane.getId() === NOTEBOOK_DIFF_EDITOR_ID) {
 		return (editorPane.getControl() as INotebookTextDiffEditor).inlineNotebookEditor;
 	}
 

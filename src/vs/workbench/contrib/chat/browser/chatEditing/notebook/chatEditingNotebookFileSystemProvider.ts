@@ -16,7 +16,6 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatEditingService } from '../../../common/chatEditingService.js';
 import { ChatEditingNotebookSnapshotScheme, deserializeSnapshot } from './chatEditingModifiedNotebookSnapshot.js';
-import { ChatEditingSession } from '../chatEditingSession.js';
 
 
 export class ChatEditingNotebookFileSystemProviderContrib extends Disposable implements IWorkbenchContribution {
@@ -89,7 +88,7 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 			throw new Error('File not found, viewType not found');
 		}
 		const session = this._chatEditingService.getEditingSession(queryData.sessionId);
-		if (!(session instanceof ChatEditingSession) || !queryData.requestId) {
+		if (!session || !queryData.requestId) {
 			throw new Error('File not found, session not found');
 		}
 		const snapshotEntry = session.getSnapshot(queryData.requestId, queryData.undoStop || undefined, resource);

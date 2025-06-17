@@ -20,7 +20,7 @@ export function start<THost extends object, TClient extends object>(client: TCli
 			if (typeof prop !== 'string') {
 				throw new Error(`Not supported`);
 			}
-			return (...args: any[]) => {
+			return (...args: unknown[]) => {
 				return editorWorkerHost.$fhr(prop, args);
 			};
 		}
