@@ -564,23 +564,23 @@ export class ExtensionsScanner extends Disposable {
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion, language?: string): Promise<ILocalExtension[]> {
 		try {
-			const userScanOptions: UserExtensionsScanOptions = { includeInvalid: true, profileLocation, productVersion };
+			const cacheKey: URI = profileLocation.with({ query: language });
+			const userScanOptions: UserExtensionsScanOptions = { includeInvalid: true, profileLocation, productVersion, language };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
-				const key: URI = profileLocation.with({ query: language });
-				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(key);
+				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(cacheKey);
 				if (!scanAllExtensionsPromise) {
 					scanAllExtensionsPromise = this.extensionsScannerService.scanAllExtensions({ language }, userScanOptions)
-						.finally(() => this.scanAllExtensionPromise.delete(key));
-					this.scanAllExtensionPromise.set(key, scanAllExtensionsPromise);
+						.finally(() => this.scanAllExtensionPromise.delete(cacheKey));
+					this.scanAllExtensionPromise.set(cacheKey, scanAllExtensionsPromise);
 				}
 				scannedExtensions.push(...await scanAllExtensionsPromise);
 			} else if (type === ExtensionType.User) {
-				let scanUserExtensionsPromise = this.scanUserExtensionsPromise.get(profileLocation);
+				let scanUserExtensionsPromise = this.scanUserExtensionsPromise.get(cacheKey);
 				if (!scanUserExtensionsPromise) {
 					scanUserExtensionsPromise = this.extensionsScannerService.scanUserExtensions(userScanOptions)
-						.finally(() => this.scanUserExtensionsPromise.delete(profileLocation));
-					this.scanUserExtensionsPromise.set(profileLocation, scanUserExtensionsPromise);
+						.finally(() => this.scanUserExtensionsPromise.delete(cacheKey));
+					this.scanUserExtensionsPromise.set(cacheKey, scanUserExtensionsPromise);
 				}
 				scannedExtensions.push(...await scanUserExtensionsPromise);
 			}
