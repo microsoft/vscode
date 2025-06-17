@@ -317,16 +317,19 @@ export class FileService extends Disposable implements IFileService {
 		return this.toFileStat(provider, resource, stat, undefined, true, () => false /* Do not resolve any children */);
 	}
 
-	async realpath(resource: URI): Promise<URI> {
+	async realpath(resource: URI): Promise<URI | undefined> {
 		const provider = await this.withProvider(resource);
 
 		if (hasFileRealpathCapability(provider)) {
 			const realpath = await provider.realpath(resource);
+			if (!realpath) {
+				return undefined;
+			}
 
 			return resource.with({ path: realpath });
 		}
 
-		return resource;
+		return undefined;
 	}
 
 	async exists(resource: URI): Promise<boolean> {

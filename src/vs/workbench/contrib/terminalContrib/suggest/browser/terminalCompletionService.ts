@@ -409,7 +409,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (child.isSymbolicLink) {
 				try {
 					const realpath = await this._fileService.realpath(child.resource);
-					if (!isEqual(child.resource, realpath)) {
+					if (realpath && !isEqual(child.resource, realpath)) {
 						detail = `${getFriendlyPath(child.resource, resourceRequestConfig.pathSeparator, kind, shellType)} -> ${getFriendlyPath(realpath, resourceRequestConfig.pathSeparator, kind, shellType)}`;
 					}
 				} catch (error) {

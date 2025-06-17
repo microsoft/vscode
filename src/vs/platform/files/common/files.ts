@@ -136,8 +136,10 @@ export interface IFileService {
 	/**
 	 * Attempts to resolve the real path of the provided resource. The real path can be
 	 * different from the resource path for example when it is a symlink.
+	 *
+	 * Will return `undefined` if the real path cannot be resolved.
 	 */
-	realpath(resource: URI): Promise<URI>;
+	realpath(resource: URI): Promise<URI | undefined>;
 
 	/**
 	 * Finds out if a file/folder identified by the resource exists.

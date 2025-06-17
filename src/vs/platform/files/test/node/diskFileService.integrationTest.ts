@@ -438,6 +438,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.isSymbolicLink, true);
 
 		const realpath = await service.realpath(link);
+		assert.ok(realpath);
 		assert.strictEqual(basename(realpath.fsPath), 'deep');
 	});
 
