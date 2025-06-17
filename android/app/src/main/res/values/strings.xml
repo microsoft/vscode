@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VSCodeMobile</string>
+    <string name="title_activity_main">VSCodeMobile</string>
+    <string name="package_name">com.vscode.mobile</string>
+    <string name="custom_url_scheme">com.vscode.mobile</string>
+</resources>
