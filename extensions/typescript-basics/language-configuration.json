@@ -248,12 +248,8 @@
 		},
 		// Add // when pressing enter from inside line comment
 		{
-			"beforeText": {
-				"pattern": "(?<!\\\\)(?<!\\w:)\/\/.*"
-			},
-			"afterText": {
-				"pattern": "^(?!\\s*$).+"
-			},
+			"beforeText": "(?<!\\\\|\\w:)\/\/\\s*\\S",
+			"afterText": "^(?!\\s*$).+",
 			"action": {
 				"indent": "none",
 				"appendText": "// "
