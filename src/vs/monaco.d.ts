@@ -7421,7 +7421,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
-		freeInlineCompletions(completions: T): void;
+		disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 		onDidChangeInlineCompletions?: IEvent<void>;
 		/**
 		 * Only used for {@link yieldsToGroupIds}.
@@ -7437,6 +7437,8 @@ declare namespace monaco.languages {
 		debounceDelayMs?: number;
 		toString?(): string;
 	}
+
+	export type InlineCompletionsDisposeReason = 'lostRace' | 'tokenCancellation' | 'other';
 
 	export enum InlineCompletionEndOfLifeReasonKind {
 		Accepted = 0,
