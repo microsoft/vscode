@@ -792,7 +792,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			capabilities: this.capabilities,
 			shellIntegrationNonce: this._processManager.shellIntegrationNonce,
 			disableShellIntegrationReporting,
-		});
+		}, this.onDidExecuteText);
 		this.xterm = xterm;
 		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
 			() => this._isVisible,
