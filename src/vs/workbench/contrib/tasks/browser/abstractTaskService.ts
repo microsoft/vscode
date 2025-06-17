@@ -2035,7 +2035,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				// Check if the candidate task matches the original task
 				const taskDefinition = task.getDefinition(true);
 				if (taskDefinition) {
-					return candidateTask.matches(taskDefinition._key);
+					return candidateTask.matches(taskDefinition);
 				}
 				// Fallback to matching by label
 				return candidateTask.matches(task._label);
