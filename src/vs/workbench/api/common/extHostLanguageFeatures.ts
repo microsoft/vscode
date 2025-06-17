@@ -1444,7 +1444,7 @@ class InlineCompletionAdapter {
 				if (!disposableStore) {
 					disposableStore = new DisposableStore();
 				}
-				return this._commands.toInternal(c, disposableStore);
+				return typeConvert.CompletionCommand.from(c, this._commands, disposableStore);
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,
@@ -1530,7 +1530,7 @@ class InlineCompletionAdapter {
 				if (!disposableStore) {
 					disposableStore = new DisposableStore();
 				}
-				return this._commands.toInternal(c, disposableStore);
+				return typeConvert.CompletionCommand.from(c, this._commands, disposableStore);
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,

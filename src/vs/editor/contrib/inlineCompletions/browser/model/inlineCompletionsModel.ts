@@ -26,7 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -274,7 +274,7 @@ export class InlineCompletionsModel extends Disposable {
 			const idx = this.selectedInlineCompletionIndex.read(reader);
 			return filteredCompletions[idx];
 		});
-		this.activeCommands = derivedOpts<Command[]>({ owner: this, equalsFn: itemsEquals() },
+		this.activeCommands = derivedOpts<InlineCompletionCommand[]>({ owner: this, equalsFn: itemsEquals() },
 			r => this.selectedInlineCompletion.read(r)?.source.inlineSuggestions.commands ?? []
 		);
 		this.lastTriggerKind = this._source.inlineCompletions.map(this, v => v?.request?.context.triggerKind);

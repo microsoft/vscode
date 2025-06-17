@@ -159,7 +159,7 @@ declare module 'vscode' {
 		/**
 		 * A list of commands associated with the inline completions of this list.
 		 */
-		commands?: Command[];
+		commands?: Array<Command | { command: Command; icon: ThemeIcon }>;
 
 		/**
 		 * When set and the user types a suggestion without deviating from it, the inline suggestion is not updated.
