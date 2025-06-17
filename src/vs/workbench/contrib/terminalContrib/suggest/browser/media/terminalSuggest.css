@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused {
+	color: inherit;
+	background: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
