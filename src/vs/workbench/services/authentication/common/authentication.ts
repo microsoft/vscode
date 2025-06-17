@@ -38,6 +38,9 @@ export interface AuthenticationProviderInformation {
 	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
+/**
+ * Options for creating an authentication session via the service.
+ */
 export interface IAuthenticationCreateSessionOptions {
 	activateImmediate?: boolean;
 	/**
@@ -50,8 +53,18 @@ export interface IAuthenticationCreateSessionOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
+/**
+ * Options for getting authentication sessions via the service.
+ */
 export interface IAuthenticationGetSessionsOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -63,6 +76,13 @@ export interface IAuthenticationGetSessionsOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 export interface AllowedExtension {
@@ -294,6 +314,9 @@ export interface IAuthenticationExtensionsService {
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 }
 
+/**
+ * Options passed to the authentication provider when asking for sessions.
+ */
 export interface IAuthenticationProviderSessionOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -305,6 +328,13 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return sessions that are only related to this authorization server.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 /**
