@@ -6,13 +6,14 @@
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
 import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSelectionMode, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
+	SelectionMode = 'terminal.integrated.suggest.selectionMode',
 	WindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
 	Providers = 'terminal.integrated.suggest.providers',
 	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
@@ -59,6 +60,7 @@ export interface ITerminalSuggestConfiguration {
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
+	selectionMode: TerminalSelectionMode;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -118,16 +120,27 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
-		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
-		enum: ['ignore', 'never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result. Also see {0}.", `\`#${TerminalSuggestSettingId.SelectionMode}#\``),
+		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
-			localize('runOnEnter.ignore', "Ignore suggestions and send the enter directly to the shell without completing. This is used as the default value so the suggest widget is as unobtrusive as possible."),
 			localize('runOnEnter.never', "Never run on `Enter`."),
 			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
 			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
-		default: 'ignore',
+		default: 'never',
+		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.SelectionMode]: {
+		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how selection works in the integrated terminal. Also see {0}.", `\`#${TerminalSuggestSettingId.RunOnEnter}#\``),
+		type: 'string',
+		enum: ['partial', 'always', 'never'],
+		enumDescriptions: [
+			localize('terminal.integrated.selectionMode.partial', "Default, will show border"),
+			localize('terminal.integrated.selectionMode.always', "Always select, what enter does exactly depends on terminal.integrated.suggest.runOnEnter"),
+			localize('terminal.integrated.selectionMode.never', "User needs to press down to select, border will be shown.")
+		],
+		default: 'partial',
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {

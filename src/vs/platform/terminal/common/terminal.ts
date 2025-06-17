@@ -1211,3 +1211,21 @@ export interface ITerminalLogService extends ILogService {
 	 */
 	readonly _logBrand: undefined;
 }
+
+/**
+ * Controls how selection works in the integrated terminal.
+ */
+export const enum TerminalSelectionMode {
+	/**
+	 * Default, will show border.
+	 */
+	Partial = 'partial',
+	/**
+	 * Always select, what enter does depends on runOnEnter.
+	 */
+	Always = 'always',
+	/**
+	 * User needs to press down to select, border will be shown.
+	 */
+	Never = 'never'
+}

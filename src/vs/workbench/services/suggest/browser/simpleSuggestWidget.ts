@@ -384,7 +384,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
-	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
+	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }, noFocus?: boolean): void {
 		this._cursorPosition = cursorPosition;
 
 		// this._contentWidget.setPosition(this.editor.getPosition());
@@ -420,7 +420,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._list.splice(0, this._list.length, this._completionModel?.items ?? []);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
-			this._list.setFocus([selectionIndex]);
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 			// this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			// this._onDidFocus.resume();

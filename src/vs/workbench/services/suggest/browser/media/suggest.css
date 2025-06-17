@@ -118,7 +118,7 @@
 }
 
 /* Override any inherited background/foreground for focused row */
-.workbench-suggest-widget .monaco-list .monaco-list-row.focused {
+.partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused {
 	color: inherit !important;
 	background: none !important;
 	outline: 1px solid var(--vscode-focusBorder) !important;
