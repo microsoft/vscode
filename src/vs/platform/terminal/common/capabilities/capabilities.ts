@@ -255,7 +255,6 @@ export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
 	readonly commands: readonly IMarker[];
 	readonly onCommandFinished: Event<IMarker>;
-	handleTextExecution(): void;
 }
 
 interface IBaseTerminalCommand {
