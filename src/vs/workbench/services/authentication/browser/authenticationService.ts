@@ -21,6 +21,7 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -60,6 +61,14 @@ const authenticationDefinitionSchema: IJSONSchema = {
 		label: {
 			type: 'string',
 			description: localize('authentication.label', 'The human readable name of the authentication provider.'),
+		},
+		authorizationServerGlobs: {
+			type: 'array',
+			items: {
+				type: 'string',
+				description: localize('authentication.authorizationServerGlobs', 'A list of globs that match the authorization servers that this provider supports.'),
+			},
+			description: localize('authentication.authorizationServerGlobsDescription', 'A list of globs that match the authorization servers that this provider supports.')
 		}
 	}
 };
@@ -100,6 +109,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
+	private _isDisposable: boolean = false;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
@@ -107,7 +118,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
-
+		this._register(toDisposable(() => this._isDisposable = true));
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
@@ -256,35 +267,44 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+		if (this._isDisposable) {
+			return [];
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
-			// Check if the issuer is in the list of supported issuers
-			if (options?.issuer) {
-				const issuerStr = options.issuer.toString(true);
+			// Check if the authorization server is in the list of supported authorization servers
+			if (options?.authorizationServer) {
+				const authServerStr = options.authorizationServer.toString(true);
 				// TODO: something is off here...
-				if (!authProvider.issuers?.some(i => i.toString(true) === issuerStr || match(i.toString(true), issuerStr))) {
-					throw new Error(`The issuer '${issuerStr}' is not supported by the authentication provider '${id}'.`);
+				if (!authProvider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
+					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
 				}
 			}
-			return await authProvider.getSessions(scopes, { account: options?.account, issuer: options?.issuer });
+			return await authProvider.getSessions(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes, {
-				account: options?.account,
-				issuer: options?.issuer
-			});
+			return await authProvider.createSession(scopes, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async removeSession(id: string, sessionId: string): Promise<void> {
+		if (this._isDisposable) {
+			throw new Error('Authentication service is disposed.');
+		}
+
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.removeSession(sessionId);
@@ -293,36 +313,36 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (provider.issuers?.some(i => i.toString(true) === issuer.toString(true) || match(i.toString(true), issuer.toString(true)))) {
+			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
 				return provider.id;
 			}
 		}
 
-		const issuerStr = issuer.toString(true);
+		const authServerStr = authorizationServer.toString(true);
 		const providers = this._declaredProviders
 			// Only consider providers that are not already registered since we already checked them
 			.filter(p => !this._authenticationProviders.has(p.id))
-			.filter(p => !!p.issuerGlobs?.some(i => match(i, issuerStr)));
+			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr)));
 		// TODO:@TylerLeonhardt fan out?
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
-			// Check the resolved issuers
-			if (activeProvider.issuers?.some(i => match(i.toString(true), issuerStr))) {
+			// Check the resolved authorization servers
+			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
 				return activeProvider.id;
 			}
 		}
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(serverMetadata, resource);
+		const providerId = await delegate.create(authorizationServer, serverMetadata, resource);
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
@@ -353,32 +373,30 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 
-		const store = new DisposableStore();
-
-		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
-		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
-		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
-			store.add(Event.once(this.onDidRegisterAuthenticationProvider)(e => {
-				if (e.id === providerId) {
-					provider = this._authenticationProviders.get(providerId);
-					if (provider) {
-						resolve(provider);
-					} else {
-						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
-					}
-				}
-			}));
-		});
-
-		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
-			const handle = setTimeout(() => {
-				reject('Timed out waiting for authentication provider to register');
-			}, 5000);
-
-			store.add(toDisposable(() => clearTimeout(handle)));
-		});
-
-		return Promise.race([didRegister, didTimeout]).finally(() => store.dispose());
+		const store = this._register(new DisposableStore());
+		try {
+			const result = await raceTimeout(
+				Event.toPromise(
+					Event.filter(
+						this.onDidRegisterAuthenticationProvider,
+						e => e.id === providerId,
+						store
+					),
+					store
+				),
+				5000
+			);
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
+			}
+			provider = this._authenticationProviders.get(result.id);
+			if (provider) {
+				return provider;
+			}
+			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+		} finally {
+			store.dispose();
+		}
 	}
 }
 

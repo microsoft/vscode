@@ -6,18 +6,16 @@
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { PromptsType } from '../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { TextModelPromptParser } from '../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 export class MockPromptsService implements IPromptsService {
 
 	_serviceBrand: undefined;
 
 	getAllMetadata(_files: readonly URI[]): Promise<readonly IMetadata[]> {
-		throw new Error('Method not implemented.');
-	}
-	getMetadata(_file: URI): Promise<IMetadata> {
 		throw new Error('Method not implemented.');
 	}
 	getSyntaxParserFor(_model: ITextModel): TextModelPromptParser & { isDisposed: false } {
@@ -32,17 +30,23 @@ export class MockPromptsService implements IPromptsService {
 	asPromptSlashCommand(command: string): IChatPromptSlashCommand | undefined {
 		return undefined;
 	}
-	resolvePromptSlashCommand(_data: IChatPromptSlashCommand): Promise<IMetadata | undefined> {
+	resolvePromptSlashCommand(_data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		throw new Error('Method not implemented.');
 	}
-	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly URI[]> {
+	findInstructionFilesFor(_files: readonly URI[]): Promise<readonly { uri: URI; reason: string }[]> {
 		throw new Error('Method not implemented.');
 	}
 	onDidChangeCustomChatModes: Event<void> = Event.None;
-	getCustomChatModes(): Promise<readonly ICustomChatMode[]> {
+	getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
+		throw new Error('Method not implemented.');
+	}
+	parse(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+		throw new Error('Method not implemented.');
+	}
+	getPromptFileType(resource: URI): PromptsType | undefined {
 		throw new Error('Method not implemented.');
 	}
 	dispose(): void { }

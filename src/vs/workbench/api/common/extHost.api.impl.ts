@@ -300,7 +300,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.issuer) {
+				if (options?.authorizationServer) {
 					checkProposedApiEnabled(extension, 'authIssuers');
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
@@ -317,7 +317,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
-				if (options?.supportedIssuers) {
+				if (options?.supportedAuthorizationServers) {
 					checkProposedApiEnabled(extension, 'authIssuers');
 				}
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
@@ -647,10 +647,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
-			},
-			registerInlineEditProvider(selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'inlineEdit');
-				return extHostLanguageFeatures.registerInlineEditProvider(extension, checkSelector(selector), provider);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
@@ -1836,8 +1832,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
-			InlineEdit: extHostTypes.InlineEdit,
-			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
 			TextSearchContext2: TextSearchContext2,
 			TextSearchMatch2: TextSearchMatch2,

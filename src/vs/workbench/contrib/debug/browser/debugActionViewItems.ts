@@ -27,6 +27,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 
 const $ = dom.$;
 
@@ -57,7 +58,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	) {
 		super(context, action, options);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'), useCustomDrawn: !hasNativeContextMenu(this.configurationService) });
 		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
 
@@ -291,7 +292,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
+		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session'), useCustomDrawn: !hasNativeContextMenu(configurationService) });
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.getSelectedSession();

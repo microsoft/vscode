@@ -72,7 +72,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
-				FileSystemProviderCapabilities.FileClone;
+				FileSystemProviderCapabilities.FileClone |
+				FileSystemProviderCapabilities.FileRealpath;
 
 			if (isLinux) {
 				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -427,7 +428,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
+	test('resolve / realpath - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
@@ -435,6 +436,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.children!.length, 4);
 		assert.strictEqual(resolved.isDirectory, true);
 		assert.strictEqual(resolved.isSymbolicLink, true);
+
+		const realpath = await service.realpath(link);
+		assert.ok(realpath);
+		assert.strictEqual(basename(realpath.fsPath), 'deep');
 	});
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {

@@ -640,14 +640,6 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		[TerminalSettingId.KillGracefully]: {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize(
-				'terminal.integrated.killGracefully',
-				'Controls how terminal processes are terminated. When enabled, attempts a graceful shutdown of the process tree. On POSIX, this will send \`SIGTERM\`. On Windows, it uses \`taskkill.exe\` without the \`/F\` (force) flag. Note that this may allow misbehaving processes to remain running. When disabled (default), processes are terminated with: \`SIGHUP\`.'
-			),
-		},
 		...terminalContribConfiguration,
 	}
 };

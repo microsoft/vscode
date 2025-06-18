@@ -19,6 +19,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -27,24 +28,24 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
+import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { registerPromptActions } from './promptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -113,12 +114,37 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true,
 			menu: [{
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext), SearchContext.SearchResultHeaderFocused.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
+			}, {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				),
+			}, {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
 			}]
 		});
 	}
@@ -147,6 +173,19 @@ class AttachFolderToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
+			menu: {
+				id: MenuId.ChatExplorerMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}
 		});
 	}
 
@@ -173,7 +212,21 @@ class AttachSelectionToChatAction extends Action2 {
 			id: AttachSelectionToChatAction.ID,
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false,
+			f1: true,
+			menu: {
+				id: MenuId.ChatTextEditorMenu,
+				group: 'zContext',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.untitled),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
+					)
+				)
+			}
 		});
 	}
 
@@ -368,7 +421,7 @@ export class AttachContextAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
-
+		const commandService = accessor.get(ICommandService);
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			additionPicks,
@@ -381,7 +434,7 @@ export class AttachContextAction extends Action2 {
 						this._handleContextPick(item.item, widget);
 
 					} else if (item.item.type === 'pickerPick') {
-						isDone = await this._handleContextPickerItem(quickInputService, item.item, widget);
+						isDone = await this._handleContextPickerItem(quickInputService, commandService, item.item, widget);
 					}
 
 					if (!isDone) {
@@ -413,7 +466,6 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
-
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -480,7 +532,7 @@ export class AttachContextAction extends Action2 {
 		}
 	}
 
-	private async _handleContextPickerItem(quickInputService: IQuickInputService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
+	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
 
 		const pickerConfig = item.asPicker(widget);
 
@@ -490,7 +542,16 @@ export class AttachContextAction extends Action2 {
 			label: localize('goBack', 'Go back ↩'),
 			alwaysShow: true
 		};
-		const extraPicks: QuickPickItem[] = [{ type: 'separator' }, goBackItem];
+		const configureItem = pickerConfig.configure ? {
+			label: pickerConfig.configure.label,
+			commandId: pickerConfig.configure.commandId,
+			alwaysShow: true
+		} : undefined;
+		const extraPicks: QuickPickItem[] = [{ type: 'separator' }];
+		if (configureItem) {
+			extraPicks.push(configureItem);
+		}
+		extraPicks.push(goBackItem);
 
 		const qp = store.add(quickInputService.createQuickPick({ useSeparators: true }));
 
@@ -544,6 +605,10 @@ export class AttachContextAction extends Action2 {
 			}
 			if (selected === goBackItem) {
 				defer.complete(false);
+			}
+			if (selected === configureItem) {
+				defer.complete(true);
+				commandService.executeCommand(configureItem.commandId);
 			}
 			if (!e.inBackground) {
 				defer.complete(true);

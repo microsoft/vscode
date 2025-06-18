@@ -11,7 +11,7 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { StringText } from '../../../../../common/core/text/abstractText.js';
-import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
+import { Command, InlineCompletionCommand, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
 import { IInlineEditHost, IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
@@ -21,7 +21,7 @@ export class InlineEditModel implements IInlineEditModel {
 
 	readonly action: Command | undefined;
 	readonly displayName: string;
-	readonly extensionCommands: Command[];
+	readonly extensionCommands: InlineCompletionCommand[];
 
 	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
 	readonly showCollapsed: IObservable<boolean>;

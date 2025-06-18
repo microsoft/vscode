@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { authentication, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
+import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
-import { AuthenticationError, getOctokitGraphql } from './auth.js';
+import { AuthenticationError, OctokitService } from './auth.js';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
@@ -61,7 +61,7 @@ export class GitHubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GitHubBranchProtectionProvider(repository, this.globalState, this.logger, this.telemetryReporter)));
+				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter)));
 			}
 		} else {
 			this.providerDisposables.dispose();
@@ -73,11 +73,13 @@ export class GitHubBranchProtectionProviderManager {
 	constructor(
 		private readonly gitAPI: API,
 		private readonly globalState: Memento,
+		private readonly octokitService: OctokitService,
 		private readonly logger: LogOutputChannel,
 		private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GitHubBranchProtectionProvider(repository, this.globalState, this.logger, this.telemetryReporter)));
+				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri,
+					new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter)));
 			}
 		}));
 
@@ -109,20 +111,24 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 	private branchProtection: BranchProtection[];
 	private readonly globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
 
+	private readonly disposables = new DisposableStore();
+
 	constructor(
 		private readonly repository: Repository,
 		private readonly globalState: Memento,
+		private readonly octokitService: OctokitService,
 		private readonly logger: LogOutputChannel,
-		private readonly telemetryReporter: TelemetryReporter) {
+		private readonly telemetryReporter: TelemetryReporter
+	) {
+		this.disposables.add(this._onDidChangeBranchProtection);
+
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
 		repository.status().then(() => {
-			authentication.onDidChangeSessions(e => {
-				if (e.provider.id === 'github') {
-					this.updateRepositoryBranchProtection();
-				}
-			});
+			this.disposables.add(this.octokitService.onDidChangeSessions(() => {
+				this.updateRepositoryBranchProtection();
+			}));
 			this.updateRepositoryBranchProtection();
 		});
 	}
@@ -132,7 +138,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 	}
 
 	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
-		const graphql = await getOctokitGraphql();
+		const graphql = await this.octokitService.getOctokitGraphql();
 		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
 
 		return repository;
@@ -142,7 +148,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		const rulesets: RepositoryRuleset[] = [];
 
 		let cursor: string | undefined = undefined;
-		const graphql = await getOctokitGraphql();
+		const graphql = await this.octokitService.getOctokitGraphql();
 
 		while (true) {
 			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
@@ -240,5 +246,9 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 			default:
 				return refName;
 		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }

@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidget } from './chat.js';
 
 
@@ -43,18 +43,25 @@ export interface IChatContextValueItem extends IChatContextItem {
 
 export type ChatContextPick = IChatContextPickerPickItem | IQuickPickSeparator;
 
+export interface IChatContextPicker {
+	readonly placeholder: string;
+	/**
+	 * Picks that should either be:
+	 * - A promise that resolves to the picked items
+	 * - A function that maps input query into items to display.
+	 */
+	readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
+
+	readonly configure?: {
+		label: string;
+		commandId: string;
+	};
+}
+
 export interface IChatContextPickerItem extends IChatContextItem {
 	readonly type: 'pickerPick';
 
-	asPicker(widget: IChatWidget): {
-		readonly placeholder: string;
-		/**
-		 * Picks that should either be:
-		 * - A promise that resolves to the picked items
-		 * - A function that maps input query into items to display.
-		 */
-		readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
-	};
+	asPicker(widget: IChatWidget): IChatContextPicker;
 }
 
 /**

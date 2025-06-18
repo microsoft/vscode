@@ -9,14 +9,14 @@ import {
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
 	getMetadataWithDefaultValues,
+	getResourceServerBaseUrlFromDiscoveryUrl,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
-	isAuthorizationDeviceTokenErrorResponse,
+	isAuthorizationErrorResponse,
 	isAuthorizationDynamicClientRegistrationResponse,
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
 	isAuthorizationTokenResponse,
-	isDynamicClientRegistrationResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	IAuthorizationJWTClaims,
@@ -66,7 +66,7 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(null), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(undefined), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
+			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'just-id' }), true);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse('not an object'), false);
 		});
@@ -101,22 +101,6 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationTokenResponse({ access_token: 'missing-type' }), false);
 			assert.strictEqual(isAuthorizationTokenResponse({ token_type: 'missing-token' }), false);
 			assert.strictEqual(isAuthorizationTokenResponse('not an object'), false);
-		});
-
-		test('isDynamicClientRegistrationResponse should correctly identify client registration response', () => {
-			// Valid response
-			assert.strictEqual(isDynamicClientRegistrationResponse({
-				client_id: 'client-123',
-				client_name: 'Test Client'
-			}), true);
-
-			// Invalid cases
-			assert.strictEqual(isDynamicClientRegistrationResponse(null), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse(undefined), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse('not an object'), false);
 		});
 
 		test('isAuthorizationDeviceResponse should correctly identify device authorization response', () => {
@@ -155,50 +139,49 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDeviceResponse('not an object'), false);
 		});
 
-		test('isAuthorizationDeviceTokenErrorResponse should correctly identify device token error response', () => {
+		test('isAuthorizationErrorResponse should correctly identify error response', () => {
 			// Valid error response
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'authorization_pending',
 				error_description: 'The authorization request is still pending'
 			}), true);
 
 			// Valid error response with different error codes
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'slow_down',
 				error_description: 'Polling too fast'
 			}), true);
 
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'access_denied',
 				error_description: 'The user denied the request'
 			}), true);
 
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'expired_token',
 				error_description: 'The device code has expired'
 			}), true);
 
 			// Valid response with optional error_uri
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({
+			assert.strictEqual(isAuthorizationErrorResponse({
 				error: 'invalid_request',
 				error_description: 'The request is missing a required parameter',
 				error_uri: 'https://example.com/error'
 			}), true);
 
 			// Invalid cases
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(null), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse(undefined), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({}), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error: 'missing-description' }), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse({ error_description: 'missing-error' }), false);
-			assert.strictEqual(isAuthorizationDeviceTokenErrorResponse('not an object'), false);
+			assert.strictEqual(isAuthorizationErrorResponse(null), false);
+			assert.strictEqual(isAuthorizationErrorResponse(undefined), false);
+			assert.strictEqual(isAuthorizationErrorResponse({}), false);
+			assert.strictEqual(isAuthorizationErrorResponse({ error_description: 'missing-error' }), false);
+			assert.strictEqual(isAuthorizationErrorResponse('not an object'), false);
 		});
 	});
 
 	suite('Utility Functions', () => {
 		test('getDefaultMetadataForUrl should return correct default endpoints', () => {
-			const issuer = new URL('https://auth.example.com');
-			const metadata = getDefaultMetadataForUrl(issuer);
+			const authorizationServer = new URL('https://auth.example.com');
+			const metadata = getDefaultMetadataForUrl(authorizationServer);
 
 			assert.strictEqual(metadata.issuer, 'https://auth.example.com/');
 			assert.strictEqual(metadata.authorization_endpoint, 'https://auth.example.com/authorize');
@@ -333,8 +316,14 @@ suite('OAuth', () => {
 				json: async () => mockResponse
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			const result = await fetchDynamicRegistration(
-				'https://auth.example.com/register',
+				serverMetadata,
 				'Test Client'
 			);
 
@@ -370,8 +359,14 @@ suite('OAuth', () => {
 				statusText: 'Bad Request'
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Registration failed: Bad Request/
 			);
 		});
@@ -382,10 +377,170 @@ suite('OAuth', () => {
 				json: async () => ({ invalid: 'response' }) // Missing required fields
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Invalid authorization dynamic client registration response/
 			);
+		});
+
+		test('fetchDynamicRegistration should filter grant types based on server metadata', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code'],
+				grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'] // Mix of supported and unsupported
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains only the intersection of supported grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token']); // client_credentials should be filtered out
+		});
+
+		test('fetchDynamicRegistration should use default grant types when server metadata has none', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+				// No grant_types_supported specified
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains default grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
+		});
+	});
+
+	suite('getResourceServerBaseUrlFromDiscoveryUrl', () => {
+		test('should extract base URL from discovery URL at root', () => {
+			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://mcp.example.com/');
+		});
+
+		test('should extract base URL from discovery URL with subpath', () => {
+			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource/mcp';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://mcp.example.com/mcp');
+		});
+
+		test('should extract base URL from discovery URL with nested subpath', () => {
+			const discoveryUrl = 'https://api.example.com/.well-known/oauth-protected-resource/v1/services/mcp';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://api.example.com/v1/services/mcp');
+		});
+
+		test('should handle discovery URL with port number', () => {
+			const discoveryUrl = 'https://localhost:8443/.well-known/oauth-protected-resource/api';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://localhost:8443/api');
+		});
+
+		test('should handle discovery URL with query parameters', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api?version=1';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://example.com/api');
+		});
+
+		test('should handle discovery URL with fragment', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api#section';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://example.com/api');
+		});
+
+		test('should handle discovery URL ending with trailing slash', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api/';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://example.com/api/');
+		});
+
+		test('should handle HTTP URLs', () => {
+			const discoveryUrl = 'http://localhost:3000/.well-known/oauth-protected-resource/dev';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'http://localhost:3000/dev');
+		});
+
+		test('should throw error for URL without discovery path', () => {
+			const discoveryUrl = 'https://example.com/some/other/path';
+			assert.throws(
+				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
+				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
+			);
+		});
+
+		test('should throw error for URL with partial discovery path', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth';
+			assert.throws(
+				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
+				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
+			);
+		});
+
+		test('should throw error for URL with discovery path not at beginning', () => {
+			const discoveryUrl = 'https://example.com/api/.well-known/oauth-protected-resource';
+			assert.throws(
+				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
+				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
+			);
+		});
+
+		test('should throw error for invalid URL format', () => {
+			const discoveryUrl = 'not-a-valid-url';
+			assert.throws(
+				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
+				TypeError
+			);
+		});
+
+		test('should handle empty path after discovery path', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://example.com/');
+		});
+
+		test('should preserve URL encoding in subpath', () => {
+			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api%20v1';
+			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
+			assert.strictEqual(result, 'https://example.com/api%20v1');
 		});
 	});
 });

@@ -10,6 +10,7 @@ import * as browser from '../../../../base/browser/browser.js';
 import { BrowserFeatures, KeyboardSupport } from '../../../../base/browser/canIUse.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { parse } from '../../../../base/common/json.js';
@@ -18,13 +19,13 @@ import { UserSettingsLabelProvider } from '../../../../base/common/keybindingLab
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from '../../../../base/common/keybindings.js';
 import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as objects from '../../../../base/common/objects.js';
 import { isMacintosh, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 
 // platform
+import { ILocalizedString, isLocalizedString } from '../../../../platform/action/common/action.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,17 +45,17 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ILocalizedString, isLocalizedString } from '../../../../platform/action/common/action.js';
 
 // workbench
+import { remove } from '../../../../base/common/arrays.js';
 import { commandsExtensionPoint } from '../../actions/common/menusExtensionPoint.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { IHostService } from '../../host/browser/host.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
 import { getAllUnboundCommands } from './unboundCommands.js';
-import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
-import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -184,7 +185,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private userKeybindings: UserKeybindings;
 	private isComposingGlobalContextKey: IContextKey<boolean>;
 	private _keybindingHoldMode: DeferredPromise<void> | null;
-	private readonly _contributions: KeybindingsSchemaContribution[] = [];
+	private readonly _contributions: Array<{
+		readonly listener?: IDisposable;
+		readonly contribution: KeybindingsSchemaContribution;
+	}> = [];
 	private readonly kbsJsonSchema: KeybindingsJsonSchema;
 
 	constructor(
@@ -266,6 +270,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 	}
 
+	public override dispose(): void {
+		this._contributions.forEach(c => c.listener?.dispose());
+		this._contributions.length = 0;
+
+		super.dispose();
+	}
+
 	private _registerKeyListeners(window: Window): IDisposable {
 		const disposables = new DisposableStore();
 
@@ -300,16 +311,22 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return disposables;
 	}
 
-	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
-		this._contributions.push(contribution);
-		if (contribution.onDidChange) {
-			this._register(contribution.onDidChange(() => this.updateKeybindingsJsonSchema()));
-		}
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable {
+		const listener = contribution.onDidChange?.(() => this.updateKeybindingsJsonSchema());
+		const entry = { listener, contribution };
+		this._contributions.push(entry);
+
 		this.updateKeybindingsJsonSchema();
+
+		return toDisposable(() => {
+			listener?.dispose();
+			remove(this._contributions, entry);
+			this.updateKeybindingsJsonSchema();
+		});
 	}
 
 	private updateKeybindingsJsonSchema() {
-		this.kbsJsonSchema.updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
+		this.kbsJsonSchema.updateSchema(this._contributions.flatMap(x => x.contribution.getSchemaAdditions()));
 	}
 
 	private _printKeybinding(keybinding: Keybinding): string {

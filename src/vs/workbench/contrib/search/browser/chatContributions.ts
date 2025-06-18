@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatModel.js';
+import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { SearchContext } from '../common/constants.js';
 import { SearchView } from './searchView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';

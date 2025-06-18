@@ -15,9 +15,9 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/constants.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/promptTypes.js';
 import { PromptToolsMetadata } from '../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
@@ -49,7 +49,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		const parser = this.promptsService.getSyntaxParserFor(model);
 
 		const { header } = await parser
-			.start()
+			.start(token)
 			.settled();
 
 		if ((header === undefined) || token.isCancellationRequested) {
@@ -85,7 +85,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			selectedToolsNow.set(tool, toolNames.has(tool.toolReferenceName ?? tool.displayName));
 		}
 		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			selectedToolsNow.set(toolSet, toolNames.has(toolSet.toolReferenceName));
+			selectedToolsNow.set(toolSet, toolNames.has(toolSet.referenceName));
 		}
 
 		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), selectedToolsNow);
@@ -96,7 +96,11 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		const newToolNames: string[] = [];
 		for (const [item, picked] of newSelectedAfter) {
 			if (picked) {
-				newToolNames.push(item.toolReferenceName ?? item.displayName);
+				if (item instanceof ToolSet) {
+					newToolNames.push(item.referenceName);
+				} else {
+					newToolNames.push(item.toolReferenceName ?? item.displayName);
+				}
 			}
 		}
 

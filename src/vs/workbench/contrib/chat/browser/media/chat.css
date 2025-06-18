@@ -33,7 +33,9 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .header.hidden {
+.interactive-item-container .header.hidden,
+.interactive-item-container .header .avatar-container.hidden,
+.interactive-item-container .header .username.hidden {
 	display: none;
 }
 
@@ -389,6 +391,35 @@
 .interactive-item-container .value > .chat-tool-invocation-part {
 	.rendered-markdown p {
 		margin: 0 0 6px 0;
+		opacity: 0.85;
+	}
+
+	.disclaimer {
+		margin-top: 6px;
+		margin-bottom: -6px;
+
+		.rendered-markdown p:last-child {
+			margin-bottom: 0;
+		}
+	}
+
+	.message .see-more {
+		display: none;
+		color: var(--vscode-textLink-foreground);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.message.can-see-more {
+		.message-wrapper {
+			mask-image: linear-gradient(#000 0%, transparent 100%);
+			pointer-events: none;
+			max-height: 2.5em;
+		}
+
+		.see-more {
+			display: block;
+		}
 	}
 
 	.progress-container .rendered-markdown [data-code] {
@@ -1092,70 +1123,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /**
  * Styles for the `reusable prompts` attachment widget.
  */
-.chat-attached-context .chat-prompt-attachment {
-	display: flex;
-	gap: 4px;
-}
-.chat-attached-context .chat-prompt-attachment .codicon {
-	color: inherit;
-	text-decoration: none;
-}
-.chat-attached-context .chat-prompt-attachment .chat-implicit-hint {
+.chat-attached-context-attachment .prompt-type {
 	opacity: 0.7;
 	font-size: .9em;
-	margin-top: -0.5px;
+	margin-left: 0.5em;
 }
-.chat-attached-context .chat-prompt-attachment.warning {
+.chat-attached-context-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
-.chat-attached-context .chat-prompt-attachment.error {
+.chat-attached-context-attachment.error {
 	color: var(--vscode-notificationsErrorIcon-foreground);
 }
-.chat-attached-context .chat-prompt-attachment.disabled {
-	border-style: dashed;
-	opacity: 0.75;
-}
-.chat-attached-context .chat-prompt-attachment:focus .monaco-button {
-	border-color: var(--vscode-focusBorder);
-}
-.chat-attached-context .chat-prompt-attachment .monaco-icon-label-container {
-	margin-top: -0.1em;
-}
-/*
- * This overly-specific CSS selector is needed to beat priority of some
- * styles applied on the `.chat-attached-context-attachment` element.
- */
-.chat-attached-context .chat-prompt-attachment.error.implicit,
-.chat-attached-context .chat-prompt-attachment.warning.implicit {
-	border: 1px solid currentColor;
-}
-.chat-attached-context .chat-prompt-attachment.implicit .monaco-button {
-	padding-left: 2px;
-	padding-right: 2px;
-}
-/*
- * If in one of the non-normal states, make sure the `main icon` of
- * the component has the same color as the component itself
- */
-.chat-attached-context .chat-prompt-attachment.error .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-attachment.warning .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
-	color: inherit;
-}
-.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
-	font-style: italic;
-}
-.chat-attached-context .chat-prompt-attachment.disabled:hover {
+
+.chat-attached-context-attachment .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
+	color: var(--vscode-peekViewTitleDescription-foreground);
 	opacity: 1;
-}
-.chat-attached-context .chat-prompt-attachment.disabled .chat-implicit-hint,
-.chat-attached-context .chat-prompt-attachment.disabled .label-name {
-	font-style: italic;
-	text-decoration: line-through;
-}
-.chat-attached-context .chat-prompt-attachment.disabled:focus {
-	outline: none;
-	border-color: var(--vscode-focusBorder);
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
@@ -1335,12 +1317,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled {
 	border-style: dashed;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
-	cursor: pointer;
-	border-style: solid;
-	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
@@ -1600,6 +1576,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 
 	code {
 		font-size: 11px;
@@ -1883,6 +1860,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding-bottom: 0px;
 	}
 
+	.interactive-item-container.interactive-request.confirmation-message {
+		align-items: flex-start;
+	}
+
 	.interactive-item-container.interactive-request .value .rendered-markdown {
 		background-color: var(--vscode-chat-requestBubbleBackground);
 		border-radius: 8px;
@@ -1919,7 +1900,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		box-shadow: none;
 	}
 
-	.interactive-request .header.header-disabled {
+	.interactive-request .header.header-disabled,
+	.request-hover.has-no-actions {
 		display: none !important;
 	}
 	.request-hover {
@@ -1928,39 +1910,52 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		z-index: 10000;
 		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 		border: 1px solid var(--vscode-chat-requestBorder);
-		top: -8px;
+		top: -13px;
 		right: 20px;
 		border-radius: 3px;
+		width: 28px;
+		height: 26px;
 	}
 
 	.request-hover .actions-container {
-		width: 24px;
-		height: 24px;
+		width: 22px;
+		height: 22px;
 	}
 
-	.request-hover .actions-container .action-label.codicon-x {
-		width: 24px;
-		height: 24px;
-		padding-top: 4px;
-		padding-left: 4px;
-	}
-
-	.request-hover.has-no-actions {
-		display: none !important;
+	.request-hover .actions-container .action-label.codicon-discard {
+		margin-top: 4px;
+		padding: 3px 3px;
 	}
 
 	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 		overflow: visible !important;
 	}
 
+	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.monaco-list-row.focused.request {
+		outline: none !important;
+	}
+
 	div[data-index="0"] .monaco-tl-contents {
 		.interactive-item-container.interactive-request {
-			padding-top: 15px;
+			padding-top: 19px;
 		}
 
 		.request-hover {
-			top: 2px;
+			top: 0px;
 		}
+	}
+
+	.interactive-list > .monaco-list:focus > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
+		outline: none !important;
+
+		.interactive-item-container .value .rendered-markdown {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		.request-hover {
+			display: block !important;
+		}
+
 	}
 }
 
@@ -1984,4 +1979,3 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	padding: 4px 8px;
 }
-

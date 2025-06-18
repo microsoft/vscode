@@ -57,11 +57,11 @@ const vscodeResourceIncludes = [
 	'out-build/nls.keys.json',
 
 	// Workbench
-	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
+	'out-build/vs/code/electron-browser/workbench/workbench.html',
 
 	// Electron Preload
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
 
 	// Node Scripts
 	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
@@ -75,7 +75,6 @@ const vscodeResourceIncludes = [
 
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
@@ -100,7 +99,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Tree Sitter injection queries
-	'out-build/vs/editor/common/languages/injections/*.scm',
+	'out-build/vs/editor/common/languages/injections/*.scm'
 ];
 
 const vscodeResources = [
@@ -138,7 +137,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-sandbox/workbench/workbench'
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 			}
 		}
 	)
@@ -220,12 +219,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
-			'vs/base/parts/sandbox/electron-sandbox/preload.js',
+			'vs/base/parts/sandbox/electron-browser/preload.js',
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.html',
-			'vs/code/electron-sandbox/workbench/workbench.js'
+			'vs/code/electron-browser/workbench/workbench.html',
+			'vs/code/electron-browser/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -244,7 +243,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -289,7 +288,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
+			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)

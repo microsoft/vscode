@@ -57,7 +57,7 @@ export class InlineCompletionsSource extends Disposable {
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
-			| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
@@ -105,7 +105,7 @@ export class InlineCompletionsSource extends Disposable {
 
 	private _log(entry:
 		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
-		| { sourceId: string; kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+		| { sourceId: string; kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
 	) {
 		if (this._loggingEnabled.get()) {
 			this._logService.info(formatRecordableLogEntry(entry));
@@ -154,12 +154,12 @@ export class InlineCompletionsSource extends Disposable {
 
 				const requestId = InlineCompletionsSource._requestId++;
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri, modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
 				}
 
 				const startTime = new Date();
 				let providerResult: InlineCompletionProviderResult | undefined = undefined;
-				let error: any = undefined;
+				let error: unknown = undefined;
 				try {
 					providerResult = await provideInlineCompletions(
 						providers,

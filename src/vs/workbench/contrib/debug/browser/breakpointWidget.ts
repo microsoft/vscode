@@ -42,6 +42,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from '../common/debug.js';
 import './media/breakpointWidget.css';
@@ -210,7 +211,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			{ text: nls.localize('hitCount', "Hit Count") },
 			{ text: nls.localize('logMessage', "Log Message") },
 			{ text: nls.localize('triggeredBy', "Wait for Breakpoint") },
-		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') }));
+		] satisfies ISelectOptionItem[], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -252,6 +253,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			modes.findIndex(m => m.mode === this.breakpoint?.mode) + 1,
 			this.contextViewService,
 			defaultSelectBoxStyles,
+			{ useCustomDrawn: !hasNativeContextMenu(this._configurationService) }
 		);
 		this.store.add(sb);
 		this.store.add(sb.onDidSelect(e => {
@@ -288,7 +290,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			});
 		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -419,6 +421,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		options.lineHeight = editorConfig.lineHeight;
 		options.fontLigatures = editorConfig.fontLigatures;
 		options.ariaLabel = this.placeholder;
+		options.allowVariableLineHeights = false;
 		return options;
 	}
 

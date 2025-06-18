@@ -5,7 +5,7 @@
 
 import { type TDehydrated } from './headerBase.js';
 import { PromptHeader, type IPromptMetadata } from './promptHeader.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
+import { PromptsType } from '../../promptTypes.js';
 
 /**
  * Metadata utility object for mode files.

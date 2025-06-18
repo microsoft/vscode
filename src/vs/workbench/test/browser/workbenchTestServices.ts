@@ -123,7 +123,7 @@ import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreati
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from '../../contrib/terminal/browser/terminal.js';
-import { assertIsDefined, upcast } from '../../../base/common/types.js';
+import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -739,7 +739,7 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 	}
 
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
 }
 
@@ -1118,6 +1118,10 @@ export class TestFileService implements IFileService {
 
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async realpath(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {

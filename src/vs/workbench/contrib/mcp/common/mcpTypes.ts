@@ -330,16 +330,23 @@ export interface IMcpPrompt {
 	readonly arguments: readonly MCP.PromptArgument[];
 
 	/** Gets string completions for the given prompt part. */
-	complete(argument: string, prefix: string, token: CancellationToken): Promise<string[]>;
+	complete(argument: string, prefix: string, alreadyResolved: Record<string, string>, token: CancellationToken): Promise<string[]>;
 
 	resolve(args: Record<string, string | undefined>, token?: CancellationToken): Promise<IMcpPromptMessage[]>;
 }
+
+export const mcpPromptReplaceSpecialChars = (s: string) => s.replace(/[^a-z0-9_.-]/gi, '_');
+
+export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
+	`/mcp.` + mcpPromptReplaceSpecialChars(definition.label);
 
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpTool {
 
 	readonly id: string;
+	/** Name for #referencing in chat */
+	readonly referenceName: string;
 
 	readonly definition: MCP.Tool;
 
@@ -602,6 +609,10 @@ export const mcpServerIcon = registerIcon('mcp-server', Codicon.mcp, localize('m
 export namespace McpResourceURI {
 	export const scheme = 'mcp-resource';
 
+	// Random placeholder for empty authorities, otherwise they're represente as
+	// `scheme//path/here` in the URI which would get normalized to `scheme/path/here`.
+	const emptyAuthorityPlaceholder = 'dylo78gyp'; // chosen by a fair dice roll. Guaranteed to be random.
+
 	export function fromServer(def: McpDefinitionReference, resourceURI: URI | string): URI {
 		if (typeof resourceURI === 'string') {
 			resourceURI = URI.parse(resourceURI);
@@ -609,7 +620,7 @@ export namespace McpResourceURI {
 		return resourceURI.with({
 			scheme,
 			authority: encodeHex(VSBuffer.fromString(def.id)),
-			path: ['', resourceURI.scheme, resourceURI.authority].join('/') + resourceURI.path,
+			path: ['', resourceURI.scheme, resourceURI.authority || emptyAuthorityPlaceholder].join('/') + resourceURI.path,
 		});
 	}
 
@@ -629,8 +640,8 @@ export namespace McpResourceURI {
 			definitionId: decodeHex(uri.authority).toString(),
 			resourceURI: uri.with({
 				scheme: serverScheme,
-				authority,
-				path: '/' + path.join('/'),
+				authority: authority.toLowerCase() === emptyAuthorityPlaceholder ? '' : authority,
+				path: path.length ? ('/' + path.join('/')) : '',
 			}),
 		};
 	}
@@ -664,6 +675,11 @@ export interface IMcpSamplingService {
 	_serviceBrand: undefined;
 
 	sample(opts: ISamplingOptions): Promise<ISamplingResult>;
+
+	/** Whether MCP sampling logs are available for this server */
+	hasLogs(server: IMcpServer): boolean;
+	/** Gets a text report of the MCP server's sampling usage */
+	getLogText(server: IMcpServer): string;
 
 	getConfig(server: IMcpServer): IMcpServerSamplingConfiguration;
 	updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown): Promise<IMcpServerSamplingConfiguration>;

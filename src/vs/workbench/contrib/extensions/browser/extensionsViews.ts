@@ -91,7 +91,7 @@ export interface ExtensionsListViewOptions {
 
 interface IQueryResult {
 	model: IPagedModel<IExtension>;
-	description?: string;
+	message?: { text: string; severity: Severity };
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -248,7 +248,7 @@ export class ExtensionsListView extends ViewPane {
 			try {
 				this.queryResult = await this.query(parsedQuery, options, token);
 				const model = this.queryResult.model;
-				this.setModel(model, this.queryResult.description ? { text: this.queryResult.description, severity: Severity.Info } : undefined);
+				this.setModel(model, this.queryResult.message);
 				if (this.queryResult.onDidChangeModel) {
 					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
 						if (this.queryResult) {
@@ -310,8 +310,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		const galleryQueryOptions: IGalleryQueryOptions = { ...options, sortBy: isLocalSortBy(options.sortBy) ? undefined : options.sortBy };
-		const model = await this.queryGallery(query, galleryQueryOptions, token);
-		return { model, disposables: new DisposableStore() };
+		return this.queryGallery(query, galleryQueryOptions, token);
 	}
 
 	private async queryByIds(ids: string[], options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -356,7 +355,7 @@ export class ExtensionsListView extends ViewPane {
 
 		return {
 			model: new PagedModel(extensions),
-			description,
+			message: description ? { text: description, severity: Severity.Info } : undefined,
 			onDidChangeModel: onDidChangeModel.event,
 			disposables
 		};
@@ -720,14 +719,15 @@ export class ExtensionsListView extends ViewPane {
 		return hasChanged ? extensions : undefined;
 	}
 
-	private async queryGallery(query: Query, options: IGalleryQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+	private async queryGallery(query: Query, options: IGalleryQueryOptions, token: CancellationToken): Promise<IQueryResult> {
 		const hasUserDefinedSortOrder = options.sortBy !== undefined;
 		if (!hasUserDefinedSortOrder && !query.value.trim()) {
 			options.sortBy = GallerySortBy.InstallCount;
 		}
 
 		if (this.isRecommendationsQuery(query)) {
-			return this.queryRecommendations(query, options, token);
+			const model = await this.queryRecommendations(query, options, token);
+			return { model, disposables: new DisposableStore() };
 		}
 
 		const text = query.value;
@@ -735,14 +735,14 @@ export class ExtensionsListView extends ViewPane {
 		if (!text) {
 			options.source = 'viewlet';
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return new PagedModel(pager);
+			return { model: new PagedModel(pager), disposables: new DisposableStore() };
 		}
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
 			options.text = text;
 			options.source = 'file-extension-tags';
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return new PagedModel(pager);
+			return { model: new PagedModel(pager), disposables: new DisposableStore() };
 		}
 
 		options.text = text.substring(0, 350);
@@ -750,15 +750,35 @@ export class ExtensionsListView extends ViewPane {
 
 		if (hasUserDefinedSortOrder || /\b(category|tag):([^\s]+)\b/gi.test(text) || /\bfeatured(\s+|\b|$)/gi.test(text)) {
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return new PagedModel(pager);
+			return { model: new PagedModel(pager), disposables: new DisposableStore() };
 		}
 
-		const [pager, preferredExtensions] = await Promise.all([
-			this.extensionsWorkbenchService.queryGallery(options, token),
-			this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
-		]);
+		try {
+			const [pager, preferredExtensions] = await Promise.all([
+				this.extensionsWorkbenchService.queryGallery(options, token),
+				this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
+			]);
 
-		return preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
+			const model = preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
+			return { model, disposables: new DisposableStore() };
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+
+			if (!(error instanceof ExtensionGalleryError)) {
+				throw error;
+			}
+
+			const searchText = options.text.toLowerCase();
+			const localExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
+			if (localExtensions.length) {
+				const message = this.getMessage(error);
+				return { model: new PagedModel(localExtensions), disposables: new DisposableStore(), message: { text: localize('showing local extensions only', "{0} Showing local extensions.", message.text), severity: message.severity } };
+			}
+
+			throw error;
+		}
 	}
 
 	private async getPreferredExtensions(searchText: string, token: CancellationToken): Promise<IExtension[]> {
@@ -1527,16 +1547,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		}
 	}
 
-}
-
-export function getAriaLabelForExtension(extension: IExtension | null): string {
-	if (!extension) {
-		return '';
-	}
-	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
-	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
-	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
-	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }
 
 export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
