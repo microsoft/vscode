@@ -681,7 +681,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
-					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
+					selectionModeSettingId: TerminalSuggestSettingId.SelectionMode,
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),

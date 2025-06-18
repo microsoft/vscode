@@ -71,6 +71,25 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * The setting for showing the status bar.
 	 */
 	showStatusBarSettingId?: string;
+
+	/**
+	 * The setting for selection mode.
+	 */
+	selectionModeSettingId?: string;
+}
+
+/**
+ * Controls how suggest selection works
+*/
+export const enum SuggestSelectionMode {
+	/**
+	 * Always select, what enter does depends on runOnEnter.
+	 */
+	Always = 'always',
+	/**
+	 * User needs to press down to select.
+	 */
+	Never = 'never'
 }
 
 export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TItem extends SimpleCompletionItem> extends Disposable {
@@ -421,7 +440,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
 			this._list.setFocus([selectionIndex]);
-			// this._list.setFocus(noFocus ? [] : [selectionIndex]);
+			const noFocus = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) === SuggestSelectionMode.Never : false;
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			// this._onDidFocus.resume();
 			// this._onDidSelect.resume();
