@@ -329,19 +329,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			// Loop through all workspaceFolderTask result
 			for (const [folderUri, folderResult] of mapStringToFolderTasks) {
-				if (folderResult.set && folderResult.set.tasks) {
-					if (folderResult.set.tasks.length > 0) {
-						for (const task of folderResult.set.tasks) {
-							const realUniqueId = task._id;
-							const last_task = this._taskSystem?.lastTask?.task._id;
+				if (!folderResult.set?.tasks?.length) {
+					continue;
+				}
 
-							if (last_task && last_task === realUniqueId) {
-								if (folderUri !== 'setting') {
-									const verified_last_task = new VerifiedTask(task, this._taskSystem!.lastTask!.resolver, Triggers.command);
-									this._taskSystem!.lastTask = verified_last_task;
-								}
-							}
-						}
+				for (const task of folderResult.set.tasks) {
+					const realUniqueId = task._id;
+					const lastTask = this._taskSystem?.lastTask?.task._id;
+
+					if (lastTask && lastTask === realUniqueId && folderUri !== 'setting') {
+						const verifiedLastTask = new VerifiedTask(task, this._taskSystem!.lastTask!.resolver, Triggers.command);
+						this._taskSystem!.lastTask = verifiedLastTask;
 					}
 				}
 			}
