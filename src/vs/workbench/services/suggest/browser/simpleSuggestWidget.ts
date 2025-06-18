@@ -26,6 +26,9 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
+import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -58,6 +61,7 @@ const enum WidgetPositionPreference {
 export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
+	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -82,6 +86,10 @@ export interface IWorkbenchSuggestWidgetOptions {
  * Controls how suggest selection works
 */
 export const enum SuggestSelectionMode {
+	/**Add commentMore actions
+	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
+	 */
+	Partial = 'partial',
 	/**
 	 * Always select, what enter does depends on runOnEnter.
 	 */
@@ -133,6 +141,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
+	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -153,6 +162,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._container.appendChild(this.element.domNode);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
+		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -375,6 +385,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 			}).catch();
 		}
+
+		this._ctxFirstSuggestionFocused.set(index === 0);
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
@@ -415,6 +427,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		if (isFrozen && this._state !== State.Empty && this._state !== State.Hidden) {
 			this._setState(State.Frozen);
 			return;
+		}
+
+		if (this._options.selectionModeSettingId) {
+			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
+			if (selectionMode === SuggestSelectionMode.Partial) {
+				this._list.style(getListStyles({ listInactiveFocusOutline: focusBorder }));
+			}
 		}
 
 		const visibleCount = this._completionModel?.items.length ?? 0;
@@ -639,6 +658,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
+		this._ctxFirstSuggestionFocused.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
@@ -840,6 +860,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
+		this._list.style(getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground }));
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
