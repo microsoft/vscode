@@ -1213,9 +1213,9 @@ export interface ITerminalLogService extends ILogService {
 }
 
 /**
- * Controls how selection works in the integrated terminal.
+ * Controls how suggest selection works in the integrated terminal.
  */
-export const enum TerminalSelectionMode {
+export const enum TerminalSuggestSelectionMode {
 	/**
 	 * Default. Will show a border until navigation has occurred. After that, it will show selection.
 	 */
