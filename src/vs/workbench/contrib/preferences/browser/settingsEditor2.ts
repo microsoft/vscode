@@ -659,7 +659,7 @@ export class SettingsEditor2 extends EditorPane {
 			localize('showAiResults', "Show AI-recommended results"), showAiResultActionClassNames.join(' '), true
 		));
 		this._register(this.showAiResultsAction.onDidChange(async () => {
-			await this.toggleAiSearch();
+			await this.onDidToggleAiSearch();
 		}));
 
 		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS,
@@ -751,7 +751,13 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
 	}
 
-	async toggleAiSearch(): Promise<void> {
+	toggleAiSearch(): void {
+		if (this.showAiResultsAction) {
+			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
+		}
+	}
+
+	private async onDidToggleAiSearch(): Promise<void> {
 		if (this.searchResultModel && this.showAiResultsAction) {
 			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
 			this.onDidFinishSearch(true, undefined);
