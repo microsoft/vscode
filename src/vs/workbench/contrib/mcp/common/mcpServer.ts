@@ -5,6 +5,7 @@
 
 import { AsyncIterableObject, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -31,7 +32,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -289,7 +290,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
-	public runningToolCalls = 0;
+	public runningToolCalls = new Set<IMcpToolCallContext>();
 
 	public get trusted() {
 		return this._mcpRegistry.getTrust(this.collection);
@@ -313,6 +314,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
+		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
@@ -471,10 +473,12 @@ export class McpServer extends Disposable implements IMcpServer {
 			const start = Date.now();
 			const state = await connection.start({
 				createMessageRequestHandler: params => this._samplingService.sample({
-					isDuringToolCall: true,
+					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
 					params,
-				}).then(r => r.sample)
+				}).then(r => r.sample),
+				elicitationRequestHandler: req => this._elicitationService.elicit(
+					this, Iterable.first(this.runningToolCalls), req, CancellationToken.None),
 			});
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
@@ -737,23 +741,23 @@ export class McpTool implements IMcpTool {
 		this.id = (idPrefix + _definition.name).replaceAll('.', '_').slice(0, McpToolName.MaxLength);
 	}
 
-	async call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
+	async call(params: Record<string, unknown>, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
-		this._server.runningToolCalls++;
+		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
 		} finally {
-			this._server.runningToolCalls--;
+			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken): Promise<MCP.CallToolResult> {
-		this._server.runningToolCalls++;
+	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
+		if (context) { this._server.runningToolCalls.add(context); }
 		try {
 			return await this._callWithProgress(params, progress, token);
 		} finally {
-			this._server.runningToolCalls--;
+			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
