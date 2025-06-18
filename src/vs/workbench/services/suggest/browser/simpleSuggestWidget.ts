@@ -6,7 +6,7 @@
 import './media/suggest.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list.js';
-import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { IListStyles, List } from '../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
@@ -28,7 +28,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -472,11 +472,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			if (selectionMode === SuggestSelectionMode.Partial) {
-				this._list.style(getListStyles({ listInactiveFocusOutline: focusBorder }));
-			} else {
-				this._list.style(getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground }));
-			}
+			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
 		}
 	}
 
@@ -865,7 +861,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
-		this._list.style(getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground }));
+		this._list.style(getListStylesWithMode(false));
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -929,5 +925,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	stopForceRenderingAbove() {
 		this._forceRenderingAbove = false;
+	}
+}
+
+function getListStylesWithMode(partial?: boolean): IListStyles {
+	if (partial) {
+		return getListStyles({ listInactiveFocusOutline: focusBorder });
+	} else {
+		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
 	}
 }
