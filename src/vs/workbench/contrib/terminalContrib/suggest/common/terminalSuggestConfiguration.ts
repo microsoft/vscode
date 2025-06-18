@@ -120,7 +120,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	},
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
-		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result. Also see {0}.", `\`#${TerminalSuggestSettingId.SelectionMode}#\``),
+		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
 		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
 			localize('runOnEnter.never', "Never run on `Enter`."),
@@ -132,11 +132,11 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SelectionMode]: {
-		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal. Also see {0}.", `\`#${TerminalSuggestSettingId.RunOnEnter}#\``),
+		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
 		enumDescriptions: [
-			localize('terminal.integrated.selectionMode.partial', "Will show a border until navigation has occurred. After that, it will show selection."),
+			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
 			localize('terminal.integrated.selectionMode.always', "Always select."),
 			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
 		],
