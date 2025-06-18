@@ -2073,19 +2073,30 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const mapStringToFolderTasks = await this._updateWorkspaceTasks(TaskRunSource.System);
 
 		// Look for the task in current workspace configuration
-		for (const [folderUri, folderResult] of mapStringToFolderTasks) {
-			if (!folderResult.set?.tasks?.length) {
+		for (const [_, folderResult] of mapStringToFolderTasks) {
+			if (!folderResult.set?.tasks?.length && !folderResult.configurations?.byIdentifier) {
 				continue;
 			}
-
-			for (const task of folderResult.set.tasks) {
-				// Check if this is the same task by ID
-				if (task._id === originalTask._id && folderUri !== 'setting') {
-					return task;
+			// There are two ways where Task lives:
+			// 1. folderResult.set.tasks
+			if (folderResult.set?.tasks) {
+				for (const task of folderResult.set.tasks) {
+					// Check if this is the same task by ID
+					if (task._id === originalTask._id) {
+						return task;
+					}
+				}
+			}
+			// 2. folderResult.configurations.byIdentifier
+			if (folderResult.configurations?.byIdentifier) {
+				for (const [_, configuringTask] of Object.entries(folderResult.configurations.byIdentifier)) {
+					// Check if this is the same task by ID
+					if (configuringTask._id === originalTask._id) {
+						return this.tryResolveTask(configuringTask);
+					}
 				}
 			}
 		}
-
 		return undefined;
 	}
 
