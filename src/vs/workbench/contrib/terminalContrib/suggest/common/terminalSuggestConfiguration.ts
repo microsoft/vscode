@@ -19,6 +19,7 @@ export const enum TerminalSuggestSettingId {
 	CdPath = 'terminal.integrated.suggest.cdPath',
 	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 	UpArrowNavigatesHistory = 'terminal.integrated.suggest.upArrowNavigatesHistory',
+	SelectionMode = 'terminal.integrated.suggest.selectionMode',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -121,13 +122,23 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
 		enum: ['ignore', 'never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
-			localize('runOnEnter.ignore', "Ignore suggestions and send the enter directly to the shell without completing. This is used as the default value so the suggest widget is as unobtrusive as possible."),
 			localize('runOnEnter.never', "Never run on `Enter`."),
 			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
 			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
-		default: 'ignore',
+		default: 'never',
+		tags: ['preview']
+	},
+	[TerminalSuggestSettingId.SelectionMode]: {
+		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
+		type: 'string',
+		enum: ['always', 'never'],
+		enumDescriptions: [
+			localize('terminal.integrated.selectionMode.always', "Always select."),
+			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
+		],
+		default: 'always',
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
@@ -179,6 +190,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: true,
 		tags: ['preview']
 	},
+
 };
 
 
