@@ -137,7 +137,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.8.0",
-    "@vscode/gulp-electron": "^1.36.0",
+    "@vscode/gulp-electron": "^1.37.1",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
