@@ -1211,4 +1211,3 @@ export interface ITerminalLogService extends ILogService {
 	 */
 	readonly _logBrand: undefined;
 }
-
