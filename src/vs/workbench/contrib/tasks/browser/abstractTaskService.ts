@@ -661,7 +661,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const result = await raceTimeout(
 			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
 			5000,
-			() => { /* timeout occurred */ }
+			() => console.warn('Timed out activating extensions for task providers')
 		);
 		if (result) {
 			this._activatedTaskProviders.add(type ?? 'all');
@@ -2459,7 +2459,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		if (!this._jsonTasksSupported && (parseResult.custom.length > 0)) {
-			// Custom workspace tasks are not supported
+			console.warn('Custom workspace tasks are not supported.');
 		}
 		return { workspaceFolder, set: { tasks: this._jsonTasksSupported ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
 	}
@@ -2561,7 +2561,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		if (!this._jsonTasksSupported && (parseResult.custom.length > 0)) {
-			// Custom workspace tasks are not supported
+			console.warn('Custom workspace tasks are not supported.');
 		} else {
 			for (const task of parseResult.custom) {
 				custom.push(task);
