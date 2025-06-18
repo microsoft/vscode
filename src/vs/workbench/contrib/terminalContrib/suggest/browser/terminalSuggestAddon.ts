@@ -215,25 +215,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					}
 				}
 				this._model?.forceRefilterAll();
-			} else if (e.affectsConfiguration(TerminalSuggestSettingId.SelectionMode)) {
-				this._updateSelectionMode();
 			}
 		}));
 	}
 
-	private _updateSelectionMode(): void {
-		const selectionMode: 'partial' | 'always' | 'never' | undefined = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).selectionMode;
-		if (selectionMode) {
-			this._setSelectionMode(selectionMode as SuggestSelectionMode);
-		}
-	}
-
-	private _setSelectionMode(selectionMode: SuggestSelectionMode): void {
-		if (!this._suggestWidget) {
-			return;
-		}
-		this._suggestWidget.setSelectionMode(selectionMode);
-	}
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
@@ -673,7 +658,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
 		this._register(suggestWidget.onDidFocus(() => {
-			this._updateSelectionMode();
 			this._terminal?.focus();
 		}));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
@@ -692,7 +676,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		}, selectionMode === SuggestSelectionMode.Never);
-		this._updateSelectionMode();
 	}
 
 
@@ -705,7 +688,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
-					selectionMode: true
+					selectionModeSettingId: TerminalSuggestSettingId.SelectionMode
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),

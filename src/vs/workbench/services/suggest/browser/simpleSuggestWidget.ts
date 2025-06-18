@@ -73,9 +73,9 @@ export interface IWorkbenchSuggestWidgetOptions {
 	showStatusBarSettingId?: string;
 
 	/**
-	 * Has selection mode support
+	 * The setting for selection mode.
 	 */
-	selectionMode?: boolean;
+	selectionModeSettingId?: string;
 }
 
 const partialClassName = 'partial-selection';
@@ -386,8 +386,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			}).catch();
 		}
 
-		this._hasNavigated = this._hasNavigated || !this._firstItemFocused();
-
+		this._hasNavigated = this._hasNavigated || index > 0;
+		this.updateSelectionMode();
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
@@ -416,11 +416,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
-	setSelectionMode(selectionMode: SuggestSelectionMode): void {
-		if (!this._options.selectionMode) {
+	updateSelectionMode(): void {
+		const settingKey = this._options.selectionModeSettingId;
+		if (!settingKey) {
 			return; // No selection mode support
 		}
-		switch (selectionMode) {
+		const mode = this._configurationService.getValue(settingKey);
+		switch (mode) {
 			case SuggestSelectionMode.Always:
 				this.element.domNode.classList.remove(partialClassName);
 				break;
@@ -906,11 +908,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._list.reveal(focus[0]);
 		}
 		return true;
-	}
-
-	private _firstItemFocused(): boolean {
-		const selected = this.getFocusedItem()?.item;
-		return selected ? this._list.indexOf(selected) === 0 : false;
 	}
 
 	getFocusedItem(): ISimpleSelectedSuggestion<TItem> | undefined {
