@@ -362,6 +362,15 @@ export interface IAuthenticationProvider {
 	readonly supportsMultipleAccounts: boolean;
 
 	/**
+	 * Optional function to provide a custom confirmation message for authentication prompts.
+	 * If not implemented, the default confirmation messages will be used.
+	 * @param extensionName - The name of the extension requesting authentication.
+	 * @param recreatingSession - Whether this is recreating an existing session.
+	 * @returns A custom confirmation message or undefined to use the default message.
+	 */
+	readonly confirmation?: (extensionName: string, recreatingSession: boolean) => string | undefined;
+
+	/**
 	 * An {@link Event} which fires when the array of sessions has changed, or data
 	 * within a session has changed.
 	 */

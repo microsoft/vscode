@@ -112,6 +112,7 @@ import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseRe
 import { runSaveToPromptAction, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
+import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -736,6 +737,7 @@ registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
 registerChatToolActions();
+registerLanguageModelActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 
