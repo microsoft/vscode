@@ -59,7 +59,7 @@ import { ICellRange } from '../../common/notebookRange.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IWorkingCopySaveEvent } from '../../../../services/workingCopy/common/workingCopy.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestStorageService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { EditorFontLigatures, EditorFontVariations } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -70,6 +70,7 @@ import { ILanguageDetectionService } from '../../../../services/languageDetectio
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { ITextResourcePropertiesService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -189,6 +190,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, testThemeService);
 	instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+	instantiationService.stub(ITextResourcePropertiesService, instantiationService.createInstance(TestTextResourcePropertiesService));
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 	instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
