@@ -158,7 +158,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _idleTaskTerminals: LinkedMap<string, string>;
 	private _sameTaskTerminals: IStringDictionary<string>;
 	private _taskSystemInfoResolver: ITaskSystemInfoResolver;
-	private _lastTask: VerifiedTask | undefined; // need to update this when tasks.json scheme changes.
+	private _lastTask: VerifiedTask | undefined;
 	// Should always be set in run
 	private _currentTask!: VerifiedTask;
 	private _isRerun: boolean = false;
