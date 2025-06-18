@@ -29,6 +29,7 @@ export interface IInlineEditModel {
 	displayName: string;
 	action: Command | undefined;
 	extensionCommands: InlineCompletionCommand[];
+	isInDiffEditor: boolean;
 	inlineEdit: InlineEditWithChanges;
 	tabAction: IObservable<InlineEditTabAction>;
 	showCollapsed: IObservable<boolean>;
