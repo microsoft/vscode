@@ -11,33 +11,46 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { Promises } from '../../../../base/common/async.js';
 
 export class LogsDataCleaner extends Disposable {
+  constructor(
+    @IWorkbenchEnvironmentService
+    private readonly environmentService: IWorkbenchEnvironmentService,
+    @IFileService private readonly fileService: IFileService,
+    @ILifecycleService private readonly lifecycleService: ILifecycleService
+  ) {
+    super();
+    this.cleanUpOldLogsSoon();
+  }
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-	) {
-		super();
-		this.cleanUpOldLogsSoon();
-	}
-
-	private cleanUpOldLogsSoon(): void {
-		let handle: Timeout | undefined = setTimeout(async () => {
-			handle = undefined;
-			const stat = await this.fileService.resolve(dirname(this.environmentService.logsHome));
-			if (stat.children) {
-				const currentLog = basename(this.environmentService.logsHome);
-				const allSessions = stat.children.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name));
-				const oldSessions = allSessions.sort().filter((d, i) => d.name !== currentLog);
-				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 49));
-				Promises.settled(toDelete.map(stat => this.fileService.del(stat.resource, { recursive: true })));
-			}
-		}, 10 * 1000);
-		this.lifecycleService.onWillShutdown(() => {
-			if (handle) {
-				clearTimeout(handle);
-				handle = undefined;
-			}
-		});
-	}
+  private cleanUpOldLogsSoon(): void {
+    let handle: Timeout | undefined = setTimeout(async () => {
+      handle = undefined;
+      const stat = await this.fileService.resolve(
+        dirname(this.environmentService.logsHome)
+      );
+      if (stat.children) {
+        const currentLog = basename(this.environmentService.logsHome);
+        const allSessions = stat.children.filter(
+          (stat) => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name)
+        );
+        const oldSessions = allSessions
+          .sort()
+          .filter((d, i) => d.name !== currentLog);
+        const toDelete = oldSessions.slice(
+          0,
+          Math.max(0, oldSessions.length - 49)
+        );
+        Promises.settled(
+          toDelete.map((stat) =>
+            this.fileService.del(stat.resource, { recursive: true })
+          )
+        );
+      }
+    }, 10 * 1000);
+    this.lifecycleService.onWillShutdown(() => {
+      if (handle) {
+        clearTimeout(handle);
+        handle = undefined;
+      }
+    });
+  }
 }

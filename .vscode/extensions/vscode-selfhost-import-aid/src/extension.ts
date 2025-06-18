@@ -8,227 +8,326 @@ import * as ts from 'typescript';
 import * as path from 'path';
 
 export async function activate(context: vscode.ExtensionContext) {
+  const fileIndex = new (class {
+    private _currentRun?: Thenable<void>;
 
-	const fileIndex = new class {
+    private _disposables: vscode.Disposable[] = [];
 
-		private _currentRun?: Thenable<void>;
+    private readonly _index = new Map<string, vscode.Uri>();
 
-		private _disposables: vscode.Disposable[] = [];
+    constructor() {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        '**/*.ts',
+        false,
+        true,
+        false
+      );
+      this._disposables.push(
+        watcher.onDidChange((e) => {
+          this._index.set(e.toString(), e);
+        })
+      );
+      this._disposables.push(
+        watcher.onDidDelete((e) => {
+          this._index.delete(e.toString());
+        })
+      );
+      this._disposables.push(watcher);
 
-		private readonly _index = new Map<string, vscode.Uri>();
+      this._refresh(false);
+    }
 
-		constructor() {
-			const watcher = vscode.workspace.createFileSystemWatcher('**/*.ts', false, true, false);
-			this._disposables.push(watcher.onDidChange(e => { this._index.set(e.toString(), e); }));
-			this._disposables.push(watcher.onDidDelete(e => { this._index.delete(e.toString()); }));
-			this._disposables.push(watcher);
+    dispose(): void {
+      for (const disposable of this._disposables) {
+        disposable.dispose();
+      }
+      this._disposables = [];
+      this._index.clear();
+    }
 
-			this._refresh(false);
-		}
+    async all(token: vscode.CancellationToken) {
+      await Promise.race([
+        this._currentRun,
+        new Promise<void>((resolve) => token.onCancellationRequested(resolve)),
+      ]);
 
-		dispose(): void {
-			for (const disposable of this._disposables) {
-				disposable.dispose();
-			}
-			this._disposables = [];
-			this._index.clear();
-		}
+      if (token.isCancellationRequested) {
+        return undefined;
+      }
 
-		async all(token: vscode.CancellationToken) {
+      return Array.from(this._index.values());
+    }
 
-			await Promise.race([this._currentRun, new Promise<void>(resolve => token.onCancellationRequested(resolve))]);
+    private _refresh(clear: boolean) {
+      // TODO@jrieken LATEST API! findFiles2New
+      this._currentRun = vscode.workspace
+        .findFiles('src/vs/**/*.ts', '{**/node_modules/**,**/extensions/**}')
+        .then((all) => {
+          if (clear) {
+            this._index.clear();
+          }
+          for (const item of all) {
+            this._index.set(item.toString(), item);
+          }
+        });
+    }
+  })();
 
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
+  const selector: vscode.DocumentSelector = 'typescript';
 
-			return Array.from(this._index.values());
-		}
+  function findNodeAtPosition(
+    document: vscode.TextDocument,
+    node: ts.Node,
+    position: vscode.Position
+  ): ts.Node | undefined {
+    if (
+      node.getStart() <= document.offsetAt(position) &&
+      node.getEnd() >= document.offsetAt(position)
+    ) {
+      return (
+        ts.forEachChild(node, (child) =>
+          findNodeAtPosition(document, child, position)
+        ) || node
+      );
+    }
+    return undefined;
+  }
 
-		private _refresh(clear: boolean) {
-			// TODO@jrieken LATEST API! findFiles2New
-			this._currentRun = vscode.workspace.findFiles('src/vs/**/*.ts', '{**/node_modules/**,**/extensions/**}').then(all => {
-				if (clear) {
-					this._index.clear();
-				}
-				for (const item of all) {
-					this._index.set(item.toString(), item);
-				}
-			});
-		}
-	};
+  function findImportAt(
+    document: vscode.TextDocument,
+    position: vscode.Position
+  ): ts.ImportDeclaration | undefined {
+    const sourceFile = ts.createSourceFile(
+      document.fileName,
+      document.getText(),
+      ts.ScriptTarget.Latest,
+      true
+    );
+    const node = findNodeAtPosition(document, sourceFile, position);
+    if (
+      node &&
+      ts.isStringLiteral(node) &&
+      ts.isImportDeclaration(node.parent)
+    ) {
+      return node.parent;
+    }
+    return undefined;
+  }
 
-	const selector: vscode.DocumentSelector = 'typescript';
+  const completionProvider = new (class
+    implements vscode.CompletionItemProvider
+  {
+    async provideCompletionItems(
+      document: vscode.TextDocument,
+      position: vscode.Position,
+      token: vscode.CancellationToken
+    ): Promise<vscode.CompletionList | undefined> {
+      const index = document.getText().lastIndexOf(" from '");
+      if (index < 0 || document.positionAt(index).line < position.line) {
+        // line after last import is before position
+        // -> no completion, safe a parse call
+        return undefined;
+      }
 
-	function findNodeAtPosition(document: vscode.TextDocument, node: ts.Node, position: vscode.Position): ts.Node | undefined {
-		if (node.getStart() <= document.offsetAt(position) && node.getEnd() >= document.offsetAt(position)) {
-			return ts.forEachChild(node, child => findNodeAtPosition(document, child, position)) || node;
-		}
-		return undefined;
-	}
+      const node = findImportAt(document, position);
+      if (!node) {
+        return undefined;
+      }
 
-	function findImportAt(document: vscode.TextDocument, position: vscode.Position): ts.ImportDeclaration | undefined {
-		const sourceFile = ts.createSourceFile(document.fileName, document.getText(), ts.ScriptTarget.Latest, true);
-		const node = findNodeAtPosition(document, sourceFile, position);
-		if (node && ts.isStringLiteral(node) && ts.isImportDeclaration(node.parent)) {
-			return node.parent;
-		}
-		return undefined;
-	}
+      const range = new vscode.Range(
+        document.positionAt(node.moduleSpecifier.pos),
+        document.positionAt(node.moduleSpecifier.end)
+      );
+      const uris = await fileIndex.all(token);
 
-	const completionProvider = new class implements vscode.CompletionItemProvider {
-		async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.CompletionList | undefined> {
+      if (!uris) {
+        return undefined;
+      }
 
-			const index = document.getText().lastIndexOf(' from \'');
-			if (index < 0 || document.positionAt(index).line < position.line) {
-				// line after last import is before position
-				// -> no completion, safe a parse call
-				return undefined;
-			}
+      const result = new vscode.CompletionList();
+      result.isIncomplete = true;
 
-			const node = findImportAt(document, position);
-			if (!node) {
-				return undefined;
-			}
+      for (const item of uris) {
+        if (!item.path.endsWith('.ts')) {
+          continue;
+        }
 
-			const range = new vscode.Range(document.positionAt(node.moduleSpecifier.pos), document.positionAt(node.moduleSpecifier.end));
-			const uris = await fileIndex.all(token);
+        let relativePath = path.relative(
+          path.dirname(document.uri.path),
+          item.path
+        );
+        relativePath = relativePath.startsWith('.')
+          ? relativePath
+          : `./${relativePath}`;
 
-			if (!uris) {
-				return undefined;
-			}
+        const label = path.basename(item.path, path.extname(item.path));
+        const insertText = ` '${relativePath.replace(/\.ts$/, '.js')}'`;
+        const filterText = ` '${label}'`;
 
-			const result = new vscode.CompletionList();
-			result.isIncomplete = true;
+        const completion = new vscode.CompletionItem({
+          label: label,
+          description: vscode.workspace.asRelativePath(item),
+        });
+        completion.kind = vscode.CompletionItemKind.File;
+        completion.insertText = insertText;
+        completion.filterText = filterText;
+        completion.range = range;
 
-			for (const item of uris) {
+        result.items.push(completion);
+      }
 
-				if (!item.path.endsWith('.ts')) {
-					continue;
-				}
+      return result;
+    }
+  })();
 
-				let relativePath = path.relative(path.dirname(document.uri.path), item.path);
-				relativePath = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+  class ImportCodeActions implements vscode.CodeActionProvider {
+    static FixKind = vscode.CodeActionKind.QuickFix.append('esmImport');
 
-				const label = path.basename(item.path, path.extname(item.path));
-				const insertText = ` '${relativePath.replace(/\.ts$/, '.js')}'`;
-				const filterText = ` '${label}'`;
+    static SourceKind = vscode.CodeActionKind.SourceFixAll.append('esmImport');
 
-				const completion = new vscode.CompletionItem({
-					label: label,
-					description: vscode.workspace.asRelativePath(item),
-				});
-				completion.kind = vscode.CompletionItemKind.File;
-				completion.insertText = insertText;
-				completion.filterText = filterText;
-				completion.range = range;
+    async provideCodeActions(
+      document: vscode.TextDocument,
+      range: vscode.Range | vscode.Selection,
+      context: vscode.CodeActionContext,
+      token: vscode.CancellationToken
+    ): Promise<vscode.CodeAction[] | undefined> {
+      if (
+        context.only &&
+        ImportCodeActions.SourceKind.intersects(context.only)
+      ) {
+        return this._provideFixAll(document, context, token);
+      }
 
-				result.items.push(completion);
-			}
+      return this._provideFix(document, range, context, token);
+    }
 
-			return result;
-		}
-	};
+    private async _provideFixAll(
+      document: vscode.TextDocument,
+      context: vscode.CodeActionContext,
+      token: vscode.CancellationToken
+    ): Promise<vscode.CodeAction[] | undefined> {
+      const diagnostics = context.diagnostics
+        .filter((d) => d.code === 2307)
+        .sort((a, b) => b.range.start.compareTo(a.range.start));
 
-	class ImportCodeActions implements vscode.CodeActionProvider {
+      if (diagnostics.length === 0) {
+        return undefined;
+      }
 
-		static FixKind = vscode.CodeActionKind.QuickFix.append('esmImport');
+      const uris = await fileIndex.all(token);
+      if (!uris) {
+        return undefined;
+      }
 
-		static SourceKind = vscode.CodeActionKind.SourceFixAll.append('esmImport');
+      const result = new vscode.CodeAction(
+        `Fix All ESM Imports`,
+        ImportCodeActions.SourceKind
+      );
+      result.edit = new vscode.WorkspaceEdit();
+      result.diagnostics = [];
 
-		async provideCodeActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
+      for (const diag of diagnostics) {
+        const actions = this._provideFixesForDiag(document, diag, uris);
 
-			if (context.only && ImportCodeActions.SourceKind.intersects(context.only)) {
-				return this._provideFixAll(document, context, token);
-			}
+        if (actions.length === 0) {
+          console.log(`ESM: no fixes for "${diag.message}"`);
+          continue;
+        }
 
-			return this._provideFix(document, range, context, token);
-		}
+        if (actions.length > 1) {
+          console.log(
+            `ESM: more than one fix for "${diag.message}", taking first`
+          );
+          console.log(actions);
+        }
 
-		private async _provideFixAll(document: vscode.TextDocument, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
+        const [first] = actions;
+        result.diagnostics.push(diag);
 
-			const diagnostics = context.diagnostics
-				.filter(d => d.code === 2307)
-				.sort((a, b) => b.range.start.compareTo(a.range.start));
+        for (const [uri, edits] of first.edit!.entries()) {
+          result.edit.set(uri, edits);
+        }
+      }
+      // console.log(result.edit.get(document.uri));
+      return [result];
+    }
 
-			if (diagnostics.length === 0) {
-				return undefined;
-			}
+    private async _provideFix(
+      document: vscode.TextDocument,
+      range: vscode.Range | vscode.Selection,
+      context: vscode.CodeActionContext,
+      token: vscode.CancellationToken
+    ): Promise<vscode.CodeAction[] | undefined> {
+      const uris = await fileIndex.all(token);
+      if (!uris) {
+        return [];
+      }
 
-			const uris = await fileIndex.all(token);
-			if (!uris) {
-				return undefined;
-			}
+      const diag = context.diagnostics.find(
+        (d) => d.code === 2307 && d.range.intersection(range)
+      );
+      return diag && this._provideFixesForDiag(document, diag, uris);
+    }
 
-			const result = new vscode.CodeAction(`Fix All ESM Imports`, ImportCodeActions.SourceKind);
-			result.edit = new vscode.WorkspaceEdit();
-			result.diagnostics = [];
+    private _provideFixesForDiag(
+      document: vscode.TextDocument,
+      diag: vscode.Diagnostic,
+      uris: Iterable<vscode.Uri>
+    ): vscode.CodeAction[] {
+      const node = findImportAt(document, diag.range.start)?.moduleSpecifier;
+      if (!node || !ts.isStringLiteral(node)) {
+        return [];
+      }
 
-			for (const diag of diagnostics) {
+      const nodeRange = new vscode.Range(
+        document.positionAt(node.pos),
+        document.positionAt(node.end)
+      );
+      const name = path.basename(node.text, path.extname(node.text));
 
-				const actions = this._provideFixesForDiag(document, diag, uris);
+      const result: vscode.CodeAction[] = [];
 
-				if (actions.length === 0) {
-					console.log(`ESM: no fixes for "${diag.message}"`);
-					continue;
-				}
+      for (const item of uris) {
+        if (path.basename(item.path, path.extname(item.path)) === name) {
+          let relativePath = path
+            .relative(path.dirname(document.uri.path), item.path)
+            .replace(/\.ts$/, '.js');
+          relativePath = relativePath.startsWith('.')
+            ? relativePath
+            : `./${relativePath}`;
 
-				if (actions.length > 1) {
-					console.log(`ESM: more than one fix for "${diag.message}", taking first`);
-					console.log(actions);
-				}
+          const action = new vscode.CodeAction(
+            `Fix to '${relativePath}'`,
+            ImportCodeActions.FixKind
+          );
+          action.edit = new vscode.WorkspaceEdit();
+          action.edit.replace(document.uri, nodeRange, ` '${relativePath}'`);
+          action.diagnostics = [diag];
+          result.push(action);
+        }
+      }
 
-				const [first] = actions;
-				result.diagnostics.push(diag);
+      return result;
+    }
+  }
 
-				for (const [uri, edits] of first.edit!.entries()) {
-					result.edit.set(uri, edits);
-				}
-			}
-			// console.log(result.edit.get(document.uri));
-			return [result];
-		}
-
-		private async _provideFix(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
-			const uris = await fileIndex.all(token);
-			if (!uris) {
-				return [];
-			}
-
-			const diag = context.diagnostics.find(d => d.code === 2307 && d.range.intersection(range));
-			return diag && this._provideFixesForDiag(document, diag, uris);
-		}
-
-		private _provideFixesForDiag(document: vscode.TextDocument, diag: vscode.Diagnostic, uris: Iterable<vscode.Uri>): vscode.CodeAction[] {
-
-			const node = findImportAt(document, diag.range.start)?.moduleSpecifier;
-			if (!node || !ts.isStringLiteral(node)) {
-				return [];
-			}
-
-			const nodeRange = new vscode.Range(document.positionAt(node.pos), document.positionAt(node.end));
-			const name = path.basename(node.text, path.extname(node.text));
-
-			const result: vscode.CodeAction[] = [];
-
-			for (const item of uris) {
-				if (path.basename(item.path, path.extname(item.path)) === name) {
-					let relativePath = path.relative(path.dirname(document.uri.path), item.path).replace(/\.ts$/, '.js');
-					relativePath = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
-
-					const action = new vscode.CodeAction(`Fix to '${relativePath}'`, ImportCodeActions.FixKind);
-					action.edit = new vscode.WorkspaceEdit();
-					action.edit.replace(document.uri, nodeRange, ` '${relativePath}'`);
-					action.diagnostics = [diag];
-					result.push(action);
-				}
-			}
-
-			return result;
-		}
-	}
-
-	context.subscriptions.push(fileIndex);
-	context.subscriptions.push(vscode.languages.registerCompletionItemProvider(selector, completionProvider));
-	context.subscriptions.push(vscode.languages.registerCodeActionsProvider(selector, new ImportCodeActions(), { providedCodeActionKinds: [ImportCodeActions.FixKind, ImportCodeActions.SourceKind] }));
+  context.subscriptions.push(fileIndex);
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      selector,
+      completionProvider
+    )
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      selector,
+      new ImportCodeActions(),
+      {
+        providedCodeActionKinds: [
+          ImportCodeActions.FixKind,
+          ImportCodeActions.SourceKind,
+        ],
+      }
+    )
+  );
 }

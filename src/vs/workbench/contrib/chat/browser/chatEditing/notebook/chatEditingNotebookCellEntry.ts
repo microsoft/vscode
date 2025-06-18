@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import {
+  Disposable,
+  DisposableStore,
+} from '../../../../../../base/common/lifecycle.js';
+import {
+  IObservable,
+  observableValue,
+  transaction,
+} from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
@@ -19,103 +26,135 @@ import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
-
 /**
  * This is very closely similar to the ChatEditingModifiedDocumentEntry class.
  * Most of the code has been borrowed from there, as a cell is effectively a document.
  * Hence most of the same functionality applies.
  */
 export class ChatEditingNotebookCellEntry extends Disposable {
-	public get isDisposed(): boolean {
-		return this._store.isDisposed;
-	}
+  public get isDisposed(): boolean {
+    return this._store.isDisposed;
+  }
 
-	public get isEditFromUs(): boolean {
-		return this._textModelChangeService.isEditFromUs;
-	}
+  public get isEditFromUs(): boolean {
+    return this._textModelChangeService.isEditFromUs;
+  }
 
-	public get allEditsAreFromUs(): boolean {
-		return this._textModelChangeService.allEditsAreFromUs;
-	}
-	public get diffInfo(): IObservable<IDocumentDiff> {
-		return this._textModelChangeService.diffInfo;
-	}
-	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
-	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
+  public get allEditsAreFromUs(): boolean {
+    return this._textModelChangeService.allEditsAreFromUs;
+  }
+  public get diffInfo(): IObservable<IDocumentDiff> {
+    return this._textModelChangeService.diffInfo;
+  }
+  private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
+  readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
 
-	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
-	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
-	private readonly initialContent: string;
-	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
-	constructor(
-		public readonly notebookUri: URI,
-		public readonly cell: NotebookCellTextModel,
-		private readonly modifiedModel: ITextModel,
-		private readonly originalModel: ITextModel,
-		disposables: DisposableStore,
-		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super();
-		this.initialContent = this.originalModel.getValue();
-		this._register(disposables);
-		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state));
+  protected readonly _stateObs = observableValue<ModifiedFileEntryState>(
+    this,
+    ModifiedFileEntryState.Modified
+  );
+  readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
+  private readonly initialContent: string;
+  private readonly _textModelChangeService: ChatEditingTextModelChangeService;
+  constructor(
+    public readonly notebookUri: URI,
+    public readonly cell: NotebookCellTextModel,
+    private readonly modifiedModel: ITextModel,
+    private readonly originalModel: ITextModel,
+    disposables: DisposableStore,
+    @INotebookEditorService
+    private readonly notebookEditorService: INotebookEditorService,
+    @IInstantiationService
+    private readonly instantiationService: IInstantiationService
+  ) {
+    super();
+    this.initialContent = this.originalModel.getValue();
+    this._register(disposables);
+    this._textModelChangeService = this._register(
+      this.instantiationService.createInstance(
+        ChatEditingTextModelChangeService,
+        this.originalModel,
+        this.modifiedModel,
+        this.state
+      )
+    );
 
-		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
-			this.revertMarkdownPreviewState();
-			this._stateObs.set(action, undefined);
-		}));
+    this._register(
+      this._textModelChangeService.onDidAcceptOrRejectAllHunks((action) => {
+        this.revertMarkdownPreviewState();
+        this._stateObs.set(action, undefined);
+      })
+    );
 
-		this._register(this._textModelChangeService.onDidUserEditModel(() => {
-			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
-				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
-			}
-		}));
+    this._register(
+      this._textModelChangeService.onDidUserEditModel(() => {
+        const didResetToOriginalContent =
+          this.modifiedModel.getValue() === this.initialContent;
+        if (
+          this._stateObs.get() === ModifiedFileEntryState.Modified &&
+          didResetToOriginalContent
+        ) {
+          this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
+        }
+      })
+    );
+  }
 
-	}
+  public clearCurrentEditLineDecoration() {
+    if (this.modifiedModel.isDisposed()) {
+      return;
+    }
+    this._textModelChangeService.clearCurrentEditLineDecoration();
+  }
 
-	public clearCurrentEditLineDecoration() {
-		if (this.modifiedModel.isDisposed()) {
-			return;
-		}
-		this._textModelChangeService.clearCurrentEditLineDecoration();
-	}
+  async acceptAgentEdits(
+    textEdits: TextEdit[],
+    isLastEdits: boolean,
+    responseModel: IChatResponseModel
+  ): Promise<void> {
+    const { maxLineNumber } =
+      await this._textModelChangeService.acceptAgentEdits(
+        this.modifiedModel.uri,
+        textEdits,
+        isLastEdits
+      );
 
-	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits);
+    transaction((tx) => {
+      if (!isLastEdits) {
+        this._stateObs.set(ModifiedFileEntryState.Modified, tx);
+        this._maxModifiedLineNumber.set(maxLineNumber, tx);
+      } else {
+        this._maxModifiedLineNumber.set(0, tx);
+      }
+    });
+  }
 
-		transaction((tx) => {
-			if (!isLastEdits) {
-				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
-				this._maxModifiedLineNumber.set(maxLineNumber, tx);
+  revertMarkdownPreviewState(): void {
+    if (this.cell.cellKind !== CellKind.Markup) {
+      return;
+    }
 
-			} else {
-				this._maxModifiedLineNumber.set(0, tx);
-			}
-		});
-	}
+    const notebookEditor =
+      this.notebookEditorService.retrieveExistingWidgetFromURI(
+        this.notebookUri
+      )?.value;
+    if (notebookEditor) {
+      const vm = notebookEditor.getCellByHandle(this.cell.handle);
+      if (
+        vm?.getEditState() === CellEditState.Editing &&
+        (vm.editStateSource === 'chatEdit' ||
+          vm.editStateSource === 'chatEditNavigation')
+      ) {
+        vm?.updateEditState(CellEditState.Preview, 'chatEdit');
+      }
+    }
+  }
 
-	revertMarkdownPreviewState(): void {
-		if (this.cell.cellKind !== CellKind.Markup) {
-			return;
-		}
+  public async keep(change: DetailedLineRangeMapping): Promise<boolean> {
+    return this._textModelChangeService.diffInfo.get().keep(change);
+  }
 
-		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this.notebookUri)?.value;
-		if (notebookEditor) {
-			const vm = notebookEditor.getCellByHandle(this.cell.handle);
-			if (vm?.getEditState() === CellEditState.Editing &&
-				(vm.editStateSource === 'chatEdit' || vm.editStateSource === 'chatEditNavigation')) {
-				vm?.updateEditState(CellEditState.Preview, 'chatEdit');
-			}
-		}
-	}
-
-	public async keep(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this._textModelChangeService.diffInfo.get().keep(change);
-	}
-
-	public async undo(change: DetailedLineRangeMapping): Promise<boolean> {
-		return this._textModelChangeService.diffInfo.get().undo(change);
-	}
+  public async undo(change: DetailedLineRangeMapping): Promise<boolean> {
+    return this._textModelChangeService.diffInfo.get().undo(change);
+  }
 }

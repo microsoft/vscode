@@ -10,38 +10,67 @@ declare const process: INodeProcess;
 
 // Native sandbox environment
 const vscodeGlobal = (globalThis as any).vscode;
-if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.process !== 'undefined') {
-	const sandboxProcess: INodeProcess = vscodeGlobal.process;
-	safeProcess = {
-		get platform() { return sandboxProcess.platform; },
-		get arch() { return sandboxProcess.arch; },
-		get env() { return sandboxProcess.env; },
-		cwd() { return sandboxProcess.cwd(); }
-	};
+if (
+  typeof vscodeGlobal !== 'undefined' &&
+  typeof vscodeGlobal.process !== 'undefined'
+) {
+  const sandboxProcess: INodeProcess = vscodeGlobal.process;
+  safeProcess = {
+    get platform() {
+      return sandboxProcess.platform;
+    },
+    get arch() {
+      return sandboxProcess.arch;
+    },
+    get env() {
+      return sandboxProcess.env;
+    },
+    cwd() {
+      return sandboxProcess.cwd();
+    },
+  };
 }
 
 // Native node.js environment
-else if (typeof process !== 'undefined' && typeof process?.versions?.node === 'string') {
-	safeProcess = {
-		get platform() { return process.platform; },
-		get arch() { return process.arch; },
-		get env() { return process.env; },
-		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); }
-	};
+else if (
+  typeof process !== 'undefined' &&
+  typeof process?.versions?.node === 'string'
+) {
+  safeProcess = {
+    get platform() {
+      return process.platform;
+    },
+    get arch() {
+      return process.arch;
+    },
+    get env() {
+      return process.env;
+    },
+    cwd() {
+      return process.env['VSCODE_CWD'] || process.cwd();
+    },
+  };
 }
 
 // Web environment
 else {
-	safeProcess = {
+  safeProcess = {
+    // Supported
+    get platform() {
+      return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux';
+    },
+    get arch() {
+      return undefined; /* arch is undefined in web */
+    },
 
-		// Supported
-		get platform() { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
-		get arch() { return undefined; /* arch is undefined in web */ },
-
-		// Unsupported
-		get env() { return {}; },
-		cwd() { return '/'; }
-	};
+    // Unsupported
+    get env() {
+      return {};
+    },
+    cwd() {
+      return '/';
+    },
+  };
 }
 
 /**

@@ -8,21 +8,24 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export const IWebContentExtractorService = createDecorator<IWebContentExtractorService>('IWebContentExtractorService');
-export const ISharedWebContentExtractorService = createDecorator<ISharedWebContentExtractorService>('ISharedWebContentExtractorService');
-
+export const IWebContentExtractorService =
+  createDecorator<IWebContentExtractorService>('IWebContentExtractorService');
+export const ISharedWebContentExtractorService =
+  createDecorator<ISharedWebContentExtractorService>(
+    'ISharedWebContentExtractorService'
+  );
 
 export interface IWebContentExtractorService {
-	_serviceBrand: undefined;
-	extract(uri: URI[]): Promise<string[]>;
+  _serviceBrand: undefined;
+  extract(uri: URI[]): Promise<string[]>;
 }
 
 /*
  * A service that extracts image content from a given arbitrary URI. This is done in the shared process to avoid running non trusted application code in the main process.
  */
 export interface ISharedWebContentExtractorService {
-	_serviceBrand: undefined;
-	readImage(uri: URI, token: CancellationToken): Promise<VSBuffer | undefined>;
+  _serviceBrand: undefined;
+  readImage(uri: URI, token: CancellationToken): Promise<VSBuffer | undefined>;
 }
 
 /**
@@ -30,17 +33,24 @@ export interface ISharedWebContentExtractorService {
  * This is a placeholder implementation that does not perform any actual extraction.
  * It's intended to be used on platforms where web content extraction is not supported such as in the browser.
  */
-export class NullWebContentExtractorService implements IWebContentExtractorService {
-	_serviceBrand: undefined;
+export class NullWebContentExtractorService
+  implements IWebContentExtractorService
+{
+  _serviceBrand: undefined;
 
-	extract(_uri: URI[]): Promise<string[]> {
-		throw new Error('Not implemented');
-	}
+  extract(_uri: URI[]): Promise<string[]> {
+    throw new Error('Not implemented');
+  }
 }
 
-export class NullSharedWebContentExtractorService implements ISharedWebContentExtractorService {
-	_serviceBrand: undefined;
-	readImage(_uri: URI, _token: CancellationToken): Promise<VSBuffer | undefined> {
-		throw new Error('Not implemented');
-	}
+export class NullSharedWebContentExtractorService
+  implements ISharedWebContentExtractorService
+{
+  _serviceBrand: undefined;
+  readImage(
+    _uri: URI,
+    _token: CancellationToken
+  ): Promise<VSBuffer | undefined> {
+    throw new Error('Not implemented');
+  }
 }

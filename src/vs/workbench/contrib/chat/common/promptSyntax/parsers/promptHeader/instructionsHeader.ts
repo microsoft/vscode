@@ -12,33 +12,35 @@ import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/ind
  * Metadata utility object for instruction files.
  */
 interface IInstructionsMetadata extends IHeaderMetadata {
-	/**
-	 * Chat 'applyTo' metadata in the prompt header.
-	 */
-	applyTo: PromptApplyToMetadata;
+  /**
+   * Chat 'applyTo' metadata in the prompt header.
+   */
+  applyTo: PromptApplyToMetadata;
 }
 
 /**
  * Metadata for instruction files.
  */
-export type TInstructionsMetadata = Partial<TDehydrated<IInstructionsMetadata>> & { promptType: PromptsType.instructions };
+export type TInstructionsMetadata = Partial<
+  TDehydrated<IInstructionsMetadata>
+> & { promptType: PromptsType.instructions };
 
 /**
  * Header object for instruction files.
  */
 export class InstructionsHeader extends HeaderBase<IInstructionsMetadata> {
-	protected override handleToken(token: FrontMatterRecord): boolean {
-		// if the record might be a "applyTo" metadata
-		// add it to the list of parsed metadata records
-		if (PromptApplyToMetadata.isApplyToRecord(token)) {
-			const metadata = new PromptApplyToMetadata(token, this.languageId);
+  protected override handleToken(token: FrontMatterRecord): boolean {
+    // if the record might be a "applyTo" metadata
+    // add it to the list of parsed metadata records
+    if (PromptApplyToMetadata.isApplyToRecord(token)) {
+      const metadata = new PromptApplyToMetadata(token, this.languageId);
 
-			this.issues.push(...metadata.validate());
-			this.meta.applyTo = metadata;
+      this.issues.push(...metadata.validate());
+      this.meta.applyTo = metadata;
 
-			return true;
-		}
+      return true;
+    }
 
-		return false;
-	}
+    return false;
+  }
 }

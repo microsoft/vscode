@@ -11,20 +11,31 @@ import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/w
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class NativeWorkbenchStorageService extends RemoteStorageService {
+  constructor(
+    workspace: IAnyWorkspaceIdentifier | undefined,
+    private readonly userDataProfileService: IUserDataProfileService,
+    userDataProfilesService: IUserDataProfilesService,
+    mainProcessService: IMainProcessService,
+    environmentService: IEnvironmentService
+  ) {
+    super(
+      workspace,
+      {
+        currentProfile: userDataProfileService.currentProfile,
+        defaultProfile: userDataProfilesService.defaultProfile,
+      },
+      mainProcessService,
+      environmentService
+    );
 
-	constructor(
-		workspace: IAnyWorkspaceIdentifier | undefined,
-		private readonly userDataProfileService: IUserDataProfileService,
-		userDataProfilesService: IUserDataProfilesService,
-		mainProcessService: IMainProcessService,
-		environmentService: IEnvironmentService
-	) {
-		super(workspace, { currentProfile: userDataProfileService.currentProfile, defaultProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
+    this.registerListeners();
+  }
 
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile))));
-	}
+  private registerListeners(): void {
+    this._register(
+      this.userDataProfileService.onDidChangeCurrentProfile((e) =>
+        e.join(this.switchToProfile(e.profile))
+      )
+    );
+  }
 }

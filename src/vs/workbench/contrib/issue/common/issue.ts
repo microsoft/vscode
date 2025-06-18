@@ -9,99 +9,102 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
 export interface WindowStyles {
-	backgroundColor?: string;
-	color?: string;
+  backgroundColor?: string;
+  color?: string;
 }
 export interface WindowData {
-	styles: WindowStyles;
-	zoomLevel: number;
+  styles: WindowStyles;
+  zoomLevel: number;
 }
 
 export const enum IssueType {
-	Bug,
-	PerformanceIssue,
-	FeatureRequest
+  Bug,
+  PerformanceIssue,
+  FeatureRequest,
 }
 
 export enum IssueSource {
-	VSCode = 'vscode',
-	Extension = 'extension',
-	Marketplace = 'marketplace'
+  VSCode = 'vscode',
+  Extension = 'extension',
+  Marketplace = 'marketplace',
 }
 
 export interface IssueReporterStyles extends WindowStyles {
-	textLinkColor?: string;
-	textLinkActiveForeground?: string;
-	inputBackground?: string;
-	inputForeground?: string;
-	inputBorder?: string;
-	inputErrorBorder?: string;
-	inputErrorBackground?: string;
-	inputErrorForeground?: string;
-	inputActiveBorder?: string;
-	buttonBackground?: string;
-	buttonForeground?: string;
-	buttonHoverBackground?: string;
-	sliderBackgroundColor?: string;
-	sliderHoverColor?: string;
-	sliderActiveColor?: string;
+  textLinkColor?: string;
+  textLinkActiveForeground?: string;
+  inputBackground?: string;
+  inputForeground?: string;
+  inputBorder?: string;
+  inputErrorBorder?: string;
+  inputErrorBackground?: string;
+  inputErrorForeground?: string;
+  inputActiveBorder?: string;
+  buttonBackground?: string;
+  buttonForeground?: string;
+  buttonHoverBackground?: string;
+  sliderBackgroundColor?: string;
+  sliderHoverColor?: string;
+  sliderActiveColor?: string;
 }
 
 export interface IssueReporterExtensionData {
-	name: string;
-	publisher: string | undefined;
-	version: string;
-	id: string;
-	isTheme: boolean;
-	isBuiltin: boolean;
-	displayName: string | undefined;
-	repositoryUrl: string | undefined;
-	bugsUrl: string | undefined;
-	extensionData?: string;
-	extensionTemplate?: string;
-	data?: string;
-	uri?: UriComponents;
+  name: string;
+  publisher: string | undefined;
+  version: string;
+  id: string;
+  isTheme: boolean;
+  isBuiltin: boolean;
+  displayName: string | undefined;
+  repositoryUrl: string | undefined;
+  bugsUrl: string | undefined;
+  extensionData?: string;
+  extensionTemplate?: string;
+  data?: string;
+  uri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
-	styles: IssueReporterStyles;
-	enabledExtensions: IssueReporterExtensionData[];
-	issueType?: IssueType;
-	issueSource?: IssueSource;
-	extensionId?: string;
-	experiments?: string;
-	restrictedMode: boolean;
-	isUnsupported: boolean;
-	githubAccessToken: string;
-	issueTitle?: string;
-	issueBody?: string;
-	data?: string;
-	uri?: UriComponents;
+  styles: IssueReporterStyles;
+  enabledExtensions: IssueReporterExtensionData[];
+  issueType?: IssueType;
+  issueSource?: IssueSource;
+  extensionId?: string;
+  experiments?: string;
+  restrictedMode: boolean;
+  isUnsupported: boolean;
+  githubAccessToken: string;
+  issueTitle?: string;
+  issueBody?: string;
+  data?: string;
+  uri?: UriComponents;
 }
 
 export interface ISettingSearchResult {
-	extensionId: string;
-	key: string;
-	score: number;
+  extensionId: string;
+  key: string;
+  score: number;
 }
 
-export const IIssueFormService = createDecorator<IIssueFormService>('issueFormService');
+export const IIssueFormService =
+  createDecorator<IIssueFormService>('issueFormService');
 
 export interface IIssueFormService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	// Used by the issue reporter
-	openReporter(data: IssueReporterData): Promise<void>;
-	reloadWithExtensionsDisabled(): Promise<void>;
-	showConfirmCloseDialog(): Promise<void>;
-	showClipboardDialog(): Promise<boolean>;
-	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
-	closeReporter(): Promise<void>;
+  // Used by the issue reporter
+  openReporter(data: IssueReporterData): Promise<void>;
+  reloadWithExtensionsDisabled(): Promise<void>;
+  showConfirmCloseDialog(): Promise<void>;
+  showClipboardDialog(): Promise<boolean>;
+  sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
+  closeReporter(): Promise<void>;
 }
 
-export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
+export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>(
+  'workbenchIssueService'
+);
 
 export interface IWorkbenchIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
+  readonly _serviceBrand: undefined;
+  openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
 }

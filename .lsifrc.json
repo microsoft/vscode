@@ -1,6 +1,6 @@
 {
-	"project": "src/tsconfig.json",
-	"source": "./package.json",
-	"package": "package.json",
-	"out": "vscode.lsif"
+  "project": "src/tsconfig.json",
+  "source": "./package.json",
+  "package": "package.json",
+  "out": "vscode.lsif"
 }

@@ -6,55 +6,65 @@ import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry'
 import * as vscode from 'vscode';
 
 interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
+  name: string;
+  version: string;
+  aiKey: string;
 }
 
 export interface TelemetryReporter {
-	dispose(): void;
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
-	}): void;
+  dispose(): void;
+  sendTelemetryEvent(
+    eventName: string,
+    properties?: {
+      [key: string]: string;
+    }
+  ): void;
 }
 
-const nullReporter = new class NullTelemetryReporter implements TelemetryReporter {
-	sendTelemetryEvent() { /** noop */ }
-	dispose() { /** noop */ }
-};
+const nullReporter = new (class NullTelemetryReporter
+  implements TelemetryReporter
+{
+  sendTelemetryEvent() {
+    /** noop */
+  }
+  dispose() {
+    /** noop */
+  }
+})();
 
 class ExtensionReporter implements TelemetryReporter {
-	private readonly _reporter: VSCodeTelemetryReporter;
+  private readonly _reporter: VSCodeTelemetryReporter;
 
-	constructor(
-		packageInfo: IPackageInfo
-	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
-	}
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
-	}) {
-		this._reporter.sendTelemetryEvent(eventName, properties);
-	}
+  constructor(packageInfo: IPackageInfo) {
+    this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
+  }
+  sendTelemetryEvent(
+    eventName: string,
+    properties?: {
+      [key: string]: string;
+    }
+  ) {
+    this._reporter.sendTelemetryEvent(eventName, properties);
+  }
 
-	dispose() {
-		this._reporter.dispose();
-	}
+  dispose() {
+    this._reporter.dispose();
+  }
 }
 
 export function loadDefaultTelemetryReporter(): TelemetryReporter {
-	const packageInfo = getPackageInfo();
-	return packageInfo ? new ExtensionReporter(packageInfo) : nullReporter;
+  const packageInfo = getPackageInfo();
+  return packageInfo ? new ExtensionReporter(packageInfo) : nullReporter;
 }
 
 function getPackageInfo(): IPackageInfo | null {
-	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
-	if (extension && extension.packageJSON) {
-		return {
-			name: extension.packageJSON.name,
-			version: extension.packageJSON.version,
-			aiKey: extension.packageJSON.aiKey
-		};
-	}
-	return null;
+  const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+  if (extension && extension.packageJSON) {
+    return {
+      name: extension.packageJSON.name,
+      version: extension.packageJSON.version,
+      aiKey: extension.packageJSON.aiKey,
+    };
+  }
+  return null;
 }

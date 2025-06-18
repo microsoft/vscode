@@ -8,57 +8,59 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessDataEvent } from './terminal.js';
 
 interface TerminalDataBuffer extends IDisposable {
-	data: string[];
-	timeoutId: Timeout;
+  data: string[];
+  timeoutId: Timeout;
 }
 
 export class TerminalDataBufferer implements IDisposable {
-	private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
+  private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
 
-	constructor(private readonly _callback: (id: number, data: string) => void) {
-	}
+  constructor(private readonly _callback: (id: number, data: string) => void) {}
 
-	dispose() {
-		for (const buffer of this._terminalBufferMap.values()) {
-			buffer.dispose();
-		}
-	}
+  dispose() {
+    for (const buffer of this._terminalBufferMap.values()) {
+      buffer.dispose();
+    }
+  }
 
-	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
+  startBuffering(
+    id: number,
+    event: Event<string | IProcessDataEvent>,
+    throttleBy: number = 5
+  ): IDisposable {
+    const disposable = event((e: string | IProcessDataEvent) => {
+      const data = typeof e === 'string' ? e : e.data;
+      let buffer = this._terminalBufferMap.get(id);
+      if (buffer) {
+        buffer.data.push(data);
+        return;
+      }
 
-		const disposable = event((e: string | IProcessDataEvent) => {
-			const data = (typeof e === 'string' ? e : e.data);
-			let buffer = this._terminalBufferMap.get(id);
-			if (buffer) {
-				buffer.data.push(data);
-				return;
-			}
+      const timeoutId = setTimeout(() => this.flushBuffer(id), throttleBy);
+      buffer = {
+        data: [data],
+        timeoutId,
+        dispose: () => {
+          clearTimeout(timeoutId);
+          this.flushBuffer(id);
+          disposable.dispose();
+        },
+      };
+      this._terminalBufferMap.set(id, buffer);
+    });
+    return disposable;
+  }
 
-			const timeoutId = setTimeout(() => this.flushBuffer(id), throttleBy);
-			buffer = {
-				data: [data],
-				timeoutId,
-				dispose: () => {
-					clearTimeout(timeoutId);
-					this.flushBuffer(id);
-					disposable.dispose();
-				}
-			};
-			this._terminalBufferMap.set(id, buffer);
-		});
-		return disposable;
-	}
+  stopBuffering(id: number) {
+    const buffer = this._terminalBufferMap.get(id);
+    buffer?.dispose();
+  }
 
-	stopBuffering(id: number) {
-		const buffer = this._terminalBufferMap.get(id);
-		buffer?.dispose();
-	}
-
-	flushBuffer(id: number): void {
-		const buffer = this._terminalBufferMap.get(id);
-		if (buffer) {
-			this._terminalBufferMap.delete(id);
-			this._callback(id, buffer.data.join(''));
-		}
-	}
+  flushBuffer(id: number): void {
+    const buffer = this._terminalBufferMap.get(id);
+    if (buffer) {
+      this._terminalBufferMap.delete(id);
+      this._callback(id, buffer.data.join(''));
+    }
+  }
 }

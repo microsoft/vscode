@@ -4,33 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-breadcrumbs {
-	user-select: none;
-	-webkit-user-select: none;
-	display: flex;
-	flex-direction: row;
-	flex-wrap: nowrap;
-	justify-content: flex-start;
-	outline-style: none;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  outline-style: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {
-	display: flex;
-	align-items: center;
-	flex: 0 1 auto;
-	white-space: nowrap;
-	cursor: pointer;
-	align-self: center;
-	height: 100%;
-	outline: none;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  cursor: pointer;
+  align-self: center;
+  height: 100%;
+  outline: none;
 }
 .monaco-breadcrumbs.disabled .monaco-breadcrumb-item {
-	cursor: default;
+  cursor: default;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item .codicon-breadcrumb-separator {
-	color: inherit;
+  color: inherit;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item:first-of-type::before {
-	content: ' ';
+  content: ' ';
 }

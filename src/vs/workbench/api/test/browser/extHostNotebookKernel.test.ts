@@ -9,7 +9,16 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
-import { ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from '../../common/extHost.protocol.js';
+import {
+  ICellExecuteUpdateDto,
+  ICellExecutionCompleteDto,
+  INotebookKernelDto2,
+  MainContext,
+  MainThreadCommandsShape,
+  MainThreadNotebookDocumentsShape,
+  MainThreadNotebookKernelsShape,
+  MainThreadNotebookShape,
+} from '../../common/extHost.protocol.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostDocuments } from '../../common/extHostDocuments.js';
 import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
@@ -18,8 +27,15 @@ import { ExtHostNotebookController } from '../../common/extHostNotebook.js';
 import { ExtHostNotebookDocument } from '../../common/extHostNotebookDocument.js';
 import { ExtHostNotebookDocuments } from '../../common/extHostNotebookDocuments.js';
 import { ExtHostNotebookKernels } from '../../common/extHostNotebookKernels.js';
-import { NotebookCellOutput, NotebookCellOutputItem } from '../../common/extHostTypes.js';
-import { CellKind, CellUri, NotebookCellsChangeType } from '../../../contrib/notebook/common/notebookCommon.js';
+import {
+  NotebookCellOutput,
+  NotebookCellOutputItem,
+} from '../../common/extHostTypes.js';
+import {
+  CellKind,
+  CellUri,
+  NotebookCellsChangeType,
+} from '../../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../../contrib/notebook/common/notebookExecutionService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
@@ -33,315 +49,452 @@ import { ExtHostSearch } from '../../common/extHostSearch.js';
 import { URITransformerService } from '../../common/extHostUriTransformerService.js';
 
 suite('NotebookKernel', function () {
-	let rpcProtocol: TestRPCProtocol;
-	let extHostNotebookKernels: ExtHostNotebookKernels;
-	let notebook: ExtHostNotebookDocument;
-	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
-	let extHostDocuments: ExtHostDocuments;
-	let extHostNotebooks: ExtHostNotebookController;
-	let extHostNotebookDocuments: ExtHostNotebookDocuments;
-	let extHostCommands: ExtHostCommands;
-	let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
-	let extHostSearch: ExtHostSearch;
+  let rpcProtocol: TestRPCProtocol;
+  let extHostNotebookKernels: ExtHostNotebookKernels;
+  let notebook: ExtHostNotebookDocument;
+  let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
+  let extHostDocuments: ExtHostDocuments;
+  let extHostNotebooks: ExtHostNotebookController;
+  let extHostNotebookDocuments: ExtHostNotebookDocuments;
+  let extHostCommands: ExtHostCommands;
+  let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
+  let extHostSearch: ExtHostSearch;
 
-	const notebookUri = URI.parse('test:///notebook.file');
-	const kernelData = new Map<number, INotebookKernelDto2>();
-	const disposables = new DisposableStore();
+  const notebookUri = URI.parse('test:///notebook.file');
+  const kernelData = new Map<number, INotebookKernelDto2>();
+  const disposables = new DisposableStore();
 
-	const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
-	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
-	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
+  const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
+  const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
+  const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
 
-	teardown(function () {
-		disposables.clear();
-	});
+  teardown(function () {
+    disposables.clear();
+  });
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	setup(async function () {
-		cellExecuteCreate.length = 0;
-		cellExecuteUpdates.length = 0;
-		cellExecuteComplete.length = 0;
-		kernelData.clear();
+  setup(async function () {
+    cellExecuteCreate.length = 0;
+    cellExecuteUpdates.length = 0;
+    cellExecuteComplete.length = 0;
+    kernelData.clear();
 
-		rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand() { }
-		});
-		rpcProtocol.set(MainContext.MainThreadNotebookKernels, new class extends mock<MainThreadNotebookKernelsShape>() {
-			override async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
-				kernelData.set(handle, data);
-			}
-			override $removeKernel(handle: number) {
-				kernelData.delete(handle);
-			}
-			override $updateKernel(handle: number, data: Partial<INotebookKernelDto2>) {
-				assert.strictEqual(kernelData.has(handle), true);
-				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
-			}
-			override $createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void {
-				cellExecuteCreate.push({ notebook: uri, cell: cellHandle });
-			}
-			override $updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
-				cellExecuteUpdates.push(...data.value);
-			}
-			override $completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void {
-				cellExecuteComplete.push(data.value);
-			}
-		});
-		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
+    rpcProtocol = new TestRPCProtocol();
+    rpcProtocol.set(
+      MainContext.MainThreadCommands,
+      new (class extends mock<MainThreadCommandsShape>() {
+        override $registerCommand() {}
+      })()
+    );
+    rpcProtocol.set(
+      MainContext.MainThreadNotebookKernels,
+      new (class extends mock<MainThreadNotebookKernelsShape>() {
+        override async $addKernel(
+          handle: number,
+          data: INotebookKernelDto2
+        ): Promise<void> {
+          kernelData.set(handle, data);
+        }
+        override $removeKernel(handle: number) {
+          kernelData.delete(handle);
+        }
+        override $updateKernel(
+          handle: number,
+          data: Partial<INotebookKernelDto2>
+        ) {
+          assert.strictEqual(kernelData.has(handle), true);
+          kernelData.set(handle, { ...kernelData.get(handle)!, ...data });
+        }
+        override $createExecution(
+          handle: number,
+          controllerId: string,
+          uri: UriComponents,
+          cellHandle: number
+        ): void {
+          cellExecuteCreate.push({ notebook: uri, cell: cellHandle });
+        }
+        override $updateExecution(
+          handle: number,
+          data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>
+        ): void {
+          cellExecuteUpdates.push(...data.value);
+        }
+        override $completeExecution(
+          handle: number,
+          data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>
+        ): void {
+          cellExecuteComplete.push(data.value);
+        }
+      })()
+    );
+    rpcProtocol.set(
+      MainContext.MainThreadNotebookDocuments,
+      new (class extends mock<MainThreadNotebookDocumentsShape>() {})()
+    );
+    rpcProtocol.set(
+      MainContext.MainThreadNotebook,
+      new (class extends mock<MainThreadNotebookShape>() {
+        override async $registerNotebookSerializer() {}
+        override async $unregisterNotebookSerializer() {}
+      })()
+    );
+    extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(
+      rpcProtocol,
+      new NullLogService()
+    );
+    extHostDocuments = disposables.add(
+      new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors)
+    );
+    extHostCommands = new ExtHostCommands(
+      rpcProtocol,
+      new NullLogService(),
+      new (class extends mock<IExtHostTelemetry>() {
+        override onExtensionError(): boolean {
+          return true;
+        }
+      })()
+    );
+    extHostConsumerFileSystem = new ExtHostConsumerFileSystem(
+      rpcProtocol,
+      new ExtHostFileSystemInfo()
+    );
+    extHostSearch = new ExtHostSearch(
+      rpcProtocol,
+      new URITransformerService(null),
+      new NullLogService()
+    );
+    extHostNotebooks = new ExtHostNotebookController(
+      rpcProtocol,
+      extHostCommands,
+      extHostDocumentsAndEditors,
+      extHostDocuments,
+      extHostConsumerFileSystem,
+      extHostSearch,
+      new NullLogService()
+    );
 
-		});
-		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookSerializer() { }
-			override async $unregisterNotebookSerializer() { }
-		});
-		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocuments = disposables.add(new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
-		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
-			override onExtensionError(): boolean {
-				return true;
-			}
-		});
-		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
-		extHostSearch = new ExtHostSearch(rpcProtocol, new URITransformerService(null), new NullLogService());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, new NullLogService());
+    extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
+    extHostNotebooks.$acceptDocumentAndEditorsDelta(
+      new SerializableObjectWithBuffers({
+        addedDocuments: [
+          {
+            uri: notebookUri,
+            viewType: 'test',
+            versionId: 0,
+            cells: [
+              {
+                handle: 0,
+                uri: CellUri.generate(notebookUri, 0),
+                source: ['### Heading'],
+                eol: '\n',
+                language: 'markdown',
+                cellKind: CellKind.Markup,
+                outputs: [],
+              },
+              {
+                handle: 1,
+                uri: CellUri.generate(notebookUri, 1),
+                source: ['console.log("aaa")', 'console.log("bbb")'],
+                eol: '\n',
+                language: 'javascript',
+                cellKind: CellKind.Code,
+                outputs: [],
+              },
+            ],
+          },
+        ],
+        addedEditors: [
+          {
+            documentUri: notebookUri,
+            id: '_notebook_editor_0',
+            selections: [{ start: 0, end: 1 }],
+            visibleRanges: [],
+            viewType: 'test',
+          },
+        ],
+      })
+    );
+    extHostNotebooks.$acceptDocumentAndEditorsDelta(
+      new SerializableObjectWithBuffers({
+        newActiveEditor: '_notebook_editor_0',
+      })
+    );
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
-			addedDocuments: [{
-				uri: notebookUri,
-				viewType: 'test',
-				versionId: 0,
-				cells: [{
-					handle: 0,
-					uri: CellUri.generate(notebookUri, 0),
-					source: ['### Heading'],
-					eol: '\n',
-					language: 'markdown',
-					cellKind: CellKind.Markup,
-					outputs: [],
-				}, {
-					handle: 1,
-					uri: CellUri.generate(notebookUri, 1),
-					source: ['console.log("aaa")', 'console.log("bbb")'],
-					eol: '\n',
-					language: 'javascript',
-					cellKind: CellKind.Code,
-					outputs: [],
-				}],
-			}],
-			addedEditors: [{
-				documentUri: notebookUri,
-				id: '_notebook_editor_0',
-				selections: [{ start: 0, end: 1 }],
-				visibleRanges: [],
-				viewType: 'test',
-			}]
-		}));
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
+    notebook = extHostNotebooks.notebookDocuments[0]!;
 
-		notebook = extHostNotebooks.notebookDocuments[0]!;
+    disposables.add(notebook);
+    disposables.add(extHostDocuments);
 
-		disposables.add(notebook);
-		disposables.add(extHostDocuments);
+    extHostNotebookKernels = new ExtHostNotebookKernels(
+      rpcProtocol,
+      new (class extends mock<IExtHostInitDataService>() {})(),
+      extHostNotebooks,
+      extHostCommands,
+      new NullLogService()
+    );
+  });
 
+  test('create/dispose kernel', async function () {
+    const kernel = extHostNotebookKernels.createNotebookController(
+      nullExtensionDescription,
+      'foo',
+      '*',
+      'Foo'
+    );
 
-		extHostNotebookKernels = new ExtHostNotebookKernels(
-			rpcProtocol,
-			new class extends mock<IExtHostInitDataService>() { },
-			extHostNotebooks,
-			extHostCommands,
-			new NullLogService()
-		);
-	});
+    assert.throws(() => ((<any>kernel).id = 'dd'));
+    assert.throws(() => ((<any>kernel).notebookType = 'dd'));
 
-	test('create/dispose kernel', async function () {
+    assert.ok(kernel);
+    assert.strictEqual(kernel.id, 'foo');
+    assert.strictEqual(kernel.label, 'Foo');
+    assert.strictEqual(kernel.notebookType, '*');
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+    await rpcProtocol.sync();
+    assert.strictEqual(kernelData.size, 1);
 
-		assert.throws(() => (<any>kernel).id = 'dd');
-		assert.throws(() => (<any>kernel).notebookType = 'dd');
+    const [first] = kernelData.values();
+    assert.strictEqual(first.id, 'nullExtensionDescription/foo');
+    assert.strictEqual(
+      ExtensionIdentifier.equals(
+        first.extensionId,
+        nullExtensionDescription.identifier
+      ),
+      true
+    );
+    assert.strictEqual(first.label, 'Foo');
+    assert.strictEqual(first.notebookType, '*');
 
-		assert.ok(kernel);
-		assert.strictEqual(kernel.id, 'foo');
-		assert.strictEqual(kernel.label, 'Foo');
-		assert.strictEqual(kernel.notebookType, '*');
+    kernel.dispose();
+    await rpcProtocol.sync();
+    assert.strictEqual(kernelData.size, 0);
+  });
 
-		await rpcProtocol.sync();
-		assert.strictEqual(kernelData.size, 1);
+  test('update kernel', async function () {
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
 
-		const [first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
-		assert.strictEqual(first.label, 'Foo');
-		assert.strictEqual(first.notebookType, '*');
+    await rpcProtocol.sync();
+    assert.ok(kernel);
 
-		kernel.dispose();
-		await rpcProtocol.sync();
-		assert.strictEqual(kernelData.size, 0);
-	});
+    let [first] = kernelData.values();
+    assert.strictEqual(first.id, 'nullExtensionDescription/foo');
+    assert.strictEqual(first.label, 'Foo');
 
-	test('update kernel', async function () {
+    kernel.label = 'Far';
+    assert.strictEqual(kernel.label, 'Far');
 
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
+    await rpcProtocol.sync();
+    [first] = kernelData.values();
+    assert.strictEqual(first.id, 'nullExtensionDescription/foo');
+    assert.strictEqual(first.label, 'Far');
+  });
 
-		await rpcProtocol.sync();
-		assert.ok(kernel);
+  test('execute - simple createNotebookCellExecution', function () {
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
 
-		let [first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(first.label, 'Foo');
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
-		kernel.label = 'Far';
-		assert.strictEqual(kernel.label, 'Far');
+    const cell1 = notebook.apiNotebook.cellAt(0);
+    const task = kernel.createNotebookCellExecution(cell1);
+    task.start();
+    task.end(undefined);
+  });
 
-		await rpcProtocol.sync();
-		[first] = kernelData.values();
-		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
-		assert.strictEqual(first.label, 'Far');
-	});
+  test('createNotebookCellExecution, must be selected/associated', function () {
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
+    assert.throws(() => {
+      kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
+    });
 
-	test('execute - simple createNotebookCellExecution', function () {
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+    const execution = kernel.createNotebookCellExecution(
+      notebook.apiNotebook.cellAt(0)
+    );
+    execution.end(true);
+  });
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+  test('createNotebookCellExecution, cell must be alive', function () {
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
-		task.end(undefined);
-	});
+    const cell1 = notebook.apiNotebook.cellAt(0);
 
-	test('createNotebookCellExecution, must be selected/associated', function () {
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
-		assert.throws(() => {
-			kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
-		});
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+    extHostNotebookDocuments.$acceptModelChanged(
+      notebook.uri,
+      new SerializableObjectWithBuffers({
+        versionId: 12,
+        rawEvents: [
+          {
+            kind: NotebookCellsChangeType.ModelChange,
+            changes: [[0, notebook.apiNotebook.cellCount, []]],
+          },
+        ],
+      }),
+      true
+    );
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		const execution = kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
-		execution.end(true);
-	});
+    assert.strictEqual(cell1.index, -1);
 
-	test('createNotebookCellExecution, cell must be alive', function () {
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
+    assert.throws(() => {
+      kernel.createNotebookCellExecution(cell1);
+    });
+  });
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
+  test('interrupt handler, cancellation', async function () {
+    let interruptCallCount = 0;
+    let tokenCancelCount = 0;
 
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
-			versionId: 12,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
-				changes: [[0, notebook.apiNotebook.cellCount, []]]
-			}]
-		}), true);
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
+    kernel.interruptHandler = () => {
+      interruptCallCount += 1;
+    };
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
-		assert.strictEqual(cell1.index, -1);
+    const cell1 = notebook.apiNotebook.cellAt(0);
 
-		assert.throws(() => {
-			kernel.createNotebookCellExecution(cell1);
-		});
-	});
+    const task = kernel.createNotebookCellExecution(cell1);
+    disposables.add(
+      task.token.onCancellationRequested(() => (tokenCancelCount += 1))
+    );
 
-	test('interrupt handler, cancellation', async function () {
+    await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+    assert.strictEqual(interruptCallCount, 1);
+    assert.strictEqual(tokenCancelCount, 0);
 
-		let interruptCallCount = 0;
-		let tokenCancelCount = 0;
+    await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+    assert.strictEqual(interruptCallCount, 2);
+    assert.strictEqual(tokenCancelCount, 0);
 
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
-		kernel.interruptHandler = () => { interruptCallCount += 1; };
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+    // should cancelling the cells end the execution task?
+    task.end(false);
+  });
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
+  test('set outputs on cancel', async function () {
+    const kernel = disposables.add(
+      extHostNotebookKernels.createNotebookController(
+        nullExtensionDescription,
+        'foo',
+        '*',
+        'Foo'
+      )
+    );
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
-		const task = kernel.createNotebookCellExecution(cell1);
-		disposables.add(task.token.onCancellationRequested(() => tokenCancelCount += 1));
+    const cell1 = notebook.apiNotebook.cellAt(0);
+    const task = kernel.createNotebookCellExecution(cell1);
+    task.start();
 
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
-		assert.strictEqual(interruptCallCount, 1);
-		assert.strictEqual(tokenCancelCount, 0);
+    const b = new Barrier();
 
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
-		assert.strictEqual(interruptCallCount, 2);
-		assert.strictEqual(tokenCancelCount, 0);
+    disposables.add(
+      task.token.onCancellationRequested(async () => {
+        await task.replaceOutput(
+          new NotebookCellOutput([NotebookCellOutputItem.text('canceled')])
+        );
+        task.end(true);
+        b.open(); // use barrier to signal that cancellation has happened
+      })
+    );
 
-		// should cancelling the cells end the execution task?
-		task.end(false);
-	});
+    cellExecuteUpdates.length = 0;
+    await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 
-	test('set outputs on cancel', async function () {
+    await b.wait();
 
-		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+    assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
+    let found = false;
+    for (const edit of cellExecuteUpdates) {
+      if (edit.editType === CellExecutionUpdateType.Output) {
+        assert.strictEqual(edit.append, false);
+        assert.strictEqual(edit.outputs.length, 1);
+        assert.strictEqual(edit.outputs[0].items.length, 1);
+        assert.deepStrictEqual(
+          Array.from(edit.outputs[0].items[0].valueBytes.buffer),
+          Array.from(new TextEncoder().encode('canceled'))
+        );
+        found = true;
+      }
+    }
+    assert.ok(found);
+  });
 
-		const b = new Barrier();
+  test('set outputs on interrupt', async function () {
+    const kernel = extHostNotebookKernels.createNotebookController(
+      nullExtensionDescription,
+      'foo',
+      '*',
+      'Foo'
+    );
+    extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
-		disposables.add(
-			task.token.onCancellationRequested(async () => {
-				await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('canceled')]));
-				task.end(true);
-				b.open(); // use barrier to signal that cancellation has happened
-			})
-		);
+    const cell1 = notebook.apiNotebook.cellAt(0);
+    const task = kernel.createNotebookCellExecution(cell1);
+    task.start();
 
-		cellExecuteUpdates.length = 0;
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+    kernel.interruptHandler = async (_notebook) => {
+      assert.ok(notebook.apiNotebook === _notebook);
+      await task.replaceOutput(
+        new NotebookCellOutput([NotebookCellOutputItem.text('interrupted')])
+      );
+      task.end(true);
+    };
 
-		await b.wait();
+    cellExecuteUpdates.length = 0;
+    await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 
-		assert.strictEqual(cellExecuteUpdates.length > 0, true);
+    assert.strictEqual(cellExecuteUpdates.length > 0, true);
 
-		let found = false;
-		for (const edit of cellExecuteUpdates) {
-			if (edit.editType === CellExecutionUpdateType.Output) {
-				assert.strictEqual(edit.append, false);
-				assert.strictEqual(edit.outputs.length, 1);
-				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('canceled')));
-				found = true;
-			}
-		}
-		assert.ok(found);
-	});
-
-	test('set outputs on interrupt', async function () {
-
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
-		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-
-
-		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecution(cell1);
-		task.start();
-
-		kernel.interruptHandler = async _notebook => {
-			assert.ok(notebook.apiNotebook === _notebook);
-			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('interrupted')]));
-			task.end(true);
-		};
-
-		cellExecuteUpdates.length = 0;
-		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
-
-		assert.strictEqual(cellExecuteUpdates.length > 0, true);
-
-		let found = false;
-		for (const edit of cellExecuteUpdates) {
-			if (edit.editType === CellExecutionUpdateType.Output) {
-				assert.strictEqual(edit.append, false);
-				assert.strictEqual(edit.outputs.length, 1);
-				assert.strictEqual(edit.outputs[0].items.length, 1);
-				assert.deepStrictEqual(Array.from(edit.outputs[0].items[0].valueBytes.buffer), Array.from(new TextEncoder().encode('interrupted')));
-				found = true;
-			}
-		}
-		assert.ok(found);
-	});
+    let found = false;
+    for (const edit of cellExecuteUpdates) {
+      if (edit.editType === CellExecutionUpdateType.Output) {
+        assert.strictEqual(edit.append, false);
+        assert.strictEqual(edit.outputs.length, 1);
+        assert.strictEqual(edit.outputs[0].items.length, 1);
+        assert.deepStrictEqual(
+          Array.from(edit.outputs[0].items[0].valueBytes.buffer),
+          Array.from(new TextEncoder().encode('interrupted'))
+        );
+        found = true;
+      }
+    }
+    assert.ok(found);
+  });
 });

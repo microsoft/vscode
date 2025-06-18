@@ -9,12 +9,19 @@ import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browse
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IModifiedFileEntry } from '../../common/chatEditingService.js';
 
-export function isTextDiffEditorForEntry(accessor: ServicesAccessor, entry: IModifiedFileEntry, editor: ICodeEditor) {
-	const diffEditor = findDiffEditorContainingCodeEditor(accessor, editor);
-	if (!diffEditor) {
-		return false;
-	}
-	const originalModel = diffEditor.getOriginalEditor().getModel();
-	const modifiedModel = diffEditor.getModifiedEditor().getModel();
-	return isEqual(originalModel?.uri, entry.originalURI) && isEqual(modifiedModel?.uri, entry.modifiedURI);
+export function isTextDiffEditorForEntry(
+  accessor: ServicesAccessor,
+  entry: IModifiedFileEntry,
+  editor: ICodeEditor
+) {
+  const diffEditor = findDiffEditorContainingCodeEditor(accessor, editor);
+  if (!diffEditor) {
+    return false;
+  }
+  const originalModel = diffEditor.getOriginalEditor().getModel();
+  const modifiedModel = diffEditor.getModifiedEditor().getModel();
+  return (
+    isEqual(originalModel?.uri, entry.originalURI) &&
+    isEqual(modifiedModel?.uri, entry.modifiedURI)
+  );
 }

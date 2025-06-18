@@ -1,16 +1,11 @@
 {
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
-		"sourceMap": true,
-		"sourceRoot": "../src",
-		"lib": [
-			"ES2020",
-			"WebWorker"
-		],
-		"module": "Node16",
-	},
-	"include": [
-		"src/**/*"
-	]
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./out",
+    "sourceMap": true,
+    "sourceRoot": "../src",
+    "lib": ["ES2020", "WebWorker"],
+    "module": "Node16"
+  },
+  "include": ["src/**/*"]
 }

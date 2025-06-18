@@ -8,132 +8,158 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtHostTextEditor } from './extHostTextEditor.js';
 import { ExtHostEditors } from './extHostTextEditors.js';
-import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from '../../contrib/webview/common/webview.js';
+import {
+  asWebviewUri,
+  webviewGenericCspSource,
+  WebviewRemoteInfo,
+} from '../../contrib/webview/common/webview.js';
 import type * as vscode from 'vscode';
-import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol.js';
+import {
+  ExtHostEditorInsetsShape,
+  MainThreadEditorInsetsShape,
+} from './extHost.protocol.js';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
+  private _handlePool = 0;
+  private readonly _disposables = new DisposableStore();
+  private _insets = new Map<
+    number,
+    {
+      editor: vscode.TextEditor;
+      inset: vscode.WebviewEditorInset;
+      onDidReceiveMessage: Emitter<any>;
+    }
+  >();
 
-	private _handlePool = 0;
-	private readonly _disposables = new DisposableStore();
-	private _insets = new Map<number, { editor: vscode.TextEditor; inset: vscode.WebviewEditorInset; onDidReceiveMessage: Emitter<any> }>();
+  constructor(
+    private readonly _proxy: MainThreadEditorInsetsShape,
+    private readonly _editors: ExtHostEditors,
+    private readonly _remoteInfo: WebviewRemoteInfo
+  ) {
+    // dispose editor inset whenever the hosting editor goes away
+    this._disposables.add(
+      _editors.onDidChangeVisibleTextEditors(() => {
+        const visibleEditor = _editors.getVisibleTextEditors();
+        for (const value of this._insets.values()) {
+          if (visibleEditor.indexOf(value.editor) < 0) {
+            value.inset.dispose(); // will remove from `this._insets`
+          }
+        }
+      })
+    );
+  }
 
-	constructor(
-		private readonly _proxy: MainThreadEditorInsetsShape,
-		private readonly _editors: ExtHostEditors,
-		private readonly _remoteInfo: WebviewRemoteInfo
-	) {
+  dispose(): void {
+    this._insets.forEach((value) => value.inset.dispose());
+    this._disposables.dispose();
+  }
 
-		// dispose editor inset whenever the hosting editor goes away
-		this._disposables.add(_editors.onDidChangeVisibleTextEditors(() => {
-			const visibleEditor = _editors.getVisibleTextEditors();
-			for (const value of this._insets.values()) {
-				if (visibleEditor.indexOf(value.editor) < 0) {
-					value.inset.dispose(); // will remove from `this._insets`
-				}
-			}
-		}));
-	}
+  createWebviewEditorInset(
+    editor: vscode.TextEditor,
+    line: number,
+    height: number,
+    options: vscode.WebviewOptions | undefined,
+    extension: IExtensionDescription
+  ): vscode.WebviewEditorInset {
+    let apiEditor: ExtHostTextEditor | undefined;
+    for (const candidate of this._editors.getVisibleTextEditors(true)) {
+      if (candidate.value === editor) {
+        apiEditor = <ExtHostTextEditor>candidate;
+        break;
+      }
+    }
+    if (!apiEditor) {
+      throw new Error('not a visible editor');
+    }
 
-	dispose(): void {
-		this._insets.forEach(value => value.inset.dispose());
-		this._disposables.dispose();
-	}
+    const that = this;
+    const handle = this._handlePool++;
+    const onDidReceiveMessage = new Emitter<any>();
+    const onDidDispose = new Emitter<void>();
 
-	createWebviewEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions | undefined, extension: IExtensionDescription): vscode.WebviewEditorInset {
+    const webview = new (class implements vscode.Webview {
+      private _html: string = '';
+      private _options: vscode.WebviewOptions = Object.create(null);
 
-		let apiEditor: ExtHostTextEditor | undefined;
-		for (const candidate of this._editors.getVisibleTextEditors(true)) {
-			if (candidate.value === editor) {
-				apiEditor = <ExtHostTextEditor>candidate;
-				break;
-			}
-		}
-		if (!apiEditor) {
-			throw new Error('not a visible editor');
-		}
+      asWebviewUri(resource: vscode.Uri): vscode.Uri {
+        return asWebviewUri(resource, that._remoteInfo);
+      }
 
-		const that = this;
-		const handle = this._handlePool++;
-		const onDidReceiveMessage = new Emitter<any>();
-		const onDidDispose = new Emitter<void>();
+      get cspSource(): string {
+        return webviewGenericCspSource;
+      }
 
-		const webview = new class implements vscode.Webview {
+      set options(value: vscode.WebviewOptions) {
+        this._options = value;
+        that._proxy.$setOptions(handle, value);
+      }
 
-			private _html: string = '';
-			private _options: vscode.WebviewOptions = Object.create(null);
+      get options(): vscode.WebviewOptions {
+        return this._options;
+      }
 
-			asWebviewUri(resource: vscode.Uri): vscode.Uri {
-				return asWebviewUri(resource, that._remoteInfo);
-			}
+      set html(value: string) {
+        this._html = value;
+        that._proxy.$setHtml(handle, value);
+      }
 
-			get cspSource(): string {
-				return webviewGenericCspSource;
-			}
+      get html(): string {
+        return this._html;
+      }
 
-			set options(value: vscode.WebviewOptions) {
-				this._options = value;
-				that._proxy.$setOptions(handle, value);
-			}
+      get onDidReceiveMessage(): vscode.Event<any> {
+        return onDidReceiveMessage.event;
+      }
 
-			get options(): vscode.WebviewOptions {
-				return this._options;
-			}
+      postMessage(message: any): Thenable<boolean> {
+        return that._proxy.$postMessage(handle, message);
+      }
+    })();
 
-			set html(value: string) {
-				this._html = value;
-				that._proxy.$setHtml(handle, value);
-			}
+    const inset = new (class implements vscode.WebviewEditorInset {
+      readonly editor: vscode.TextEditor = editor;
+      readonly line: number = line;
+      readonly height: number = height;
+      readonly webview: vscode.Webview = webview;
+      readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
 
-			get html(): string {
-				return this._html;
-			}
+      dispose(): void {
+        if (that._insets.has(handle)) {
+          that._insets.delete(handle);
+          that._proxy.$disposeEditorInset(handle);
+          onDidDispose.fire();
 
-			get onDidReceiveMessage(): vscode.Event<any> {
-				return onDidReceiveMessage.event;
-			}
+          // final cleanup
+          onDidDispose.dispose();
+          onDidReceiveMessage.dispose();
+        }
+      }
+    })();
 
-			postMessage(message: any): Thenable<boolean> {
-				return that._proxy.$postMessage(handle, message);
-			}
-		};
+    this._proxy.$createEditorInset(
+      handle,
+      apiEditor.id,
+      apiEditor.value.document.uri,
+      line + 1,
+      height,
+      options || {},
+      extension.identifier,
+      extension.extensionLocation
+    );
+    this._insets.set(handle, { editor, inset, onDidReceiveMessage });
 
-		const inset = new class implements vscode.WebviewEditorInset {
+    return inset;
+  }
 
-			readonly editor: vscode.TextEditor = editor;
-			readonly line: number = line;
-			readonly height: number = height;
-			readonly webview: vscode.Webview = webview;
-			readonly onDidDispose: vscode.Event<void> = onDidDispose.event;
+  $onDidDispose(handle: number): void {
+    const value = this._insets.get(handle);
+    if (value) {
+      value.inset.dispose();
+    }
+  }
 
-			dispose(): void {
-				if (that._insets.has(handle)) {
-					that._insets.delete(handle);
-					that._proxy.$disposeEditorInset(handle);
-					onDidDispose.fire();
-
-					// final cleanup
-					onDidDispose.dispose();
-					onDidReceiveMessage.dispose();
-				}
-			}
-		};
-
-		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.value.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
-		this._insets.set(handle, { editor, inset, onDidReceiveMessage });
-
-		return inset;
-	}
-
-	$onDidDispose(handle: number): void {
-		const value = this._insets.get(handle);
-		if (value) {
-			value.inset.dispose();
-		}
-	}
-
-	$onDidReceiveMessage(handle: number, message: any): void {
-		const value = this._insets.get(handle);
-		value?.onDidReceiveMessage.fire(message);
-	}
+  $onDidReceiveMessage(handle: number, message: any): void {
+    const value = this._insets.get(handle);
+    value?.onDidReceiveMessage.fire(message);
+  }
 }

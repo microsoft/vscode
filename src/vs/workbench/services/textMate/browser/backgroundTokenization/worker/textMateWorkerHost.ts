@@ -4,19 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from '../../../../../../base/common/uri.js';
-import { IWebWorkerServer, IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
+import {
+  IWebWorkerServer,
+  IWebWorkerClient,
+} from '../../../../../../base/common/worker/webWorker.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 
 export abstract class TextMateWorkerHost {
-	public static CHANNEL_NAME = 'textMateWorkerHost';
-	public static getChannel(workerServer: IWebWorkerServer): TextMateWorkerHost {
-		return workerServer.getChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME);
-	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: TextMateWorkerHost): void {
-		workerClient.setChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME, obj);
-	}
+  public static CHANNEL_NAME = 'textMateWorkerHost';
+  public static getChannel(workerServer: IWebWorkerServer): TextMateWorkerHost {
+    return workerServer.getChannel<TextMateWorkerHost>(
+      TextMateWorkerHost.CHANNEL_NAME
+    );
+  }
+  public static setChannel(
+    workerClient: IWebWorkerClient<any>,
+    obj: TextMateWorkerHost
+  ): void {
+    workerClient.setChannel<TextMateWorkerHost>(
+      TextMateWorkerHost.CHANNEL_NAME,
+      obj
+    );
+  }
 
-	abstract $readFile(_resource: UriComponents): Promise<string>;
-	abstract $setTokensAndStates(controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void>;
-	abstract $reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
+  abstract $readFile(_resource: UriComponents): Promise<string>;
+  abstract $setTokensAndStates(
+    controllerId: number,
+    versionId: number,
+    tokens: Uint8Array,
+    lineEndStateDeltas: StateDeltas[]
+  ): Promise<void>;
+  abstract $reportTokenizationTime(
+    timeMs: number,
+    languageId: string,
+    sourceExtensionId: string | undefined,
+    lineLength: number,
+    isRandomSample: boolean
+  ): void;
 }

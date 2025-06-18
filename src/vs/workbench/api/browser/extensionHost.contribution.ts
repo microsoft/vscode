@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import {
+  IWorkbenchContribution,
+  WorkbenchPhase,
+  registerWorkbenchContribution2,
+} from '../../common/contributions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 // --- other interested parties
@@ -93,20 +97,26 @@ import './mainThreadMcp.js';
 import './mainThreadChatStatus.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
+  static readonly ID = 'workbench.contrib.extensionPoints';
 
-	static readonly ID = 'workbench.contrib.extensionPoints';
-
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		// Classes that handle extension points...
-		this.instantiationService.createInstance(JSONValidationExtensionPoint);
-		this.instantiationService.createInstance(ColorExtensionPoint);
-		this.instantiationService.createInstance(IconExtensionPoint);
-		this.instantiationService.createInstance(TokenClassificationExtensionPoints);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
-		this.instantiationService.createInstance(StatusBarItemsExtensionPoint);
-	}
+  constructor(
+    @IInstantiationService
+    private readonly instantiationService: IInstantiationService
+  ) {
+    // Classes that handle extension points...
+    this.instantiationService.createInstance(JSONValidationExtensionPoint);
+    this.instantiationService.createInstance(ColorExtensionPoint);
+    this.instantiationService.createInstance(IconExtensionPoint);
+    this.instantiationService.createInstance(
+      TokenClassificationExtensionPoints
+    );
+    this.instantiationService.createInstance(LanguageConfigurationFileHandler);
+    this.instantiationService.createInstance(StatusBarItemsExtensionPoint);
+  }
 }
 
-registerWorkbenchContribution2(ExtensionPoints.ID, ExtensionPoints, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(
+  ExtensionPoints.ID,
+  ExtensionPoints,
+  WorkbenchPhase.BlockStartup
+);

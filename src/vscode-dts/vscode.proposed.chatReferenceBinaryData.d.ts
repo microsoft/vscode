@@ -4,35 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+  export interface ChatPromptReference {
+    /**
+     * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
+     */
+    readonly value: string | Uri | Location | ChatReferenceBinaryData | unknown;
+  }
 
-	export interface ChatPromptReference {
-		/**
-		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
-		 */
-		readonly value: string | Uri | Location | ChatReferenceBinaryData | unknown;
-	}
+  export class ChatReferenceBinaryData {
+    /**
+     * The MIME type of the binary data.
+     */
+    readonly mimeType: string;
 
-	export class ChatReferenceBinaryData {
-		/**
-		 * The MIME type of the binary data.
-		 */
-		readonly mimeType: string;
+    /**
+     * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
+     * @returns A promise that resolves to the binary data as a Uint8Array.
+     */
+    data(): Thenable<Uint8Array>;
 
-		/**
-		 * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
-		 * @returns A promise that resolves to the binary data as a Uint8Array.
-		 */
-		data(): Thenable<Uint8Array>;
+    /**
+     * Retrieves a URI reference to the binary data, if available.
+     */
+    readonly reference?: Uri;
 
-		/**
-		 * Retrieves a URI reference to the binary data, if available.
-		 */
-		readonly reference?: Uri;
-
-		/**
-		 * @param mimeType The MIME type of the binary data.
-		 * @param data The binary data of the reference.
-		 */
-		constructor(mimeType: string, data: () => Thenable<Uint8Array>);
-	}
+    /**
+     * @param mimeType The MIME type of the binary data.
+     * @param data The binary data of the reference.
+     */
+    constructor(mimeType: string, data: () => Thenable<Uint8Array>);
+  }
 }

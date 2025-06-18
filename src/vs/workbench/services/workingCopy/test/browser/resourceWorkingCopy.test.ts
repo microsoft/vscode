@@ -7,86 +7,115 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import {
+  TestServiceAccessor,
+  workbenchInstantiationService,
+} from '../../../../test/browser/workbenchTestServices.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
+import {
+  FileChangesEvent,
+  FileChangeType,
+} from '../../../../../platform/files/common/files.js';
 import { IRevertOptions, ISaveOptions } from '../../../../common/editor.js';
 import { ResourceWorkingCopy } from '../../common/resourceWorkingCopy.js';
-import { WorkingCopyCapabilities, IWorkingCopyBackup } from '../../common/workingCopy.js';
+import {
+  WorkingCopyCapabilities,
+  IWorkingCopyBackup,
+} from '../../common/workingCopy.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('ResourceWorkingCopy', function () {
+  class TestResourceWorkingCopy extends ResourceWorkingCopy {
+    name = 'testName';
+    typeId = 'testTypeId';
+    capabilities = WorkingCopyCapabilities.None;
+    onDidChangeDirty = Event.None;
+    onDidChangeContent = Event.None;
+    onDidSave = Event.None;
+    isDirty(): boolean {
+      return false;
+    }
+    async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+      throw new Error('Method not implemented.');
+    }
+    async save(options?: ISaveOptions): Promise<boolean> {
+      return false;
+    }
+    async revert(options?: IRevertOptions): Promise<void> {}
+  }
 
-	class TestResourceWorkingCopy extends ResourceWorkingCopy {
-		name = 'testName';
-		typeId = 'testTypeId';
-		capabilities = WorkingCopyCapabilities.None;
-		onDidChangeDirty = Event.None;
-		onDidChangeContent = Event.None;
-		onDidSave = Event.None;
-		isDirty(): boolean { return false; }
-		async backup(token: CancellationToken): Promise<IWorkingCopyBackup> { throw new Error('Method not implemented.'); }
-		async save(options?: ISaveOptions): Promise<boolean> { return false; }
-		async revert(options?: IRevertOptions): Promise<void> { }
+  const disposables = new DisposableStore();
+  const resource = URI.file('test/resource');
+  let instantiationService: IInstantiationService;
+  let accessor: TestServiceAccessor;
+  let workingCopy: TestResourceWorkingCopy;
 
-	}
+  function createWorkingCopy(uri: URI = resource) {
+    return new TestResourceWorkingCopy(uri, accessor.fileService);
+  }
 
-	const disposables = new DisposableStore();
-	const resource = URI.file('test/resource');
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let workingCopy: TestResourceWorkingCopy;
+  setup(() => {
+    instantiationService = workbenchInstantiationService(
+      undefined,
+      disposables
+    );
+    accessor = instantiationService.createInstance(TestServiceAccessor);
 
-	function createWorkingCopy(uri: URI = resource) {
-		return new TestResourceWorkingCopy(uri, accessor.fileService);
-	}
+    workingCopy = disposables.add(createWorkingCopy());
+  });
 
-	setup(() => {
-		instantiationService = workbenchInstantiationService(undefined, disposables);
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+  teardown(() => {
+    disposables.clear();
+  });
 
-		workingCopy = disposables.add(createWorkingCopy());
-	});
+  test('orphaned tracking', async () => {
+    return runWithFakedTimers({}, async () => {
+      assert.strictEqual(workingCopy.isOrphaned(), false);
 
-	teardown(() => {
-		disposables.clear();
-	});
+      let onDidChangeOrphanedPromise = Event.toPromise(
+        workingCopy.onDidChangeOrphaned
+      );
+      accessor.fileService.notExistsSet.set(resource, true);
+      accessor.fileService.fireFileChanges(
+        new FileChangesEvent(
+          [{ resource, type: FileChangeType.DELETED }],
+          false
+        )
+      );
 
-	test('orphaned tracking', async () => {
-		return runWithFakedTimers({}, async () => {
-			assert.strictEqual(workingCopy.isOrphaned(), false);
+      await onDidChangeOrphanedPromise;
+      assert.strictEqual(workingCopy.isOrphaned(), true);
 
-			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-			accessor.fileService.notExistsSet.set(resource, true);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+      onDidChangeOrphanedPromise = Event.toPromise(
+        workingCopy.onDidChangeOrphaned
+      );
+      accessor.fileService.notExistsSet.delete(resource);
+      accessor.fileService.fireFileChanges(
+        new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false)
+      );
 
-			await onDidChangeOrphanedPromise;
-			assert.strictEqual(workingCopy.isOrphaned(), true);
+      await onDidChangeOrphanedPromise;
+      assert.strictEqual(workingCopy.isOrphaned(), false);
+    });
+  });
 
-			onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-			accessor.fileService.notExistsSet.delete(resource);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
+  test('dispose, isDisposed', async () => {
+    assert.strictEqual(workingCopy.isDisposed(), false);
 
-			await onDidChangeOrphanedPromise;
-			assert.strictEqual(workingCopy.isOrphaned(), false);
-		});
-	});
+    let disposedEvent = false;
+    disposables.add(
+      workingCopy.onWillDispose(() => {
+        disposedEvent = true;
+      })
+    );
 
-	test('dispose, isDisposed', async () => {
-		assert.strictEqual(workingCopy.isDisposed(), false);
+    workingCopy.dispose();
 
-		let disposedEvent = false;
-		disposables.add(workingCopy.onWillDispose(() => {
-			disposedEvent = true;
-		}));
+    assert.strictEqual(workingCopy.isDisposed(), true);
+    assert.strictEqual(disposedEvent, true);
+  });
 
-		workingCopy.dispose();
-
-		assert.strictEqual(workingCopy.isDisposed(), true);
-		assert.strictEqual(disposedEvent, true);
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

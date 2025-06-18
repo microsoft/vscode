@@ -9,18 +9,20 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.j
 import { LanguageService } from '../../../common/services/languageService.js';
 
 suite('LanguageService', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('LanguageSelection does not leak a disposable', () => {
-		const languageService = new LanguageService();
-		const languageSelection1 = languageService.createById(PLAINTEXT_LANGUAGE_ID);
-		assert.strictEqual(languageSelection1.languageId, PLAINTEXT_LANGUAGE_ID);
-		const languageSelection2 = languageService.createById(PLAINTEXT_LANGUAGE_ID);
-		const listener = languageSelection2.onDidChange(() => { });
-		assert.strictEqual(languageSelection2.languageId, PLAINTEXT_LANGUAGE_ID);
-		listener.dispose();
-		languageService.dispose();
-	});
-
+  test('LanguageSelection does not leak a disposable', () => {
+    const languageService = new LanguageService();
+    const languageSelection1 = languageService.createById(
+      PLAINTEXT_LANGUAGE_ID
+    );
+    assert.strictEqual(languageSelection1.languageId, PLAINTEXT_LANGUAGE_ID);
+    const languageSelection2 = languageService.createById(
+      PLAINTEXT_LANGUAGE_ID
+    );
+    const listener = languageSelection2.onDidChange(() => {});
+    assert.strictEqual(languageSelection2.languageId, PLAINTEXT_LANGUAGE_ID);
+    listener.dispose();
+    languageService.dispose();
+  });
 });

@@ -18,7 +18,7 @@ export const istanbulCoverageContext = new IstanbulCoverageContext();
 export class PerTestCoverageTracker {
 	private readonly scripts = new Map</* script ID */ string, Script>();
 
-	constructor(private readonly maps: SourceMapStore) { }
+	constructor(private readonly maps: SourceMapStore) {}
 
 	public add(coverage: IScriptCoverage, test?: vscode.TestItem) {
 		const script = this.scripts.get(coverage.scriptId);
@@ -54,7 +54,7 @@ class Script {
 	constructor(
 		public readonly uri: vscode.Uri,
 		source: string,
-		private readonly maps: SourceMapStore
+		private readonly maps: SourceMapStore,
 	) {
 		this.converter = new OffsetToPosition(source);
 	}
@@ -114,8 +114,8 @@ class ScriptCoverageTracker {
 					range.covered,
 					new vscode.Range(
 						new vscode.Position(i, i === start.line ? start.character : 0),
-						new vscode.Position(i, i === end.line ? end.character : Number.MAX_SAFE_INTEGER)
-					)
+						new vscode.Position(i, i === end.line ? end.character : Number.MAX_SAFE_INTEGER),
+					),
 				);
 			}
 		}

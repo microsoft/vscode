@@ -15,49 +15,68 @@ import { IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
 import { IToolData, ToolSet } from './languageModelToolsService.js';
 
 export interface IChatVariableData {
-	id: string;
-	name: string;
-	icon?: ThemeIcon;
-	fullName?: string;
-	description: string;
-	modelDescription?: string;
-	canTakeArgument?: boolean;
+  id: string;
+  name: string;
+  icon?: ThemeIcon;
+  fullName?: string;
+  description: string;
+  modelDescription?: string;
+  canTakeArgument?: boolean;
 }
 
 export interface IChatRequestProblemsVariable {
-	id: 'vscode.problems';
-	filter: IDiagnosticVariableEntryFilterData;
+  id: 'vscode.problems';
+  filter: IDiagnosticVariableEntryFilterData;
 }
 
-export const isIChatRequestProblemsVariable = (obj: unknown): obj is IChatRequestProblemsVariable =>
-	typeof obj === 'object' && obj !== null && 'id' in obj && (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
+export const isIChatRequestProblemsVariable = (
+  obj: unknown
+): obj is IChatRequestProblemsVariable =>
+  typeof obj === 'object' &&
+  obj !== null &&
+  'id' in obj &&
+  (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
 
-export type IChatRequestVariableValue = string | URI | Location | Uint8Array | IChatRequestProblemsVariable | unknown;
+export type IChatRequestVariableValue =
+  | string
+  | URI
+  | Location
+  | Uint8Array
+  | IChatRequestProblemsVariable
+  | unknown;
 
 export type IChatVariableResolverProgress =
-	| IChatContentReference
-	| IChatProgressMessage;
+  | IChatContentReference
+  | IChatProgressMessage;
 
 export interface IChatVariableResolver {
-	(messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
+  (
+    messageText: string,
+    arg: string | undefined,
+    model: IChatModel,
+    progress: (part: IChatVariableResolverProgress) => void,
+    token: CancellationToken
+  ): Promise<IChatRequestVariableValue | undefined>;
 }
 
-export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
+export const IChatVariablesService = createDecorator<IChatVariablesService>(
+  'IChatVariablesService'
+);
 
 export interface IChatVariablesService {
-	_serviceBrand: undefined;
-	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-	getSelectedTools(sessionId: string): ReadonlyArray<IToolData>;
-	getSelectedToolSets(sessionId: string): ReadonlyArray<ToolSet>;
+  _serviceBrand: undefined;
+  getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
+  getSelectedTools(sessionId: string): ReadonlyArray<IToolData>;
+  getSelectedToolSets(sessionId: string): ReadonlyArray<ToolSet>;
 }
 
 export interface IDynamicVariable {
-	range: IRange;
-	id: string;
-	fullName?: string;
-	icon?: ThemeIcon;
-	modelDescription?: string;
-	isFile?: boolean;
-	isDirectory?: boolean;
-	data: IChatRequestVariableValue;
+  range: IRange;
+  id: string;
+  fullName?: string;
+  icon?: ThemeIcon;
+  modelDescription?: string;
+  isFile?: boolean;
+  isDirectory?: boolean;
+  data: IChatRequestVariableValue;
 }

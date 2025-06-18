@@ -14,51 +14,69 @@ import { BaseIssueReporterService } from './baseIssueReporterService.js';
 // ref https://github.com/microsoft/vscode/issues/159191
 
 export class IssueWebReporter extends BaseIssueReporterService {
-	constructor(
-		disableExtensions: boolean,
-		data: IssueReporterData,
-		os: {
-			type: string;
-			arch: string;
-			release: string;
-		},
-		product: IProductConfiguration,
-		window: Window,
-		@IIssueFormService issueFormService: IIssueFormService,
-		@IThemeService themeService: IThemeService,
-		@IFileService fileService: IFileService,
-		@IFileDialogService fileDialogService: IFileDialogService
-	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService);
+  constructor(
+    disableExtensions: boolean,
+    data: IssueReporterData,
+    os: {
+      type: string;
+      arch: string;
+      release: string;
+    },
+    product: IProductConfiguration,
+    window: Window,
+    @IIssueFormService issueFormService: IIssueFormService,
+    @IThemeService themeService: IThemeService,
+    @IFileService fileService: IFileService,
+    @IFileDialogService fileDialogService: IFileDialogService
+  ) {
+    super(
+      disableExtensions,
+      data,
+      os,
+      product,
+      window,
+      true,
+      issueFormService,
+      themeService,
+      fileService,
+      fileDialogService
+    );
 
-		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
+    const target = this.window.document.querySelector<HTMLElement>(
+      '.block-system .block-info'
+    );
 
-		const webInfo = this.window.navigator.userAgent;
-		if (webInfo) {
-			target?.appendChild(this.window.document.createTextNode(webInfo));
-			this.receivedSystemInfo = true;
-			this.issueReporterModel.update({ systemInfoWeb: webInfo });
-		}
+    const webInfo = this.window.navigator.userAgent;
+    if (webInfo) {
+      target?.appendChild(this.window.document.createTextNode(webInfo));
+      this.receivedSystemInfo = true;
+      this.issueReporterModel.update({ systemInfoWeb: webInfo });
+    }
 
-		this.setEventHandlers();
-	}
+    this.setEventHandlers();
+  }
 
-	public override setEventHandlers(): void {
-		super.setEventHandlers();
+  public override setEventHandlers(): void {
+    super.setEventHandlers();
 
-		this.addEventListener('issue-type', 'change', (event: Event) => {
-			const issueType = parseInt((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ issueType: issueType });
+    this.addEventListener('issue-type', 'change', (event: Event) => {
+      const issueType = parseInt((<HTMLInputElement>event.target).value);
+      this.issueReporterModel.update({ issueType: issueType });
 
-			// Resets placeholder
-			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
-			if (descriptionTextArea) {
-				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
-			}
+      // Resets placeholder
+      const descriptionTextArea = <HTMLInputElement>(
+        this.getElementById('issue-title')
+      );
+      if (descriptionTextArea) {
+        descriptionTextArea.placeholder = localize(
+          'undefinedPlaceholder',
+          'Please enter a title'
+        );
+      }
 
-			this.updatePreviewButtonState();
-			this.setSourceOptions();
-			this.render();
-		});
-	}
+      this.updatePreviewButtonState();
+      this.setSourceOptions();
+      this.render();
+    });
+  }
 }

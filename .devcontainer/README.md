@@ -29,8 +29,8 @@ If you already have VS Code and Docker installed, you can click the badge above 
 5. Type `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box and press <kbd>Enter</kbd>.
 
 6. After the container is running:
-    1. If you have the `DISPLAY` or `WAYLAND_DISPLAY` environment variables set locally (or in WSL on Windows), desktop apps in the container will be shown in local windows.
-    2. If these are not set, open a web browser and go to [http://localhost:6080](http://localhost:6080), or use a [VNC Viewer][def] to connect to `localhost:5901` and enter `vscode` as the password. Anything you start in VS Code, or the integrated terminal, will appear here.
+   1. If you have the `DISPLAY` or `WAYLAND_DISPLAY` environment variables set locally (or in WSL on Windows), desktop apps in the container will be shown in local windows.
+   2. If these are not set, open a web browser and go to [http://localhost:6080](http://localhost:6080), or use a [VNC Viewer][def] to connect to `localhost:5901` and enter `vscode` as the password. Anything you start in VS Code, or the integrated terminal, will appear here.
 
 Next: **[Try it out!](#try-it)**
 
@@ -44,7 +44,7 @@ Next: **[Try it out!](#try-it)**
 
 3. You should see **VNC web client (6080)** under in the list of ports. Select the line and click on the globe icon to open it in a browser tab.
 
-    > **Tip:** If you do not see the port, <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, select **Forward a Port** and enter port `6080`.
+   > **Tip:** If you do not see the port, <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, select **Forward a Port** and enter port `6080`.
 
 4. In the new tab, you should see noVNC. Click **Connect** and enter `vscode` as the password.
 
@@ -58,7 +58,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 1. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [GitHub Codespaces extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces).
 
-    > **Note:** The GitHub Codespaces extension requires the Visual Studio Code distribution of Code - OSS.
+   > **Note:** The GitHub Codespaces extension requires the Visual Studio Code distribution of Code - OSS.
 
 2. After the VS Code is up and running, press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, choose **Codespaces: Create New Codespace**, and use the following settings:
 
@@ -68,7 +68,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 3. After you have connected to the codespace, you can use a [VNC Viewer][def] to connect to `localhost:5901` and enter `vscode` as the password.
 
-    > **Tip:** You may also need change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
+   > **Tip:** You may also need change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
 
 4. Anything you start in VS Code, or the integrated terminal, will appear here.
 
@@ -78,7 +78,7 @@ Next: **[Try it out!](#try-it)**
 
 This container uses the [Fluxbox](http://fluxbox.org/) window manager to keep things lean. **Right-click on the desktop** to see menu options. It works with GNOME and GTK applications, so other tools can be installed if needed.
 
-   > **Note:** You can also set the resolution from the command line by typing `set-resolution`.
+> **Note:** You can also set the resolution from the command line by typing `set-resolution`.
 
 To start working with Code - OSS, follow these steps:
 

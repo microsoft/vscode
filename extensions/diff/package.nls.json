@@ -1,4 +1,4 @@
 {
-	"displayName": "Diff Language Basics",
-	"description": "Provides syntax highlighting & bracket matching in Diff files."
+  "displayName": "Diff Language Basics",
+  "description": "Provides syntax highlighting & bracket matching in Diff files."
 }

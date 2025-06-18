@@ -8,6 +8,7 @@ To update to the latest version:
 Migration notes and todos:
 
 - differentiate variable and function declarations from references
+
   - I suggest we use a new scope segment 'function-call' to signal a function reference, and 'definition' to the declaration. An alternative is to use 'support.function' everywhere.
   - I suggest we use a new scope segment 'definition' to the variable declarations. Haven't yet found a scope for references that other grammars use.
 

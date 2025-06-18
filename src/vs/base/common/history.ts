@@ -9,131 +9,139 @@ import { IDisposable } from './lifecycle.js';
 import { ArrayNavigator, INavigator } from './navigator.js';
 
 export interface IHistory<T> {
-	delete(t: T): boolean;
-	add(t: T): this;
-	has(t: T): boolean;
-	clear(): void;
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
-	replace?(t: T[]): void;
-	onDidChange?: Event<string[]>;
+  delete(t: T): boolean;
+  add(t: T): this;
+  has(t: T): boolean;
+  clear(): void;
+  forEach(
+    callbackfn: (value: T, value2: T, set: Set<T>) => void,
+    thisArg?: any
+  ): void;
+  replace?(t: T[]): void;
+  onDidChange?: Event<string[]>;
 }
 
 export class HistoryNavigator<T> implements INavigator<T> {
-	private _limit: number;
-	private _navigator!: ArrayNavigator<T>;
-	private _disposable: IDisposable | undefined;
+  private _limit: number;
+  private _navigator!: ArrayNavigator<T>;
+  private _disposable: IDisposable | undefined;
 
-	constructor(
-		private _history: IHistory<T> = new Set(),
-		limit: number = 10,
-	) {
-		this._limit = limit;
-		this._onChange();
-		if (this._history.onDidChange) {
-			this._disposable = this._history.onDidChange(() => this._onChange());
-		}
-	}
+  constructor(
+    private _history: IHistory<T> = new Set(),
+    limit: number = 10
+  ) {
+    this._limit = limit;
+    this._onChange();
+    if (this._history.onDidChange) {
+      this._disposable = this._history.onDidChange(() => this._onChange());
+    }
+  }
 
-	public getHistory(): T[] {
-		return this._elements;
-	}
+  public getHistory(): T[] {
+    return this._elements;
+  }
 
-	public add(t: T) {
-		this._history.delete(t);
-		this._history.add(t);
-		this._onChange();
-	}
+  public add(t: T) {
+    this._history.delete(t);
+    this._history.add(t);
+    this._onChange();
+  }
 
-	public next(): T | null {
-		// This will navigate past the end of the last element, and in that case the input should be cleared
-		return this._navigator.next();
-	}
+  public next(): T | null {
+    // This will navigate past the end of the last element, and in that case the input should be cleared
+    return this._navigator.next();
+  }
 
-	public previous(): T | null {
-		if (this._currentPosition() !== 0) {
-			return this._navigator.previous();
-		}
-		return null;
-	}
+  public previous(): T | null {
+    if (this._currentPosition() !== 0) {
+      return this._navigator.previous();
+    }
+    return null;
+  }
 
-	public current(): T | null {
-		return this._navigator.current();
-	}
+  public current(): T | null {
+    return this._navigator.current();
+  }
 
-	public first(): T | null {
-		return this._navigator.first();
-	}
+  public first(): T | null {
+    return this._navigator.first();
+  }
 
-	public last(): T | null {
-		return this._navigator.last();
-	}
+  public last(): T | null {
+    return this._navigator.last();
+  }
 
-	public isFirst(): boolean {
-		return this._currentPosition() === 0;
-	}
+  public isFirst(): boolean {
+    return this._currentPosition() === 0;
+  }
 
-	public isLast(): boolean {
-		return this._currentPosition() >= this._elements.length - 1;
-	}
+  public isLast(): boolean {
+    return this._currentPosition() >= this._elements.length - 1;
+  }
 
-	public isNowhere(): boolean {
-		return this._navigator.current() === null;
-	}
+  public isNowhere(): boolean {
+    return this._navigator.current() === null;
+  }
 
-	public has(t: T): boolean {
-		return this._history.has(t);
-	}
+  public has(t: T): boolean {
+    return this._history.has(t);
+  }
 
-	public clear(): void {
-		this._history.clear();
-		this._onChange();
-	}
+  public clear(): void {
+    this._history.clear();
+    this._onChange();
+  }
 
-	private _onChange() {
-		this._reduceToLimit();
-		const elements = this._elements;
-		this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
-	}
+  private _onChange() {
+    this._reduceToLimit();
+    const elements = this._elements;
+    this._navigator = new ArrayNavigator(
+      elements,
+      0,
+      elements.length,
+      elements.length
+    );
+  }
 
-	private _reduceToLimit() {
-		const data = this._elements;
-		if (data.length > this._limit) {
-			const replaceValue = data.slice(data.length - this._limit);
-			if (this._history.replace) {
-				this._history.replace(replaceValue);
-			} else {
-				this._history = new Set(replaceValue);
-			}
-		}
-	}
+  private _reduceToLimit() {
+    const data = this._elements;
+    if (data.length > this._limit) {
+      const replaceValue = data.slice(data.length - this._limit);
+      if (this._history.replace) {
+        this._history.replace(replaceValue);
+      } else {
+        this._history = new Set(replaceValue);
+      }
+    }
+  }
 
-	private _currentPosition(): number {
-		const currentElement = this._navigator.current();
-		if (!currentElement) {
-			return -1;
-		}
+  private _currentPosition(): number {
+    const currentElement = this._navigator.current();
+    if (!currentElement) {
+      return -1;
+    }
 
-		return this._elements.indexOf(currentElement);
-	}
+    return this._elements.indexOf(currentElement);
+  }
 
-	private get _elements(): T[] {
-		const elements: T[] = [];
-		this._history.forEach(e => elements.push(e));
-		return elements;
-	}
+  private get _elements(): T[] {
+    const elements: T[] = [];
+    this._history.forEach((e) => elements.push(e));
+    return elements;
+  }
 
-	public dispose(): void {
-		if (this._disposable) {
-			this._disposable.dispose();
-			this._disposable = undefined;
-		}
-	}
+  public dispose(): void {
+    if (this._disposable) {
+      this._disposable.dispose();
+      this._disposable = undefined;
+    }
+  }
 }
 
 interface HistoryNode<T> {
-	value: T;
-	previous: HistoryNode<T> | undefined;
-	next: HistoryNode<T> | undefined;
+  value: T;
+  previous: HistoryNode<T> | undefined;
+  next: HistoryNode<T> | undefined;
 }
 
 /**
@@ -141,158 +149,166 @@ interface HistoryNode<T> {
  * the user can navigate away from the last item through the list, and back to it. When updating the last item, call replaceLast.
  */
 export class HistoryNavigator2<T> {
+  private valueSet: Set<T>;
+  private head: HistoryNode<T>;
+  private tail: HistoryNode<T>;
+  private cursor: HistoryNode<T>;
+  private _size: number;
+  get size(): number {
+    return this._size;
+  }
 
-	private valueSet: Set<T>;
-	private head: HistoryNode<T>;
-	private tail: HistoryNode<T>;
-	private cursor: HistoryNode<T>;
-	private _size: number;
-	get size(): number { return this._size; }
+  constructor(
+    history: readonly T[],
+    private capacity: number = 10,
+    private identityFn: (t: T) => unknown = (t) => t
+  ) {
+    if (history.length < 1) {
+      throw new Error('not supported');
+    }
 
-	constructor(history: readonly T[], private capacity: number = 10, private identityFn: (t: T) => unknown = t => t) {
-		if (history.length < 1) {
-			throw new Error('not supported');
-		}
+    this._size = 1;
+    this.head =
+      this.tail =
+      this.cursor =
+        {
+          value: history[0],
+          previous: undefined,
+          next: undefined,
+        };
 
-		this._size = 1;
-		this.head = this.tail = this.cursor = {
-			value: history[0],
-			previous: undefined,
-			next: undefined
-		};
+    this.valueSet = new SetWithKey<T>([history[0]], identityFn);
+    for (let i = 1; i < history.length; i++) {
+      this.add(history[i]);
+    }
+  }
 
-		this.valueSet = new SetWithKey<T>([history[0]], identityFn);
-		for (let i = 1; i < history.length; i++) {
-			this.add(history[i]);
-		}
-	}
+  add(value: T): void {
+    const node: HistoryNode<T> = {
+      value,
+      previous: this.tail,
+      next: undefined,
+    };
 
-	add(value: T): void {
-		const node: HistoryNode<T> = {
-			value,
-			previous: this.tail,
-			next: undefined
-		};
+    this.tail.next = node;
+    this.tail = node;
+    this.cursor = this.tail;
+    this._size++;
 
-		this.tail.next = node;
-		this.tail = node;
-		this.cursor = this.tail;
-		this._size++;
+    if (this.valueSet.has(value)) {
+      this._deleteFromList(value);
+    } else {
+      this.valueSet.add(value);
+    }
 
-		if (this.valueSet.has(value)) {
-			this._deleteFromList(value);
-		} else {
-			this.valueSet.add(value);
-		}
+    while (this._size > this.capacity) {
+      this.valueSet.delete(this.head.value);
 
-		while (this._size > this.capacity) {
-			this.valueSet.delete(this.head.value);
+      this.head = this.head.next!;
+      this.head.previous = undefined;
+      this._size--;
+    }
+  }
 
-			this.head = this.head.next!;
-			this.head.previous = undefined;
-			this._size--;
-		}
-	}
+  /**
+   * @returns old last value
+   */
+  replaceLast(value: T): T {
+    if (this.identityFn(this.tail.value) === this.identityFn(value)) {
+      return value;
+    }
 
-	/**
-	 * @returns old last value
-	 */
-	replaceLast(value: T): T {
-		if (this.identityFn(this.tail.value) === this.identityFn(value)) {
-			return value;
-		}
+    const oldValue = this.tail.value;
+    this.valueSet.delete(oldValue);
+    this.tail.value = value;
 
-		const oldValue = this.tail.value;
-		this.valueSet.delete(oldValue);
-		this.tail.value = value;
+    if (this.valueSet.has(value)) {
+      this._deleteFromList(value);
+    } else {
+      this.valueSet.add(value);
+    }
 
-		if (this.valueSet.has(value)) {
-			this._deleteFromList(value);
-		} else {
-			this.valueSet.add(value);
-		}
+    return oldValue;
+  }
 
-		return oldValue;
-	}
+  prepend(value: T): void {
+    if (this._size === this.capacity || this.valueSet.has(value)) {
+      return;
+    }
 
-	prepend(value: T): void {
-		if (this._size === this.capacity || this.valueSet.has(value)) {
-			return;
-		}
+    const node: HistoryNode<T> = {
+      value,
+      previous: undefined,
+      next: this.head,
+    };
 
-		const node: HistoryNode<T> = {
-			value,
-			previous: undefined,
-			next: this.head
-		};
+    this.head.previous = node;
+    this.head = node;
+    this._size++;
 
-		this.head.previous = node;
-		this.head = node;
-		this._size++;
+    this.valueSet.add(value);
+  }
 
-		this.valueSet.add(value);
-	}
+  isAtEnd(): boolean {
+    return this.cursor === this.tail;
+  }
 
-	isAtEnd(): boolean {
-		return this.cursor === this.tail;
-	}
+  current(): T {
+    return this.cursor.value;
+  }
 
-	current(): T {
-		return this.cursor.value;
-	}
+  previous(): T {
+    if (this.cursor.previous) {
+      this.cursor = this.cursor.previous;
+    }
 
-	previous(): T {
-		if (this.cursor.previous) {
-			this.cursor = this.cursor.previous;
-		}
+    return this.cursor.value;
+  }
 
-		return this.cursor.value;
-	}
+  next(): T {
+    if (this.cursor.next) {
+      this.cursor = this.cursor.next;
+    }
 
-	next(): T {
-		if (this.cursor.next) {
-			this.cursor = this.cursor.next;
-		}
+    return this.cursor.value;
+  }
 
-		return this.cursor.value;
-	}
+  has(t: T): boolean {
+    return this.valueSet.has(t);
+  }
 
-	has(t: T): boolean {
-		return this.valueSet.has(t);
-	}
+  resetCursor(): T {
+    this.cursor = this.tail;
+    return this.cursor.value;
+  }
 
-	resetCursor(): T {
-		this.cursor = this.tail;
-		return this.cursor.value;
-	}
+  *[Symbol.iterator](): Iterator<T> {
+    let node: HistoryNode<T> | undefined = this.head;
 
-	*[Symbol.iterator](): Iterator<T> {
-		let node: HistoryNode<T> | undefined = this.head;
+    while (node) {
+      yield node.value;
+      node = node.next;
+    }
+  }
 
-		while (node) {
-			yield node.value;
-			node = node.next;
-		}
-	}
+  private _deleteFromList(value: T): void {
+    let temp = this.head;
 
-	private _deleteFromList(value: T): void {
-		let temp = this.head;
+    const valueKey = this.identityFn(value);
+    while (temp !== this.tail) {
+      if (this.identityFn(temp.value) === valueKey) {
+        if (temp === this.head) {
+          this.head = this.head.next!;
+          this.head.previous = undefined;
+        } else {
+          temp.previous!.next = temp.next;
+          temp.next!.previous = temp.previous;
+        }
 
-		const valueKey = this.identityFn(value);
-		while (temp !== this.tail) {
-			if (this.identityFn(temp.value) === valueKey) {
-				if (temp === this.head) {
-					this.head = this.head.next!;
-					this.head.previous = undefined;
-				} else {
-					temp.previous!.next = temp.next;
-					temp.next!.previous = temp.previous;
-				}
+        this._size--;
+      }
 
-				this._size--;
-			}
-
-			temp = temp.next!;
-		}
-	}
+      temp = temp.next!;
+    }
+  }
 }

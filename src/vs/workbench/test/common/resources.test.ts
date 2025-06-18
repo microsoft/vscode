@@ -13,65 +13,79 @@ import { ResourceGlobMatcher } from '../../common/resources.js';
 import { TestContextService } from './workbenchTestServices.js';
 
 suite('ResourceGlobMatcher', () => {
+  const SETTING = 'test.matcher';
 
-	const SETTING = 'test.matcher';
+  let contextService: IWorkspaceContextService;
+  let configurationService: TestConfigurationService;
 
-	let contextService: IWorkspaceContextService;
-	let configurationService: TestConfigurationService;
+  const disposables = new DisposableStore();
 
-	const disposables = new DisposableStore();
+  setup(() => {
+    contextService = new TestContextService();
+    configurationService = new TestConfigurationService({
+      [SETTING]: {
+        '**/*.md': true,
+        '**/*.txt': false,
+      },
+    });
+  });
 
-	setup(() => {
-		contextService = new TestContextService();
-		configurationService = new TestConfigurationService({
-			[SETTING]: {
-				'**/*.md': true,
-				'**/*.txt': false
-			}
-		});
-	});
+  teardown(() => {
+    disposables.clear();
+  });
 
-	teardown(() => {
-		disposables.clear();
-	});
+  test('Basics', async () => {
+    const matcher = disposables.add(
+      new ResourceGlobMatcher(
+        () => configurationService.getValue(SETTING),
+        (e) => e.affectsConfiguration(SETTING),
+        contextService,
+        configurationService
+      )
+    );
 
-	test('Basics', async () => {
-		const matcher = disposables.add(new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
+    // Matching
+    assert.equal(matcher.matches(URI.file('/foo/bar')), false);
+    assert.equal(matcher.matches(URI.file('/foo/bar.md')), true);
+    assert.equal(matcher.matches(URI.file('/foo/bar.txt')), false);
 
-		// Matching
-		assert.equal(matcher.matches(URI.file('/foo/bar')), false);
-		assert.equal(matcher.matches(URI.file('/foo/bar.md')), true);
-		assert.equal(matcher.matches(URI.file('/foo/bar.txt')), false);
+    // Events
+    let eventCounter = 0;
+    disposables.add(matcher.onExpressionChange(() => eventCounter++));
 
-		// Events
-		let eventCounter = 0;
-		disposables.add(matcher.onExpressionChange(() => eventCounter++));
+    await configurationService.setUserConfiguration(SETTING, {
+      '**/*.foo': true,
+    });
+    configurationService.onDidChangeConfigurationEmitter.fire({
+      affectsConfiguration: (key: string) => key === SETTING,
+    } as any);
+    assert.equal(eventCounter, 1);
 
-		await configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
-		assert.equal(eventCounter, 1);
+    assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
+    assert.equal(matcher.matches(URI.file('/foo/bar.foo')), true);
 
-		assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
-		assert.equal(matcher.matches(URI.file('/foo/bar.foo')), true);
+    await configurationService.setUserConfiguration(SETTING, undefined);
+    configurationService.onDidChangeConfigurationEmitter.fire({
+      affectsConfiguration: (key: string) => key === SETTING,
+    } as any);
+    assert.equal(eventCounter, 2);
 
-		await configurationService.setUserConfiguration(SETTING, undefined);
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
-		assert.equal(eventCounter, 2);
+    assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
+    assert.equal(matcher.matches(URI.file('/foo/bar.foo')), false);
 
-		assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
-		assert.equal(matcher.matches(URI.file('/foo/bar.foo')), false);
+    await configurationService.setUserConfiguration(SETTING, {
+      '**/*.md': true,
+      '**/*.txt': false,
+      'C:/bar/**': true,
+      '/bar/**': true,
+    });
+    configurationService.onDidChangeConfigurationEmitter.fire({
+      affectsConfiguration: (key: string) => key === SETTING,
+    } as any);
 
-		await configurationService.setUserConfiguration(SETTING, {
-			'**/*.md': true,
-			'**/*.txt': false,
-			'C:/bar/**': true,
-			'/bar/**': true
-		});
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
+    assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
+    assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
+  });
 
-		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
-		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

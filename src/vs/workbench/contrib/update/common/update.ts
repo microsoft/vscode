@@ -4,4 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ShowCurrentReleaseNotesActionId = 'update.showCurrentReleaseNotes';
-export const ShowCurrentReleaseNotesFromCurrentFileActionId = 'developer.showCurrentFileAsReleaseNotes';
+export const ShowCurrentReleaseNotesFromCurrentFileActionId =
+  'developer.showCurrentFileAsReleaseNotes';

@@ -86,16 +86,15 @@ $$
 <!-- #128411 -->
 
 - list item
-    **abc**
-    $$
-    \begin{aligned}
-        &\text{Any equation}
-        \\
-        &\text {Inconsistent KaTeX keyword highlighting}
-    \end{aligned}
-    $$
-    **xyz**
-
+  **abc**
+  $$
+  \begin{aligned}
+      &\text{Any equation}
+      \\
+      &\text {Inconsistent KaTeX keyword highlighting}
+  \end{aligned}
+  $$
+  **xyz**
 
 <!-- Support both \text{stuff} and \text {stuff} -->
 
@@ -112,9 +111,11 @@ $$
 
 <!-- Should highlight leading and trailing equations on same line  -->
 
-$$ \vec{a}
+$$
 \vec{a}
-\vec{a} $$
+\vec{a}
+\vec{a}
+$$
 
 **md**
 
@@ -130,27 +131,29 @@ $ \vec{a}
 
 $ \vec{a}
 \vec{a}
- = [2, 3] $
+= [2, 3] $
 
 <!-- Should highlight inline blocks -->
 
 a **b** $$
-    **b**
+**b**
 
 **md**
 
 a **b** $$
     \frac{1}{2}
     $$
-    **b**
+**b**
 
 **p**
 
 a **b**
-    $$
+
+$$
     \frac{1}{2}
-    $$
-    **b**
+$$
+
+**b**
 
 <!-- Should allow inline code to be followed by non word character #136584 -->
 

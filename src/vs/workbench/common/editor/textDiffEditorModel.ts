@@ -13,66 +13,72 @@ import { IMarkdownString } from '../../../base/common/htmlContent.js';
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
+  protected override readonly _originalModel: BaseTextEditorModel | undefined;
+  override get originalModel(): BaseTextEditorModel | undefined {
+    return this._originalModel;
+  }
 
-	protected override readonly _originalModel: BaseTextEditorModel | undefined;
-	override get originalModel(): BaseTextEditorModel | undefined { return this._originalModel; }
+  protected override readonly _modifiedModel: BaseTextEditorModel | undefined;
+  override get modifiedModel(): BaseTextEditorModel | undefined {
+    return this._modifiedModel;
+  }
 
-	protected override readonly _modifiedModel: BaseTextEditorModel | undefined;
-	override get modifiedModel(): BaseTextEditorModel | undefined { return this._modifiedModel; }
+  private _textDiffEditorModel: IDiffEditorModel | undefined = undefined;
+  get textDiffEditorModel(): IDiffEditorModel | undefined {
+    return this._textDiffEditorModel;
+  }
 
-	private _textDiffEditorModel: IDiffEditorModel | undefined = undefined;
-	get textDiffEditorModel(): IDiffEditorModel | undefined { return this._textDiffEditorModel; }
+  constructor(
+    originalModel: BaseTextEditorModel,
+    modifiedModel: BaseTextEditorModel
+  ) {
+    super(originalModel, modifiedModel);
 
-	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
-		super(originalModel, modifiedModel);
+    this._originalModel = originalModel;
+    this._modifiedModel = modifiedModel;
 
-		this._originalModel = originalModel;
-		this._modifiedModel = modifiedModel;
+    this.updateTextDiffEditorModel();
+  }
 
-		this.updateTextDiffEditorModel();
-	}
+  override async resolve(): Promise<void> {
+    await super.resolve();
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
+    this.updateTextDiffEditorModel();
+  }
 
-		this.updateTextDiffEditorModel();
-	}
+  private updateTextDiffEditorModel(): void {
+    if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
+      // Create new
+      if (!this._textDiffEditorModel) {
+        this._textDiffEditorModel = {
+          original: this.originalModel.textEditorModel,
+          modified: this.modifiedModel.textEditorModel,
+        };
+      }
 
-	private updateTextDiffEditorModel(): void {
-		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
+      // Update existing
+      else {
+        this._textDiffEditorModel.original = this.originalModel.textEditorModel;
+        this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
+      }
+    }
+  }
 
-			// Create new
-			if (!this._textDiffEditorModel) {
-				this._textDiffEditorModel = {
-					original: this.originalModel.textEditorModel,
-					modified: this.modifiedModel.textEditorModel
-				};
-			}
+  override isResolved(): boolean {
+    return !!this._textDiffEditorModel;
+  }
 
-			// Update existing
-			else {
-				this._textDiffEditorModel.original = this.originalModel.textEditorModel;
-				this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
-			}
-		}
-	}
+  isReadonly(): boolean | IMarkdownString {
+    return !!this.modifiedModel && this.modifiedModel.isReadonly();
+  }
 
-	override isResolved(): boolean {
-		return !!this._textDiffEditorModel;
-	}
+  override dispose(): void {
+    // Free the diff editor model but do not propagate the dispose() call to the two models
+    // inside. We never created the two models (original and modified) so we can not dispose
+    // them without sideeffects. Rather rely on the models getting disposed when their related
+    // inputs get disposed from the diffEditorInput.
+    this._textDiffEditorModel = undefined;
 
-	isReadonly(): boolean | IMarkdownString {
-		return !!this.modifiedModel && this.modifiedModel.isReadonly();
-	}
-
-	override dispose(): void {
-
-		// Free the diff editor model but do not propagate the dispose() call to the two models
-		// inside. We never created the two models (original and modified) so we can not dispose
-		// them without sideeffects. Rather rely on the models getting disposed when their related
-		// inputs get disposed from the diffEditorInput.
-		this._textDiffEditorModel = undefined;
-
-		super.dispose();
-	}
+    super.dispose();
+  }
 }

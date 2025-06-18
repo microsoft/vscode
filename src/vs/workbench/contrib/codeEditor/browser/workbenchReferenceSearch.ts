@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import {
+  EditorContributionInstantiation,
+  registerEditorContribution,
+} from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ReferencesController } from '../../../../editor/contrib/gotoSymbol/browser/peek/referencesController.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -14,27 +17,30 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class WorkbenchReferencesController extends ReferencesController {
-
-	public constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService editorService: ICodeEditorService,
-		@INotificationService notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-	) {
-		super(
-			false,
-			editor,
-			contextKeyService,
-			editorService,
-			notificationService,
-			instantiationService,
-			storageService,
-			configurationService
-		);
-	}
+  public constructor(
+    editor: ICodeEditor,
+    @IContextKeyService contextKeyService: IContextKeyService,
+    @ICodeEditorService editorService: ICodeEditorService,
+    @INotificationService notificationService: INotificationService,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IStorageService storageService: IStorageService,
+    @IConfigurationService configurationService: IConfigurationService
+  ) {
+    super(
+      false,
+      editor,
+      contextKeyService,
+      editorService,
+      notificationService,
+      instantiationService,
+      storageService,
+      configurationService
+    );
+  }
 }
 
-registerEditorContribution(ReferencesController.ID, WorkbenchReferencesController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(
+  ReferencesController.ID,
+  WorkbenchReferencesController,
+  EditorContributionInstantiation.Lazy
+);

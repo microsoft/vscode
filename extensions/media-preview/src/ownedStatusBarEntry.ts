@@ -7,26 +7,33 @@ import * as vscode from 'vscode';
 import { Disposable } from './util/dispose';
 
 export abstract class PreviewStatusBarEntry extends Disposable {
-	private _showOwner: unknown | undefined;
+  private _showOwner: unknown | undefined;
 
-	protected readonly entry: vscode.StatusBarItem;
+  protected readonly entry: vscode.StatusBarItem;
 
-	constructor(id: string, name: string, alignment: vscode.StatusBarAlignment, priority: number) {
-		super();
-		this.entry = this._register(vscode.window.createStatusBarItem(id, alignment, priority));
-		this.entry.name = name;
-	}
+  constructor(
+    id: string,
+    name: string,
+    alignment: vscode.StatusBarAlignment,
+    priority: number
+  ) {
+    super();
+    this.entry = this._register(
+      vscode.window.createStatusBarItem(id, alignment, priority)
+    );
+    this.entry.name = name;
+  }
 
-	protected showItem(owner: unknown, text: string) {
-		this._showOwner = owner;
-		this.entry.text = text;
-		this.entry.show();
-	}
+  protected showItem(owner: unknown, text: string) {
+    this._showOwner = owner;
+    this.entry.text = text;
+    this.entry.show();
+  }
 
-	public hide(owner: unknown) {
-		if (owner === this._showOwner) {
-			this.entry.hide();
-			this._showOwner = undefined;
-		}
-	}
+  public hide(owner: unknown) {
+    if (owner === this._showOwner) {
+      this.entry.hide();
+      this._showOwner = undefined;
+    }
+  }
 }

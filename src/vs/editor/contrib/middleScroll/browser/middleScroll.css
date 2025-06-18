@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor {
-	.scroll-editor-on-middle-click-dot {
-		cursor: all-scroll;
-		position: absolute;
-		z-index: 1;
-		background-color: var(--vscode-editor-foreground, white);
-		border: 1px solid var(--vscode-editor-background, black);
-		opacity: 0.5;
-		width: 5px;
-		height: 5px;
-		border-radius: 50%;
-		transform: translate(-50%, -50%);
+  .scroll-editor-on-middle-click-dot {
+    cursor: all-scroll;
+    position: absolute;
+    z-index: 1;
+    background-color: var(--vscode-editor-foreground, white);
+    border: 1px solid var(--vscode-editor-background, black);
+    opacity: 0.5;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
 
-		&.hidden {
-			display: none;
-		}
-	}
+    &.hidden {
+      display: none;
+    }
+  }
 
-	&.scroll-editor-on-middle-click-editor * {
-		cursor: all-scroll;
-	}
+  &.scroll-editor-on-middle-click-editor * {
+    cursor: all-scroll;
+  }
 }

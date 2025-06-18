@@ -5,88 +5,109 @@
 
 // @ts-check
 (function () {
-	'use strict';
+  'use strict';
 
-	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
+  const {
+    ipcRenderer,
+    webFrame,
+    contextBridge,
+    webUtils,
+  } = require('electron');
 
-	const globals = {
+  const globals = {
+    ipcRenderer: {
+      send(channel, ...args) {
+        ipcRenderer.send(channel, ...args);
+      },
 
-		ipcRenderer: {
+      invoke(channel, ...args) {
+        return ipcRenderer.invoke(channel, ...args);
+      },
 
-			send(channel, ...args) {
-				ipcRenderer.send(channel, ...args);
-			},
+      on(channel, listener) {
+        ipcRenderer.on(channel, listener);
 
-			invoke(channel, ...args) {
-				return ipcRenderer.invoke(channel, ...args);
-			},
+        return this;
+      },
 
-			on(channel, listener) {
-				ipcRenderer.on(channel, listener);
+      once(channel, listener) {
+        ipcRenderer.once(channel, listener);
 
-				return this;
-			},
+        return this;
+      },
 
-			once(channel, listener) {
-				ipcRenderer.once(channel, listener);
+      removeListener(channel, listener) {
+        ipcRenderer.removeListener(channel, listener);
 
-				return this;
-			},
+        return this;
+      },
+    },
 
-			removeListener(channel, listener) {
-				ipcRenderer.removeListener(channel, listener);
+    webFrame: {
+      setZoomLevel(level) {
+        if (typeof level === 'number') {
+          webFrame.setZoomLevel(level);
+        }
+      },
+    },
 
-				return this;
-			}
-		},
+    webUtils: {
+      getPathForFile(file) {
+        return webUtils.getPathForFile(file);
+      },
+    },
 
-		webFrame: {
+    process: {
+      get platform() {
+        return process.platform;
+      },
+      get arch() {
+        return process.arch;
+      },
+      get env() {
+        return { ...process.env };
+      },
+      get versions() {
+        return process.versions;
+      },
+      get type() {
+        return 'renderer';
+      },
+      get execPath() {
+        return process.execPath;
+      },
 
-			setZoomLevel(level) {
-				if (typeof level === 'number') {
-					webFrame.setZoomLevel(level);
-				}
-			}
-		},
+      cwd() {
+        return (
+          process.env['VSCODE_CWD'] ||
+          process.execPath.substr(
+            0,
+            process.execPath.lastIndexOf(
+              process.platform === 'win32' ? '\\' : '/'
+            )
+          )
+        );
+      },
 
-		webUtils: {
+      getProcessMemoryInfo() {
+        return process.getProcessMemoryInfo();
+      },
 
-			getPathForFile(file) {
-				return webUtils.getPathForFile(file);
-			}
-		},
+      on(type, callback) {
+        // @ts-ignore
+        process.on(type, callback);
+      },
+    },
+  };
 
-		process: {
-			get platform() { return process.platform; },
-			get arch() { return process.arch; },
-			get env() { return { ...process.env }; },
-			get versions() { return process.versions; },
-			get type() { return 'renderer'; },
-			get execPath() { return process.execPath; },
-
-			cwd() {
-				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
-			},
-
-			getProcessMemoryInfo() {
-				return process.getProcessMemoryInfo();
-			},
-
-			on(type, callback) {
-				// @ts-ignore
-				process.on(type, callback);
-			}
-		},
-	};
-
-	if (process.contextIsolated) {
-		try {
-			contextBridge.exposeInMainWorld('vscode', globals);
-		} catch (error) {
-			console.error(error);
-		}
-	} else {
-		// @ts-ignore
-		window.vscode = globals;
-	}
-}());
+  if (process.contextIsolated) {
+    try {
+      contextBridge.exposeInMainWorld('vscode', globals);
+    } catch (error) {
+      console.error(error);
+    }
+  } else {
+    // @ts-ignore
+    window.vscode = globals;
+  }
+})();

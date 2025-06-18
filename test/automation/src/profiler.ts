@@ -8,108 +8,113 @@ import { Code } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 
 export class Profiler {
-	constructor(private readonly code: Code) {
-	}
+  constructor(private readonly code: Code) {}
 
-	async checkObjectLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
-		await this.code.driver.startCDP();
+  async checkObjectLeaks(
+    classNames: string | string[],
+    fn: () => Promise<void>
+  ): Promise<void> {
+    await this.code.driver.startCDP();
 
-		const classNamesArray = Array.isArray(classNames) ? classNames : [classNames];
-		const countsBefore = await getInstances(this.code.driver, classNamesArray);
+    const classNamesArray = Array.isArray(classNames)
+      ? classNames
+      : [classNames];
+    const countsBefore = await getInstances(this.code.driver, classNamesArray);
 
-		await fn();
+    await fn();
 
-		const countAfter = await getInstances(this.code.driver, classNamesArray);
-		const leaks: string[] = [];
-		for (const className of classNamesArray) {
-			const count = countAfter[className] ?? 0;
-			const countBefore = countsBefore[className] ?? 0;
-			if (count !== countBefore) {
-				leaks.push(`Leaked ${count - countBefore} ${className}`);
-			}
-		}
+    const countAfter = await getInstances(this.code.driver, classNamesArray);
+    const leaks: string[] = [];
+    for (const className of classNamesArray) {
+      const count = countAfter[className] ?? 0;
+      const countBefore = countsBefore[className] ?? 0;
+      if (count !== countBefore) {
+        leaks.push(`Leaked ${count - countBefore} ${className}`);
+      }
+    }
 
-		if (leaks.length > 0) {
-			throw new Error(leaks.join('\n'));
-		}
-	}
+    if (leaks.length > 0) {
+      throw new Error(leaks.join('\n'));
+    }
+  }
 
-	async checkHeapLeaks(classNames: string | string[], fn: () => Promise<void>): Promise<void> {
-		await this.code.driver.startCDP();
-		await fn();
+  async checkHeapLeaks(
+    classNames: string | string[],
+    fn: () => Promise<void>
+  ): Promise<void> {
+    await this.code.driver.startCDP();
+    await fn();
 
-		const heapSnapshotAfter = await this.code.driver.takeHeapSnapshot();
-		const buff = Buffer.from(heapSnapshotAfter);
-		const graph = await decode_bytes(buff);
-		const counts: number[] = Array.from(graph.get_class_counts(classNames));
-		const leaks: string[] = [];
-		for (let i = 0; i < classNames.length; i++) {
-			if (counts[i] > 0) {
-				leaks.push(`Leaked ${counts[i]} ${classNames[i]}`);
-			}
-		}
+    const heapSnapshotAfter = await this.code.driver.takeHeapSnapshot();
+    const buff = Buffer.from(heapSnapshotAfter);
+    const graph = await decode_bytes(buff);
+    const counts: number[] = Array.from(graph.get_class_counts(classNames));
+    const leaks: string[] = [];
+    for (let i = 0; i < classNames.length; i++) {
+      if (counts[i] > 0) {
+        leaks.push(`Leaked ${counts[i]} ${classNames[i]}`);
+      }
+    }
 
-		if (leaks.length > 0) {
-			throw new Error(leaks.join('\n'));
-		}
-	}
+    if (leaks.length > 0) {
+      throw new Error(leaks.join('\n'));
+    }
+  }
 }
 
 /**
  * Copied from src/vs/base/common/uuid.ts
  */
 export function generateUuid(): string {
-	// use `randomUUID` if possible
-	if (typeof crypto.randomUUID === 'function') {
-		// see https://developer.mozilla.org/en-US/docs/Web/API/Window/crypto
-		// > Although crypto is available on all windows, the returned Crypto object only has one
-		// > usable feature in insecure contexts: the getRandomValues() method.
-		// > In general, you should use this API only in secure contexts.
+  // use `randomUUID` if possible
+  if (typeof crypto.randomUUID === 'function') {
+    // see https://developer.mozilla.org/en-US/docs/Web/API/Window/crypto
+    // > Although crypto is available on all windows, the returned Crypto object only has one
+    // > usable feature in insecure contexts: the getRandomValues() method.
+    // > In general, you should use this API only in secure contexts.
 
-		return crypto.randomUUID.bind(crypto)();
-	}
+    return crypto.randomUUID.bind(crypto)();
+  }
 
-	// prep-work
-	const _data = new Uint8Array(16);
-	const _hex: string[] = [];
-	for (let i = 0; i < 256; i++) {
-		_hex.push(i.toString(16).padStart(2, '0'));
-	}
+  // prep-work
+  const _data = new Uint8Array(16);
+  const _hex: string[] = [];
+  for (let i = 0; i < 256; i++) {
+    _hex.push(i.toString(16).padStart(2, '0'));
+  }
 
-	// get data
-	crypto.getRandomValues(_data);
+  // get data
+  crypto.getRandomValues(_data);
 
-	// set version bits
-	_data[6] = (_data[6] & 0x0f) | 0x40;
-	_data[8] = (_data[8] & 0x3f) | 0x80;
+  // set version bits
+  _data[6] = (_data[6] & 0x0f) | 0x40;
+  _data[8] = (_data[8] & 0x3f) | 0x80;
 
-	// print as string
-	let i = 0;
-	let result = '';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	return result;
+  // print as string
+  let i = 0;
+  let result = '';
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += '-';
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += '-';
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += '-';
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += '-';
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  result += _hex[_data[i++]];
+  return result;
 }
-
-
 
 /*---------------------------------------------------------------------------------------------
  *  The MIT License (MIT)
@@ -118,20 +123,23 @@ export function generateUuid(): string {
  *  This code is derived from https://github.com/SimonSiefke/vscode-memory-leak-finder
  *--------------------------------------------------------------------------------------------*/
 
-const getInstances = async (driver: PlaywrightDriver, classNames: string[]): Promise<{ [key: string]: number }> => {
-	await driver.collectGarbage();
-	const objectGroup = `og:${generateUuid()}`;
-	const prototypeDescriptor = await driver.evaluate({
-		expression: 'Object.prototype',
-		returnByValue: false,
-		objectGroup,
-	});
-	const objects = await driver.queryObjects({
-		prototypeObjectId: prototypeDescriptor.result.objectId!,
-		objectGroup,
-	});
-	const fnResult1 = await driver.callFunctionOn({
-		functionDeclaration: `function(){
+const getInstances = async (
+  driver: PlaywrightDriver,
+  classNames: string[]
+): Promise<{ [key: string]: number }> => {
+  await driver.collectGarbage();
+  const objectGroup = `og:${generateUuid()}`;
+  const prototypeDescriptor = await driver.evaluate({
+    expression: 'Object.prototype',
+    returnByValue: false,
+    objectGroup,
+  });
+  const objects = await driver.queryObjects({
+    prototypeObjectId: prototypeDescriptor.result.objectId!,
+    objectGroup,
+  });
+  const fnResult1 = await driver.callFunctionOn({
+    functionDeclaration: `function(){
 	const objects = this
 	const classNames = ${JSON.stringify(classNames)}
 
@@ -202,12 +210,12 @@ const getInstances = async (driver: PlaywrightDriver, classNames: string[]): Pro
 	}
 	return counts
 }`,
-		objectId: objects.objects.objectId,
-		returnByValue: true,
-		objectGroup,
-	});
+    objectId: objects.objects.objectId,
+    returnByValue: true,
+    objectGroup,
+  });
 
-	const returnObject = fnResult1.result.value;
-	await driver.releaseObjectGroup({ objectGroup: objectGroup });
-	return returnObject;
+  const returnObject = fnResult1.result.value;
+  await driver.releaseObjectGroup({ objectGroup: objectGroup });
+  return returnObject;
 };

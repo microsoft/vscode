@@ -12,29 +12,29 @@ import { assert } from '../../../../../../../../../base/common/assert.js';
  * value reflects the position of the token in the original data.
  */
 export class MarkdownComment extends MarkdownToken {
-	constructor(
-		range: Range,
-		public readonly text: string,
-	) {
-		assert(
-			text.startsWith('<!--'),
-			`The comment must start with '<!--', got '${text.substring(0, 10)}'.`,
-		);
+  constructor(
+    range: Range,
+    public readonly text: string
+  ) {
+    assert(
+      text.startsWith('<!--'),
+      `The comment must start with '<!--', got '${text.substring(0, 10)}'.`
+    );
 
-		super(range);
-	}
+    super(range);
+  }
 
-	/**
-	 * Whether the comment has an end comment marker `-->`.
-	 */
-	public get hasEndMarker(): boolean {
-		return this.text.endsWith('-->');
-	}
+  /**
+   * Whether the comment has an end comment marker `-->`.
+   */
+  public get hasEndMarker(): boolean {
+    return this.text.endsWith('-->');
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `md-comment("${this.shortText()}")${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `md-comment("${this.shortText()}")${this.range}`;
+  }
 }

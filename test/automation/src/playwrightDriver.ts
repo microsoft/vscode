@@ -15,320 +15,412 @@ import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
 
 export class PlaywrightDriver {
+  private static traceCounter = 1;
+  private static screenShotCounter = 1;
 
-	private static traceCounter = 1;
-	private static screenShotCounter = 1;
+  private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
+    cmd: 'Meta',
+    ctrl: 'Control',
+    shift: 'Shift',
+    enter: 'Enter',
+    escape: 'Escape',
+    right: 'ArrowRight',
+    up: 'ArrowUp',
+    down: 'ArrowDown',
+    left: 'ArrowLeft',
+    home: 'Home',
+    esc: 'Escape',
+  };
 
-	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
-		cmd: 'Meta',
-		ctrl: 'Control',
-		shift: 'Shift',
-		enter: 'Enter',
-		escape: 'Escape',
-		right: 'ArrowRight',
-		up: 'ArrowUp',
-		down: 'ArrowDown',
-		left: 'ArrowLeft',
-		home: 'Home',
-		esc: 'Escape'
-	};
+  constructor(
+    private readonly application:
+      | playwright.Browser
+      | playwright.ElectronApplication,
+    private readonly context: playwright.BrowserContext,
+    private readonly page: playwright.Page,
+    private readonly serverProcess: ChildProcess | undefined,
+    private readonly whenLoaded: Promise<unknown>,
+    private readonly options: LaunchOptions
+  ) {}
 
-	constructor(
-		private readonly application: playwright.Browser | playwright.ElectronApplication,
-		private readonly context: playwright.BrowserContext,
-		private readonly page: playwright.Page,
-		private readonly serverProcess: ChildProcess | undefined,
-		private readonly whenLoaded: Promise<unknown>,
-		private readonly options: LaunchOptions
-	) {
-	}
+  async startTracing(name: string): Promise<void> {
+    if (!this.options.tracing) {
+      return; // tracing disabled
+    }
 
-	async startTracing(name: string): Promise<void> {
-		if (!this.options.tracing) {
-			return; // tracing disabled
-		}
+    try {
+      await measureAndLog(
+        () => this.context.tracing.startChunk({ title: name }),
+        `startTracing for ${name}`,
+        this.options.logger
+      );
+    } catch (error) {
+      // Ignore
+    }
+  }
 
-		try {
-			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
-		} catch (error) {
-			// Ignore
-		}
-	}
+  async stopTracing(name: string, persist: boolean): Promise<void> {
+    if (!this.options.tracing) {
+      return; // tracing disabled
+    }
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
-		if (!this.options.tracing) {
-			return; // tracing disabled
-		}
+    try {
+      let persistPath: string | undefined = undefined;
+      if (persist) {
+        persistPath = join(
+          this.options.logsPath,
+          `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`
+        );
+      }
 
-		try {
-			let persistPath: string | undefined = undefined;
-			if (persist) {
-				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
-			}
+      await measureAndLog(
+        () => this.context.tracing.stopChunk({ path: persistPath }),
+        `stopTracing for ${name}`,
+        this.options.logger
+      );
 
-			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+      // To ensure we have a screenshot at the end where
+      // it failed, also trigger one explicitly. Tracing
+      // does not guarantee to give us a screenshot unless
+      // some driver action ran before.
+      if (persist) {
+        await this.takeScreenshot(name);
+      }
+    } catch (error) {
+      // Ignore
+    }
+  }
 
-			// To ensure we have a screenshot at the end where
-			// it failed, also trigger one explicitly. Tracing
-			// does not guarantee to give us a screenshot unless
-			// some driver action ran before.
-			if (persist) {
-				await this.takeScreenshot(name);
-			}
-		} catch (error) {
-			// Ignore
-		}
-	}
+  async didFinishLoad(): Promise<void> {
+    await this.whenLoaded;
+  }
 
-	async didFinishLoad(): Promise<void> {
-		await this.whenLoaded;
-	}
+  private _cdpSession: playwright.CDPSession | undefined;
 
-	private _cdpSession: playwright.CDPSession | undefined;
+  async startCDP() {
+    if (this._cdpSession) {
+      return;
+    }
 
-	async startCDP() {
-		if (this._cdpSession) {
-			return;
-		}
+    this._cdpSession = await this.page.context().newCDPSession(this.page);
+  }
 
-		this._cdpSession = await this.page.context().newCDPSession(this.page);
-	}
+  async collectGarbage() {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async collectGarbage() {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    await this._cdpSession.send('HeapProfiler.collectGarbage');
+  }
 
-		await this._cdpSession.send('HeapProfiler.collectGarbage');
-	}
+  async evaluate(
+    options: Protocol.Runtime.evaluateParameters
+  ): Promise<Protocol.Runtime.evaluateReturnValue> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async evaluate(options: Protocol.Runtime.evaluateParameters): Promise<Protocol.Runtime.evaluateReturnValue> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    return await this._cdpSession.send('Runtime.evaluate', options);
+  }
 
-		return await this._cdpSession.send('Runtime.evaluate', options);
-	}
+  async releaseObjectGroup(
+    parameters: Protocol.Runtime.releaseObjectGroupParameters
+  ): Promise<void> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async releaseObjectGroup(parameters: Protocol.Runtime.releaseObjectGroupParameters): Promise<void> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    await this._cdpSession.send('Runtime.releaseObjectGroup', parameters);
+  }
 
-		await this._cdpSession.send('Runtime.releaseObjectGroup', parameters);
-	}
+  async queryObjects(
+    parameters: Protocol.Runtime.queryObjectsParameters
+  ): Promise<Protocol.Runtime.queryObjectsReturnValue> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async queryObjects(parameters: Protocol.Runtime.queryObjectsParameters): Promise<Protocol.Runtime.queryObjectsReturnValue> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    return await this._cdpSession.send('Runtime.queryObjects', parameters);
+  }
 
-		return await this._cdpSession.send('Runtime.queryObjects', parameters);
-	}
+  async callFunctionOn(
+    parameters: Protocol.Runtime.callFunctionOnParameters
+  ): Promise<Protocol.Runtime.callFunctionOnReturnValue> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async callFunctionOn(parameters: Protocol.Runtime.callFunctionOnParameters): Promise<Protocol.Runtime.callFunctionOnReturnValue> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    return await this._cdpSession.send('Runtime.callFunctionOn', parameters);
+  }
 
-		return await this._cdpSession.send('Runtime.callFunctionOn', parameters);
-	}
+  async takeHeapSnapshot(): Promise<string> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async takeHeapSnapshot(): Promise<string> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    let snapshot = '';
+    const listener = (c: { chunk: string }) => {
+      snapshot += c.chunk;
+    };
 
-		let snapshot = '';
-		const listener = (c: { chunk: string }) => {
-			snapshot += c.chunk;
-		};
+    this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', listener);
 
-		this._cdpSession.addListener('HeapProfiler.addHeapSnapshotChunk', listener);
+    await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
 
-		await this._cdpSession.send('HeapProfiler.takeHeapSnapshot');
+    this._cdpSession.removeListener(
+      'HeapProfiler.addHeapSnapshotChunk',
+      listener
+    );
+    return snapshot;
+  }
 
-		this._cdpSession.removeListener('HeapProfiler.addHeapSnapshotChunk', listener);
-		return snapshot;
-	}
+  async getProperties(
+    parameters: Protocol.Runtime.getPropertiesParameters
+  ): Promise<Protocol.Runtime.getPropertiesReturnValue> {
+    if (!this._cdpSession) {
+      throw new Error('CDP not started');
+    }
 
-	async getProperties(parameters: Protocol.Runtime.getPropertiesParameters): Promise<Protocol.Runtime.getPropertiesReturnValue> {
-		if (!this._cdpSession) {
-			throw new Error('CDP not started');
-		}
+    return await this._cdpSession.send('Runtime.getProperties', parameters);
+  }
 
-		return await this._cdpSession.send('Runtime.getProperties', parameters);
-	}
+  private async takeScreenshot(name: string): Promise<void> {
+    try {
+      const persistPath = join(
+        this.options.logsPath,
+        `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`
+      );
 
-	private async takeScreenshot(name: string): Promise<void> {
-		try {
-			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
+      await measureAndLog(
+        () => this.page.screenshot({ path: persistPath, type: 'png' }),
+        'takeScreenshot',
+        this.options.logger
+      );
+    } catch (error) {
+      // Ignore
+    }
+  }
 
-			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
-		} catch (error) {
-			// Ignore
-		}
-	}
+  async reload() {
+    await this.page.reload();
+  }
 
-	async reload() {
-		await this.page.reload();
-	}
+  async close() {
+    // Stop tracing
+    try {
+      if (this.options.tracing) {
+        await measureAndLog(
+          () => this.context.tracing.stop(),
+          'stop tracing',
+          this.options.logger
+        );
+      }
+    } catch (error) {
+      // Ignore
+    }
 
-	async close() {
+    // Web: Extract client logs
+    if (this.options.web) {
+      try {
+        await measureAndLog(
+          () => this.saveWebClientLogs(),
+          'saveWebClientLogs()',
+          this.options.logger
+        );
+      } catch (error) {
+        this.options.logger.log(`Error saving web client logs (${error})`);
+      }
+    }
 
-		// Stop tracing
-		try {
-			if (this.options.tracing) {
-				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
-			}
-		} catch (error) {
-			// Ignore
-		}
+    //  exit via `close` method
+    try {
+      await measureAndLog(
+        () => this.application.close(),
+        'playwright.close()',
+        this.options.logger
+      );
+    } catch (error) {
+      this.options.logger.log(`Error closing application (${error})`);
+    }
 
-		// Web: Extract client logs
-		if (this.options.web) {
-			try {
-				await measureAndLog(() => this.saveWebClientLogs(), 'saveWebClientLogs()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error saving web client logs (${error})`);
-			}
-		}
+    // Server: via `teardown`
+    if (this.serverProcess) {
+      await measureAndLog(
+        () => teardown(this.serverProcess!, this.options.logger),
+        'teardown server process',
+        this.options.logger
+      );
+    }
+  }
 
-		//  exit via `close` method
-		try {
-			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
-		} catch (error) {
-			this.options.logger.log(`Error closing application (${error})`);
-		}
+  private async saveWebClientLogs(): Promise<void> {
+    const logs = await this.getLogs();
 
-		// Server: via `teardown`
-		if (this.serverProcess) {
-			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
-		}
-	}
+    for (const log of logs) {
+      const absoluteLogsPath = join(this.options.logsPath, log.relativePath);
 
-	private async saveWebClientLogs(): Promise<void> {
-		const logs = await this.getLogs();
+      await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
+      await promises.writeFile(absoluteLogsPath, log.contents);
+    }
+  }
 
-		for (const log of logs) {
-			const absoluteLogsPath = join(this.options.logsPath, log.relativePath);
+  async sendKeybinding(
+    keybinding: string,
+    accept?: () => Promise<void> | void
+  ) {
+    const chords = keybinding.split(' ');
+    for (let i = 0; i < chords.length; i++) {
+      const chord = chords[i];
+      if (i > 0) {
+        await this.wait(100);
+      }
 
-			await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
-			await promises.writeFile(absoluteLogsPath, log.contents);
-		}
-	}
+      if (
+        keybinding.startsWith('Alt') ||
+        keybinding.startsWith('Control') ||
+        keybinding.startsWith('Backspace')
+      ) {
+        await this.page.keyboard.press(keybinding);
+        return;
+      }
 
-	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
-		const chords = keybinding.split(' ');
-		for (let i = 0; i < chords.length; i++) {
-			const chord = chords[i];
-			if (i > 0) {
-				await this.wait(100);
-			}
+      const keys = chord.split('+');
+      const keysDown: string[] = [];
+      for (let i = 0; i < keys.length; i++) {
+        if (keys[i] in PlaywrightDriver.vscodeToPlaywrightKey) {
+          keys[i] = PlaywrightDriver.vscodeToPlaywrightKey[keys[i]];
+        }
+        await this.page.keyboard.down(keys[i]);
+        keysDown.push(keys[i]);
+      }
+      while (keysDown.length > 0) {
+        await this.page.keyboard.up(keysDown.pop()!);
+      }
+    }
 
-			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control') || keybinding.startsWith('Backspace')) {
-				await this.page.keyboard.press(keybinding);
-				return;
-			}
+    if (accept) {
+      await accept();
+    }
+  }
 
-			const keys = chord.split('+');
-			const keysDown: string[] = [];
-			for (let i = 0; i < keys.length; i++) {
-				if (keys[i] in PlaywrightDriver.vscodeToPlaywrightKey) {
-					keys[i] = PlaywrightDriver.vscodeToPlaywrightKey[keys[i]];
-				}
-				await this.page.keyboard.down(keys[i]);
-				keysDown.push(keys[i]);
-			}
-			while (keysDown.length > 0) {
-				await this.page.keyboard.up(keysDown.pop()!);
-			}
-		}
+  async click(
+    selector: string,
+    xoffset?: number | undefined,
+    yoffset?: number | undefined
+  ) {
+    const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
+    await this.page.mouse.click(
+      x + (xoffset ? xoffset : 0),
+      y + (yoffset ? yoffset : 0)
+    );
+  }
 
-		if (accept) {
-			await accept();
-		}
-	}
+  async setValue(selector: string, text: string) {
+    return this.page.evaluate(
+      ([driver, selector, text]) => driver.setValue(selector, text),
+      [await this.getDriverHandle(), selector, text] as const
+    );
+  }
 
-	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
-		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
-		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
-	}
+  async getTitle() {
+    return this.page.title();
+  }
 
-	async setValue(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
-	}
+  async isActiveElement(selector: string) {
+    return this.page.evaluate(
+      ([driver, selector]) => driver.isActiveElement(selector),
+      [await this.getDriverHandle(), selector] as const
+    );
+  }
 
-	async getTitle() {
-		return this.page.title();
-	}
+  async getElements(selector: string, recursive: boolean = false) {
+    return this.page.evaluate(
+      ([driver, selector, recursive]) =>
+        driver.getElements(selector, recursive),
+      [await this.getDriverHandle(), selector, recursive] as const
+    );
+  }
 
-	async isActiveElement(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
-	}
+  async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
+    return this.page.evaluate(
+      ([driver, selector, xoffset, yoffset]) =>
+        driver.getElementXY(selector, xoffset, yoffset),
+      [await this.getDriverHandle(), selector, xoffset, yoffset] as const
+    );
+  }
 
-	async getElements(selector: string, recursive: boolean = false) {
-		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
-	}
+  async typeInEditor(selector: string, text: string) {
+    return this.page.evaluate(
+      ([driver, selector, text]) => driver.typeInEditor(selector, text),
+      [await this.getDriverHandle(), selector, text] as const
+    );
+  }
 
-	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
-		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
-	}
+  async getEditorSelection(selector: string) {
+    return this.page.evaluate(
+      ([driver, selector]) => driver.getEditorSelection(selector),
+      [await this.getDriverHandle(), selector] as const
+    );
+  }
 
-	async typeInEditor(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
-	}
+  async getTerminalBuffer(selector: string) {
+    return this.page.evaluate(
+      ([driver, selector]) => driver.getTerminalBuffer(selector),
+      [await this.getDriverHandle(), selector] as const
+    );
+  }
 
-	async getEditorSelection(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getEditorSelection(selector), [await this.getDriverHandle(), selector] as const);
-	}
+  async writeInTerminal(selector: string, text: string) {
+    return this.page.evaluate(
+      ([driver, selector, text]) => driver.writeInTerminal(selector, text),
+      [await this.getDriverHandle(), selector, text] as const
+    );
+  }
 
-	async getTerminalBuffer(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
-	}
+  async getLocaleInfo() {
+    return this.evaluateWithDriver(([driver]) => driver.getLocaleInfo());
+  }
 
-	async writeInTerminal(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
-	}
+  async getLocalizedStrings() {
+    return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
+  }
 
-	async getLocaleInfo() {
-		return this.evaluateWithDriver(([driver]) => driver.getLocaleInfo());
-	}
+  async getLogs() {
+    return this.page.evaluate(([driver]) => driver.getLogs(), [
+      await this.getDriverHandle(),
+    ] as const);
+  }
 
-	async getLocalizedStrings() {
-		return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
-	}
+  private async evaluateWithDriver<T>(
+    pageFunction: PageFunction<IWindowDriver[], T>
+  ) {
+    return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
+  }
 
-	async getLogs() {
-		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
-	}
+  wait(ms: number): Promise<void> {
+    return wait(ms);
+  }
 
-	private async evaluateWithDriver<T>(pageFunction: PageFunction<IWindowDriver[], T>) {
-		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
-	}
+  whenWorkbenchRestored(): Promise<void> {
+    return this.evaluateWithDriver(([driver]) =>
+      driver.whenWorkbenchRestored()
+    );
+  }
 
-	wait(ms: number): Promise<void> {
-		return wait(ms);
-	}
+  private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
+    return this.page.evaluateHandle('window.driver');
+  }
 
-	whenWorkbenchRestored(): Promise<void> {
-		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
-	}
-
-	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
-		return this.page.evaluateHandle('window.driver');
-	}
-
-	async isAlive(): Promise<boolean> {
-		try {
-			await this.getDriverHandle();
-			return true;
-		} catch (error) {
-			return false;
-		}
-	}
+  async isAlive(): Promise<boolean> {
+    try {
+      await this.getDriverHandle();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 export function wait(ms: number): Promise<void> {
-	return new Promise<void>(resolve => setTimeout(resolve, ms));
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }

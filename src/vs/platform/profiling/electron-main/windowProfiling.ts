@@ -10,37 +10,35 @@ import { ILogService } from '../../log/common/log.js';
 import { IV8Profile } from '../common/profiling.js';
 
 export class WindowProfiler {
+  constructor(
+    private readonly _window: BrowserWindow,
+    private readonly _sessionId: string,
+    @ILogService private readonly _logService: ILogService
+  ) {}
 
-	constructor(
-		private readonly _window: BrowserWindow,
-		private readonly _sessionId: string,
-		@ILogService private readonly _logService: ILogService,
-	) { }
+  async inspect(duration: number): Promise<IV8Profile> {
+    await this._connect();
 
-	async inspect(duration: number): Promise<IV8Profile> {
+    const inspector = this._window.webContents.debugger;
+    await inspector.sendCommand('Profiler.start');
+    this._logService.warn('[perf] profiling STARTED', this._sessionId);
+    await timeout(duration);
+    const data: ProfileResult = await inspector.sendCommand('Profiler.stop');
+    this._logService.warn('[perf] profiling DONE', this._sessionId);
 
-		await this._connect();
+    await this._disconnect();
+    return data.profile;
+  }
 
-		const inspector = this._window.webContents.debugger;
-		await inspector.sendCommand('Profiler.start');
-		this._logService.warn('[perf] profiling STARTED', this._sessionId);
-		await timeout(duration);
-		const data: ProfileResult = await inspector.sendCommand('Profiler.stop');
-		this._logService.warn('[perf] profiling DONE', this._sessionId);
+  private async _connect() {
+    const inspector = this._window.webContents.debugger;
+    inspector.attach();
+    await inspector.sendCommand('Profiler.enable');
+  }
 
-		await this._disconnect();
-		return data.profile;
-	}
-
-	private async _connect() {
-		const inspector = this._window.webContents.debugger;
-		inspector.attach();
-		await inspector.sendCommand('Profiler.enable');
-	}
-
-	private async _disconnect() {
-		const inspector = this._window.webContents.debugger;
-		await inspector.sendCommand('Profiler.disable');
-		inspector.detach();
-	}
+  private async _disconnect() {
+    const inspector = this._window.webContents.debugger;
+    await inspector.sendCommand('Profiler.disable');
+    inspector.detach();
+  }
 }

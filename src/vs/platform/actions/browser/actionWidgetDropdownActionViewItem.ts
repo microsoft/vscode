@@ -11,7 +11,10 @@ import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDel
 import { IAction } from '../../../base/common/actions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IActionWidgetService } from '../../actionWidget/browser/actionWidget.js';
-import { ActionWidgetDropdown, IActionWidgetDropdownOptions } from '../../actionWidget/browser/actionWidgetDropdown.js';
+import {
+  ActionWidgetDropdown,
+  IActionWidgetDropdownOptions,
+} from '../../actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 
@@ -20,77 +23,100 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
  * Very closely based off of `DropdownMenuActionViewItem`, would be good to have some code re-use in the future
  */
 export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
-	private actionWidgetDropdown: ActionWidgetDropdown | undefined;
-	private actionItem: HTMLElement | null = null;
-	constructor(
-		action: IAction,
-		private readonly actionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'>,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-	) {
-		super(undefined, action);
-	}
+  private actionWidgetDropdown: ActionWidgetDropdown | undefined;
+  private actionItem: HTMLElement | null = null;
+  constructor(
+    action: IAction,
+    private readonly actionWidgetOptions: Omit<
+      IActionWidgetDropdownOptions,
+      'label' | 'labelRenderer'
+    >,
+    @IActionWidgetService
+    private readonly _actionWidgetService: IActionWidgetService,
+    @IKeybindingService private readonly _keybindingService: IKeybindingService,
+    @IContextKeyService private readonly _contextKeyService: IContextKeyService
+  ) {
+    super(undefined, action);
+  }
 
-	override render(container: HTMLElement): void {
-		this.actionItem = container;
+  override render(container: HTMLElement): void {
+    this.actionItem = container;
 
-		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
-			this.element = append(el, $('a.action-label'));
-			return this.renderLabel(this.element);
-		};
+    const labelRenderer: ILabelRenderer = (
+      el: HTMLElement
+    ): IDisposable | null => {
+      this.element = append(el, $('a.action-label'));
+      return this.renderLabel(this.element);
+    };
 
-		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService, this._keybindingService));
-		this._register(this.actionWidgetDropdown.onDidChangeVisibility(visible => {
-			this.element?.setAttribute('aria-expanded', `${visible}`);
-		}));
+    this.actionWidgetDropdown = this._register(
+      new ActionWidgetDropdown(
+        container,
+        { ...this.actionWidgetOptions, labelRenderer },
+        this._actionWidgetService,
+        this._keybindingService
+      )
+    );
+    this._register(
+      this.actionWidgetDropdown.onDidChangeVisibility((visible) => {
+        this.element?.setAttribute('aria-expanded', `${visible}`);
+      })
+    );
 
-		this.updateTooltip();
-		this.updateEnabled();
-	}
+    this.updateTooltip();
+    this.updateEnabled();
+  }
 
-	protected renderLabel(element: HTMLElement): IDisposable | null {
-		// todo@aeschli: remove codicon, should come through `this.options.classNames`
-		element.classList.add('codicon');
+  protected renderLabel(element: HTMLElement): IDisposable | null {
+    // todo@aeschli: remove codicon, should come through `this.options.classNames`
+    element.classList.add('codicon');
 
-		if (this._action.label) {
-			this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), element, this._action.label));
-		}
+    if (this._action.label) {
+      this._register(
+        getBaseLayerHoverDelegate().setupManagedHover(
+          this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'),
+          element,
+          this._action.label
+        )
+      );
+    }
 
-		return null;
-	}
+    return null;
+  }
 
-	protected override updateAriaLabel(): void {
-		if (this.element) {
-			this.setAriaLabelAttributes(this.element);
-		}
-	}
+  protected override updateAriaLabel(): void {
+    if (this.element) {
+      this.setAriaLabelAttributes(this.element);
+    }
+  }
 
-	protected setAriaLabelAttributes(element: HTMLElement): void {
-		element.setAttribute('role', 'button');
-		element.setAttribute('aria-haspopup', 'true');
-		element.setAttribute('aria-expanded', 'false');
-		element.ariaLabel = (this.getTooltip() + ' - ' + (element.textContent || this._action.label)) || '';
-	}
+  protected setAriaLabelAttributes(element: HTMLElement): void {
+    element.setAttribute('role', 'button');
+    element.setAttribute('aria-haspopup', 'true');
+    element.setAttribute('aria-expanded', 'false');
+    element.ariaLabel =
+      this.getTooltip() + ' - ' + (element.textContent || this._action.label) ||
+      '';
+  }
 
-	protected override getTooltip() {
-		const keybinding = this._keybindingService.lookupKeybinding(this.action.id, this._contextKeyService);
-		const keybindingLabel = keybinding && keybinding.getLabel();
+  protected override getTooltip() {
+    const keybinding = this._keybindingService.lookupKeybinding(
+      this.action.id,
+      this._contextKeyService
+    );
+    const keybindingLabel = keybinding && keybinding.getLabel();
 
-		const tooltip = this.action.tooltip ?? this.action.label;
-		return keybindingLabel
-			? `${tooltip} (${keybindingLabel})`
-			: tooltip;
-	}
+    const tooltip = this.action.tooltip ?? this.action.label;
+    return keybindingLabel ? `${tooltip} (${keybindingLabel})` : tooltip;
+  }
 
-	show(): void {
-		this.actionWidgetDropdown?.show();
-	}
+  show(): void {
+    this.actionWidgetDropdown?.show();
+  }
 
-	protected override updateEnabled(): void {
-		const disabled = !this.action.enabled;
-		this.actionItem?.classList.toggle('disabled', disabled);
-		this.element?.classList.toggle('disabled', disabled);
-	}
-
+  protected override updateEnabled(): void {
+    const disabled = !this.action.enabled;
+    this.actionItem?.classList.toggle('disabled', disabled);
+    this.element?.classList.toggle('disabled', disabled);
+  }
 }

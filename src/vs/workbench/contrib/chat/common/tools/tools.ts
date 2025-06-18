@@ -9,20 +9,24 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 
-export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
+export class BuiltinToolsContribution
+  extends Disposable
+  implements IWorkbenchContribution
+{
+  static readonly ID = 'chat.builtinTools';
 
-	static readonly ID = 'chat.builtinTools';
+  constructor(
+    @ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+    @IInstantiationService instantiationService: IInstantiationService
+  ) {
+    super();
 
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-
-		const editTool = instantiationService.createInstance(EditTool);
-		this._register(toolsService.registerToolData(EditToolData));
-		this._register(toolsService.registerToolImplementation(EditToolData.id, editTool));
-	}
+    const editTool = instantiationService.createInstance(EditTool);
+    this._register(toolsService.registerToolData(EditToolData));
+    this._register(
+      toolsService.registerToolImplementation(EditToolData.id, editTool)
+    );
+  }
 }
 
 export const InternalFetchWebPageToolId = 'vscode_fetchWebPage_internal';

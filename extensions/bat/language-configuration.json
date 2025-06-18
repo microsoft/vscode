@@ -1,29 +1,29 @@
 {
-	"comments": {
-		"lineComment": "@REM"
-	},
-	"brackets": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"]
-	],
-	"autoClosingPairs": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"],
-		{ "open": "\"", "close": "\"", "notIn": ["string"] }
-	],
-	"surroundingPairs": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"],
-		["%", "%"],
-		["\"", "\""]
-	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*(::|REM|@REM)\\s*#region",
-			"end": "^\\s*(::|REM|@REM)\\s*#endregion"
-		}
-	}
+  "comments": {
+    "lineComment": "@REM"
+  },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "autoClosingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    { "open": "\"", "close": "\"", "notIn": ["string"] }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["%", "%"],
+    ["\"", "\""]
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*(::|REM|@REM)\\s*#region",
+      "end": "^\\s*(::|REM|@REM)\\s*#endregion"
+    }
+  }
 }

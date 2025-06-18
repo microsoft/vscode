@@ -5,7 +5,10 @@
 
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
-export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false);
+export const InSearchEditor = new RawContextKey<boolean>(
+  'inSearchEditor',
+  false
+);
 
 export const SearchEditorScheme = 'search-editor';
 
@@ -17,24 +20,26 @@ export const SearchEditorID = 'workbench.editor.searchEditor';
 
 export const OpenNewEditorCommandId = 'search.action.openNewEditor';
 export const OpenEditorCommandId = 'search.action.openEditor';
-export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
+export const ToggleSearchEditorContextLinesCommandId =
+  'toggleSearchEditorContextLines';
 
-export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+export const SearchEditorInputTypeId =
+  'workbench.editorinputs.searchEditorInput';
 export type SearchConfiguration = {
-	query: string;
-	filesToInclude: string;
-	filesToExclude: string;
-	contextLines: number;
-	matchWholeWord: boolean;
-	isCaseSensitive: boolean;
-	isRegexp: boolean;
-	useExcludeSettingsAndIgnoreFiles: boolean;
-	showIncludesExcludes: boolean;
-	onlyOpenEditors: boolean;
-	notebookSearchConfig: {
-		includeMarkupInput: boolean;
-		includeMarkupPreview: boolean;
-		includeCodeInput: boolean;
-		includeOutput: boolean;
-	};
+  query: string;
+  filesToInclude: string;
+  filesToExclude: string;
+  contextLines: number;
+  matchWholeWord: boolean;
+  isCaseSensitive: boolean;
+  isRegexp: boolean;
+  useExcludeSettingsAndIgnoreFiles: boolean;
+  showIncludesExcludes: boolean;
+  onlyOpenEditors: boolean;
+  notebookSearchConfig: {
+    includeMarkupInput: boolean;
+    includeMarkupPreview: boolean;
+    includeCodeInput: boolean;
+    includeOutput: boolean;
+  };
 };

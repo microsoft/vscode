@@ -6,21 +6,38 @@
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { AbstractExtensionsProfileScannerService, IExtensionsProfileScannerService } from '../../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
+import {
+  AbstractExtensionsProfileScannerService,
+  IExtensionsProfileScannerService,
+} from '../../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import {
+  InstantiationType,
+  registerSingleton,
+} from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 export class ExtensionsProfileScannerService extends AbstractExtensionsProfileScannerService {
-	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService logService: ILogService,
-	) {
-		super(environmentService.userRoamingDataHome, fileService, userDataProfilesService, uriIdentityService, logService);
-	}
+  constructor(
+    @IWorkbenchEnvironmentService
+    environmentService: IWorkbenchEnvironmentService,
+    @IFileService fileService: IFileService,
+    @IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+    @IUriIdentityService uriIdentityService: IUriIdentityService,
+    @ILogService logService: ILogService
+  ) {
+    super(
+      environmentService.userRoamingDataHome,
+      fileService,
+      userDataProfilesService,
+      uriIdentityService,
+      logService
+    );
+  }
 }
 
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
+registerSingleton(
+  IExtensionsProfileScannerService,
+  ExtensionsProfileScannerService,
+  InstantiationType.Delayed
+);

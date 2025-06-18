@@ -4,7 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
+import {
+  $,
+  addDisposableListener,
+  getActiveDocument,
+  getActiveWindow,
+  isHTMLElement,
+  onDidRegisterWindow,
+} from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
@@ -22,282 +29,331 @@ import { ILogService } from '../../log/common/log.js';
  */
 const vscodeResourcesMime = 'application/vnd.code.resources';
 
-export class BrowserClipboardService extends Disposable implements IClipboardService {
+export class BrowserClipboardService
+  extends Disposable
+  implements IClipboardService
+{
+  declare readonly _serviceBrand: undefined;
 
-	declare readonly _serviceBrand: undefined;
+  constructor(
+    @ILayoutService private readonly layoutService: ILayoutService,
+    @ILogService private readonly logService: ILogService
+  ) {
+    super();
 
-	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILogService private readonly logService: ILogService
-	) {
-		super();
+    if (isSafari || isWebkitWebView) {
+      this.installWebKitWriteTextWorkaround();
+    }
 
-		if (isSafari || isWebkitWebView) {
-			this.installWebKitWriteTextWorkaround();
-		}
+    // Keep track of copy operations to reset our set of
+    // copied resources: since we keep resources in memory
+    // and not in the clipboard, we have to invalidate
+    // that state when the user copies other data.
+    this._register(
+      Event.runAndSubscribe(
+        onDidRegisterWindow,
+        ({ window, disposables }) => {
+          disposables.add(
+            addDisposableListener(window.document, 'copy', () =>
+              this.clearResourcesState()
+            )
+          );
+        },
+        { window: mainWindow, disposables: this._store }
+      )
+    );
+  }
 
-		// Keep track of copy operations to reset our set of
-		// copied resources: since we keep resources in memory
-		// and not in the clipboard, we have to invalidate
-		// that state when the user copies other data.
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
-		}, { window: mainWindow, disposables: this._store }));
-	}
+  triggerPaste(): Promise<void> | undefined {
+    return undefined;
+  }
 
-	triggerPaste(): Promise<void> | undefined {
-		return undefined;
-	}
+  async readImage(): Promise<Uint8Array> {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      const clipboardItem = clipboardItems[0];
 
-	async readImage(): Promise<Uint8Array> {
-		try {
-			const clipboardItems = await navigator.clipboard.read();
-			const clipboardItem = clipboardItems[0];
+      const supportedImageTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/gif',
+        'image/tiff',
+        'image/bmp',
+      ];
+      const mimeType = supportedImageTypes.find((type) =>
+        clipboardItem.types.includes(type)
+      );
 
-			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
-			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
+      if (mimeType) {
+        const blob = await clipboardItem.getType(mimeType);
+        const buffer = await blob.arrayBuffer();
+        return new Uint8Array(buffer);
+      } else {
+        console.error('No supported image type found in the clipboard');
+      }
+    } catch (error) {
+      console.error('Error reading image from clipboard:', error);
+    }
 
-			if (mimeType) {
-				const blob = await clipboardItem.getType(mimeType);
-				const buffer = await blob.arrayBuffer();
-				return new Uint8Array(buffer);
-			} else {
-				console.error('No supported image type found in the clipboard');
-			}
-		} catch (error) {
-			console.error('Error reading image from clipboard:', error);
-		}
+    // Return an empty Uint8Array if no image is found or an error occurs
+    return new Uint8Array(0);
+  }
 
-		// Return an empty Uint8Array if no image is found or an error occurs
-		return new Uint8Array(0);
-	}
+  private webKitPendingClipboardWritePromise:
+    | DeferredPromise<string>
+    | undefined;
 
-	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+  // In Safari, it has the following note:
+  //
+  // "The request to write to the clipboard must be triggered during a user gesture.
+  // A call to clipboard.write or clipboard.writeText outside the scope of a user
+  // gesture(such as "click" or "touch" event handlers) will result in the immediate
+  // rejection of the promise returned by the API call."
+  // From: https://webkit.org/blog/10855/async-clipboard-api/
+  //
+  // Since extensions run in a web worker, and handle gestures in an asynchronous way,
+  // they are not classified by Safari as "in response to a user gesture" and will reject.
+  //
+  // This function sets up some handlers to work around that behavior.
+  private installWebKitWriteTextWorkaround(): void {
+    const handler = () => {
+      const currentWritePromise = new DeferredPromise<string>();
 
-	// In Safari, it has the following note:
-	//
-	// "The request to write to the clipboard must be triggered during a user gesture.
-	// A call to clipboard.write or clipboard.writeText outside the scope of a user
-	// gesture(such as "click" or "touch" event handlers) will result in the immediate
-	// rejection of the promise returned by the API call."
-	// From: https://webkit.org/blog/10855/async-clipboard-api/
-	//
-	// Since extensions run in a web worker, and handle gestures in an asynchronous way,
-	// they are not classified by Safari as "in response to a user gesture" and will reject.
-	//
-	// This function sets up some handlers to work around that behavior.
-	private installWebKitWriteTextWorkaround(): void {
-		const handler = () => {
-			const currentWritePromise = new DeferredPromise<string>();
+      // Cancel the previous promise since we just created a new one in response to this new event
+      if (
+        this.webKitPendingClipboardWritePromise &&
+        !this.webKitPendingClipboardWritePromise.isSettled
+      ) {
+        this.webKitPendingClipboardWritePromise.cancel();
+      }
+      this.webKitPendingClipboardWritePromise = currentWritePromise;
 
-			// Cancel the previous promise since we just created a new one in response to this new event
-			if (this.webKitPendingClipboardWritePromise && !this.webKitPendingClipboardWritePromise.isSettled) {
-				this.webKitPendingClipboardWritePromise.cancel();
-			}
-			this.webKitPendingClipboardWritePromise = currentWritePromise;
+      // The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
+      // This allows us to pass in a Promise that will either be cancelled by another event or
+      // resolved with the contents of the first call to this.writeText.
+      // see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
+      getActiveWindow()
+        .navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': currentWritePromise.p,
+          }),
+        ])
+        .catch(async (err) => {
+          if (
+            !(err instanceof Error) ||
+            err.name !== 'NotAllowedError' ||
+            !currentWritePromise.isRejected
+          ) {
+            this.logService.error(err);
+          }
+        });
+    };
 
-			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
-			// This allows us to pass in a Promise that will either be cancelled by another event or
-			// resolved with the contents of the first call to this.writeText.
-			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
-			getActiveWindow().navigator.clipboard.write([new ClipboardItem({
-				'text/plain': currentWritePromise.p,
-			})]).catch(async err => {
-				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
-					this.logService.error(err);
-				}
-			});
-		};
+    this._register(
+      Event.runAndSubscribe(
+        this.layoutService.onDidAddContainer,
+        ({ container, disposables }) => {
+          disposables.add(addDisposableListener(container, 'click', handler));
+          disposables.add(addDisposableListener(container, 'keydown', handler));
+        },
+        {
+          container: this.layoutService.mainContainer,
+          disposables: this._store,
+        }
+      )
+    );
+  }
 
+  private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
-		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-			disposables.add(addDisposableListener(container, 'click', handler));
-			disposables.add(addDisposableListener(container, 'keydown', handler));
-		}, { container: this.layoutService.mainContainer, disposables: this._store }));
-	}
+  async writeText(text: string, type?: string): Promise<void> {
+    // Clear resources given we are writing text
+    this.clearResourcesState();
 
-	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
+    // With type: only in-memory is supported
+    if (type) {
+      this.mapTextToType.set(type, text);
 
-	async writeText(text: string, type?: string): Promise<void> {
+      return;
+    }
 
-		// Clear resources given we are writing text
-		this.clearResourcesState();
+    if (this.webKitPendingClipboardWritePromise) {
+      // For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
+      // above to resolve and successfully copy to the clipboard. If we let this continue, Safari
+      // would throw an error because this call stack doesn't appear to originate from a user gesture.
+      return this.webKitPendingClipboardWritePromise.complete(text);
+    }
 
-		// With type: only in-memory is supported
-		if (type) {
-			this.mapTextToType.set(type, text);
+    // Guard access to navigator.clipboard with try/catch
+    // as we have seen DOMExceptions in certain browsers
+    // due to security policies.
+    try {
+      return await getActiveWindow().navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.error(error);
+    }
 
-			return;
-		}
+    // Fallback to textarea and execCommand solution
+    this.fallbackWriteText(text);
+  }
 
-		if (this.webKitPendingClipboardWritePromise) {
-			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
-			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
-			// would throw an error because this call stack doesn't appear to originate from a user gesture.
-			return this.webKitPendingClipboardWritePromise.complete(text);
-		}
+  private fallbackWriteText(text: string): void {
+    const activeDocument = getActiveDocument();
+    const activeElement = activeDocument.activeElement;
 
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			return await getActiveWindow().navigator.clipboard.writeText(text);
-		} catch (error) {
-			console.error(error);
-		}
+    const textArea: HTMLTextAreaElement = activeDocument.body.appendChild(
+      $('textarea', { 'aria-hidden': true })
+    );
+    textArea.style.height = '1px';
+    textArea.style.width = '1px';
+    textArea.style.position = 'absolute';
 
-		// Fallback to textarea and execCommand solution
-		this.fallbackWriteText(text);
-	}
+    textArea.value = text;
+    textArea.focus();
+    textArea.select();
 
-	private fallbackWriteText(text: string): void {
-		const activeDocument = getActiveDocument();
-		const activeElement = activeDocument.activeElement;
+    activeDocument.execCommand('copy');
 
-		const textArea: HTMLTextAreaElement = activeDocument.body.appendChild($('textarea', { 'aria-hidden': true }));
-		textArea.style.height = '1px';
-		textArea.style.width = '1px';
-		textArea.style.position = 'absolute';
+    if (isHTMLElement(activeElement)) {
+      activeElement.focus();
+    }
 
-		textArea.value = text;
-		textArea.focus();
-		textArea.select();
+    textArea.remove();
+  }
 
-		activeDocument.execCommand('copy');
+  async readText(type?: string): Promise<string> {
+    // With type: only in-memory is supported
+    if (type) {
+      return this.mapTextToType.get(type) || '';
+    }
 
-		if (isHTMLElement(activeElement)) {
-			activeElement.focus();
-		}
+    // Guard access to navigator.clipboard with try/catch
+    // as we have seen DOMExceptions in certain browsers
+    // due to security policies.
+    try {
+      return await getActiveWindow().navigator.clipboard.readText();
+    } catch (error) {
+      console.error(error);
+    }
 
-		textArea.remove();
-	}
+    return '';
+  }
 
-	async readText(type?: string): Promise<string> {
+  private findText = ''; // unsupported in web (only in-memory)
 
-		// With type: only in-memory is supported
-		if (type) {
-			return this.mapTextToType.get(type) || '';
-		}
+  async readFindText(): Promise<string> {
+    return this.findText;
+  }
 
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			return await getActiveWindow().navigator.clipboard.readText();
-		} catch (error) {
-			console.error(error);
-		}
+  async writeFindText(text: string): Promise<void> {
+    this.findText = text;
+  }
 
-		return '';
-	}
+  private resources: URI[] = []; // unsupported in web (only in-memory)
+  private resourcesStateHash: number | undefined = undefined;
 
-	private findText = ''; // unsupported in web (only in-memory)
+  private static readonly MAX_RESOURCE_STATE_SOURCE_LENGTH = 1000;
 
-	async readFindText(): Promise<string> {
-		return this.findText;
-	}
+  async writeResources(resources: URI[]): Promise<void> {
+    // Guard access to navigator.clipboard with try/catch
+    // as we have seen DOMExceptions in certain browsers
+    // due to security policies.
+    try {
+      await getActiveWindow().navigator.clipboard.write([
+        new ClipboardItem({
+          [`web ${vscodeResourcesMime}`]: new Blob(
+            [JSON.stringify(resources.map((x) => x.toJSON()))],
+            {
+              type: vscodeResourcesMime,
+            }
+          ),
+        }),
+      ]);
 
-	async writeFindText(text: string): Promise<void> {
-		this.findText = text;
-	}
+      // Continue to write to the in-memory clipboard as well.
+      // This is needed because some browsers allow the paste but then can't read the custom resources.
+    } catch (error) {
+      // Noop
+    }
 
-	private resources: URI[] = []; // unsupported in web (only in-memory)
-	private resourcesStateHash: number | undefined = undefined;
+    if (resources.length === 0) {
+      this.clearResourcesState();
+    } else {
+      this.resources = resources;
+      this.resourcesStateHash = await this.computeResourcesStateHash();
+    }
+  }
 
-	private static readonly MAX_RESOURCE_STATE_SOURCE_LENGTH = 1000;
+  async readResources(): Promise<URI[]> {
+    // Guard access to navigator.clipboard with try/catch
+    // as we have seen DOMExceptions in certain browsers
+    // due to security policies.
+    try {
+      const items = await getActiveWindow().navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+          const blob = await item.getType(`web ${vscodeResourcesMime}`);
+          const resources = (JSON.parse(await blob.text()) as URI[]).map((x) =>
+            URI.from(x)
+          );
+          return resources;
+        }
+      }
+    } catch (error) {
+      // Noop
+    }
 
-	async writeResources(resources: URI[]): Promise<void> {
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			await getActiveWindow().navigator.clipboard.write([
-				new ClipboardItem({
-					[`web ${vscodeResourcesMime}`]: new Blob([
-						JSON.stringify(resources.map(x => x.toJSON()))
-					], {
-						type: vscodeResourcesMime
-					})
-				})
-			]);
+    const resourcesStateHash = await this.computeResourcesStateHash();
+    if (this.resourcesStateHash !== resourcesStateHash) {
+      this.clearResourcesState(); // state mismatch, resources no longer valid
+    }
 
-			// Continue to write to the in-memory clipboard as well.
-			// This is needed because some browsers allow the paste but then can't read the custom resources.
-		} catch (error) {
-			// Noop
-		}
+    return this.resources;
+  }
 
-		if (resources.length === 0) {
-			this.clearResourcesState();
-		} else {
-			this.resources = resources;
-			this.resourcesStateHash = await this.computeResourcesStateHash();
-		}
-	}
+  private async computeResourcesStateHash(): Promise<number | undefined> {
+    if (this.resources.length === 0) {
+      return undefined; // no resources, no hash needed
+    }
 
-	async readResources(): Promise<URI[]> {
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			const items = await getActiveWindow().navigator.clipboard.read();
-			for (const item of items) {
-				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
-					const blob = await item.getType(`web ${vscodeResourcesMime}`);
-					const resources = (JSON.parse(await blob.text()) as URI[]).map(x => URI.from(x));
-					return resources;
-				}
-			}
-		} catch (error) {
-			// Noop
-		}
+    // Resources clipboard is managed in-memory only and thus
+    // fails to invalidate when clipboard data is changing.
+    // As such, we compute the hash of the current clipboard
+    // and use that to later validate the resources clipboard.
 
-		const resourcesStateHash = await this.computeResourcesStateHash();
-		if (this.resourcesStateHash !== resourcesStateHash) {
-			this.clearResourcesState(); // state mismatch, resources no longer valid
-		}
+    const clipboardText = await this.readText();
+    return hash(
+      clipboardText.substring(
+        0,
+        BrowserClipboardService.MAX_RESOURCE_STATE_SOURCE_LENGTH
+      )
+    );
+  }
 
-		return this.resources;
-	}
+  async hasResources(): Promise<boolean> {
+    // Guard access to navigator.clipboard with try/catch
+    // as we have seen DOMExceptions in certain browsers
+    // due to security policies.
+    try {
+      const items = await getActiveWindow().navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes(`web ${vscodeResourcesMime}`)) {
+          return true;
+        }
+      }
+    } catch (error) {
+      // Noop
+    }
 
-	private async computeResourcesStateHash(): Promise<number | undefined> {
-		if (this.resources.length === 0) {
-			return undefined; // no resources, no hash needed
-		}
+    return this.resources.length > 0;
+  }
 
-		// Resources clipboard is managed in-memory only and thus
-		// fails to invalidate when clipboard data is changing.
-		// As such, we compute the hash of the current clipboard
-		// and use that to later validate the resources clipboard.
+  public clearInternalState(): void {
+    this.clearResourcesState();
+  }
 
-		const clipboardText = await this.readText();
-		return hash(clipboardText.substring(0, BrowserClipboardService.MAX_RESOURCE_STATE_SOURCE_LENGTH));
-	}
-
-	async hasResources(): Promise<boolean> {
-		// Guard access to navigator.clipboard with try/catch
-		// as we have seen DOMExceptions in certain browsers
-		// due to security policies.
-		try {
-			const items = await getActiveWindow().navigator.clipboard.read();
-			for (const item of items) {
-				if (item.types.includes(`web ${vscodeResourcesMime}`)) {
-					return true;
-				}
-			}
-		} catch (error) {
-			// Noop
-		}
-
-		return this.resources.length > 0;
-	}
-
-	public clearInternalState(): void {
-		this.clearResourcesState();
-	}
-
-	private clearResourcesState(): void {
-		this.resources = [];
-		this.resourcesStateHash = undefined;
-	}
+  private clearResourcesState(): void {
+    this.resources = [];
+    this.resourcesStateHash = undefined;
+  }
 }

@@ -30,8 +30,10 @@ const TEXT_STATE_LABEL = {
 const TEXT_STATE_DESCRIPTION = {
 	[State.Disabled]: vscode.l10n.t('Auto attach is disabled and not shown in status bar'),
 	[State.Always]: vscode.l10n.t('Auto attach to every Node.js process launched in the terminal'),
-	[State.Smart]: vscode.l10n.t("Auto attach when running scripts that aren't in a node_modules folder"),
-	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given')
+	[State.Smart]: vscode.l10n.t(
+		"Auto attach when running scripts that aren't in a node_modules folder",
+	),
+	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given'),
 };
 const TEXT_TOGGLE_WORKSPACE = vscode.l10n.t('Toggle auto attach in this workspace');
 const TEXT_TOGGLE_GLOBAL = vscode.l10n.t('Toggle auto attach on this machine');
@@ -51,7 +53,6 @@ const SETTING_STATE = 'autoAttachFilter';
 const SETTINGS_CAUSE_REFRESH = new Set(
 	['autoAttachSmartPattern', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
 );
-
 
 let currentState: Promise<{ context: vscode.ExtensionContext; state: State | null }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
@@ -104,10 +105,17 @@ function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect
 	return vscode.ConfigurationTarget.Global;
 }
 
-type PickResult = { state: State } | { setTempDisabled: boolean } | { scope: vscode.ConfigurationTarget } | undefined;
+type PickResult =
+	| { state: State }
+	| { setTempDisabled: boolean }
+	| { scope: vscode.ConfigurationTarget }
+	| undefined;
 type PickItem = vscode.QuickPickItem & ({ state: State } | { setTempDisabled: boolean });
 
-async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?: vscode.ConfigurationTarget): Promise<void> {
+async function toggleAutoAttachSetting(
+	context: vscode.ExtensionContext,
+	scope?: vscode.ConfigurationTarget,
+): Promise<void> {
 	const section = vscode.workspace.getConfiguration(SETTING_SECTION);
 	scope = scope || getDefaultScope(section.inspect(SETTING_STATE));
 
@@ -115,12 +123,14 @@ async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?:
 	const quickPick = vscode.window.createQuickPick<PickItem>();
 	const current = readCurrentState();
 
-	const items: PickItem[] = [State.Always, State.Smart, State.OnlyWithFlag, State.Disabled].map(state => ({
-		state,
-		label: TEXT_STATE_LABEL[state],
-		description: TEXT_STATE_DESCRIPTION[state],
-		alwaysShow: true,
-	}));
+	const items: PickItem[] = [State.Always, State.Smart, State.OnlyWithFlag, State.Disabled].map(
+		state => ({
+			state,
+			label: TEXT_STATE_LABEL[state],
+			description: TEXT_STATE_DESCRIPTION[state],
+			alwaysShow: true,
+		}),
+	);
 
 	if (current !== State.Disabled) {
 		items.unshift({
@@ -192,7 +202,7 @@ function readCurrentState(): State {
 }
 
 async function clearJsDebugAttachState(context: vscode.ExtensionContext) {
-	if (server || await context.workspaceState.get(STORAGE_IPC)) {
+	if (server || (await context.workspaceState.get(STORAGE_IPC))) {
 		await context.workspaceState.update(STORAGE_IPC, undefined);
 		await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
 		await destroyAttachServer();
@@ -319,10 +329,13 @@ function updateStatusBar(context: vscode.ExtensionContext, state: State, busy = 
 	}
 
 	if (!statusItem) {
-		statusItem = vscode.window.createStatusBarItem('status.debug.autoAttach', vscode.StatusBarAlignment.Left);
-		statusItem.name = vscode.l10n.t("Debug Auto Attach");
+		statusItem = vscode.window.createStatusBarItem(
+			'status.debug.autoAttach',
+			vscode.StatusBarAlignment.Left,
+		);
+		statusItem.name = vscode.l10n.t('Debug Auto Attach');
 		statusItem.command = TOGGLE_COMMAND;
-		statusItem.tooltip = vscode.l10n.t("Automatically attach to node.js processes in debug mode");
+		statusItem.tooltip = vscode.l10n.t('Automatically attach to node.js processes in debug mode');
 		context.subscriptions.push(statusItem);
 	}
 

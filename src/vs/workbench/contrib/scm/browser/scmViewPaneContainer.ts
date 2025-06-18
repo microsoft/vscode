@@ -19,29 +19,42 @@ import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContaine
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
+  constructor(
+    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+    @ITelemetryService telemetryService: ITelemetryService,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IContextMenuService contextMenuService: IContextMenuService,
+    @IThemeService themeService: IThemeService,
+    @IStorageService storageService: IStorageService,
+    @IConfigurationService configurationService: IConfigurationService,
+    @IExtensionService extensionService: IExtensionService,
+    @IWorkspaceContextService contextService: IWorkspaceContextService,
+    @IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+    @ILogService logService: ILogService
+  ) {
+    super(
+      VIEWLET_ID,
+      { mergeViewWithContainerWhenSingleView: true },
+      instantiationService,
+      configurationService,
+      layoutService,
+      contextMenuService,
+      telemetryService,
+      extensionService,
+      themeService,
+      storageService,
+      contextService,
+      viewDescriptorService,
+      logService
+    );
+  }
 
-	constructor(
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ILogService logService: ILogService,
-	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
-	}
+  override create(parent: HTMLElement): void {
+    super.create(parent);
+    parent.classList.add('scm-viewlet');
+  }
 
-	override create(parent: HTMLElement): void {
-		super.create(parent);
-		parent.classList.add('scm-viewlet');
-	}
-
-	override getOptimalWidth(): number {
-		return 400;
-	}
+  override getOptimalWidth(): number {
+    return 400;
+  }
 }

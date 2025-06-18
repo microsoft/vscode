@@ -8,26 +8,32 @@ import * as vscode from 'vscode';
 import { asPromise, assertNoRpc, closeAllEditors } from '../utils';
 
 suite('vscode - automatic language detection', () => {
+  teardown(async function () {
+    assertNoRpc();
+    await closeAllEditors();
+  });
 
-	teardown(async function () {
-		assertNoRpc();
-		await closeAllEditors();
-	});
+  // TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/135157
+  test.skip('test automatic language detection works', async () => {
+    const receivedEvent = asPromise(
+      vscode.workspace.onDidOpenTextDocument,
+      5000
+    );
+    const doc = await vscode.workspace.openTextDocument();
+    const editor = await vscode.window.showTextDocument(doc);
+    await receivedEvent;
 
-	// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/135157
-	test.skip('test automatic language detection works', async () => {
-		const receivedEvent = asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
-		const doc = await vscode.workspace.openTextDocument();
-		const editor = await vscode.window.showTextDocument(doc);
-		await receivedEvent;
+    assert.strictEqual(editor.document.languageId, 'plaintext');
 
-		assert.strictEqual(editor.document.languageId, 'plaintext');
+    const settingResult = vscode.workspace
+      .getConfiguration()
+      .get<boolean>('workbench.editor.languageDetection');
+    assert.ok(settingResult);
 
-		const settingResult = vscode.workspace.getConfiguration().get<boolean>('workbench.editor.languageDetection');
-		assert.ok(settingResult);
-
-		const result = await editor.edit(editBuilder => {
-			editBuilder.insert(new vscode.Position(0, 0), `{
+    const result = await editor.edit((editBuilder) => {
+      editBuilder.insert(
+        new vscode.Position(0, 0),
+        `{
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"removeComments": false,
@@ -54,17 +60,18 @@ suite('vscode - automatic language detection', () => {
 		"./typings",
 		"./vs"
 	]
-}`);
-		});
+}`
+      );
+    });
 
-		assert.ok(result);
+    assert.ok(result);
 
-		// Changing the language triggers a file to be closed and opened again so wait for that event to happen.
-		let newDoc;
-		do {
-			newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
-		} while (doc.uri.toString() !== newDoc.uri.toString());
+    // Changing the language triggers a file to be closed and opened again so wait for that event to happen.
+    let newDoc;
+    do {
+      newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
+    } while (doc.uri.toString() !== newDoc.uri.toString());
 
-		assert.strictEqual(newDoc.languageId, 'json');
-	});
+    assert.strictEqual(newDoc.languageId, 'json');
+  });
 });

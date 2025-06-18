@@ -13,21 +13,21 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
  * Represents a generic file system node.
  */
 interface IMockFilesystemNode {
-	name: string;
+  name: string;
 }
 
 /**
  * Represents a `file` node.
  */
 export interface IMockFile extends IMockFilesystemNode {
-	contents: string | readonly string[];
+  contents: string | readonly string[];
 }
 
 /**
  * Represents a `folder` node.
  */
 export interface IMockFolder extends IMockFilesystemNode {
-	children: (IMockFolder | IMockFile)[];
+  children: (IMockFolder | IMockFile)[];
 }
 
 /**
@@ -39,86 +39,92 @@ type TWithURI<T extends IMockFilesystemNode> = T & { uri: URI };
  * Utility to recursively creates provided filesystem structure.
  */
 export class MockFilesystem {
-	constructor(
-		private readonly folders: IMockFolder[],
-		@IFileService private readonly fileService: IFileService,
-	) { }
+  constructor(
+    private readonly folders: IMockFolder[],
+    @IFileService private readonly fileService: IFileService
+  ) {}
 
-	/**
-	 * Starts the mock process.
-	 */
-	public async mock(): Promise<TWithURI<IMockFolder>[]> {
-		const result = await Promise.all(
-			this.folders
-				.map((folder) => {
-					return this.mockFolder(folder);
-				}),
-		);
+  /**
+   * Starts the mock process.
+   */
+  public async mock(): Promise<TWithURI<IMockFolder>[]> {
+    const result = await Promise.all(
+      this.folders.map((folder) => {
+        return this.mockFolder(folder);
+      })
+    );
 
-		// wait for the filesystem event to settle before proceeding
-		// this is temporary workaround and should be fixed once we
-		// improve behavior of the `settled()` / `allSettled()` methods
-		await timeout(25);
+    // wait for the filesystem event to settle before proceeding
+    // this is temporary workaround and should be fixed once we
+    // improve behavior of the `settled()` / `allSettled()` methods
+    await timeout(25);
 
-		return result;
-	}
+    return result;
+  }
 
-	/**
-	 * The internal implementation of the filesystem mocking process.
-	 *
-	 * @throws If a folder or file in the filesystem structure already exists.
-	 * 		   This is to prevent subtle errors caused by overwriting existing files.
-	 */
-	private async mockFolder(
-		folder: IMockFolder,
-		parentFolder?: URI,
-	): Promise<TWithURI<IMockFolder>> {
-		const folderUri = parentFolder
-			? URI.joinPath(parentFolder, folder.name)
-			: URI.file(folder.name);
+  /**
+   * The internal implementation of the filesystem mocking process.
+   *
+   * @throws If a folder or file in the filesystem structure already exists.
+   * 		   This is to prevent subtle errors caused by overwriting existing files.
+   */
+  private async mockFolder(
+    folder: IMockFolder,
+    parentFolder?: URI
+  ): Promise<TWithURI<IMockFolder>> {
+    const folderUri = parentFolder
+      ? URI.joinPath(parentFolder, folder.name)
+      : URI.file(folder.name);
 
-		assert(
-			!(await this.fileService.exists(folderUri)),
-			`Folder '${folderUri.path}' already exists.`,
-		);
+    assert(
+      !(await this.fileService.exists(folderUri)),
+      `Folder '${folderUri.path}' already exists.`
+    );
 
-		try {
-			await this.fileService.createFolder(folderUri);
-		} catch (error) {
-			throw new Error(`Failed to create folder '${folderUri.fsPath}': ${error}.`);
-		}
+    try {
+      await this.fileService.createFolder(folderUri);
+    } catch (error) {
+      throw new Error(
+        `Failed to create folder '${folderUri.fsPath}': ${error}.`
+      );
+    }
 
-		const resolvedChildren: (TWithURI<IMockFolder> | TWithURI<IMockFile>)[] = [];
-		for (const child of folder.children) {
-			const childUri = URI.joinPath(folderUri, child.name);
-			// create child file
-			if ('contents' in child) {
-				assert(
-					!(await this.fileService.exists(childUri)),
-					`File '${folderUri.path}' already exists.`,
-				);
+    const resolvedChildren: (TWithURI<IMockFolder> | TWithURI<IMockFile>)[] =
+      [];
+    for (const child of folder.children) {
+      const childUri = URI.joinPath(folderUri, child.name);
+      // create child file
+      if ('contents' in child) {
+        assert(
+          !(await this.fileService.exists(childUri)),
+          `File '${folderUri.path}' already exists.`
+        );
 
-				const contents: string = (typeof child.contents === 'string')
-					? child.contents
-					: child.contents.join('\n');
+        const contents: string =
+          typeof child.contents === 'string'
+            ? child.contents
+            : child.contents.join('\n');
 
-				await this.fileService.writeFile(childUri, VSBuffer.fromString(contents));
+        await this.fileService.writeFile(
+          childUri,
+          VSBuffer.fromString(contents)
+        );
 
-				resolvedChildren.push({
-					...child,
-					uri: childUri,
-				});
+        resolvedChildren.push({
+          ...child,
+          uri: childUri,
+        });
 
-				continue;
-			}
+        continue;
+      }
 
-			// recursively create child filesystem structure
-			resolvedChildren.push(await this.mockFolder(child, folderUri));
-		}
+      // recursively create child filesystem structure
+      resolvedChildren.push(await this.mockFolder(child, folderUri));
+    }
 
-		return {
-			...folder,
-			uri: folderUri,
-		};
-	}
+    return {
+      ...folder,
+      uri: folderUri,
+    };
+  }
 }

@@ -9,63 +9,73 @@ import { TestFS } from '../memfs';
 import { assertNoRpc } from '../utils';
 
 suite('vscode API - workspace-watcher', () => {
+  interface IWatchRequest {
+    uri: vscode.Uri;
+    options: { recursive: boolean; excludes: string[] };
+  }
 
-	interface IWatchRequest {
-		uri: vscode.Uri;
-		options: { recursive: boolean; excludes: string[] };
-	}
+  class WatcherTestFs extends TestFS {
+    private _onDidWatch = new vscode.EventEmitter<IWatchRequest>();
+    readonly onDidWatch = this._onDidWatch.event;
 
-	class WatcherTestFs extends TestFS {
+    override watch(
+      uri: vscode.Uri,
+      options: { recursive: boolean; excludes: string[] }
+    ): vscode.Disposable {
+      this._onDidWatch.fire({ uri, options });
 
-		private _onDidWatch = new vscode.EventEmitter<IWatchRequest>();
-		readonly onDidWatch = this._onDidWatch.event;
+      return super.watch(uri, options);
+    }
+  }
 
-		override watch(uri: vscode.Uri, options: { recursive: boolean; excludes: string[] }): vscode.Disposable {
-			this._onDidWatch.fire({ uri, options });
+  let fs: WatcherTestFs;
+  let disposable: vscode.Disposable;
 
-			return super.watch(uri, options);
-		}
-	}
+  function onDidWatchPromise() {
+    const onDidWatchPromise = new Promise<IWatchRequest>((resolve) => {
+      fs.onDidWatch((request) => resolve(request));
+    });
 
-	let fs: WatcherTestFs;
-	let disposable: vscode.Disposable;
+    return onDidWatchPromise;
+  }
 
-	function onDidWatchPromise() {
-		const onDidWatchPromise = new Promise<IWatchRequest>(resolve => {
-			fs.onDidWatch(request => resolve(request));
-		});
+  setup(() => {
+    fs = new WatcherTestFs('watcherTest', false);
+    disposable = vscode.workspace.registerFileSystemProvider('watcherTest', fs);
+  });
 
-		return onDidWatchPromise;
-	}
+  teardown(() => {
+    disposable.dispose();
+    assertNoRpc();
+  });
 
-	setup(() => {
-		fs = new WatcherTestFs('watcherTest', false);
-		disposable = vscode.workspace.registerFileSystemProvider('watcherTest', fs);
-	});
+  test('createFileSystemWatcher', async function () {
+    // Non-recursive
+    let watchUri = vscode.Uri.from({
+      scheme: 'watcherTest',
+      path: '/somePath/folder',
+    });
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(watchUri, '*.txt')
+    );
+    let request = await onDidWatchPromise();
 
-	teardown(() => {
-		disposable.dispose();
-		assertNoRpc();
-	});
+    assert.strictEqual(request.uri.toString(), watchUri.toString());
+    assert.strictEqual(request.options.recursive, false);
 
-	test('createFileSystemWatcher', async function () {
+    watcher.dispose();
 
-		// Non-recursive
-		let watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchUri, '*.txt'));
-		let request = await onDidWatchPromise();
+    // Recursive
+    watchUri = vscode.Uri.from({
+      scheme: 'watcherTest',
+      path: '/somePath/folder',
+    });
+    vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(watchUri, '**/*.txt')
+    );
+    request = await onDidWatchPromise();
 
-		assert.strictEqual(request.uri.toString(), watchUri.toString());
-		assert.strictEqual(request.options.recursive, false);
-
-		watcher.dispose();
-
-		// Recursive
-		watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });
-		vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchUri, '**/*.txt'));
-		request = await onDidWatchPromise();
-
-		assert.strictEqual(request.uri.toString(), watchUri.toString());
-		assert.strictEqual(request.options.recursive, true);
-	});
+    assert.strictEqual(request.uri.toString(), watchUri.toString());
+    assert.strictEqual(request.options.recursive, true);
+  });
 });

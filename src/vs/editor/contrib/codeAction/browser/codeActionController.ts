@@ -12,7 +12,10 @@ import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import {
+  Disposable,
+  MutableDisposable,
+} from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionListDelegate } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -22,18 +25,32 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import {
+  editorFindMatchHighlight,
+  editorFindMatchHighlightBorder,
+} from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IPosition, Position } from '../../../common/core/position.js';
-import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import {
+  IEditorContribution,
+  ScrollType,
+} from '../../../common/editorCommon.js';
 import { CodeActionTriggerType } from '../../../common/languages.js';
 import { IModelDeltaDecoration } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { MessageController } from '../../message/browser/messageController.js';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
+import {
+  CodeActionAutoApply,
+  CodeActionFilter,
+  CodeActionItem,
+  CodeActionKind,
+  CodeActionSet,
+  CodeActionTrigger,
+  CodeActionTriggerSource,
+} from '../common/types.js';
 import { ApplyCodeActionReason, applyCodeAction } from './codeAction.js';
 import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver.js';
 import { toMenuItems } from './codeActionMenu.js';
@@ -41,396 +58,578 @@ import { CodeActionModel, CodeActionsState } from './codeActionModel.js';
 import { LightBulbWidget } from './lightBulbWidget.js';
 
 interface IActionShowOptions {
-	readonly includeDisabledActions?: boolean;
-	readonly fromLightbulb?: boolean;
+  readonly includeDisabledActions?: boolean;
+  readonly fromLightbulb?: boolean;
 }
-
 
 const DECORATION_CLASS_NAME = 'quickfix-edit-highlight';
 
-export class CodeActionController extends Disposable implements IEditorContribution {
+export class CodeActionController
+  extends Disposable
+  implements IEditorContribution
+{
+  public static readonly ID = 'editor.contrib.codeActionController';
 
-	public static readonly ID = 'editor.contrib.codeActionController';
+  public static get(editor: ICodeEditor): CodeActionController | null {
+    return editor.getContribution<CodeActionController>(
+      CodeActionController.ID
+    );
+  }
 
-	public static get(editor: ICodeEditor): CodeActionController | null {
-		return editor.getContribution<CodeActionController>(CodeActionController.ID);
-	}
+  private readonly _editor: ICodeEditor;
+  private readonly _model: CodeActionModel;
 
-	private readonly _editor: ICodeEditor;
-	private readonly _model: CodeActionModel;
+  private readonly _lightBulbWidget: Lazy<LightBulbWidget | null>;
+  private readonly _activeCodeActions = this._register(
+    new MutableDisposable<CodeActionSet>()
+  );
+  private _showDisabled = false;
 
-	private readonly _lightBulbWidget: Lazy<LightBulbWidget | null>;
-	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
-	private _showDisabled = false;
+  private readonly _resolver: CodeActionKeybindingResolver;
 
-	private readonly _resolver: CodeActionKeybindingResolver;
+  private _disposed = false;
 
-	private _disposed = false;
+  constructor(
+    editor: ICodeEditor,
+    @IMarkerService markerService: IMarkerService,
+    @IContextKeyService contextKeyService: IContextKeyService,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+    @IEditorProgressService progressService: IEditorProgressService,
+    @ICommandService private readonly _commandService: ICommandService,
+    @IConfigurationService
+    private readonly _configurationService: IConfigurationService,
+    @IActionWidgetService
+    private readonly _actionWidgetService: IActionWidgetService,
+    @IInstantiationService
+    private readonly _instantiationService: IInstantiationService,
+    @IEditorProgressService
+    private readonly _progressService: IEditorProgressService
+  ) {
+    super();
 
-	constructor(
-		editor: ICodeEditor,
-		@IMarkerService markerService: IMarkerService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IEditorProgressService progressService: IEditorProgressService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly _progressService: IEditorProgressService,
-	) {
-		super();
+    this._editor = editor;
+    this._model = this._register(
+      new CodeActionModel(
+        this._editor,
+        languageFeaturesService.codeActionProvider,
+        markerService,
+        contextKeyService,
+        progressService,
+        _configurationService
+      )
+    );
+    this._register(
+      this._model.onDidChangeState((newState) => this.update(newState))
+    );
 
-		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
-		this._register(this._model.onDidChangeState(newState => this.update(newState)));
+    this._lightBulbWidget = new Lazy(() => {
+      const widget = this._editor.getContribution<LightBulbWidget>(
+        LightBulbWidget.ID
+      );
+      if (widget) {
+        this._register(
+          widget.onClick((e) => this.showCodeActionsFromLightbulb(e.actions, e))
+        );
+      }
+      return widget;
+    });
 
-		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
-			if (widget) {
-				this._register(widget.onClick(e => this.showCodeActionsFromLightbulb(e.actions, e)));
-			}
-			return widget;
-		});
+    this._resolver = instantiationService.createInstance(
+      CodeActionKeybindingResolver
+    );
 
-		this._resolver = instantiationService.createInstance(CodeActionKeybindingResolver);
+    this._register(
+      this._editor.onDidLayoutChange(() => this._actionWidgetService.hide())
+    );
+  }
 
-		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
-	}
+  override dispose() {
+    this._disposed = true;
+    super.dispose();
+  }
 
-	override dispose() {
-		this._disposed = true;
-		super.dispose();
-	}
+  private async showCodeActionsFromLightbulb(
+    actions: CodeActionSet,
+    at: IAnchor | IPosition
+  ): Promise<void> {
+    if (actions.allAIFixes && actions.validActions.length === 1) {
+      const actionItem = actions.validActions[0];
+      const command = actionItem.action.command;
+      if (command && command.id === 'inlineChat.start') {
+        if (command.arguments && command.arguments.length >= 1) {
+          command.arguments[0] = { ...command.arguments[0], autoSend: false };
+        }
+      }
+      await this.applyCodeAction(
+        actionItem,
+        false,
+        false,
+        ApplyCodeActionReason.FromAILightbulb
+      );
+      return;
+    }
+    await this.showCodeActionList(actions, at, {
+      includeDisabledActions: false,
+      fromLightbulb: true,
+    });
+  }
 
-	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		if (actions.allAIFixes && actions.validActions.length === 1) {
-			const actionItem = actions.validActions[0];
-			const command = actionItem.action.command;
-			if (command && command.id === 'inlineChat.start') {
-				if (command.arguments && command.arguments.length >= 1) {
-					command.arguments[0] = { ...command.arguments[0], autoSend: false };
-				}
-			}
-			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
-			return;
-		}
-		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
-	}
+  public showCodeActions(
+    _trigger: CodeActionTrigger,
+    actions: CodeActionSet,
+    at: IAnchor | IPosition
+  ) {
+    return this.showCodeActionList(actions, at, {
+      includeDisabledActions: false,
+      fromLightbulb: false,
+    });
+  }
 
-	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
-	}
+  public hideCodeActions(): void {
+    this._actionWidgetService.hide();
+  }
 
-	public hideCodeActions(): void {
-		this._actionWidgetService.hide();
-	}
+  public manualTriggerAtCurrentPosition(
+    notAvailableMessage: string,
+    triggerAction: CodeActionTriggerSource,
+    filter?: CodeActionFilter,
+    autoApply?: CodeActionAutoApply
+  ): void {
+    if (!this._editor.hasModel()) {
+      return;
+    }
 
-	public manualTriggerAtCurrentPosition(
-		notAvailableMessage: string,
-		triggerAction: CodeActionTriggerSource,
-		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply,
-	): void {
-		if (!this._editor.hasModel()) {
-			return;
-		}
+    MessageController.get(this._editor)?.closeMessage();
+    const triggerPosition = this._editor.getPosition();
+    this._trigger({
+      type: CodeActionTriggerType.Invoke,
+      triggerAction,
+      filter,
+      autoApply,
+      context: { notAvailableMessage, position: triggerPosition },
+    });
+  }
 
-		MessageController.get(this._editor)?.closeMessage();
-		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, triggerAction, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
-	}
+  private _trigger(trigger: CodeActionTrigger) {
+    return this._model.trigger(trigger);
+  }
 
-	private _trigger(trigger: CodeActionTrigger) {
-		return this._model.trigger(trigger);
-	}
+  async applyCodeAction(
+    action: CodeActionItem,
+    retrigger: boolean,
+    preview: boolean,
+    actionReason: ApplyCodeActionReason
+  ): Promise<void> {
+    const progress = this._progressService.show(true, 500);
+    try {
+      await this._instantiationService.invokeFunction(
+        applyCodeAction,
+        action,
+        actionReason,
+        { preview, editor: this._editor }
+      );
+    } finally {
+      if (retrigger) {
+        this._trigger({
+          type: CodeActionTriggerType.Auto,
+          triggerAction: CodeActionTriggerSource.QuickFix,
+          filter: {},
+        });
+      }
+      progress.done();
+    }
+  }
 
-	async applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
-		const progress = this._progressService.show(true, 500);
-		try {
-			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
-		} finally {
-			if (retrigger) {
-				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
-			}
-			progress.done();
-		}
-	}
+  public hideLightBulbWidget(): void {
+    this._lightBulbWidget.rawValue?.hide();
+    this._lightBulbWidget.rawValue?.gutterHide();
+  }
 
-	public hideLightBulbWidget(): void {
-		this._lightBulbWidget.rawValue?.hide();
-		this._lightBulbWidget.rawValue?.gutterHide();
-	}
+  private async update(newState: CodeActionsState.State): Promise<void> {
+    if (newState.type !== CodeActionsState.Type.Triggered) {
+      this.hideLightBulbWidget();
+      return;
+    }
 
-	private async update(newState: CodeActionsState.State): Promise<void> {
-		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this.hideLightBulbWidget();
-			return;
-		}
+    let actions: CodeActionSet;
+    try {
+      actions = await newState.actions;
+    } catch (e) {
+      onUnexpectedError(e);
+      return;
+    }
 
-		let actions: CodeActionSet;
-		try {
-			actions = await newState.actions;
-		} catch (e) {
-			onUnexpectedError(e);
-			return;
-		}
+    if (this._disposed) {
+      return;
+    }
 
-		if (this._disposed) {
-			return;
-		}
+    const selection = this._editor.getSelection();
+    if (selection?.startLineNumber !== newState.position.lineNumber) {
+      return;
+    }
 
+    this._lightBulbWidget.value?.update(
+      actions,
+      newState.trigger,
+      newState.position
+    );
 
-		const selection = this._editor.getSelection();
-		if (selection?.startLineNumber !== newState.position.lineNumber) {
-			return;
-		}
+    if (newState.trigger.type === CodeActionTriggerType.Invoke) {
+      if (newState.trigger.filter?.include) {
+        // Triggered for specific scope
+        // Check to see if we want to auto apply.
 
-		this._lightBulbWidget.value?.update(actions, newState.trigger, newState.position);
+        const validActionToApply = this.tryGetValidActionToApply(
+          newState.trigger,
+          actions
+        );
+        if (validActionToApply) {
+          try {
+            this.hideLightBulbWidget();
+            await this.applyCodeAction(
+              validActionToApply,
+              false,
+              false,
+              ApplyCodeActionReason.FromCodeActions
+            );
+          } finally {
+            actions.dispose();
+          }
+          return;
+        }
 
-		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
-			if (newState.trigger.filter?.include) { // Triggered for specific scope
-				// Check to see if we want to auto apply.
+        // Check to see if there is an action that we would have applied were it not invalid
+        if (newState.trigger.context) {
+          const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(
+            newState.trigger,
+            actions
+          );
+          if (invalidAction && invalidAction.action.disabled) {
+            MessageController.get(this._editor)?.showMessage(
+              invalidAction.action.disabled,
+              newState.trigger.context.position
+            );
+            actions.dispose();
+            return;
+          }
+        }
+      }
 
-				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
-				if (validActionToApply) {
-					try {
-						this.hideLightBulbWidget();
-						await this.applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
-					} finally {
-						actions.dispose();
-					}
-					return;
-				}
+      const includeDisabledActions = !!newState.trigger.filter?.include;
+      if (newState.trigger.context) {
+        if (
+          !actions.allActions.length ||
+          (!includeDisabledActions && !actions.validActions.length)
+        ) {
+          MessageController.get(this._editor)?.showMessage(
+            newState.trigger.context.notAvailableMessage,
+            newState.trigger.context.position
+          );
+          this._activeCodeActions.value = actions;
+          actions.dispose();
+          return;
+        }
+      }
 
-				// Check to see if there is an action that we would have applied were it not invalid
-				if (newState.trigger.context) {
-					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
-					if (invalidAction && invalidAction.action.disabled) {
-						MessageController.get(this._editor)?.showMessage(invalidAction.action.disabled, newState.trigger.context.position);
-						actions.dispose();
-						return;
-					}
-				}
-			}
+      this._activeCodeActions.value = actions;
+      this.showCodeActionList(actions, this.toCoords(newState.position), {
+        includeDisabledActions,
+        fromLightbulb: false,
+      });
+    } else {
+      // auto magically triggered
+      if (this._actionWidgetService.isVisible) {
+        // TODO: Figure out if we should update the showing menu?
+        actions.dispose();
+      } else {
+        this._activeCodeActions.value = actions;
+      }
+    }
+  }
 
-			const includeDisabledActions = !!newState.trigger.filter?.include;
-			if (newState.trigger.context) {
-				if (!actions.allActions.length || !includeDisabledActions && !actions.validActions.length) {
-					MessageController.get(this._editor)?.showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
-					this._activeCodeActions.value = actions;
-					actions.dispose();
-					return;
-				}
-			}
+  private getInvalidActionThatWouldHaveBeenApplied(
+    trigger: CodeActionTrigger,
+    actions: CodeActionSet
+  ): CodeActionItem | undefined {
+    if (!actions.allActions.length) {
+      return undefined;
+    }
 
-			this._activeCodeActions.value = actions;
-			this.showCodeActionList(actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false });
-		} else {
-			// auto magically triggered
-			if (this._actionWidgetService.isVisible) {
-				// TODO: Figure out if we should update the showing menu?
-				actions.dispose();
-			} else {
-				this._activeCodeActions.value = actions;
-			}
-		}
-	}
+    if (
+      (trigger.autoApply === CodeActionAutoApply.First &&
+        actions.validActions.length === 0) ||
+      (trigger.autoApply === CodeActionAutoApply.IfSingle &&
+        actions.allActions.length === 1)
+    ) {
+      return actions.allActions.find(({ action }) => action.disabled);
+    }
 
-	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
-		if (!actions.allActions.length) {
-			return undefined;
-		}
+    return undefined;
+  }
 
-		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
-			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
-		) {
-			return actions.allActions.find(({ action }) => action.disabled);
-		}
+  private tryGetValidActionToApply(
+    trigger: CodeActionTrigger,
+    actions: CodeActionSet
+  ): CodeActionItem | undefined {
+    if (!actions.validActions.length) {
+      return undefined;
+    }
 
-		return undefined;
-	}
+    if (
+      (trigger.autoApply === CodeActionAutoApply.First &&
+        actions.validActions.length > 0) ||
+      (trigger.autoApply === CodeActionAutoApply.IfSingle &&
+        actions.validActions.length === 1)
+    ) {
+      return actions.validActions[0];
+    }
 
-	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
-		if (!actions.validActions.length) {
-			return undefined;
-		}
+    return undefined;
+  }
 
-		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length > 0)
-			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)
-		) {
-			return actions.validActions[0];
-		}
+  private static readonly DECORATION = ModelDecorationOptions.register({
+    description: 'quickfix-highlight',
+    className: DECORATION_CLASS_NAME,
+  });
 
-		return undefined;
-	}
+  public async showCodeActionList(
+    actions: CodeActionSet,
+    at: IAnchor | IPosition,
+    options: IActionShowOptions
+  ): Promise<void> {
+    const currentDecorations = this._editor.createDecorationsCollection();
 
-	private static readonly DECORATION = ModelDecorationOptions.register({
-		description: 'quickfix-highlight',
-		className: DECORATION_CLASS_NAME
-	});
+    const editorDom = this._editor.getDomNode();
+    if (!editorDom) {
+      return;
+    }
 
-	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+    const actionsToShow =
+      options.includeDisabledActions &&
+      (this._showDisabled || actions.validActions.length === 0)
+        ? actions.allActions
+        : actions.validActions;
+    if (!actionsToShow.length) {
+      return;
+    }
 
-		const currentDecorations = this._editor.createDecorationsCollection();
+    const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		const editorDom = this._editor.getDomNode();
-		if (!editorDom) {
-			return;
-		}
+    const delegate: IActionListDelegate<CodeActionItem> = {
+      onSelect: async (action: CodeActionItem, preview?: boolean) => {
+        this.applyCodeAction(
+          action,
+          /* retrigger */ true,
+          !!preview,
+          options.fromLightbulb
+            ? ApplyCodeActionReason.FromAILightbulb
+            : ApplyCodeActionReason.FromCodeActions
+        );
+        this._actionWidgetService.hide(false);
+        currentDecorations.clear();
+      },
+      onHide: (didCancel?) => {
+        this._editor?.focus();
+        currentDecorations.clear();
+      },
+      onHover: async (action: CodeActionItem, token: CancellationToken) => {
+        if (token.isCancellationRequested) {
+          return;
+        }
 
-		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
-		if (!actionsToShow.length) {
-			return;
-		}
+        let canPreview = false;
+        const actionKind = action.action.kind;
 
-		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
+        if (actionKind) {
+          const hierarchicalKind = new HierarchicalKind(actionKind);
+          const refactorKinds = [
+            CodeActionKind.RefactorExtract,
+            CodeActionKind.RefactorInline,
+            CodeActionKind.RefactorRewrite,
+            CodeActionKind.RefactorMove,
+            CodeActionKind.Source,
+          ];
 
-		const delegate: IActionListDelegate<CodeActionItem> = {
-			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this.applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
-				this._actionWidgetService.hide(false);
-				currentDecorations.clear();
-			},
-			onHide: (didCancel?) => {
-				this._editor?.focus();
-				currentDecorations.clear();
-			},
-			onHover: async (action: CodeActionItem, token: CancellationToken) => {
-				if (token.isCancellationRequested) {
-					return;
-				}
+          canPreview = refactorKinds.some((refactorKind) =>
+            refactorKind.contains(hierarchicalKind)
+          );
+        }
 
-				let canPreview = false;
-				const actionKind = action.action.kind;
+        return { canPreview: canPreview || !!action.action.edit?.edits.length };
+      },
+      onFocus: (action: CodeActionItem | undefined) => {
+        if (action && action.action) {
+          const ranges = action.action.ranges;
+          const diagnostics = action.action.diagnostics;
+          currentDecorations.clear();
+          if (ranges && ranges.length > 0) {
+            // Handles case for `fix all` where there are multiple diagnostics.
+            const decorations: IModelDeltaDecoration[] =
+              diagnostics && diagnostics?.length > 1
+                ? diagnostics.map((diagnostic) => ({
+                    range: diagnostic,
+                    options: CodeActionController.DECORATION,
+                  }))
+                : ranges.map((range) => ({
+                    range,
+                    options: CodeActionController.DECORATION,
+                  }));
+            currentDecorations.set(decorations);
+          } else if (diagnostics && diagnostics.length > 0) {
+            const decorations: IModelDeltaDecoration[] = diagnostics.map(
+              (diagnostic) => ({
+                range: diagnostic,
+                options: CodeActionController.DECORATION,
+              })
+            );
+            currentDecorations.set(decorations);
+            const diagnostic = diagnostics[0];
+            if (diagnostic.startLineNumber && diagnostic.startColumn) {
+              const selectionText = this._editor.getModel()?.getWordAtPosition({
+                lineNumber: diagnostic.startLineNumber,
+                column: diagnostic.startColumn,
+              })?.word;
+              aria.status(
+                localize(
+                  'editingNewSelection',
+                  'Context: {0} at line {1} and column {2}.',
+                  selectionText,
+                  diagnostic.startLineNumber,
+                  diagnostic.startColumn
+                )
+              );
+            }
+          }
+        } else {
+          currentDecorations.clear();
+        }
+      },
+    };
 
-				if (actionKind) {
-					const hierarchicalKind = new HierarchicalKind(actionKind);
-					const refactorKinds = [
-						CodeActionKind.RefactorExtract,
-						CodeActionKind.RefactorInline,
-						CodeActionKind.RefactorRewrite,
-						CodeActionKind.RefactorMove,
-						CodeActionKind.Source
-					];
+    this._actionWidgetService.show(
+      'codeActionWidget',
+      true,
+      toMenuItems(
+        actionsToShow,
+        this._shouldShowHeaders(),
+        this._resolver.getResolver()
+      ),
+      delegate,
+      anchor,
+      editorDom,
+      this._getActionBarActions(actions, at, options)
+    );
+  }
 
-					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));
-				}
+  private toCoords(position: IPosition): IAnchor {
+    if (!this._editor.hasModel()) {
+      return { x: 0, y: 0 };
+    }
 
-				return { canPreview: canPreview || !!action.action.edit?.edits.length };
-			},
-			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.action) {
-					const ranges = action.action.ranges;
-					const diagnostics = action.action.diagnostics;
-					currentDecorations.clear();
-					if (ranges && ranges.length > 0) {
-						// Handles case for `fix all` where there are multiple diagnostics.
-						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
-							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
-							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
-						currentDecorations.set(decorations);
-					} else if (diagnostics && diagnostics.length > 0) {
-						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
-						currentDecorations.set(decorations);
-						const diagnostic = diagnostics[0];
-						if (diagnostic.startLineNumber && diagnostic.startColumn) {
-							const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
-							aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
-						}
-					}
-				} else {
-					currentDecorations.clear();
-				}
-			}
-		};
+    this._editor.revealPosition(position, ScrollType.Immediate);
+    this._editor.render();
 
-		this._actionWidgetService.show(
-			'codeActionWidget',
-			true,
-			toMenuItems(actionsToShow, this._shouldShowHeaders(), this._resolver.getResolver()),
-			delegate,
-			anchor,
-			editorDom,
-			this._getActionBarActions(actions, at, options));
-	}
+    // Translate to absolute editor position
+    const cursorCoords = this._editor.getScrolledVisiblePosition(position);
+    const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
+    const x = editorCoords.left + cursorCoords.left;
+    const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
-	private toCoords(position: IPosition): IAnchor {
-		if (!this._editor.hasModel()) {
-			return { x: 0, y: 0 };
-		}
+    return { x, y };
+  }
 
-		this._editor.revealPosition(position, ScrollType.Immediate);
-		this._editor.render();
+  private _shouldShowHeaders(): boolean {
+    const model = this._editor?.getModel();
+    return this._configurationService.getValue(
+      'editor.codeActionWidget.showHeaders',
+      { resource: model?.uri }
+    );
+  }
 
-		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
-		const x = editorCoords.left + cursorCoords.left;
-		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+  private _getActionBarActions(
+    actions: CodeActionSet,
+    at: IAnchor | IPosition,
+    options: IActionShowOptions
+  ): IAction[] {
+    if (options.fromLightbulb) {
+      return [];
+    }
 
-		return { x, y };
-	}
+    const resultActions = actions.documentation.map(
+      (command): IAction => ({
+        id: command.id,
+        label: command.title,
+        tooltip: command.tooltip ?? '',
+        class: undefined,
+        enabled: true,
+        run: () =>
+          this._commandService.executeCommand(
+            command.id,
+            ...(command.arguments ?? [])
+          ),
+      })
+    );
 
-	private _shouldShowHeaders(): boolean {
-		const model = this._editor?.getModel();
-		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
-	}
+    if (
+      options.includeDisabledActions &&
+      actions.validActions.length > 0 &&
+      actions.allActions.length !== actions.validActions.length
+    ) {
+      resultActions.push(
+        this._showDisabled
+          ? {
+              id: 'hideMoreActions',
+              label: localize('hideMoreActions', 'Hide Disabled'),
+              enabled: true,
+              tooltip: '',
+              class: undefined,
+              run: () => {
+                this._showDisabled = false;
+                return this.showCodeActionList(actions, at, options);
+              },
+            }
+          : {
+              id: 'showMoreActions',
+              label: localize('showMoreActions', 'Show Disabled'),
+              enabled: true,
+              tooltip: '',
+              class: undefined,
+              run: () => {
+                this._showDisabled = true;
+                return this.showCodeActionList(actions, at, options);
+              },
+            }
+      );
+    }
 
-	private _getActionBarActions(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): IAction[] {
-		if (options.fromLightbulb) {
-			return [];
-		}
-
-		const resultActions = actions.documentation.map((command): IAction => ({
-			id: command.id,
-			label: command.title,
-			tooltip: command.tooltip ?? '',
-			class: undefined,
-			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
-		}));
-
-		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {
-			resultActions.push(this._showDisabled ? {
-				id: 'hideMoreActions',
-				label: localize('hideMoreActions', 'Hide Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => {
-					this._showDisabled = false;
-					return this.showCodeActionList(actions, at, options);
-				}
-			} : {
-				id: 'showMoreActions',
-				label: localize('showMoreActions', 'Show Disabled'),
-				enabled: true,
-				tooltip: '',
-				class: undefined,
-				run: () => {
-					this._showDisabled = true;
-					return this.showCodeActionList(actions, at, options);
-				}
-			});
-		}
-
-		return resultActions;
-	}
+    return resultActions;
+  }
 }
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
-		if (color) {
-			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
-		}
-	};
+  const addBackgroundColorRule = (
+    selector: string,
+    color: Color | undefined
+  ): void => {
+    if (color) {
+      collector.addRule(
+        `.monaco-editor ${selector} { background-color: ${color}; }`
+      );
+    }
+  };
 
-	addBackgroundColorRule('.quickfix-edit-highlight', theme.getColor(editorFindMatchHighlight));
-	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+  addBackgroundColorRule(
+    '.quickfix-edit-highlight',
+    theme.getColor(editorFindMatchHighlight)
+  );
+  const findMatchHighlightBorder = theme.getColor(
+    editorFindMatchHighlightBorder
+  );
 
-	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-editor .quickfix-edit-highlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
-	}
+  if (findMatchHighlightBorder) {
+    collector.addRule(
+      `.monaco-editor .quickfix-edit-highlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`
+    );
+  }
 });

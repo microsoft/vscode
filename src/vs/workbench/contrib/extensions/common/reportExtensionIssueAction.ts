@@ -9,23 +9,33 @@ import { IExtensionDescription } from '../../../../platform/extensions/common/ex
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 
 export class ReportExtensionIssueAction extends Action {
+  private static readonly _id =
+    'workbench.extensions.action.reportExtensionIssue';
+  private static readonly _label = nls.localize(
+    'reportExtensionIssue',
+    'Report Issue'
+  );
 
-	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
-	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
+  // TODO: Consider passing in IExtensionStatus or IExtensionHostProfile for additional data
+  constructor(
+    private extension: IExtensionDescription,
+    @IWorkbenchIssueService
+    private readonly issueService: IWorkbenchIssueService
+  ) {
+    super(
+      ReportExtensionIssueAction._id,
+      ReportExtensionIssueAction._label,
+      'extension-action report-issue'
+    );
 
-	// TODO: Consider passing in IExtensionStatus or IExtensionHostProfile for additional data
-	constructor(
-		private extension: IExtensionDescription,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
-	) {
-		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
+    this.enabled =
+      extension.isBuiltin ||
+      (!!extension.repository && !!extension.repository.url);
+  }
 
-		this.enabled = extension.isBuiltin || (!!extension.repository && !!extension.repository.url);
-	}
-
-	override async run(): Promise<void> {
-		await this.issueService.openReporter({
-			extensionId: this.extension.identifier.value,
-		});
-	}
+  override async run(): Promise<void> {
+    await this.issueService.openReporter({
+      extensionId: this.extension.identifier.value,
+    });
+  }
 }

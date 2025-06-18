@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .linked-editing-decoration {
-	background-color: var(--vscode-editor-linkedEditingBackground);
+  background-color: var(--vscode-editor-linkedEditingBackground);
 
-	/* Ensure decoration is visible even if range is empty */
-	min-width: 1px;
+  /* Ensure decoration is visible even if range is empty */
+  min-width: 1px;
 }

@@ -4,48 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-progress-container {
-	width: 100%;
-	height: 2px;
-	overflow: hidden; /* keep progress bit in bounds */
+  width: 100%;
+  height: 2px;
+  overflow: hidden; /* keep progress bit in bounds */
 }
 
 .monaco-progress-container .progress-bit {
-	width: 2%;
-	height: 2px;
-	position: absolute;
-	left: 0;
-	display: none;
+  width: 2%;
+  height: 2px;
+  position: absolute;
+  left: 0;
+  display: none;
 }
 
 .monaco-progress-container.active .progress-bit {
-	display: inherit;
+  display: inherit;
 }
 
 .monaco-progress-container.discrete .progress-bit {
-	left: 0;
-	transition: width 100ms linear;
+  left: 0;
+  transition: width 100ms linear;
 }
 
 .monaco-progress-container.discrete.done .progress-bit {
-	width: 100%;
+  width: 100%;
 }
 
 .monaco-progress-container.infinite .progress-bit {
-	animation-name: progress;
-	animation-duration: 4s;
-	animation-iteration-count: infinite;
-	transform: translate3d(0px, 0px, 0px);
-	animation-timing-function: linear;
+  animation-name: progress;
+  animation-duration: 4s;
+  animation-iteration-count: infinite;
+  transform: translate3d(0px, 0px, 0px);
+  animation-timing-function: linear;
 }
 
 .monaco-progress-container.infinite.infinite-long-running .progress-bit {
-	/*
+  /*
 		The more smooth `linear` timing function can cause
 		higher GPU consumption as indicated in
 		https://github.com/microsoft/vscode/issues/97900 &
 		https://github.com/microsoft/vscode/issues/138396
 	*/
-	animation-timing-function: steps(100);
+  animation-timing-function: steps(100);
 }
 
 /**
@@ -58,4 +58,14 @@
  *  50%: 5000% * 50% - 50% (set to center) = 2450%
  * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
  */
-@keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }
+@keyframes progress {
+  from {
+    transform: translateX(0%) scaleX(1);
+  }
+  50% {
+    transform: translateX(2500%) scaleX(3);
+  }
+  to {
+    transform: translateX(4900%) scaleX(1);
+  }
+}

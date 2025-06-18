@@ -9,67 +9,75 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { asProgressiveEdit } from '../../browser/utils.js';
 import assert from 'assert';
 
-
 suite('AsyncEdit', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  test('asProgressiveEdit', async () => {
+    const interval = new IntervalTimer();
+    const edit = {
+      range: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 1,
+      },
+      text: 'Hello, world!',
+    };
 
-	test('asProgressiveEdit', async () => {
-		const interval = new IntervalTimer();
-		const edit = {
-			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			text: 'Hello, world!'
-		};
+    const cts = new CancellationTokenSource();
+    const result = asProgressiveEdit(interval, edit, 5, cts.token);
 
-		const cts = new CancellationTokenSource();
-		const result = asProgressiveEdit(interval, edit, 5, cts.token);
+    // Verify the range
+    assert.deepStrictEqual(result.range, edit.range);
 
-		// Verify the range
-		assert.deepStrictEqual(result.range, edit.range);
+    const iter = result.newText[Symbol.asyncIterator]();
 
-		const iter = result.newText[Symbol.asyncIterator]();
+    // Verify the newText
+    const a = await iter.next();
+    assert.strictEqual(a.value, 'Hello,');
+    assert.strictEqual(a.done, false);
 
-		// Verify the newText
-		const a = await iter.next();
-		assert.strictEqual(a.value, 'Hello,');
-		assert.strictEqual(a.done, false);
+    // Verify the next word
+    const b = await iter.next();
+    assert.strictEqual(b.value, ' world!');
+    assert.strictEqual(b.done, false);
 
-		// Verify the next word
-		const b = await iter.next();
-		assert.strictEqual(b.value, ' world!');
-		assert.strictEqual(b.done, false);
+    const c = await iter.next();
+    assert.strictEqual(c.value, undefined);
+    assert.strictEqual(c.done, true);
 
-		const c = await iter.next();
-		assert.strictEqual(c.value, undefined);
-		assert.strictEqual(c.done, true);
+    cts.dispose();
+  });
 
-		cts.dispose();
-	});
+  test('asProgressiveEdit - cancellation', async () => {
+    const interval = new IntervalTimer();
+    const edit = {
+      range: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 1,
+      },
+      text: 'Hello, world!',
+    };
 
-	test('asProgressiveEdit - cancellation', async () => {
-		const interval = new IntervalTimer();
-		const edit = {
-			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			text: 'Hello, world!'
-		};
+    const cts = new CancellationTokenSource();
+    const result = asProgressiveEdit(interval, edit, 5, cts.token);
 
-		const cts = new CancellationTokenSource();
-		const result = asProgressiveEdit(interval, edit, 5, cts.token);
+    // Verify the range
+    assert.deepStrictEqual(result.range, edit.range);
 
-		// Verify the range
-		assert.deepStrictEqual(result.range, edit.range);
+    const iter = result.newText[Symbol.asyncIterator]();
 
-		const iter = result.newText[Symbol.asyncIterator]();
+    // Verify the newText
+    const a = await iter.next();
+    assert.strictEqual(a.value, 'Hello,');
+    assert.strictEqual(a.done, false);
 
-		// Verify the newText
-		const a = await iter.next();
-		assert.strictEqual(a.value, 'Hello,');
-		assert.strictEqual(a.done, false);
+    cts.dispose(true);
 
-		cts.dispose(true);
-
-		const c = await iter.next();
-		assert.strictEqual(c.value, undefined);
-		assert.strictEqual(c.done, true);
-	});
+    const c = await iter.next();
+    assert.strictEqual(c.value, undefined);
+    assert.strictEqual(c.done, true);
+  });
 });

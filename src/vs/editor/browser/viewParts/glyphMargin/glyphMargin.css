@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .glyph-margin {
-	position: absolute;
-	top: 0;
+  position: absolute;
+  top: 0;
 }
 
 /*
@@ -13,10 +13,10 @@
 	cgmr = core glyph margin rendering (div)
 */
 .monaco-editor .glyph-margin-widgets .cgmr {
-	position: absolute;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /*
@@ -24,9 +24,9 @@
 	This is only applied to icons that spin to avoid unnecessary
 	GPU layers and blurry subpixel AA.
 */
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-modifier-spin::before  {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-modifier-spin::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }

@@ -13,7 +13,9 @@
   "engines": {
     "vscode": "*"
   },
-  "categories": ["Themes"],
+  "categories": [
+    "Themes"
+  ],
   "contributes": {
     "iconThemes": [
       {

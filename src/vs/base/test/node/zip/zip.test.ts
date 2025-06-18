@@ -15,20 +15,23 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { getRandomTestPath } from '../testUtils.js';
 
 suite('Zip', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  test('extract should handle directories', async () => {
+    const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
+    await fs.promises.mkdir(testDir, { recursive: true });
 
-	test('extract should handle directories', async () => {
-		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
-		await fs.promises.mkdir(testDir, { recursive: true });
+    const fixtures = FileAccess.asFileUri(
+      'vs/base/test/node/zip/fixtures'
+    ).fsPath;
+    const fixture = path.join(fixtures, 'extract.zip');
 
-		const fixtures = FileAccess.asFileUri('vs/base/test/node/zip/fixtures').fsPath;
-		const fixture = path.join(fixtures, 'extract.zip');
+    await createCancelablePromise((token) =>
+      extract(fixture, testDir, {}, token)
+    );
+    const doesExist = await Promises.exists(path.join(testDir, 'extension'));
+    assert(doesExist);
 
-		await createCancelablePromise(token => extract(fixture, testDir, {}, token));
-		const doesExist = await Promises.exists(path.join(testDir, 'extension'));
-		assert(doesExist);
-
-		await Promises.rm(testDir);
-	});
+    await Promises.rm(testDir);
+  });
 });

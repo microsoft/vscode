@@ -11,20 +11,19 @@ import { SymbolsTree } from './tree';
 import * as types from './types';
 
 export function activate(context: vscode.ExtensionContext): SymbolTree {
+  const tree = new SymbolsTree();
 
-	const tree = new SymbolsTree();
+  references.register(tree, context);
+  calls.register(tree, context);
+  types.register(tree, context);
 
-	references.register(tree, context);
-	calls.register(tree, context);
-	types.register(tree, context);
+  function setInput(input: SymbolTreeInput<unknown>) {
+    tree.setInput(input);
+  }
 
-	function setInput(input: SymbolTreeInput<unknown>) {
-		tree.setInput(input);
-	}
+  function getInput(): SymbolTreeInput<unknown> | undefined {
+    return tree.getInput();
+  }
 
-	function getInput(): SymbolTreeInput<unknown> | undefined {
-		return tree.getInput();
-	}
-
-	return { setInput, getInput };
+  return { setInput, getInput };
 }

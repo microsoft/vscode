@@ -8,37 +8,59 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { parseNextChatResponseChunk } from '../../electron-browser/actions/voiceChatActions.js';
 
 suite('VoiceChatActions', function () {
+  function assertChunk(
+    text: string,
+    expected: string | undefined,
+    offset: number
+  ): { chunk: string | undefined; offset: number } {
+    const res = parseNextChatResponseChunk(text, offset);
+    assert.strictEqual(res.chunk, expected);
 
-	function assertChunk(text: string, expected: string | undefined, offset: number): { chunk: string | undefined; offset: number } {
-		const res = parseNextChatResponseChunk(text, offset);
-		assert.strictEqual(res.chunk, expected);
+    return res;
+  }
 
-		return res;
-	}
+  test('parseNextChatResponseChunk', function () {
+    // Simple, no offset
+    assertChunk('Hello World', undefined, 0);
+    assertChunk('Hello World.', undefined, 0);
+    assertChunk('Hello World. ', 'Hello World.', 0);
+    assertChunk('Hello World? ', 'Hello World?', 0);
+    assertChunk('Hello World! ', 'Hello World!', 0);
+    assertChunk('Hello World: ', 'Hello World:', 0);
 
-	test('parseNextChatResponseChunk', function () {
+    // Ensure chunks are parsed from the end, no offset
+    assertChunk(
+      'Hello World. How is your day? And more...',
+      'Hello World. How is your day?',
+      0
+    );
 
-		// Simple, no offset
-		assertChunk('Hello World', undefined, 0);
-		assertChunk('Hello World.', undefined, 0);
-		assertChunk('Hello World. ', 'Hello World.', 0);
-		assertChunk('Hello World? ', 'Hello World?', 0);
-		assertChunk('Hello World! ', 'Hello World!', 0);
-		assertChunk('Hello World: ', 'Hello World:', 0);
+    // Ensure chunks are parsed from the end, with offset
+    let offset = assertChunk(
+      'Hello World. How is your ',
+      'Hello World.',
+      0
+    ).offset;
+    offset = assertChunk(
+      'Hello World. How is your day? And more...',
+      'How is your day?',
+      offset
+    ).offset;
+    offset = assertChunk(
+      'Hello World. How is your day? And more to come! ',
+      'And more to come!',
+      offset
+    ).offset;
+    assertChunk(
+      'Hello World. How is your day? And more to come! ',
+      undefined,
+      offset
+    );
 
-		// Ensure chunks are parsed from the end, no offset
-		assertChunk('Hello World. How is your day? And more...', 'Hello World. How is your day?', 0);
+    // Sparted by newlines
+    offset = assertChunk('Hello World.\nHow is your', 'Hello World.', 0).offset;
+    assertChunk('Hello World.\nHow is your day?\n', 'How is your day?', offset);
+  });
 
-		// Ensure chunks are parsed from the end, with offset
-		let offset = assertChunk('Hello World. How is your ', 'Hello World.', 0).offset;
-		offset = assertChunk('Hello World. How is your day? And more...', 'How is your day?', offset).offset;
-		offset = assertChunk('Hello World. How is your day? And more to come! ', 'And more to come!', offset).offset;
-		assertChunk('Hello World. How is your day? And more to come! ', undefined, offset);
-
-		// Sparted by newlines
-		offset = assertChunk('Hello World.\nHow is your', 'Hello World.', 0).offset;
-		assertChunk('Hello World.\nHow is your day?\n', 'How is your day?', offset);
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -8,6 +8,6 @@
 	cdr = core decorations rendering (div)
 */
 .monaco-editor .lines-content .cdr {
-	position: absolute;
-	height: 100%;
+  position: absolute;
+  height: 100%;
 }

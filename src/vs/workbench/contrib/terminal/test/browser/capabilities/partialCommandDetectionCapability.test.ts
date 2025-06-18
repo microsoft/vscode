@@ -12,56 +12,74 @@ import { writeP } from '../../../browser/terminalTestHelpers.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let xterm: Terminal;
-	let capability: PartialCommandDetectionCapability;
-	let addEvents: IMarker[];
-	let onDidExecuteTextEmitter: Emitter<void>;
+  let xterm: Terminal;
+  let capability: PartialCommandDetectionCapability;
+  let addEvents: IMarker[];
+  let onDidExecuteTextEmitter: Emitter<void>;
 
-	function assertCommands(expectedLines: number[]) {
-		deepStrictEqual(capability.commands.map(e => e.line), expectedLines);
-		deepStrictEqual(addEvents.map(e => e.line), expectedLines);
-	}
+  function assertCommands(expectedLines: number[]) {
+    deepStrictEqual(
+      capability.commands.map((e) => e.line),
+      expectedLines
+    );
+    deepStrictEqual(
+      addEvents.map((e) => e.line),
+      expectedLines
+    );
+  }
 
-	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+  setup(async () => {
+    const TerminalCtor = (
+      await importAMDNodeModule<typeof import('@xterm/xterm')>(
+        '@xterm/xterm',
+        'lib/xterm.js'
+      )
+    ).Terminal;
 
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
-		onDidExecuteTextEmitter = store.add(new Emitter<void>());
-		capability = store.add(new PartialCommandDetectionCapability(xterm, onDidExecuteTextEmitter.event));
-		addEvents = [];
-		store.add(capability.onCommandFinished(e => addEvents.push(e)));
-	});
+    xterm = store.add(
+      new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal
+    );
+    onDidExecuteTextEmitter = store.add(new Emitter<void>());
+    capability = store.add(
+      new PartialCommandDetectionCapability(
+        xterm,
+        onDidExecuteTextEmitter.event
+      )
+    );
+    addEvents = [];
+    store.add(capability.onCommandFinished((e) => addEvents.push(e)));
+  });
 
-	test('should not add commands when the cursor position is too close to the left side', async () => {
-		assertCommands([]);
-		xterm.input('\x0d');
-		await writeP(xterm, '\r\n');
-		assertCommands([]);
-		await writeP(xterm, 'a');
-		xterm.input('\x0d');
-		await writeP(xterm, '\r\n');
-		assertCommands([]);
-	});
+  test('should not add commands when the cursor position is too close to the left side', async () => {
+    assertCommands([]);
+    xterm.input('\x0d');
+    await writeP(xterm, '\r\n');
+    assertCommands([]);
+    await writeP(xterm, 'a');
+    xterm.input('\x0d');
+    await writeP(xterm, '\r\n');
+    assertCommands([]);
+  });
 
-	test('should add commands when the cursor position is not too close to the left side', async () => {
-		assertCommands([]);
-		await writeP(xterm, 'ab');
-		xterm.input('\x0d');
-		await writeP(xterm, '\r\n\r\n');
-		assertCommands([0]);
-		await writeP(xterm, 'cd');
-		xterm.input('\x0d');
-		await writeP(xterm, '\r\n');
-		assertCommands([0, 2]);
-	});
+  test('should add commands when the cursor position is not too close to the left side', async () => {
+    assertCommands([]);
+    await writeP(xterm, 'ab');
+    xterm.input('\x0d');
+    await writeP(xterm, '\r\n\r\n');
+    assertCommands([0]);
+    await writeP(xterm, 'cd');
+    xterm.input('\x0d');
+    await writeP(xterm, '\r\n');
+    assertCommands([0, 2]);
+  });
 
-	test('onDidExecuteText should cause onDidCommandFinished to fire', async () => {
-		await writeP(xterm, 'cd');
-		onDidExecuteTextEmitter.fire();
-		await writeP(xterm, 'pwd');
-		onDidExecuteTextEmitter.fire();
-		deepEqual(addEvents.length, 2);
-	});
+  test('onDidExecuteText should cause onDidCommandFinished to fire', async () => {
+    await writeP(xterm, 'cd');
+    onDidExecuteTextEmitter.fire();
+    await writeP(xterm, 'pwd');
+    onDidExecuteTextEmitter.fire();
+    deepEqual(addEvents.length, 2);
+  });
 });

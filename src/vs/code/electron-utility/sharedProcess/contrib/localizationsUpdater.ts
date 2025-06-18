@@ -8,16 +8,16 @@ import { ILanguagePackService } from '../../../../platform/languagePacks/common/
 import { NativeLanguagePackService } from '../../../../platform/languagePacks/node/languagePacks.js';
 
 export class LocalizationsUpdater extends Disposable {
+  constructor(
+    @ILanguagePackService
+    private readonly localizationsService: NativeLanguagePackService
+  ) {
+    super();
 
-	constructor(
-		@ILanguagePackService private readonly localizationsService: NativeLanguagePackService
-	) {
-		super();
+    this.updateLocalizations();
+  }
 
-		this.updateLocalizations();
-	}
-
-	private updateLocalizations(): void {
-		this.localizationsService.update();
-	}
+  private updateLocalizations(): void {
+    this.localizationsService.update();
+  }
 }

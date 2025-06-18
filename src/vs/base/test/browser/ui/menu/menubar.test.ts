@@ -9,89 +9,111 @@ import { unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
-function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
-	let i;
-	for (i = 0; i < menubarElement.childElementCount; i++) {
+function getButtonElementByAriaLabel(
+  menubarElement: HTMLElement,
+  ariaLabel: string
+): HTMLElement | null {
+  let i;
+  for (i = 0; i < menubarElement.childElementCount; i++) {
+    if (menubarElement.children[i].getAttribute('aria-label') === ariaLabel) {
+      return menubarElement.children[i] as HTMLElement;
+    }
+  }
 
-		if (menubarElement.children[i].getAttribute('aria-label') === ariaLabel) {
-			return menubarElement.children[i] as HTMLElement;
-		}
-	}
-
-	return null;
+  return null;
 }
 
-function getTitleDivFromButtonDiv(menuButtonElement: HTMLElement): HTMLElement | null {
-	let i;
-	for (i = 0; i < menuButtonElement.childElementCount; i++) {
-		if (menuButtonElement.children[i].classList.contains('menubar-menu-title')) {
-			return menuButtonElement.children[i] as HTMLElement;
-		}
-	}
+function getTitleDivFromButtonDiv(
+  menuButtonElement: HTMLElement
+): HTMLElement | null {
+  let i;
+  for (i = 0; i < menuButtonElement.childElementCount; i++) {
+    if (
+      menuButtonElement.children[i].classList.contains('menubar-menu-title')
+    ) {
+      return menuButtonElement.children[i] as HTMLElement;
+    }
+  }
 
-	return null;
+  return null;
 }
 
 function getMnemonicFromTitleDiv(menuTitleDiv: HTMLElement): string | null {
-	let i;
-	for (i = 0; i < menuTitleDiv.childElementCount; i++) {
-		if (menuTitleDiv.children[i].tagName.toLocaleLowerCase() === 'mnemonic') {
-			return menuTitleDiv.children[i].textContent;
-		}
-	}
+  let i;
+  for (i = 0; i < menuTitleDiv.childElementCount; i++) {
+    if (menuTitleDiv.children[i].tagName.toLocaleLowerCase() === 'mnemonic') {
+      return menuTitleDiv.children[i].textContent;
+    }
+  }
 
-	return null;
+  return null;
 }
 
-function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, label: string, readableLabel: string, mnemonic: string) {
-	menubar.push([
-		{
-			actions: [],
-			label: label
-		}
-	]);
+function validateMenuBarItem(
+  menubar: MenuBar,
+  menubarContainer: HTMLElement,
+  label: string,
+  readableLabel: string,
+  mnemonic: string
+) {
+  menubar.push([
+    {
+      actions: [],
+      label: label,
+    },
+  ]);
 
-	const buttonElement = getButtonElementByAriaLabel(menubarContainer, readableLabel);
-	assert(buttonElement !== null, `Button element not found for ${readableLabel} button.`);
+  const buttonElement = getButtonElementByAriaLabel(
+    menubarContainer,
+    readableLabel
+  );
+  assert(
+    buttonElement !== null,
+    `Button element not found for ${readableLabel} button.`
+  );
 
-	const titleDiv = getTitleDivFromButtonDiv(buttonElement);
-	assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
+  const titleDiv = getTitleDivFromButtonDiv(buttonElement);
+  assert(titleDiv !== null, `Title div not found for ${readableLabel} button.`);
 
-	const mnem = getMnemonicFromTitleDiv(titleDiv);
-	assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
+  const mnem = getMnemonicFromTitleDiv(titleDiv);
+  assert.strictEqual(mnem, mnemonic, 'Mnemonic not correct');
 }
 
 suite('Menubar', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-	const container = $('.container');
+  ensureNoDisposablesAreLeakedInTestSuite();
+  const container = $('.container');
 
-	const withMenuMenubar = (callback: (menubar: MenuBar) => void) => {
-		const menubar = new MenuBar(container, {
-			enableMnemonics: true,
-			visibility: 'visible'
-		}, unthemedMenuStyles);
+  const withMenuMenubar = (callback: (menubar: MenuBar) => void) => {
+    const menubar = new MenuBar(
+      container,
+      {
+        enableMnemonics: true,
+        visibility: 'visible',
+      },
+      unthemedMenuStyles
+    );
 
-		callback(menubar);
+    callback(menubar);
 
-		menubar.dispose();
-		ModifierKeyEmitter.disposeInstance();
-	};
+    menubar.dispose();
+    ModifierKeyEmitter.disposeInstance();
+  };
 
-	test('English File menu renders mnemonics', function () {
-		withMenuMenubar(menubar => {
-			validateMenuBarItem(menubar, container, '&File', 'File', 'F');
-		});
-	});
+  test('English File menu renders mnemonics', function () {
+    withMenuMenubar((menubar) => {
+      validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+    });
+  });
 
-	test('Russian File menu renders mnemonics', function () {
-		withMenuMenubar(menubar => {
-			validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
-		});
-	});
+  test('Russian File menu renders mnemonics', function () {
+    withMenuMenubar((menubar) => {
+      validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+    });
+  });
 
-	test('Chinese File menu renders mnemonics', function () {
-		withMenuMenubar(menubar => {
-			validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
-		});
-	});
+  test('Chinese File menu renders mnemonics', function () {
+    withMenuMenubar((menubar) => {
+      validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+    });
+  });
 });

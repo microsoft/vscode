@@ -8,5 +8,5 @@ let z = 1;
 hello();
 
 function hello() {
-	console.log('hello');
+  console.log('hello');
 }

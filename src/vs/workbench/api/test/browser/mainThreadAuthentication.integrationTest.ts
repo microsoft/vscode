@@ -17,21 +17,46 @@ import { MainThreadAuthentication } from '../../browser/mainThreadAuthentication
 import { ExtHostContext, MainContext } from '../../common/extHost.protocol.js';
 import { IActivityService } from '../../../services/activity/common/activity.js';
 import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
-import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import {
+  IAuthenticationExtensionsService,
+  IAuthenticationService,
+} from '../../../services/authentication/common/authentication.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
-import { TestEnvironmentService, TestHostService, TestQuickInputService, TestRemoteAgentService } from '../../../test/browser/workbenchTestServices.js';
-import { TestActivityService, TestExtensionService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
+import {
+  TestEnvironmentService,
+  TestHostService,
+  TestQuickInputService,
+  TestRemoteAgentService,
+} from '../../../test/browser/workbenchTestServices.js';
+import {
+  TestActivityService,
+  TestExtensionService,
+  TestProductService,
+  TestStorageService,
+} from '../../../test/common/workbenchTestServices.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
-import { AuthenticationUsageService, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import {
+  AuthenticationAccessService,
+  IAuthenticationAccessService,
+} from '../../../services/authentication/browser/authenticationAccessService.js';
+import {
+  AuthenticationUsageService,
+  IAuthenticationUsageService,
+} from '../../../services/authentication/browser/authenticationUsageService.js';
 import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
-import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import {
+  ILogService,
+  NullLogService,
+} from '../../../../platform/log/common/log.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IUserActivityService, UserActivityService } from '../../../services/userActivity/common/userActivityService.js';
+import {
+  IUserActivityService,
+  UserActivityService,
+} from '../../../services/userActivity/common/userActivityService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
@@ -41,111 +66,189 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 
 suite('MainThreadAuthentication', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+  const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let mainThreadAuthentication: MainThreadAuthentication;
-	let instantiationService: TestInstantiationService;
-	let rpcProtocol: TestRPCProtocol;
+  let mainThreadAuthentication: MainThreadAuthentication;
+  let instantiationService: TestInstantiationService;
+  let rpcProtocol: TestRPCProtocol;
 
-	setup(async () => {
-		// services
-		const services = new ServiceCollection();
-		services.set(ILogService, new SyncDescriptor(NullLogService));
-		services.set(IDialogService, new SyncDescriptor(TestDialogService, [{ confirmed: true }]));
-		services.set(IStorageService, new SyncDescriptor(TestStorageService));
-		services.set(ISecretStorageService, new SyncDescriptor(TestSecretStorageService));
-		services.set(IDynamicAuthenticationProviderStorageService, new SyncDescriptor(DynamicAuthenticationProviderStorageService));
-		services.set(IQuickInputService, new SyncDescriptor(TestQuickInputService));
-		services.set(IExtensionService, new SyncDescriptor(TestExtensionService));
-		services.set(IActivityService, new SyncDescriptor(TestActivityService));
-		services.set(IRemoteAgentService, new SyncDescriptor(TestRemoteAgentService));
-		services.set(INotificationService, new SyncDescriptor(TestNotificationService));
-		services.set(IHostService, new SyncDescriptor(TestHostService));
-		services.set(IUserActivityService, new SyncDescriptor(UserActivityService));
-		services.set(IAuthenticationAccessService, new SyncDescriptor(AuthenticationAccessService));
-		services.set(IAuthenticationService, new SyncDescriptor(AuthenticationService));
-		services.set(IAuthenticationUsageService, new SyncDescriptor(AuthenticationUsageService));
-		services.set(IAuthenticationExtensionsService, new SyncDescriptor(AuthenticationExtensionsService));
-		instantiationService = disposables.add(new TestInstantiationService(services, undefined, undefined, true));
+  setup(async () => {
+    // services
+    const services = new ServiceCollection();
+    services.set(ILogService, new SyncDescriptor(NullLogService));
+    services.set(
+      IDialogService,
+      new SyncDescriptor(TestDialogService, [{ confirmed: true }])
+    );
+    services.set(IStorageService, new SyncDescriptor(TestStorageService));
+    services.set(
+      ISecretStorageService,
+      new SyncDescriptor(TestSecretStorageService)
+    );
+    services.set(
+      IDynamicAuthenticationProviderStorageService,
+      new SyncDescriptor(DynamicAuthenticationProviderStorageService)
+    );
+    services.set(IQuickInputService, new SyncDescriptor(TestQuickInputService));
+    services.set(IExtensionService, new SyncDescriptor(TestExtensionService));
+    services.set(IActivityService, new SyncDescriptor(TestActivityService));
+    services.set(
+      IRemoteAgentService,
+      new SyncDescriptor(TestRemoteAgentService)
+    );
+    services.set(
+      INotificationService,
+      new SyncDescriptor(TestNotificationService)
+    );
+    services.set(IHostService, new SyncDescriptor(TestHostService));
+    services.set(IUserActivityService, new SyncDescriptor(UserActivityService));
+    services.set(
+      IAuthenticationAccessService,
+      new SyncDescriptor(AuthenticationAccessService)
+    );
+    services.set(
+      IAuthenticationService,
+      new SyncDescriptor(AuthenticationService)
+    );
+    services.set(
+      IAuthenticationUsageService,
+      new SyncDescriptor(AuthenticationUsageService)
+    );
+    services.set(
+      IAuthenticationExtensionsService,
+      new SyncDescriptor(AuthenticationExtensionsService)
+    );
+    instantiationService = disposables.add(
+      new TestInstantiationService(services, undefined, undefined, true)
+    );
 
-		// stubs
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IProductService, TestProductService);
+    // stubs
+    // eslint-disable-next-line local/code-no-dangerous-type-assertions
+    instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
+    instantiationService.stub(ITelemetryService, NullTelemetryService);
+    instantiationService.stub(
+      IBrowserWorkbenchEnvironmentService,
+      TestEnvironmentService
+    );
+    instantiationService.stub(IProductService, TestProductService);
 
-		rpcProtocol = disposables.add(new TestRPCProtocol());
-		mainThreadAuthentication = disposables.add(instantiationService.createInstance(MainThreadAuthentication, rpcProtocol));
-		rpcProtocol.set(MainContext.MainThreadAuthentication, mainThreadAuthentication);
-	});
+    rpcProtocol = disposables.add(new TestRPCProtocol());
+    mainThreadAuthentication = disposables.add(
+      instantiationService.createInstance(MainThreadAuthentication, rpcProtocol)
+    );
+    rpcProtocol.set(
+      MainContext.MainThreadAuthentication,
+      mainThreadAuthentication
+    );
+  });
 
-	test('provider registration completes without errors', async () => {
-		// Test basic registration - this should complete without throwing
-		await mainThreadAuthentication.$registerAuthenticationProvider('test-provider', 'Test Provider', false);
+  test('provider registration completes without errors', async () => {
+    // Test basic registration - this should complete without throwing
+    await mainThreadAuthentication.$registerAuthenticationProvider(
+      'test-provider',
+      'Test Provider',
+      false
+    );
 
-		// Test unregistration - this should also complete without throwing
-		await mainThreadAuthentication.$unregisterAuthenticationProvider('test-provider');
+    // Test unregistration - this should also complete without throwing
+    await mainThreadAuthentication.$unregisterAuthenticationProvider(
+      'test-provider'
+    );
 
-		// Success if we reach here without timeout
-		assert.ok(true, 'Registration and unregistration completed successfully');
-	});
+    // Success if we reach here without timeout
+    assert.ok(true, 'Registration and unregistration completed successfully');
+  });
 
-	test('event suppression during explicit unregistration', async () => {
-		let unregisterEventFired = false;
-		let eventProviderId: string | undefined;
+  test('event suppression during explicit unregistration', async () => {
+    let unregisterEventFired = false;
+    let eventProviderId: string | undefined;
 
-		// Mock the ext host to capture unregister events
-		const mockExtHost = {
-			$onDidUnregisterAuthenticationProvider: (id: string) => {
-				unregisterEventFired = true;
-				eventProviderId = id;
-				return Promise.resolve();
-			},
-			$getSessions: () => Promise.resolve([]),
-			$createSession: () => Promise.resolve({} as any),
-			$removeSession: () => Promise.resolve(),
-			$onDidChangeAuthenticationSessions: () => Promise.resolve(),
-			$registerDynamicAuthProvider: () => Promise.resolve('test'),
-			$onDidChangeDynamicAuthProviderTokens: () => Promise.resolve()
-		};
-		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, mockExtHost);
+    // Mock the ext host to capture unregister events
+    const mockExtHost = {
+      $onDidUnregisterAuthenticationProvider: (id: string) => {
+        unregisterEventFired = true;
+        eventProviderId = id;
+        return Promise.resolve();
+      },
+      $getSessions: () => Promise.resolve([]),
+      $createSession: () => Promise.resolve({} as any),
+      $removeSession: () => Promise.resolve(),
+      $onDidChangeAuthenticationSessions: () => Promise.resolve(),
+      $registerDynamicAuthProvider: () => Promise.resolve('test'),
+      $onDidChangeDynamicAuthProviderTokens: () => Promise.resolve(),
+    };
+    rpcProtocol.set(ExtHostContext.ExtHostAuthentication, mockExtHost);
 
-		// Register a provider
-		await mainThreadAuthentication.$registerAuthenticationProvider('test-suppress', 'Test Suppress', false);
+    // Register a provider
+    await mainThreadAuthentication.$registerAuthenticationProvider(
+      'test-suppress',
+      'Test Suppress',
+      false
+    );
 
-		// Reset the flag
-		unregisterEventFired = false;
-		eventProviderId = undefined;
+    // Reset the flag
+    unregisterEventFired = false;
+    eventProviderId = undefined;
 
-		// Unregister the provider - this should NOT fire the event due to suppression
-		await mainThreadAuthentication.$unregisterAuthenticationProvider('test-suppress');
+    // Unregister the provider - this should NOT fire the event due to suppression
+    await mainThreadAuthentication.$unregisterAuthenticationProvider(
+      'test-suppress'
+    );
 
-		// Verify the event was suppressed
-		assert.strictEqual(unregisterEventFired, false, 'Unregister event should be suppressed during explicit unregistration');
-		assert.strictEqual(eventProviderId, undefined, 'No provider ID should be captured from suppressed event');
-	});
+    // Verify the event was suppressed
+    assert.strictEqual(
+      unregisterEventFired,
+      false,
+      'Unregister event should be suppressed during explicit unregistration'
+    );
+    assert.strictEqual(
+      eventProviderId,
+      undefined,
+      'No provider ID should be captured from suppressed event'
+    );
+  });
 
-	test('concurrent provider registrations complete without errors', async () => {
-		// Register multiple providers simultaneously
-		const registrationPromises = [
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-1', 'Concurrent 1', false),
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-2', 'Concurrent 2', false),
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-3', 'Concurrent 3', false)
-		];
+  test('concurrent provider registrations complete without errors', async () => {
+    // Register multiple providers simultaneously
+    const registrationPromises = [
+      mainThreadAuthentication.$registerAuthenticationProvider(
+        'concurrent-1',
+        'Concurrent 1',
+        false
+      ),
+      mainThreadAuthentication.$registerAuthenticationProvider(
+        'concurrent-2',
+        'Concurrent 2',
+        false
+      ),
+      mainThreadAuthentication.$registerAuthenticationProvider(
+        'concurrent-3',
+        'Concurrent 3',
+        false
+      ),
+    ];
 
-		await Promise.all(registrationPromises);
+    await Promise.all(registrationPromises);
 
-		// Unregister all providers
-		const unregistrationPromises = [
-			mainThreadAuthentication.$unregisterAuthenticationProvider('concurrent-1'),
-			mainThreadAuthentication.$unregisterAuthenticationProvider('concurrent-2'),
-			mainThreadAuthentication.$unregisterAuthenticationProvider('concurrent-3')
-		];
+    // Unregister all providers
+    const unregistrationPromises = [
+      mainThreadAuthentication.$unregisterAuthenticationProvider(
+        'concurrent-1'
+      ),
+      mainThreadAuthentication.$unregisterAuthenticationProvider(
+        'concurrent-2'
+      ),
+      mainThreadAuthentication.$unregisterAuthenticationProvider(
+        'concurrent-3'
+      ),
+    ];
 
-		await Promise.all(unregistrationPromises);
+    await Promise.all(unregistrationPromises);
 
-		// Success if we reach here without timeout
-		assert.ok(true, 'Concurrent registrations and unregistrations completed successfully');
-	});
+    // Success if we reach here without timeout
+    assert.ok(
+      true,
+      'Concurrent registrations and unregistrations completed successfully'
+    );
+  });
 });

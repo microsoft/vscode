@@ -26,7 +26,7 @@ const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
 const getWorkspaceFolderForTestFile = (uri: vscode.Uri) =>
 	(uri.path.endsWith('.test.ts') || uri.path.endsWith('.integrationTest.ts')) &&
-		uri.path.includes('/src/vs/')
+	uri.path.includes('/src/vs/')
 		? vscode.workspace.getWorkspaceFolder(uri)
 		: undefined;
 
@@ -42,15 +42,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
-	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
-		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
-			return [{
-				title: '$(sparkle) Fix with Copilot',
-				command: 'github.copilot.tests.fixTestFailure',
-				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
-			}];
-		},
-	}));
+	context.subscriptions.push(
+		vscode.tests.registerTestFollowupProvider({
+			async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
+				return [
+					{
+						title: '$(sparkle) Fix with Copilot',
+						command: 'github.copilot.tests.fixTestFailure',
+						arguments: [
+							{
+								source: 'peekFollowup',
+								test,
+								message: test.taskStates[taskIndex].messages[messageIndex],
+							},
+						],
+					},
+				];
+			},
+		}),
+	);
 
 	let initialWatchPromise: Promise<vscode.Disposable> | undefined;
 	const resolveHandler = async (test?: vscode.TestItem) => {
@@ -80,10 +90,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 
 		const graph = new ImportGraph(
-			folder.uri, async () => {
+			folder.uri,
+			async () => {
 				await resolveHandler();
 				return [...ctrl.items].map(([, item]) => item);
-			}, uri => ctrl.items.get(uri.toString().toLowerCase()));
+			},
+			uri => ctrl.items.get(uri.toString().toLowerCase()),
+		);
 		ctrl.relatedCodeProvider = graph;
 
 		if (context.storageUri) {
@@ -94,13 +107,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	const createRunHandler = (
-		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
 		kind: vscode.TestRunProfileKind,
-		args: string[] = []
+		args: string[] = [],
 	) => {
 		const doTestRun = async (
 			req: vscode.TestRunRequest,
-			cancellationToken: vscode.CancellationToken
+			cancellationToken: vscode.CancellationToken,
 		) => {
 			const folder = await guessWorkspaceFolder();
 			if (!folder) {
@@ -121,7 +134,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (args.includes('--browser')) {
 					coverageDir = path.join(
 						tmpdir(),
-						`vscode-test-coverage-${randomBytes(8).toString('hex')}`
+						`vscode-test-coverage-${randomBytes(8).toString('hex')}`,
 					);
 					currentArgs = [
 						...currentArgs,
@@ -143,7 +156,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					? await runner.debug(task, currentArgs, req.include)
 					: await runner.run(currentArgs, req.include),
 				coverageDir,
-				cancellationToken
+				cancellationToken,
 			);
 		};
 
@@ -178,7 +191,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 					doTestRun(
 						new vscode.TestRunRequest(include, req.exclude, req.profile, true),
-						cancellationToken
+						cancellationToken,
 					);
 				}, 1000);
 			});
@@ -196,7 +209,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		createRunHandler(PlatformTestRunner, vscode.TestRunProfileKind.Run),
 		true,
 		undefined,
-		true
+		true,
 	);
 
 	ctrl.createRunProfile(
@@ -205,7 +218,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		createRunHandler(PlatformTestRunner, vscode.TestRunProfileKind.Debug),
 		true,
 		undefined,
-		true
+		true,
 	);
 
 	const coverage = ctrl.createRunProfile(
@@ -214,11 +227,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		createRunHandler(PlatformTestRunner, vscode.TestRunProfileKind.Coverage),
 		true,
 		undefined,
-		true
+		true,
 	);
 
-	coverage.loadDetailedCoverage = async (_run, coverage) => coverage instanceof V8CoverageFile ? coverage.details : [];
-	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) => coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
+	coverage.loadDetailedCoverage = async (_run, coverage) =>
+		coverage instanceof V8CoverageFile ? coverage.details : [];
+	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) =>
+		coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(
@@ -227,7 +242,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			createRunHandler(BrowserTestRunner, vscode.TestRunProfileKind.Run, [' --browser', arg]),
 			undefined,
 			undefined,
-			true
+			true,
 		);
 
 		cfg.configureHandler = () => vscode.window.showInformationMessage(`Configuring ${name}`);
@@ -242,7 +257,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			]),
 			undefined,
 			undefined,
-			true
+			true,
 		);
 	}
 
@@ -271,7 +286,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidOpenTextDocument(updateNodeForDocument),
 		vscode.workspace.onDidChangeTextDocument(e => updateNodeForDocument(e.document)),
 		registerSnapshotUpdate(ctrl),
-		new FailingDeepStrictEqualAssertFixer()
+		new FailingDeepStrictEqualAssertFixer(),
 	);
 }
 
@@ -281,7 +296,7 @@ export function deactivate() {
 
 function getOrCreateFile(
 	controller: vscode.TestController,
-	uri: vscode.Uri
+	uri: vscode.Uri,
 ): vscode.TestItem | undefined {
 	const folder = getWorkspaceFolderForTestFile(uri);
 	if (!folder) {
@@ -310,7 +325,7 @@ function gatherTestItems(collection: vscode.TestItemCollection) {
 
 async function startWatchingWorkspace(
 	controller: vscode.TestController,
-	fileChangedEmitter: vscode.EventEmitter<FileChangeEvent>
+	fileChangedEmitter: vscode.EventEmitter<FileChangeEvent>,
 ) {
 	const workspaceFolder = await guessWorkspaceFolder();
 	if (!workspaceFolder) {

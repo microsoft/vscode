@@ -10,22 +10,22 @@ import { SpacingToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class VerticalTab extends SpacingToken<'\v'> {
-	/**
-	 * The underlying symbol of the `VerticalTab` token.
-	 */
-	public static override readonly symbol: '\v' = '\v';
+  /**
+   * The underlying symbol of the `VerticalTab` token.
+   */
+  public static override readonly symbol: '\v' = '\v';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '\v' {
-		return VerticalTab.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '\v' {
+    return VerticalTab.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `vtab${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `vtab${this.range}`;
+  }
 }

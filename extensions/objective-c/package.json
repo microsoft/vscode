@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {

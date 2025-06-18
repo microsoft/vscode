@@ -9,145 +9,155 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SaveSource } from '../../../common/editor.js';
 
-export const IWorkingCopyHistoryService = createDecorator<IWorkingCopyHistoryService>('workingCopyHistoryService');
+export const IWorkingCopyHistoryService =
+  createDecorator<IWorkingCopyHistoryService>('workingCopyHistoryService');
 
 export interface IWorkingCopyHistoryEvent {
-
-	/**
-	 * The entry this event is about.
-	 */
-	readonly entry: IWorkingCopyHistoryEntry;
+  /**
+   * The entry this event is about.
+   */
+  readonly entry: IWorkingCopyHistoryEntry;
 }
 
 export interface IWorkingCopyHistoryEntry {
+  /**
+   * Unique identifier of this entry for the working copy.
+   */
+  readonly id: string;
 
-	/**
-	 * Unique identifier of this entry for the working copy.
-	 */
-	readonly id: string;
+  /**
+   * The associated working copy of this entry.
+   */
+  readonly workingCopy: {
+    readonly resource: URI;
+    readonly name: string;
+  };
 
-	/**
-	 * The associated working copy of this entry.
-	 */
-	readonly workingCopy: {
-		readonly resource: URI;
-		readonly name: string;
-	};
+  /**
+   * The location on disk of this history entry.
+   */
+  readonly location: URI;
 
-	/**
-	 * The location on disk of this history entry.
-	 */
-	readonly location: URI;
+  /**
+   * The time when this history entry was created.
+   */
+  timestamp: number;
 
-	/**
-	 * The time when this history entry was created.
-	 */
-	timestamp: number;
+  /**
+   * Associated source with the history entry.
+   */
+  source: SaveSource;
 
-	/**
-	 * Associated source with the history entry.
-	 */
-	source: SaveSource;
-
-	/**
-	 * Optional additional metadata associated with the
-	 * source that can help to describe the source.
-	 */
-	sourceDescription: string | undefined;
+  /**
+   * Optional additional metadata associated with the
+   * source that can help to describe the source.
+   */
+  sourceDescription: string | undefined;
 }
 
 export interface IWorkingCopyHistoryEntryDescriptor {
+  /**
+   * The associated resource of this history entry.
+   */
+  readonly resource: URI;
 
-	/**
-	 * The associated resource of this history entry.
-	 */
-	readonly resource: URI;
+  /**
+   * Optional associated timestamp to use for the
+   * history entry. If not provided, the current
+   * time will be used.
+   */
+  readonly timestamp?: number;
 
-	/**
-	 * Optional associated timestamp to use for the
-	 * history entry. If not provided, the current
-	 * time will be used.
-	 */
-	readonly timestamp?: number;
-
-	/**
-	 * Optional source why the entry was added.
-	 */
-	readonly source?: SaveSource;
+  /**
+   * Optional source why the entry was added.
+   */
+  readonly source?: SaveSource;
 }
 
 export interface IWorkingCopyHistoryService {
+  readonly _serviceBrand: undefined;
 
-	readonly _serviceBrand: undefined;
+  /**
+   * An event when an entry is added to the history.
+   */
+  onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
-	/**
-	 * An event when an entry is added to the history.
-	 */
-	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
+  /**
+   * An event when an entry is changed in the history.
+   */
+  onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
 
-	/**
-	 * An event when an entry is changed in the history.
-	 */
-	onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
+  /**
+   * An event when an entry is replaced in the history.
+   */
+  onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
 
-	/**
-	 * An event when an entry is replaced in the history.
-	 */
-	onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
+  /**
+   * An event when an entry is removed from the history.
+   */
+  onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 
-	/**
-	 * An event when an entry is removed from the history.
-	 */
-	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
+  /**
+   * An event when entries are moved in history.
+   */
+  onDidMoveEntries: Event<void>;
 
-	/**
-	 * An event when entries are moved in history.
-	 */
-	onDidMoveEntries: Event<void>;
+  /**
+   * An event when all entries are removed from the history.
+   */
+  onDidRemoveEntries: Event<void>;
 
-	/**
-	 * An event when all entries are removed from the history.
-	 */
-	onDidRemoveEntries: Event<void>;
+  /**
+   * Adds a new entry to the history for the given working copy
+   * with an optional associated descriptor.
+   */
+  addEntry(
+    descriptor: IWorkingCopyHistoryEntryDescriptor,
+    token: CancellationToken
+  ): Promise<IWorkingCopyHistoryEntry | undefined>;
 
-	/**
-	 * Adds a new entry to the history for the given working copy
-	 * with an optional associated descriptor.
-	 */
-	addEntry(descriptor: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined>;
+  /**
+   * Updates an entry in the local history if found.
+   */
+  updateEntry(
+    entry: IWorkingCopyHistoryEntry,
+    properties: { source: SaveSource },
+    token: CancellationToken
+  ): Promise<void>;
 
-	/**
-	 * Updates an entry in the local history if found.
-	 */
-	updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void>;
+  /**
+   * Removes an entry from the local history if found.
+   */
+  removeEntry(
+    entry: IWorkingCopyHistoryEntry,
+    token: CancellationToken
+  ): Promise<boolean>;
 
-	/**
-	 * Removes an entry from the local history if found.
-	 */
-	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
+  /**
+   * Moves entries that either match the `source` or are a child
+   * of `source` to the `target`.
+   *
+   * @returns a list of resources for entries that have moved.
+   */
+  moveEntries(source: URI, target: URI): Promise<URI[]>;
 
-	/**
-	 * Moves entries that either match the `source` or are a child
-	 * of `source` to the `target`.
-	 *
-	 * @returns a list of resources for entries that have moved.
-	 */
-	moveEntries(source: URI, target: URI): Promise<URI[]>;
+  /**
+   * Gets all history entries for the provided resource.
+   */
+  getEntries(
+    resource: URI,
+    token: CancellationToken
+  ): Promise<readonly IWorkingCopyHistoryEntry[]>;
 
-	/**
-	 * Gets all history entries for the provided resource.
-	 */
-	getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]>;
+  /**
+   * Returns all resources for which history entries exist.
+   */
+  getAll(token: CancellationToken): Promise<readonly URI[]>;
 
-	/**
-	 * Returns all resources for which history entries exist.
-	 */
-	getAll(token: CancellationToken): Promise<readonly URI[]>;
-
-	/**
-	 * Removes all entries from all of local history.
-	 */
-	removeAll(token: CancellationToken): Promise<void>;
+  /**
+   * Removes all entries from all of local history.
+   */
+  removeAll(token: CancellationToken): Promise<void>;
 }
 
 /**

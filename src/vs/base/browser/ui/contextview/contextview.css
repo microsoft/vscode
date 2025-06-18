@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .context-view {
-	position: absolute;
+  position: absolute;
 }
 
 .context-view.fixed {
-	all: initial;
-	font-family: inherit;
-	font-size: 13px;
-	position: fixed;
-	color: inherit;
+  all: initial;
+  font-family: inherit;
+  font-size: 13px;
+  position: fixed;
+  color: inherit;
 }

@@ -6,15 +6,13 @@
 import { Event } from '../common/event.js';
 
 export interface IHistoryNavigationWidget {
+  readonly element: HTMLElement;
 
-	readonly element: HTMLElement;
+  showPreviousValue(): void;
 
-	showPreviousValue(): void;
+  showNextValue(): void;
 
-	showNextValue(): void;
+  onDidFocus: Event<void>;
 
-	onDidFocus: Event<void>;
-
-	onDidBlur: Event<void>;
-
+  onDidBlur: Event<void>;
 }

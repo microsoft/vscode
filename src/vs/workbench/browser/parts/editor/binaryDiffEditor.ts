@@ -13,38 +13,59 @@ import { BaseBinaryResourceEditor } from './binaryEditor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import {
+  IEditorGroup,
+  IEditorGroupsService,
+} from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
  */
 export class BinaryResourceDiffEditor extends SideBySideEditor {
+  static override readonly ID = BINARY_DIFF_EDITOR_ID;
 
-	static override readonly ID = BINARY_DIFF_EDITOR_ID;
+  constructor(
+    group: IEditorGroup,
+    @ITelemetryService telemetryService: ITelemetryService,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IThemeService themeService: IThemeService,
+    @IStorageService storageService: IStorageService,
+    @IConfigurationService configurationService: IConfigurationService,
+    @ITextResourceConfigurationService
+    textResourceConfigurationService: ITextResourceConfigurationService,
+    @IEditorService editorService: IEditorService,
+    @IEditorGroupsService editorGroupService: IEditorGroupsService
+  ) {
+    super(
+      group,
+      telemetryService,
+      instantiationService,
+      themeService,
+      storageService,
+      configurationService,
+      textResourceConfigurationService,
+      editorService,
+      editorGroupService
+    );
+  }
 
-	constructor(
-		group: IEditorGroup,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(group, telemetryService, instantiationService, themeService, storageService, configurationService, textResourceConfigurationService, editorService, editorGroupService);
-	}
+  getMetadata(): string | undefined {
+    const primary = this.getPrimaryEditorPane();
+    const secondary = this.getSecondaryEditorPane();
 
-	getMetadata(): string | undefined {
-		const primary = this.getPrimaryEditorPane();
-		const secondary = this.getSecondaryEditorPane();
+    if (
+      primary instanceof BaseBinaryResourceEditor &&
+      secondary instanceof BaseBinaryResourceEditor
+    ) {
+      return localize(
+        'metadataDiff',
+        '{0} ↔ {1}',
+        secondary.getMetadata(),
+        primary.getMetadata()
+      );
+    }
 
-		if (primary instanceof BaseBinaryResourceEditor && secondary instanceof BaseBinaryResourceEditor) {
-			return localize('metadataDiff', "{0} ↔ {1}", secondary.getMetadata(), primary.getMetadata());
-		}
-
-		return undefined;
-	}
+    return undefined;
+  }
 }

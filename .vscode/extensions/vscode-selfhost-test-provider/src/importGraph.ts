@@ -34,10 +34,13 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 		private readonly root: vscode.Uri,
 		private readonly discoverWorkspaceTests: () => Thenable<vscode.TestItem[]>,
 		private readonly getTestNodeForDoc: (uri: vscode.Uri) => vscode.TestItem | undefined,
-	) { }
+	) {}
 
 	/** @inheritdoc */
-	public async provideRelatedCode(test: vscode.TestItem, token: vscode.CancellationToken): Promise<vscode.Location[]> {
+	public async provideRelatedCode(
+		test: vscode.TestItem,
+		token: vscode.CancellationToken,
+	): Promise<vscode.Location[]> {
 		// this is kind of a stub for this implementation. Naive following imports
 		// isn't that useful for finding a test's related code.
 		const node = await this.discoverOutwards(test.uri, new Set(), defaultMaxDistance, token);
@@ -61,20 +64,27 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 			}
 		}
 
-		return [...imports].map(importPath =>
-			new vscode.Location(
-				vscode.Uri.file(join(this.root.fsPath, 'src', `${importPath}.ts`)),
-				new vscode.Range(0, 0, maxInt32, 0),
-			),
+		return [...imports].map(
+			importPath =>
+				new vscode.Location(
+					vscode.Uri.file(join(this.root.fsPath, 'src', `${importPath}.ts`)),
+					new vscode.Range(0, 0, maxInt32, 0),
+				),
 		);
 	}
 
 	/** @inheritdoc */
-	public async provideRelatedTests(document: vscode.TextDocument, _position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.TestItem[]> {
+	public async provideRelatedTests(
+		document: vscode.TextDocument,
+		_position: vscode.Position,
+		token: vscode.CancellationToken,
+	): Promise<vscode.TestItem[]> {
 		// Expand all known tests to ensure imports of this file are realized.
 		const rootTests = await this.discoverWorkspaceTests();
 		const seen = new Set<string>();
-		await Promise.all(rootTests.map(v => v.uri && this.discoverOutwards(v.uri, seen, defaultMaxDistance, token)));
+		await Promise.all(
+			rootTests.map(v => v.uri && this.discoverOutwards(v.uri, seen, defaultMaxDistance, token)),
+		);
 
 		const node = this.getNode(document.uri);
 		if (!node) {
@@ -98,7 +108,7 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 				tests.push(testForDoc);
 				// only look for tests half again as far away as the closest test to keep things relevant
 				if (!Number.isFinite(maxDistance)) {
-					maxDistance = distance * 3 / 2;
+					maxDistance = (distance * 3) / 2;
 				}
 			}
 
@@ -135,7 +145,12 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 	}
 
 	/** Discover all nodes that import the file */
-	private async discoverOutwards(uri: vscode.Uri | undefined, seen: Set<string>, maxDistance: number, token: vscode.CancellationToken): Promise<FileNode | undefined> {
+	private async discoverOutwards(
+		uri: vscode.Uri | undefined,
+		seen: Set<string>,
+		maxDistance: number,
+		token: vscode.CancellationToken,
+	): Promise<FileNode | undefined> {
 		const rel = this.uriToImportPath(uri);
 		if (!rel) {
 			return undefined;
@@ -151,7 +166,12 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 		return node;
 	}
 
-	private async discoverOutwardsInner(node: FileNode, seen: Set<string>, maxDistance: number, token: vscode.CancellationToken) {
+	private async discoverOutwardsInner(
+		node: FileNode,
+		seen: Set<string>,
+		maxDistance: number,
+		token: vscode.CancellationToken,
+	) {
 		if (seen.has(node.path) || maxDistance === 0) {
 			return;
 		}
@@ -166,12 +186,16 @@ export class ImportGraph implements vscode.TestRelatedCodeProvider {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		await Promise.all([...node.imports].map(i => this.discoverOutwardsInner(i, seen, maxDistance - 1, token)));
+		await Promise.all(
+			[...node.imports].map(i => this.discoverOutwardsInner(i, seen, maxDistance - 1, token)),
+		);
 	}
 
 	private async syncNode(node: FileNode) {
 		node.isSynced = discoverLimiter.execute(async () => {
-			const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === node.uri.toString());
+			const doc = vscode.workspace.textDocuments.find(
+				d => d.uri.toString() === node.uri.toString(),
+			);
 
 			let text: string;
 			if (doc) {
@@ -235,5 +259,5 @@ class FileNode {
 	constructor(
 		public readonly uri: vscode.Uri,
 		public readonly path: string,
-	) { }
+	) {}
 }

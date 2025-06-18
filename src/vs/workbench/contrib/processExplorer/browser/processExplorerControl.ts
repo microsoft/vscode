@@ -5,12 +5,28 @@
 
 import './media/processExplorer.css';
 import { localize } from '../../../../nls.js';
-import { $, append, Dimension, getDocument } from '../../../../base/browser/dom.js';
+import {
+  $,
+  append,
+  Dimension,
+  getDocument,
+} from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IDataSource, ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
+import {
+  IIdentityProvider,
+  IListVirtualDelegate,
+} from '../../../../base/browser/ui/list/list.js';
+import {
+  IDataSource,
+  ITreeRenderer,
+  ITreeNode,
+  ITreeContextMenuEvent,
+} from '../../../../base/browser/ui/tree/tree.js';
 import { ProcessItem } from '../../../../base/common/processes.js';
-import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
+import {
+  IRemoteDiagnosticError,
+  isRemoteDiagnosticError,
+} from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -18,7 +34,11 @@ import { WorkbenchDataTree } from '../../../../platform/list/browser/listService
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import {
+  IAction,
+  Separator,
+  toAction,
+} from '../../../../base/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -40,559 +60,726 @@ const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
 //#region --- process explorer tree
 
 interface IProcessTree {
-	readonly processes: IProcessInformation;
+  readonly processes: IProcessInformation;
 }
 
 interface IProcessInformation {
-	readonly processRoots: IMachineProcessInformation[];
+  readonly processRoots: IMachineProcessInformation[];
 }
 
 interface IMachineProcessInformation {
-	readonly name: string;
-	readonly rootProcess: ProcessItem | IRemoteDiagnosticError;
+  readonly name: string;
+  readonly rootProcess: ProcessItem | IRemoteDiagnosticError;
 }
 
-function isMachineProcessInformation(item: unknown): item is IMachineProcessInformation {
-	const candidate = item as IMachineProcessInformation | undefined;
+function isMachineProcessInformation(
+  item: unknown
+): item is IMachineProcessInformation {
+  const candidate = item as IMachineProcessInformation | undefined;
 
-	return !!candidate?.name && !!candidate?.rootProcess;
+  return !!candidate?.name && !!candidate?.rootProcess;
 }
 
 function isProcessInformation(item: unknown): item is IProcessInformation {
-	const candidate = item as IProcessInformation | undefined;
+  const candidate = item as IProcessInformation | undefined;
 
-	return !!candidate?.processRoots;
+  return !!candidate?.processRoots;
 }
 
 function isProcessItem(item: unknown): item is ProcessItem {
-	const candidate = item as ProcessItem | undefined;
+  const candidate = item as ProcessItem | undefined;
 
-	return typeof candidate?.pid === 'number';
+  return typeof candidate?.pid === 'number';
 }
 
-class ProcessListDelegate implements IListVirtualDelegate<IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+class ProcessListDelegate
+  implements
+    IListVirtualDelegate<
+      IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError
+    >
+{
+  getHeight() {
+    return 22;
+  }
 
-	getHeight() {
-		return 22;
-	}
+  getTemplateId(
+    element:
+      | IProcessInformation
+      | IMachineProcessInformation
+      | ProcessItem
+      | IRemoteDiagnosticError
+  ) {
+    if (isProcessItem(element)) {
+      return 'process';
+    }
 
-	getTemplateId(element: IProcessInformation | IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		if (isProcessItem(element)) {
-			return 'process';
-		}
+    if (isMachineProcessInformation(element)) {
+      return 'machine';
+    }
 
-		if (isMachineProcessInformation(element)) {
-			return 'machine';
-		}
+    if (isRemoteDiagnosticError(element)) {
+      return 'error';
+    }
 
-		if (isRemoteDiagnosticError(element)) {
-			return 'error';
-		}
+    if (isProcessInformation(element)) {
+      return 'header';
+    }
 
-		if (isProcessInformation(element)) {
-			return 'header';
-		}
-
-		return '';
-	}
+    return '';
+  }
 }
 
-class ProcessTreeDataSource implements IDataSource<IProcessTree, IProcessInformation | IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+class ProcessTreeDataSource
+  implements
+    IDataSource<
+      IProcessTree,
+      | IProcessInformation
+      | IMachineProcessInformation
+      | ProcessItem
+      | IRemoteDiagnosticError
+    >
+{
+  hasChildren(
+    element:
+      | IProcessTree
+      | IProcessInformation
+      | IMachineProcessInformation
+      | ProcessItem
+      | IRemoteDiagnosticError
+  ): boolean {
+    if (isRemoteDiagnosticError(element)) {
+      return false;
+    }
 
-	hasChildren(element: IProcessTree | IProcessInformation | IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
-		if (isRemoteDiagnosticError(element)) {
-			return false;
-		}
+    if (isProcessItem(element)) {
+      return !!element.children?.length;
+    }
 
-		if (isProcessItem(element)) {
-			return !!element.children?.length;
-		}
+    return true;
+  }
 
-		return true;
-	}
+  getChildren(
+    element:
+      | IProcessTree
+      | IProcessInformation
+      | IMachineProcessInformation
+      | ProcessItem
+      | IRemoteDiagnosticError
+  ) {
+    if (isProcessItem(element)) {
+      return element.children ?? [];
+    }
 
-	getChildren(element: IProcessTree | IProcessInformation | IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		if (isProcessItem(element)) {
-			return element.children ?? [];
-		}
+    if (isRemoteDiagnosticError(element)) {
+      return [];
+    }
 
-		if (isRemoteDiagnosticError(element)) {
-			return [];
-		}
+    if (isProcessInformation(element)) {
+      if (element.processRoots.length > 1) {
+        return element.processRoots; // If there are multiple process roots, return these, otherwise go directly to the root process
+      }
 
-		if (isProcessInformation(element)) {
-			if (element.processRoots.length > 1) {
-				return element.processRoots; // If there are multiple process roots, return these, otherwise go directly to the root process
-			}
+      if (element.processRoots.length > 0) {
+        return [element.processRoots[0].rootProcess];
+      }
 
-			if (element.processRoots.length > 0) {
-				return [element.processRoots[0].rootProcess];
-			}
+      return [];
+    }
 
-			return [];
-		}
+    if (isMachineProcessInformation(element)) {
+      return [element.rootProcess];
+    }
 
-		if (isMachineProcessInformation(element)) {
-			return [element.rootProcess];
-		}
-
-		return element.processes ? [element.processes] : [];
-	}
+    return element.processes ? [element.processes] : [];
+  }
 }
 
 function createRow(container: HTMLElement, extraClass?: string) {
-	const row = append(container, $('.row'));
-	if (extraClass) {
-		row.classList.add(extraClass);
-	}
+  const row = append(container, $('.row'));
+  if (extraClass) {
+    row.classList.add(extraClass);
+  }
 
-	const name = append(row, $('.cell.name'));
-	const cpu = append(row, $('.cell.cpu'));
-	const memory = append(row, $('.cell.memory'));
-	const pid = append(row, $('.cell.pid'));
+  const name = append(row, $('.cell.name'));
+  const cpu = append(row, $('.cell.cpu'));
+  const memory = append(row, $('.cell.memory'));
+  const pid = append(row, $('.cell.pid'));
 
-	return { name, cpu, memory, pid };
+  return { name, cpu, memory, pid };
 }
 
 interface IProcessRowTemplateData {
-	readonly name: HTMLElement;
+  readonly name: HTMLElement;
 }
 
 interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	readonly cpu: HTMLElement;
-	readonly memory: HTMLElement;
-	readonly pid: HTMLElement;
-	readonly hover?: ProcessItemHover;
+  readonly cpu: HTMLElement;
+  readonly memory: HTMLElement;
+  readonly pid: HTMLElement;
+  readonly hover?: ProcessItemHover;
 }
 
-class ProcessHeaderTreeRenderer implements ITreeRenderer<IProcessInformation, void, IProcessItemTemplateData> {
+class ProcessHeaderTreeRenderer
+  implements ITreeRenderer<IProcessInformation, void, IProcessItemTemplateData>
+{
+  readonly templateId: string = 'header';
 
-	readonly templateId: string = 'header';
+  renderTemplate(container: HTMLElement): IProcessItemTemplateData {
+    (
+      container.parentElement!.parentElement!.querySelector(
+        '.monaco-tl-twistie'
+      )! as HTMLElement
+    ).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
-	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+    return createRow(container, 'header');
+  }
 
-		return createRow(container, 'header');
-	}
+  renderElement(
+    node: ITreeNode<IProcessInformation, void>,
+    index: number,
+    templateData: IProcessItemTemplateData
+  ): void {
+    templateData.name.textContent = localize('processName', 'Process Name');
+    templateData.cpu.textContent = localize('processCpu', 'CPU (%)');
+    templateData.pid.textContent = localize('processPid', 'PID');
+    templateData.memory.textContent = localize('processMemory', 'Memory (MB)');
+  }
 
-	renderElement(node: ITreeNode<IProcessInformation, void>, index: number, templateData: IProcessItemTemplateData): void {
-		templateData.name.textContent = localize('processName', "Process Name");
-		templateData.cpu.textContent = localize('processCpu', "CPU (%)");
-		templateData.pid.textContent = localize('processPid', "PID");
-		templateData.memory.textContent = localize('processMemory', "Memory (MB)");
-	}
-
-	disposeTemplate(templateData: unknown): void {
-		// Nothing to do
-	}
+  disposeTemplate(templateData: unknown): void {
+    // Nothing to do
+  }
 }
 
-class MachineRenderer implements ITreeRenderer<IMachineProcessInformation, void, IProcessRowTemplateData> {
+class MachineRenderer
+  implements
+    ITreeRenderer<IMachineProcessInformation, void, IProcessRowTemplateData>
+{
+  readonly templateId: string = 'machine';
 
-	readonly templateId: string = 'machine';
+  renderTemplate(container: HTMLElement): IProcessRowTemplateData {
+    return createRow(container);
+  }
 
-	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		return createRow(container);
-	}
+  renderElement(
+    node: ITreeNode<IMachineProcessInformation, void>,
+    index: number,
+    templateData: IProcessRowTemplateData
+  ): void {
+    templateData.name.textContent = node.element.name;
+  }
 
-	renderElement(node: ITreeNode<IMachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData): void {
-		templateData.name.textContent = node.element.name;
-	}
-
-	disposeTemplate(templateData: IProcessRowTemplateData): void {
-		// Nothing to do
-	}
+  disposeTemplate(templateData: IProcessRowTemplateData): void {
+    // Nothing to do
+  }
 }
 
-class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProcessRowTemplateData> {
+class ErrorRenderer
+  implements
+    ITreeRenderer<IRemoteDiagnosticError, void, IProcessRowTemplateData>
+{
+  readonly templateId: string = 'error';
 
-	readonly templateId: string = 'error';
+  renderTemplate(container: HTMLElement): IProcessRowTemplateData {
+    return createRow(container);
+  }
 
-	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
-		return createRow(container);
-	}
+  renderElement(
+    node: ITreeNode<IRemoteDiagnosticError, void>,
+    index: number,
+    templateData: IProcessRowTemplateData
+  ): void {
+    templateData.name.textContent = node.element.errorMessage;
+  }
 
-	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData): void {
-		templateData.name.textContent = node.element.errorMessage;
-	}
-
-	disposeTemplate(templateData: IProcessRowTemplateData): void {
-		// Nothing to do
-	}
+  disposeTemplate(templateData: IProcessRowTemplateData): void {
+    // Nothing to do
+  }
 }
 
 class ProcessItemHover extends Disposable {
+  private hover: IManagedHover;
+  private content = '';
 
-	private hover: IManagedHover;
-	private content = '';
+  constructor(
+    container: HTMLElement,
+    @IHoverService hoverService: IHoverService
+  ) {
+    super();
 
-	constructor(
-		container: HTMLElement,
-		@IHoverService hoverService: IHoverService
-	) {
-		super();
+    this.hover = this._register(
+      hoverService.setupManagedHover(
+        getDefaultHoverDelegate('mouse'),
+        container,
+        this.content
+      )
+    );
+  }
 
-		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, this.content));
-	}
-
-	update(content: string): void {
-		if (this.content !== content) {
-			this.content = content;
-			this.hover.update(content);
-		}
-	}
+  update(content: string): void {
+    if (this.content !== content) {
+      this.content = content;
+      this.hover.update(content);
+    }
+  }
 }
 
-class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
+class ProcessRenderer
+  implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData>
+{
+  readonly templateId: string = 'process';
 
-	readonly templateId: string = 'process';
+  constructor(
+    private model: ProcessExplorerModel,
+    @IHoverService private readonly hoverService: IHoverService
+  ) {}
 
-	constructor(
-		private model: ProcessExplorerModel,
-		@IHoverService private readonly hoverService: IHoverService
-	) { }
+  renderTemplate(container: HTMLElement): IProcessItemTemplateData {
+    const row = createRow(container);
 
-	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const row = createRow(container);
+    return {
+      name: row.name,
+      cpu: row.cpu,
+      memory: row.memory,
+      pid: row.pid,
+      hover: new ProcessItemHover(row.name, this.hoverService),
+    };
+  }
 
-		return {
-			name: row.name,
-			cpu: row.cpu,
-			memory: row.memory,
-			pid: row.pid,
-			hover: new ProcessItemHover(row.name, this.hoverService)
-		};
-	}
+  renderElement(
+    node: ITreeNode<ProcessItem, void>,
+    index: number,
+    templateData: IProcessItemTemplateData
+  ): void {
+    const { element } = node;
 
-	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData): void {
-		const { element } = node;
+    const pid = element.pid.toFixed(0);
 
-		const pid = element.pid.toFixed(0);
+    templateData.name.textContent = this.model.getName(
+      element.pid,
+      element.name
+    );
+    templateData.cpu.textContent = element.load.toFixed(0);
+    templateData.memory.textContent = (element.mem / ByteSize.MB).toFixed(0);
+    templateData.pid.textContent = pid;
+    templateData.pid.parentElement!.id = `pid-${pid}`;
 
-		templateData.name.textContent = this.model.getName(element.pid, element.name);
-		templateData.cpu.textContent = element.load.toFixed(0);
-		templateData.memory.textContent = (element.mem / ByteSize.MB).toFixed(0);
-		templateData.pid.textContent = pid;
-		templateData.pid.parentElement!.id = `pid-${pid}`;
+    templateData.hover?.update(element.cmd);
+  }
 
-		templateData.hover?.update(element.cmd);
-	}
-
-	disposeTemplate(templateData: IProcessItemTemplateData): void {
-		templateData.hover?.dispose();
-	}
+  disposeTemplate(templateData: IProcessItemTemplateData): void {
+    templateData.hover?.dispose();
+  }
 }
 
-class ProcessAccessibilityProvider implements IListAccessibilityProvider<IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+class ProcessAccessibilityProvider
+  implements
+    IListAccessibilityProvider<
+      IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError
+    >
+{
+  getWidgetAriaLabel(): string {
+    return localize('processExplorer', 'Process Explorer');
+  }
 
-	getWidgetAriaLabel(): string {
-		return localize('processExplorer', "Process Explorer");
-	}
+  getAriaLabel(
+    element: IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError
+  ): string | null {
+    if (isProcessItem(element) || isMachineProcessInformation(element)) {
+      return element.name;
+    }
 
-	getAriaLabel(element: IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError): string | null {
-		if (isProcessItem(element) || isMachineProcessInformation(element)) {
-			return element.name;
-		}
+    if (isRemoteDiagnosticError(element)) {
+      return element.hostName;
+    }
 
-		if (isRemoteDiagnosticError(element)) {
-			return element.hostName;
-		}
-
-		return null;
-	}
+    return null;
+  }
 }
 
-class ProcessIdentityProvider implements IIdentityProvider<IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
+class ProcessIdentityProvider
+  implements
+    IIdentityProvider<
+      IMachineProcessInformation | ProcessItem | IRemoteDiagnosticError
+    >
+{
+  getId(
+    element: IRemoteDiagnosticError | ProcessItem | IMachineProcessInformation
+  ): { toString(): string } {
+    if (isProcessItem(element)) {
+      return element.pid.toString();
+    }
 
-	getId(element: IRemoteDiagnosticError | ProcessItem | IMachineProcessInformation): { toString(): string } {
-		if (isProcessItem(element)) {
-			return element.pid.toString();
-		}
+    if (isRemoteDiagnosticError(element)) {
+      return element.hostName;
+    }
 
-		if (isRemoteDiagnosticError(element)) {
-			return element.hostName;
-		}
+    if (isProcessInformation(element)) {
+      return 'processes';
+    }
 
-		if (isProcessInformation(element)) {
-			return 'processes';
-		}
+    if (isMachineProcessInformation(element)) {
+      return element.name;
+    }
 
-		if (isMachineProcessInformation(element)) {
-			return element.name;
-		}
-
-		return 'header';
-	}
+    return 'header';
+  }
 }
 
 //#endregion
 
 export abstract class ProcessExplorerControl extends Disposable {
+  private dimensions: Dimension | undefined = undefined;
 
-	private dimensions: Dimension | undefined = undefined;
+  private readonly model: ProcessExplorerModel;
+  private tree:
+    | WorkbenchDataTree<
+        IProcessTree,
+        | IProcessTree
+        | IMachineProcessInformation
+        | ProcessItem
+        | IProcessInformation
+        | IRemoteDiagnosticError
+      >
+    | undefined;
 
-	private readonly model: ProcessExplorerModel;
-	private tree: WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError> | undefined;
+  private readonly delayer = this._register(new Delayer(1000));
 
-	private readonly delayer = this._register(new Delayer(1000));
+  constructor(
+    @IInstantiationService
+    private readonly instantiationService: IInstantiationService,
+    @IProductService private readonly productService: IProductService,
+    @IContextMenuService
+    private readonly contextMenuService: IContextMenuService,
+    @ICommandService private readonly commandService: ICommandService,
+    @IClipboardService private readonly clipboardService: IClipboardService
+  ) {
+    super();
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super();
+    this.model = new ProcessExplorerModel(this.productService);
+  }
 
-		this.model = new ProcessExplorerModel(this.productService);
-	}
+  protected killProcess?(pid: number, signal: string): Promise<void>;
+  protected abstract resolveProcesses(): Promise<IResolvedProcessInformation>;
 
-	protected killProcess?(pid: number, signal: string): Promise<void>;
-	protected abstract resolveProcesses(): Promise<IResolvedProcessInformation>;
+  protected create(container: HTMLElement): void {
+    this.createProcessTree(container);
 
-	protected create(container: HTMLElement): void {
-		this.createProcessTree(container);
+    this.update();
+  }
 
-		this.update();
-	}
+  private createProcessTree(container: HTMLElement): void {
+    container.classList.add('process-explorer');
+    container.id = 'process-explorer';
 
-	private createProcessTree(container: HTMLElement): void {
-		container.classList.add('process-explorer');
-		container.id = 'process-explorer';
+    const renderers = [
+      this.instantiationService.createInstance(ProcessRenderer, this.model),
+      new ProcessHeaderTreeRenderer(),
+      new MachineRenderer(),
+      new ErrorRenderer(),
+    ];
 
-		const renderers = [
-			this.instantiationService.createInstance(ProcessRenderer, this.model),
-			new ProcessHeaderTreeRenderer(),
-			new MachineRenderer(),
-			new ErrorRenderer()
-		];
+    this.tree = this._register(
+      this.instantiationService.createInstance(
+        WorkbenchDataTree<
+          IProcessTree,
+          | IProcessTree
+          | IMachineProcessInformation
+          | ProcessItem
+          | IProcessInformation
+          | IRemoteDiagnosticError
+        >,
+        'processExplorer',
+        container,
+        new ProcessListDelegate(),
+        renderers,
+        new ProcessTreeDataSource(),
+        {
+          accessibilityProvider: new ProcessAccessibilityProvider(),
+          identityProvider: new ProcessIdentityProvider(),
+          expandOnlyOnTwistieClick: true,
+          renderIndentGuides: RenderIndentGuides.OnHover,
+        }
+      )
+    );
 
-		this.tree = this._register(this.instantiationService.createInstance(
-			WorkbenchDataTree<IProcessTree, IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError>,
-			'processExplorer',
-			container,
-			new ProcessListDelegate(),
-			renderers,
-			new ProcessTreeDataSource(),
-			{
-				accessibilityProvider: new ProcessAccessibilityProvider(),
-				identityProvider: new ProcessIdentityProvider(),
-				expandOnlyOnTwistieClick: true,
-				renderIndentGuides: RenderIndentGuides.OnHover
-			}));
+    this._register(this.tree.onKeyDown((e) => this.onTreeKeyDown(e)));
+    this._register(
+      this.tree.onContextMenu((e) => this.onTreeContextMenu(container, e))
+    );
 
-		this._register(this.tree.onKeyDown(e => this.onTreeKeyDown(e)));
-		this._register(this.tree.onContextMenu(e => this.onTreeContextMenu(container, e)));
+    this.tree.setInput(this.model);
+    this.layoutTree();
+  }
 
-		this.tree.setInput(this.model);
-		this.layoutTree();
-	}
+  private async onTreeKeyDown(e: KeyboardEvent): Promise<void> {
+    const event = new StandardKeyboardEvent(e);
+    if (event.keyCode === KeyCode.KeyE && event.altKey) {
+      const selectionPids = this.getSelectedPids();
+      await Promise.all(
+        selectionPids.map((pid) => this.killProcess?.(pid, 'SIGTERM'))
+      );
+    }
+  }
 
-	private async onTreeKeyDown(e: KeyboardEvent): Promise<void> {
-		const event = new StandardKeyboardEvent(e);
-		if (event.keyCode === KeyCode.KeyE && event.altKey) {
-			const selectionPids = this.getSelectedPids();
-			await Promise.all(selectionPids.map(pid => this.killProcess?.(pid, 'SIGTERM')));
-		}
-	}
+  private onTreeContextMenu(
+    container: HTMLElement,
+    e: ITreeContextMenuEvent<
+      | IProcessTree
+      | IMachineProcessInformation
+      | ProcessItem
+      | IProcessInformation
+      | IRemoteDiagnosticError
+      | null
+    >
+  ): void {
+    if (!isProcessItem(e.element)) {
+      return;
+    }
 
-	private onTreeContextMenu(container: HTMLElement, e: ITreeContextMenuEvent<IProcessTree | IMachineProcessInformation | ProcessItem | IProcessInformation | IRemoteDiagnosticError | null>): void {
-		if (!isProcessItem(e.element)) {
-			return;
-		}
+    const item = e.element;
+    const pid = Number(item.pid);
 
-		const item = e.element;
-		const pid = Number(item.pid);
+    const actions: IAction[] = [];
 
-		const actions: IAction[] = [];
+    if (typeof this.killProcess === 'function') {
+      actions.push(
+        toAction({
+          id: 'killProcess',
+          label: localize('killProcess', 'Kill Process'),
+          run: () => this.killProcess?.(pid, 'SIGTERM'),
+        })
+      );
+      actions.push(
+        toAction({
+          id: 'forceKillProcess',
+          label: localize('forceKillProcess', 'Force Kill Process'),
+          run: () => this.killProcess?.(pid, 'SIGKILL'),
+        })
+      );
 
-		if (typeof this.killProcess === 'function') {
-			actions.push(toAction({ id: 'killProcess', label: localize('killProcess', "Kill Process"), run: () => this.killProcess?.(pid, 'SIGTERM') }));
-			actions.push(toAction({ id: 'forceKillProcess', label: localize('forceKillProcess', "Force Kill Process"), run: () => this.killProcess?.(pid, 'SIGKILL') }));
+      actions.push(new Separator());
+    }
 
-			actions.push(new Separator());
-		}
+    actions.push(
+      toAction({
+        id: 'copy',
+        label: localize('copy', 'Copy'),
+        run: () => {
+          const selectionPids = this.getSelectedPids();
 
-		actions.push(toAction({
-			id: 'copy',
-			label: localize('copy', "Copy"),
-			run: () => {
-				const selectionPids = this.getSelectedPids();
+          if (!selectionPids?.includes(pid)) {
+            selectionPids.length = 0; // If the selection does not contain the right clicked item, copy the right clicked item only.
+            selectionPids.push(pid);
+          }
 
-				if (!selectionPids?.includes(pid)) {
-					selectionPids.length = 0; // If the selection does not contain the right clicked item, copy the right clicked item only.
-					selectionPids.push(pid);
-				}
+          const rows = selectionPids
+            ?.map((e) => getDocument(container).getElementById(`pid-${e}`))
+            .filter((e) => !!e);
+          if (rows) {
+            const text = rows.map((e) => e.innerText).filter((e) => !!e);
+            this.clipboardService.writeText(text.join('\n'));
+          }
+        },
+      })
+    );
 
-				const rows = selectionPids?.map(e => getDocument(container).getElementById(`pid-${e}`)).filter(e => !!e);
-				if (rows) {
-					const text = rows.map(e => e.innerText).filter(e => !!e);
-					this.clipboardService.writeText(text.join('\n'));
-				}
-			}
-		}));
+    actions.push(
+      toAction({
+        id: 'copyAll',
+        label: localize('copyAll', 'Copy All'),
+        run: () => {
+          const processList =
+            getDocument(container).getElementById('process-explorer');
+          if (processList) {
+            this.clipboardService.writeText(processList.innerText);
+          }
+        },
+      })
+    );
 
-		actions.push(toAction({
-			id: 'copyAll',
-			label: localize('copyAll', "Copy All"),
-			run: () => {
-				const processList = getDocument(container).getElementById('process-explorer');
-				if (processList) {
-					this.clipboardService.writeText(processList.innerText);
-				}
-			}
-		}));
+    if (this.isDebuggable(item.cmd)) {
+      actions.push(new Separator());
+      actions.push(
+        toAction({
+          id: 'debug',
+          label: localize('debug', 'Debug'),
+          run: () => this.attachTo(item),
+        })
+      );
+    }
 
-		if (this.isDebuggable(item.cmd)) {
-			actions.push(new Separator());
-			actions.push(toAction({ id: 'debug', label: localize('debug', "Debug"), run: () => this.attachTo(item) }));
-		}
+    this.contextMenuService.showContextMenu({
+      getAnchor: () => e.anchor,
+      getActions: () => actions,
+    });
+  }
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => actions
-		});
-	}
+  private isDebuggable(cmd: string): boolean {
+    if (isWeb) {
+      return false;
+    }
 
-	private isDebuggable(cmd: string): boolean {
-		if (isWeb) {
-			return false;
-		}
+    const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
 
-		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
+    return (
+      (matches && matches.groups!.port !== '0') ||
+      cmd.indexOf('node ') >= 0 ||
+      cmd.indexOf('node.exe') >= 0
+    );
+  }
 
-		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
-	}
+  private attachTo(item: ProcessItem): void {
+    const config: {
+      type: string;
+      request: string;
+      name: string;
+      port?: number;
+      processId?: string;
+    } = {
+      type: 'node',
+      request: 'attach',
+      name: `process ${item.pid}`,
+    };
 
-	private attachTo(item: ProcessItem): void {
-		const config: { type: string; request: string; name: string; port?: number; processId?: string } = {
-			type: 'node',
-			request: 'attach',
-			name: `process ${item.pid}`
-		};
+    let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
+    if (matches) {
+      config.port = Number(matches.groups!.port);
+    } else {
+      config.processId = String(item.pid); // no port -> try to attach via pid (send SIGUSR1)
+    }
 
-		let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
-		if (matches) {
-			config.port = Number(matches.groups!.port);
-		} else {
-			config.processId = String(item.pid); // no port -> try to attach via pid (send SIGUSR1)
-		}
+    // a debug-port=n or inspect-port=n overrides the port
+    matches = DEBUG_PORT_PATTERN.exec(item.cmd);
+    if (matches) {
+      config.port = Number(matches.groups!.port); // override port
+    }
 
-		// a debug-port=n or inspect-port=n overrides the port
-		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
-		if (matches) {
-			config.port = Number(matches.groups!.port); // override port
-		}
+    this.commandService.executeCommand('debug.startFromConfig', config);
+  }
 
-		this.commandService.executeCommand('debug.startFromConfig', config);
-	}
+  private getSelectedPids(): number[] {
+    return coalesce(
+      this.tree?.getSelection()?.map((e) => {
+        if (!isProcessItem(e)) {
+          return undefined;
+        }
 
-	private getSelectedPids(): number[] {
-		return coalesce(this.tree?.getSelection()?.map(e => {
-			if (!isProcessItem(e)) {
-				return undefined;
-			}
+        return e.pid;
+      }) ?? []
+    );
+  }
 
-			return e.pid;
-		}) ?? []);
-	}
+  private async update(): Promise<void> {
+    const { processes, pidToNames } = await this.resolveProcesses();
 
-	private async update(): Promise<void> {
-		const { processes, pidToNames } = await this.resolveProcesses();
+    this.model.update(processes, pidToNames);
 
-		this.model.update(processes, pidToNames);
+    this.tree?.updateChildren();
+    this.layoutTree();
 
-		this.tree?.updateChildren();
-		this.layoutTree();
+    this.delayer.trigger(() => this.update());
+  }
 
-		this.delayer.trigger(() => this.update());
-	}
+  focus(): void {
+    this.tree?.domFocus();
+  }
 
-	focus(): void {
-		this.tree?.domFocus();
-	}
+  layout(dimension: Dimension): void {
+    this.dimensions = dimension;
 
-	layout(dimension: Dimension): void {
-		this.dimensions = dimension;
+    this.layoutTree();
+  }
 
-		this.layoutTree();
-	}
-
-	private layoutTree(): void {
-		if (this.dimensions && this.tree) {
-			this.tree.layout(this.dimensions.height, this.dimensions.width);
-		}
-	}
+  private layoutTree(): void {
+    if (this.dimensions && this.tree) {
+      this.tree.layout(this.dimensions.height, this.dimensions.width);
+    }
+  }
 }
 
 class ProcessExplorerModel implements IProcessTree {
+  processes: IProcessInformation = { processRoots: [] };
 
-	processes: IProcessInformation = { processRoots: [] };
+  private readonly mapPidToName = new Map<number, string>();
 
-	private readonly mapPidToName = new Map<number, string>();
+  constructor(@IProductService private productService: IProductService) {}
 
-	constructor(@IProductService private productService: IProductService) { }
+  update(
+    processRoots: IMachineProcessInformation[],
+    pidToNames: [number, string][]
+  ): void {
+    // PID to Names
+    this.mapPidToName.clear();
 
-	update(processRoots: IMachineProcessInformation[], pidToNames: [number, string][]): void {
+    for (const [pid, name] of pidToNames) {
+      this.mapPidToName.set(pid, name);
+    }
 
-		// PID to Names
-		this.mapPidToName.clear();
+    // Processes
+    processRoots.forEach((info, index) => {
+      if (isProcessItem(info.rootProcess)) {
+        info.rootProcess.name =
+          index === 0 ? this.productService.applicationName : 'remote-server';
+      }
+    });
 
-		for (const [pid, name] of pidToNames) {
-			this.mapPidToName.set(pid, name);
-		}
+    this.processes = { processRoots };
+  }
 
-		// Processes
-		processRoots.forEach((info, index) => {
-			if (isProcessItem(info.rootProcess)) {
-				info.rootProcess.name = index === 0 ? this.productService.applicationName : 'remote-server';
-			}
-		});
-
-		this.processes = { processRoots };
-	}
-
-	getName(pid: number, fallback: string): string {
-		return this.mapPidToName.get(pid) ?? fallback;
-	}
+  getName(pid: number, fallback: string): string {
+    return this.mapPidToName.get(pid) ?? fallback;
+  }
 }
 
 export class BrowserProcessExplorerControl extends ProcessExplorerControl {
+  constructor(
+    container: HTMLElement,
+    @IInstantiationService instantiationService: IInstantiationService,
+    @IProductService productService: IProductService,
+    @IContextMenuService contextMenuService: IContextMenuService,
+    @ICommandService commandService: ICommandService,
+    @IClipboardService clipboardService: IClipboardService,
+    @IRemoteAgentService
+    private readonly remoteAgentService: IRemoteAgentService,
+    @ILabelService private readonly labelService: ILabelService
+  ) {
+    super(
+      instantiationService,
+      productService,
+      contextMenuService,
+      commandService,
+      clipboardService
+    );
 
-	constructor(
-		container: HTMLElement,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService commandService: ICommandService,
-		@IClipboardService clipboardService: IClipboardService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ILabelService private readonly labelService: ILabelService
-	) {
-		super(instantiationService, productService, contextMenuService, commandService, clipboardService);
+    this.create(container);
+  }
 
-		this.create(container);
-	}
+  protected override async resolveProcesses(): Promise<IResolvedProcessInformation> {
+    const connection = this.remoteAgentService.getConnection();
+    if (!connection) {
+      return { pidToNames: [], processes: [] };
+    }
 
-	protected override async resolveProcesses(): Promise<IResolvedProcessInformation> {
-		const connection = this.remoteAgentService.getConnection();
-		if (!connection) {
-			return { pidToNames: [], processes: [] };
-		}
+    const processes: {
+      name: string;
+      rootProcess: ProcessItem | IRemoteDiagnosticError;
+    }[] = [];
 
-		const processes: { name: string; rootProcess: ProcessItem | IRemoteDiagnosticError }[] = [];
+    const hostName = this.labelService.getHostLabel(
+      Schemas.vscodeRemote,
+      connection.remoteAuthority
+    );
+    const result = await this.remoteAgentService.getDiagnosticInfo({
+      includeProcesses: true,
+    });
+    if (result) {
+      if (isRemoteDiagnosticError(result)) {
+        processes.push({ name: result.hostName, rootProcess: result });
+      } else if (result.processes) {
+        processes.push({ name: hostName, rootProcess: result.processes });
+      }
+    }
 
-		const hostName = this.labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
-		const result = await this.remoteAgentService.getDiagnosticInfo({ includeProcesses: true });
-		if (result) {
-			if (isRemoteDiagnosticError(result)) {
-				processes.push({ name: result.hostName, rootProcess: result });
-			} else if (result.processes) {
-				processes.push({ name: hostName, rootProcess: result.processes });
-			}
-		}
-
-		return { pidToNames: [], processes };
-	}
+    return { pidToNames: [], processes };
+  }
 }

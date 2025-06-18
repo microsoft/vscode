@@ -10,22 +10,22 @@ import { SpacingToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class Tab extends SpacingToken<'\t'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '\t' = '\t';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '\t' = '\t';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '\t' {
-		return Tab.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '\t' {
+    return Tab.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `tab${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `tab${this.range}`;
+  }
 }

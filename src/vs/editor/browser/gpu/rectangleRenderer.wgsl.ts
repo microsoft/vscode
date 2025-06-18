@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum RectangleRendererBindingId {
-	Shapes,
-	LayoutInfoUniform,
-	ScrollOffset,
+  Shapes,
+  LayoutInfoUniform,
+  ScrollOffset,
 }
 
 export const rectangleRendererWgsl = /*wgsl*/ `

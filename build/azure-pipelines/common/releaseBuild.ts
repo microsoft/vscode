@@ -8,71 +8,90 @@ import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry';
 
 function getEnv(name: string): string {
-	const result = process.env[name];
+  const result = process.env[name];
 
-	if (typeof result === 'undefined') {
-		throw new Error('Missing env: ' + name);
-	}
+  if (typeof result === 'undefined') {
+    throw new Error('Missing env: ' + name);
+  }
 
-	return result;
+  return result;
 }
 
 interface Config {
-	id: string;
-	frozen: boolean;
+  id: string;
+  frozen: boolean;
 }
 
 function createDefaultConfig(quality: string): Config {
-	return {
-		id: quality,
-		frozen: false
-	};
+  return {
+    id: quality,
+    frozen: false,
+  };
 }
 
-async function getConfig(client: CosmosClient, quality: string): Promise<Config> {
-	const query = `SELECT TOP 1 * FROM c WHERE c.id = "${quality}"`;
+async function getConfig(
+  client: CosmosClient,
+  quality: string
+): Promise<Config> {
+  const query = `SELECT TOP 1 * FROM c WHERE c.id = "${quality}"`;
 
-	const res = await client.database('builds').container('config').items.query(query).fetchAll();
+  const res = await client
+    .database('builds')
+    .container('config')
+    .items.query(query)
+    .fetchAll();
 
-	if (res.resources.length === 0) {
-		return createDefaultConfig(quality);
-	}
+  if (res.resources.length === 0) {
+    return createDefaultConfig(quality);
+  }
 
-	return res.resources[0] as Config;
+  return res.resources[0] as Config;
 }
 
 async function main(force: boolean): Promise<void> {
-	const commit = getEnv('BUILD_SOURCEVERSION');
-	const quality = getEnv('VSCODE_QUALITY');
+  const commit = getEnv('BUILD_SOURCEVERSION');
+  const quality = getEnv('VSCODE_QUALITY');
 
-	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
-	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials });
+  const aadCredentials = new ClientAssertionCredential(
+    process.env['AZURE_TENANT_ID']!,
+    process.env['AZURE_CLIENT_ID']!,
+    () => Promise.resolve(process.env['AZURE_ID_TOKEN']!)
+  );
+  const client = new CosmosClient({
+    endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!,
+    aadCredentials,
+  });
 
-	if (!force) {
-		const config = await getConfig(client, quality);
+  if (!force) {
+    const config = await getConfig(client, quality);
 
-		console.log('Quality config:', config);
+    console.log('Quality config:', config);
 
-		if (config.frozen) {
-			console.log(`Skipping release because quality ${quality} is frozen.`);
-			return;
-		}
-	}
+    if (config.frozen) {
+      console.log(`Skipping release because quality ${quality} is frozen.`);
+      return;
+    }
+  }
 
-	console.log(`Releasing build ${commit}...`);
+  console.log(`Releasing build ${commit}...`);
 
-	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+  const scripts = client.database('builds').container(quality).scripts;
+  await retry(() =>
+    scripts.storedProcedure('releaseBuild').execute('', [commit])
+  );
 }
 
 const [, , force] = process.argv;
 
 console.log(process.argv);
 
-main(/^true$/i.test(force)).then(() => {
-	console.log('Build successfully released');
-	process.exit(0);
-}, err => {
-	console.error(err);
-	process.exit(1);
-});
+main(/^true$/i.test(force)).then(
+  () => {
+    console.log('Build successfully released');
+    process.exit(0);
+  },
+  (err) => {
+    console.error(err);
+    process.exit(1);
+  }
+);

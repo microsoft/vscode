@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+  // todo@jrieken add issue reference
 
-	// todo@jrieken add issue reference
-
-	export interface DocumentFilter {
-		readonly exclusive?: boolean;
-	}
+  export interface DocumentFilter {
+    readonly exclusive?: boolean;
+  }
 }

@@ -11,31 +11,46 @@ import { NotebookDocumentMetadata } from '../../contrib/notebook/common/notebook
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
 
-export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebookDocumentsShape {
+export class ExtHostNotebookDocuments
+  implements extHostProtocol.ExtHostNotebookDocumentsShape
+{
+  private readonly _onDidSaveNotebookDocument =
+    new Emitter<vscode.NotebookDocument>();
+  readonly onDidSaveNotebookDocument = this._onDidSaveNotebookDocument.event;
 
-	private readonly _onDidSaveNotebookDocument = new Emitter<vscode.NotebookDocument>();
-	readonly onDidSaveNotebookDocument = this._onDidSaveNotebookDocument.event;
+  private readonly _onDidChangeNotebookDocument =
+    new Emitter<vscode.NotebookDocumentChangeEvent>();
+  readonly onDidChangeNotebookDocument =
+    this._onDidChangeNotebookDocument.event;
 
-	private readonly _onDidChangeNotebookDocument = new Emitter<vscode.NotebookDocumentChangeEvent>();
-	readonly onDidChangeNotebookDocument = this._onDidChangeNotebookDocument.event;
+  constructor(
+    private readonly _notebooksAndEditors: ExtHostNotebookController
+  ) {}
 
-	constructor(
-		private readonly _notebooksAndEditors: ExtHostNotebookController,
-	) { }
+  $acceptModelChanged(
+    uri: UriComponents,
+    event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>,
+    isDirty: boolean,
+    newMetadata?: NotebookDocumentMetadata
+  ): void {
+    const document = this._notebooksAndEditors.getNotebookDocument(
+      URI.revive(uri)
+    );
+    const e = document.acceptModelChanged(event.value, isDirty, newMetadata);
+    this._onDidChangeNotebookDocument.fire(e);
+  }
 
-	$acceptModelChanged(uri: UriComponents, event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>, isDirty: boolean, newMetadata?: NotebookDocumentMetadata): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		const e = document.acceptModelChanged(event.value, isDirty, newMetadata);
-		this._onDidChangeNotebookDocument.fire(e);
-	}
+  $acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
+    const document = this._notebooksAndEditors.getNotebookDocument(
+      URI.revive(uri)
+    );
+    document.acceptDirty(isDirty);
+  }
 
-	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptDirty(isDirty);
-	}
-
-	$acceptModelSaved(uri: UriComponents): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		this._onDidSaveNotebookDocument.fire(document.apiNotebook);
-	}
+  $acceptModelSaved(uri: UriComponents): void {
+    const document = this._notebooksAndEditors.getNotebookDocument(
+      URI.revive(uri)
+    );
+    this._onDidSaveNotebookDocument.fire(document.apiNotebook);
+  }
 }

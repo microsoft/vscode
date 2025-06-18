@@ -14,51 +14,62 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { KeybindingsEditorModel } from './keybindingsEditorModel.js';
 
 export interface IKeybindingsEditorSearchOptions {
-	searchValue: string;
-	recordKeybindings: boolean;
-	sortByPrecedence: boolean;
+  searchValue: string;
+  recordKeybindings: boolean;
+  sortByPrecedence: boolean;
 }
 
-const KeybindingsEditorIcon = registerIcon('keybindings-editor-label-icon', Codicon.keyboard, nls.localize('keybindingsEditorLabelIcon', 'Icon of the keybindings editor label.'));
+const KeybindingsEditorIcon = registerIcon(
+  'keybindings-editor-label-icon',
+  Codicon.keyboard,
+  nls.localize(
+    'keybindingsEditorLabelIcon',
+    'Icon of the keybindings editor label.'
+  )
+);
 
 export class KeybindingsEditorInput extends EditorInput {
+  static readonly ID: string = 'workbench.input.keybindings';
+  readonly keybindingsModel: KeybindingsEditorModel;
 
-	static readonly ID: string = 'workbench.input.keybindings';
-	readonly keybindingsModel: KeybindingsEditorModel;
+  searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
-	searchOptions: IKeybindingsEditorSearchOptions | null = null;
+  readonly resource = undefined;
 
-	readonly resource = undefined;
+  constructor(
+    @IInstantiationService instantiationService: IInstantiationService
+  ) {
+    super();
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		super();
+    this.keybindingsModel = instantiationService.createInstance(
+      KeybindingsEditorModel,
+      OS
+    );
+  }
 
-		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
-	}
+  override get typeId(): string {
+    return KeybindingsEditorInput.ID;
+  }
 
-	override get typeId(): string {
-		return KeybindingsEditorInput.ID;
-	}
+  override getName(): string {
+    return nls.localize('keybindingsInputName', 'Keyboard Shortcuts');
+  }
 
-	override getName(): string {
-		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
-	}
+  override getIcon(): ThemeIcon {
+    return KeybindingsEditorIcon;
+  }
 
-	override getIcon(): ThemeIcon {
-		return KeybindingsEditorIcon;
-	}
+  override async resolve(): Promise<KeybindingsEditorModel> {
+    return this.keybindingsModel;
+  }
 
-	override async resolve(): Promise<KeybindingsEditorModel> {
-		return this.keybindingsModel;
-	}
+  override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+    return otherInput instanceof KeybindingsEditorInput;
+  }
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof KeybindingsEditorInput;
-	}
+  override dispose(): void {
+    this.keybindingsModel.dispose();
 
-	override dispose(): void {
-		this.keybindingsModel.dispose();
-
-		super.dispose();
-	}
+    super.dispose();
+  }
 }

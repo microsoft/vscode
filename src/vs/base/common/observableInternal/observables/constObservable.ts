@@ -11,32 +11,32 @@ import { ConvenientObservable } from './baseObservable.js';
  */
 
 export function constObservable<T>(value: T): IObservable<T> {
-	return new ConstObservable(value);
+  return new ConstObservable(value);
 }
 class ConstObservable<T> extends ConvenientObservable<T, void> {
-	constructor(private readonly value: T) {
-		super();
-	}
+  constructor(private readonly value: T) {
+    super();
+  }
 
-	public override get debugName(): string {
-		return this.toString();
-	}
+  public override get debugName(): string {
+    return this.toString();
+  }
 
-	public get(): T {
-		return this.value;
-	}
-	public addObserver(observer: IObserver): void {
-		// NO OP
-	}
-	public removeObserver(observer: IObserver): void {
-		// NO OP
-	}
+  public get(): T {
+    return this.value;
+  }
+  public addObserver(observer: IObserver): void {
+    // NO OP
+  }
+  public removeObserver(observer: IObserver): void {
+    // NO OP
+  }
 
-	override log(): IObservableWithChange<T, void> {
-		return this;
-	}
+  override log(): IObservableWithChange<T, void> {
+    return this;
+  }
 
-	override toString(): string {
-		return `Const: ${this.value}`;
-	}
+  override toString(): string {
+    return `Const: ${this.value}`;
+  }
 }

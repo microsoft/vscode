@@ -25,17 +25,17 @@ const esbuild = require('esbuild');
  * @param {(outDir: string) => unknown} [didBuild]
  */
 async function build(options, didBuild) {
-	await esbuild.build({
-		bundle: true,
-		minify: true,
-		sourcemap: false,
-		format: 'esm',
-		platform: 'browser',
-		target: ['es2020'],
-		...options,
-	});
+  await esbuild.build({
+    bundle: true,
+    minify: true,
+    sourcemap: false,
+    format: 'esm',
+    platform: 'browser',
+    target: ['es2020'],
+    ...options,
+  });
 
-	await didBuild?.(options.outdir);
+  await didBuild?.(options.outdir);
 }
 
 /**
@@ -45,11 +45,11 @@ async function build(options, didBuild) {
  * @param {(outDir: string) => unknown} [didBuild]
  */
 async function tryBuild(options, didBuild) {
-	try {
-		await build(options, didBuild);
-	} catch (err) {
-		console.error(err);
-	}
+  try {
+    await build(options, didBuild);
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 /**
@@ -63,31 +63,31 @@ async function tryBuild(options, didBuild) {
  * @param {(outDir: string) => unknown} [didBuild]
  */
 module.exports.run = async function (config, args, didBuild) {
-	let outdir = config.outdir;
-	const outputRootIndex = args.indexOf('--outputRoot');
-	if (outputRootIndex >= 0) {
-		const outputRoot = args[outputRootIndex + 1];
-		const outputDirName = path.basename(outdir);
-		outdir = path.join(outputRoot, outputDirName);
-	}
+  let outdir = config.outdir;
+  const outputRootIndex = args.indexOf('--outputRoot');
+  if (outputRootIndex >= 0) {
+    const outputRoot = args[outputRootIndex + 1];
+    const outputDirName = path.basename(outdir);
+    outdir = path.join(outputRoot, outputDirName);
+  }
 
-	/** @type {BuildOptions} */
-	const resolvedOptions = {
-		entryPoints: config.entryPoints,
-		outdir,
-		logOverride: {
-			'import-is-undefined': 'error',
-		},
-		...(config.additionalOptions || {}),
-	};
+  /** @type {BuildOptions} */
+  const resolvedOptions = {
+    entryPoints: config.entryPoints,
+    outdir,
+    logOverride: {
+      'import-is-undefined': 'error',
+    },
+    ...(config.additionalOptions || {}),
+  };
 
-	const isWatch = args.indexOf('--watch') >= 0;
-	if (isWatch) {
-		await tryBuild(resolvedOptions, didBuild);
+  const isWatch = args.indexOf('--watch') >= 0;
+  if (isWatch) {
+    await tryBuild(resolvedOptions, didBuild);
 
-		const watcher = require('@parcel/watcher');
-		watcher.subscribe(config.srcDir, () => tryBuild(resolvedOptions, didBuild));
-	} else {
-		return build(resolvedOptions, didBuild).catch(() => process.exit(1));
-	}
+    const watcher = require('@parcel/watcher');
+    watcher.subscribe(config.srcDir, () => tryBuild(resolvedOptions, didBuild));
+  } else {
+    return build(resolvedOptions, didBuild).catch(() => process.exit(1));
+  }
 };

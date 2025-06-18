@@ -5,12 +5,23 @@
 
 import assert from 'assert';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { DefaultAccountService, IDefaultAccount, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
+import {
+  DefaultAccountService,
+  IDefaultAccount,
+  IDefaultAccountService,
+} from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import {
+  Extensions,
+  IConfigurationNode,
+  IConfigurationRegistry,
+} from '../../../../../platform/configuration/common/configurationRegistry.js';
+import {
+  DefaultConfiguration,
+  PolicyConfiguration,
+} from '../../../../../platform/configuration/common/configurations.js';
 import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,253 +31,282 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
-	enterprise: false,
-	sessionId: 'abc123',
+  enterprise: false,
+  sessionId: 'abc123',
 };
 
 suite('MultiplexPolicyService', () => {
+  const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+  let policyService: MultiplexPolicyService;
+  let fileService: IFileService;
+  let defaultAccountService: IDefaultAccountService;
+  let policyConfiguration: PolicyConfiguration;
+  const logService = new NullLogService();
 
-	let policyService: MultiplexPolicyService;
-	let fileService: IFileService;
-	let defaultAccountService: IDefaultAccountService;
-	let policyConfiguration: PolicyConfiguration;
-	const logService = new NullLogService();
+  const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
+  const policyConfigurationNode: IConfigurationNode = {
+    id: 'policyConfiguration',
+    order: 1,
+    title: 'a',
+    type: 'object',
+    properties: {
+      'setting.A': {
+        type: 'string',
+        default: 'defaultValueA',
+        policy: {
+          name: 'PolicySettingA',
+          minimumVersion: '1.0.0',
+        },
+      },
+      'setting.B': {
+        type: 'string',
+        default: 'defaultValueB',
+        policy: {
+          name: 'PolicySettingB',
+          minimumVersion: '1.0.0',
+          previewFeature: true,
+          defaultValue: 'policyValueB',
+        },
+      },
+      'setting.C': {
+        type: 'array',
+        default: ['defaultValueC1', 'defaultValueC2'],
+        policy: {
+          name: 'PolicySettingC',
+          minimumVersion: '1.0.0',
+          previewFeature: true,
+          defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
+        },
+      },
+      'setting.D': {
+        type: 'boolean',
+        default: true,
+        policy: {
+          name: 'PolicySettingD',
+          minimumVersion: '1.0.0',
+          previewFeature: true,
+          defaultValue: false,
+        },
+      },
+      'setting.E': {
+        type: 'boolean',
+        default: true,
+      },
+    },
+  };
 
-	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
-	const policyConfigurationNode: IConfigurationNode = {
-		'id': 'policyConfiguration',
-		'order': 1,
-		'title': 'a',
-		'type': 'object',
-		'properties': {
-			'setting.A': {
-				'type': 'string',
-				'default': 'defaultValueA',
-				policy: {
-					name: 'PolicySettingA',
-					minimumVersion: '1.0.0',
-				}
-			},
-			'setting.B': {
-				'type': 'string',
-				'default': 'defaultValueB',
-				policy: {
-					name: 'PolicySettingB',
-					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: "policyValueB"
-				}
-			},
-			'setting.C': {
-				'type': 'array',
-				'default': ['defaultValueC1', 'defaultValueC2'],
-				policy: {
-					name: 'PolicySettingC',
-					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
-				}
-			},
-			'setting.D': {
-				'type': 'boolean',
-				'default': true,
-				policy: {
-					name: 'PolicySettingD',
-					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: false,
-				}
-			},
-			'setting.E': {
-				'type': 'boolean',
-				'default': true,
-			}
-		}
-	};
+  suiteSetup(() =>
+    Registry.as<IConfigurationRegistry>(
+      Extensions.Configuration
+    ).registerConfiguration(policyConfigurationNode)
+  );
+  suiteTeardown(() =>
+    Registry.as<IConfigurationRegistry>(
+      Extensions.Configuration
+    ).deregisterConfigurations([policyConfigurationNode])
+  );
 
+  setup(async () => {
+    const defaultConfiguration = disposables.add(
+      new DefaultConfiguration(new NullLogService())
+    );
+    await defaultConfiguration.initialize();
 
-	suiteSetup(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(policyConfigurationNode));
-	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([policyConfigurationNode]));
+    fileService = disposables.add(new FileService(new NullLogService()));
+    const diskFileSystemProvider = disposables.add(
+      new InMemoryFileSystemProvider()
+    );
+    disposables.add(
+      fileService.registerProvider(policyFile.scheme, diskFileSystemProvider)
+    );
 
-	setup(async () => {
-		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
-		await defaultConfiguration.initialize();
+    defaultAccountService = disposables.add(new DefaultAccountService());
+    policyService = disposables.add(
+      new MultiplexPolicyService(
+        [
+          disposables.add(
+            new FilePolicyService(policyFile, fileService, new NullLogService())
+          ),
+          disposables.add(
+            new AccountPolicyService(logService, defaultAccountService)
+          ),
+        ],
+        logService
+      )
+    );
+    policyConfiguration = disposables.add(
+      new PolicyConfiguration(
+        defaultConfiguration,
+        policyService,
+        new NullLogService()
+      )
+    );
+  });
 
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+  async function clear() {
+    // Reset
+    defaultAccountService.setDefaultAccount({ ...BASE_DEFAULT_ACCOUNT });
+    await fileService.writeFile(
+      policyFile,
+      VSBuffer.fromString(JSON.stringify({}))
+    );
+  }
 
-		defaultAccountService = disposables.add(new DefaultAccountService());
-		policyService = disposables.add(new MultiplexPolicyService([
-			disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService())),
-			disposables.add(new AccountPolicyService(logService, defaultAccountService)),
-		], logService));
-		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
-	});
+  test('no policy', async () => {
+    await clear();
 
-	async function clear() {
-		// Reset
-		defaultAccountService.setDefaultAccount({ ...BASE_DEFAULT_ACCOUNT });
-		await fileService.writeFile(policyFile,
-			VSBuffer.fromString(
-				JSON.stringify({})
-			)
-		);
-	}
+    await policyConfiguration.initialize();
 
-	test('no policy', async () => {
-		await clear();
+    {
+      const A = policyService.getPolicyValue('PolicySettingA');
+      const B = policyService.getPolicyValue('PolicySettingB');
+      const C = policyService.getPolicyValue('PolicySettingC');
+      const D = policyService.getPolicyValue('PolicySettingD');
 
-		await policyConfiguration.initialize();
+      // No policy is set
+      assert.strictEqual(A, undefined);
+      assert.strictEqual(B, undefined);
+      assert.strictEqual(C, undefined);
+      assert.strictEqual(D, undefined);
+    }
 
-		{
-			const A = policyService.getPolicyValue('PolicySettingA');
-			const B = policyService.getPolicyValue('PolicySettingB');
-			const C = policyService.getPolicyValue('PolicySettingC');
-			const D = policyService.getPolicyValue('PolicySettingD');
+    {
+      const A = policyConfiguration.configurationModel.getValue('setting.A');
+      const B = policyConfiguration.configurationModel.getValue('setting.B');
+      const C = policyConfiguration.configurationModel.getValue('setting.C');
+      const D = policyConfiguration.configurationModel.getValue('setting.D');
+      const E = policyConfiguration.configurationModel.getValue('setting.E');
 
-			// No policy is set
-			assert.strictEqual(A, undefined);
-			assert.strictEqual(B, undefined);
-			assert.strictEqual(C, undefined);
-			assert.strictEqual(D, undefined);
-		}
+      assert.strictEqual(A, undefined);
+      assert.strictEqual(B, undefined);
+      assert.deepStrictEqual(C, undefined);
+      assert.strictEqual(D, undefined);
+      assert.strictEqual(E, undefined);
+    }
+  });
 
-		{
-			const A = policyConfiguration.configurationModel.getValue('setting.A');
-			const B = policyConfiguration.configurationModel.getValue('setting.B');
-			const C = policyConfiguration.configurationModel.getValue('setting.C');
-			const D = policyConfiguration.configurationModel.getValue('setting.D');
-			const E = policyConfiguration.configurationModel.getValue('setting.E');
+  test('policy from file only', async () => {
+    await clear();
 
-			assert.strictEqual(A, undefined);
-			assert.strictEqual(B, undefined);
-			assert.deepStrictEqual(C, undefined);
-			assert.strictEqual(D, undefined);
-			assert.strictEqual(E, undefined);
-		}
-	});
+    const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
+    defaultAccountService.setDefaultAccount(defaultAccount);
 
-	test('policy from file only', async () => {
-		await clear();
+    await fileService.writeFile(
+      policyFile,
+      VSBuffer.fromString(JSON.stringify({ PolicySettingA: 'policyValueA' }))
+    );
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+    await policyConfiguration.initialize();
 
-		await fileService.writeFile(policyFile,
-			VSBuffer.fromString(
-				JSON.stringify({ 'PolicySettingA': 'policyValueA' })
-			)
-		);
+    {
+      const A = policyService.getPolicyValue('PolicySettingA');
+      const B = policyService.getPolicyValue('PolicySettingB');
+      const C = policyService.getPolicyValue('PolicySettingC');
+      const D = policyService.getPolicyValue('PolicySettingD');
 
-		await policyConfiguration.initialize();
+      assert.strictEqual(A, 'policyValueA');
+      assert.strictEqual(B, undefined);
+      assert.strictEqual(C, undefined);
+      assert.strictEqual(D, undefined);
+    }
 
-		{
-			const A = policyService.getPolicyValue('PolicySettingA');
-			const B = policyService.getPolicyValue('PolicySettingB');
-			const C = policyService.getPolicyValue('PolicySettingC');
-			const D = policyService.getPolicyValue('PolicySettingD');
+    {
+      const A = policyConfiguration.configurationModel.getValue('setting.A');
+      const B = policyConfiguration.configurationModel.getValue('setting.B');
+      const C = policyConfiguration.configurationModel.getValue('setting.C');
+      const D = policyConfiguration.configurationModel.getValue('setting.D');
+      const E = policyConfiguration.configurationModel.getValue('setting.E');
 
-			assert.strictEqual(A, 'policyValueA');
-			assert.strictEqual(B, undefined);
-			assert.strictEqual(C, undefined);
-			assert.strictEqual(D, undefined);
-		}
+      assert.strictEqual(A, 'policyValueA');
+      assert.strictEqual(B, undefined);
+      assert.deepStrictEqual(C, undefined);
+      assert.strictEqual(D, undefined);
+      assert.strictEqual(E, undefined);
+    }
+  });
 
-		{
-			const A = policyConfiguration.configurationModel.getValue('setting.A');
-			const B = policyConfiguration.configurationModel.getValue('setting.B');
-			const C = policyConfiguration.configurationModel.getValue('setting.C');
-			const D = policyConfiguration.configurationModel.getValue('setting.D');
-			const E = policyConfiguration.configurationModel.getValue('setting.E');
+  test('policy from default account only', async () => {
+    await clear();
 
-			assert.strictEqual(A, 'policyValueA');
-			assert.strictEqual(B, undefined);
-			assert.deepStrictEqual(C, undefined);
-			assert.strictEqual(D, undefined);
-			assert.strictEqual(E, undefined);
-		}
-	});
+    const defaultAccount = {
+      ...BASE_DEFAULT_ACCOUNT,
+      chat_preview_features_enabled: false,
+    };
+    defaultAccountService.setDefaultAccount(defaultAccount);
 
-	test('policy from default account only', async () => {
-		await clear();
+    await fileService.writeFile(
+      policyFile,
+      VSBuffer.fromString(JSON.stringify({}))
+    );
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+    await policyConfiguration.initialize();
+    const actualConfigurationModel = policyConfiguration.configurationModel;
 
-		await fileService.writeFile(policyFile,
-			VSBuffer.fromString(
-				JSON.stringify({})
-			)
-		);
+    {
+      const A = policyService.getPolicyValue('PolicySettingA');
+      const B = policyService.getPolicyValue('PolicySettingB');
+      const C = policyService.getPolicyValue('PolicySettingC');
+      const D = policyService.getPolicyValue('PolicySettingD');
 
-		await policyConfiguration.initialize();
-		const actualConfigurationModel = policyConfiguration.configurationModel;
+      assert.strictEqual(A, undefined); // Not tagged with 'previewFeature'
+      assert.strictEqual(B, 'policyValueB');
+      assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
+      assert.strictEqual(D, false);
+    }
 
-		{
-			const A = policyService.getPolicyValue('PolicySettingA');
-			const B = policyService.getPolicyValue('PolicySettingB');
-			const C = policyService.getPolicyValue('PolicySettingC');
-			const D = policyService.getPolicyValue('PolicySettingD');
+    {
+      const A = policyConfiguration.configurationModel.getValue('setting.A');
+      const B = actualConfigurationModel.getValue('setting.B');
+      const C = actualConfigurationModel.getValue('setting.C');
+      const D = actualConfigurationModel.getValue('setting.D');
 
-			assert.strictEqual(A, undefined); // Not tagged with 'previewFeature'
-			assert.strictEqual(B, 'policyValueB');
-			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
-			assert.strictEqual(D, false);
-		}
+      assert.strictEqual(A, undefined);
+      assert.strictEqual(B, 'policyValueB');
+      assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
+      assert.strictEqual(D, false);
+    }
+  });
 
-		{
-			const A = policyConfiguration.configurationModel.getValue('setting.A');
-			const B = actualConfigurationModel.getValue('setting.B');
-			const C = actualConfigurationModel.getValue('setting.C');
-			const D = actualConfigurationModel.getValue('setting.D');
+  test('policy from file and default account', async () => {
+    await clear();
 
-			assert.strictEqual(A, undefined);
-			assert.strictEqual(B, 'policyValueB');
-			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
-			assert.strictEqual(D, false);
-		}
-	});
+    const defaultAccount = {
+      ...BASE_DEFAULT_ACCOUNT,
+      chat_preview_features_enabled: false,
+    };
+    defaultAccountService.setDefaultAccount(defaultAccount);
 
-	test('policy from file and default account', async () => {
-		await clear();
+    await fileService.writeFile(
+      policyFile,
+      VSBuffer.fromString(JSON.stringify({ PolicySettingA: 'policyValueA' }))
+    );
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, chat_preview_features_enabled: false };
-		defaultAccountService.setDefaultAccount(defaultAccount);
+    await policyConfiguration.initialize();
+    const actualConfigurationModel = policyConfiguration.configurationModel;
 
-		await fileService.writeFile(policyFile,
-			VSBuffer.fromString(
-				JSON.stringify({ 'PolicySettingA': 'policyValueA' })
-			)
-		);
+    {
+      const A = policyService.getPolicyValue('PolicySettingA');
+      const B = policyService.getPolicyValue('PolicySettingB');
+      const C = policyService.getPolicyValue('PolicySettingC');
+      const D = policyService.getPolicyValue('PolicySettingD');
 
-		await policyConfiguration.initialize();
-		const actualConfigurationModel = policyConfiguration.configurationModel;
+      assert.strictEqual(A, 'policyValueA');
+      assert.strictEqual(B, 'policyValueB');
+      assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
+      assert.strictEqual(D, false);
+    }
 
-		{
-			const A = policyService.getPolicyValue('PolicySettingA');
-			const B = policyService.getPolicyValue('PolicySettingB');
-			const C = policyService.getPolicyValue('PolicySettingC');
-			const D = policyService.getPolicyValue('PolicySettingD');
+    {
+      const A = actualConfigurationModel.getValue('setting.A');
+      const B = actualConfigurationModel.getValue('setting.B');
+      const C = actualConfigurationModel.getValue('setting.C');
+      const D = actualConfigurationModel.getValue('setting.D');
 
-			assert.strictEqual(A, 'policyValueA');
-			assert.strictEqual(B, 'policyValueB');
-			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
-			assert.strictEqual(D, false);
-		}
-
-		{
-			const A = actualConfigurationModel.getValue('setting.A');
-			const B = actualConfigurationModel.getValue('setting.B');
-			const C = actualConfigurationModel.getValue('setting.C');
-			const D = actualConfigurationModel.getValue('setting.D');
-
-			assert.strictEqual(A, 'policyValueA');
-			assert.strictEqual(B, 'policyValueB');
-			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
-			assert.strictEqual(D, false);
-		}
-	});
+      assert.strictEqual(A, 'policyValueA');
+      assert.strictEqual(B, 'policyValueB');
+      assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
+      assert.strictEqual(D, false);
+    }
+  });
 });

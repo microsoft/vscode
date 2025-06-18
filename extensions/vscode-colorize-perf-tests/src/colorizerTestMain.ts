@@ -5,6 +5,4 @@
 
 import * as vscode from 'vscode';
 
-export function activate(_context: vscode.ExtensionContext): any {
-
-}
+export function activate(_context: vscode.ExtensionContext): any {}

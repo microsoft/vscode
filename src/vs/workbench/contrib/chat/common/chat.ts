@@ -5,12 +5,15 @@
 
 import { ChatMode } from './constants.js';
 
-export function checkModeOption(mode: ChatMode, option: boolean | ((mode: ChatMode) => boolean) | undefined): boolean | undefined {
-	if (option === undefined) {
-		return undefined;
-	}
-	if (typeof option === 'function') {
-		return option(mode);
-	}
-	return option;
+export function checkModeOption(
+  mode: ChatMode,
+  option: boolean | ((mode: ChatMode) => boolean) | undefined
+): boolean | undefined {
+  if (option === undefined) {
+    return undefined;
+  }
+  if (typeof option === 'function') {
+    return option(mode);
+  }
+  return option;
 }

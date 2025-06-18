@@ -17,11 +17,19 @@ import { ISCMService } from '../../../scm/common/scm.js';
 import { SCMService } from '../../../scm/common/scmService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import {
+  IWorkspaceContextService,
+  WorkbenchState,
+} from '../../../../../platform/workspace/common/workspace.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import * as sinon from 'sinon';
 import assert from 'assert';
-import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsStorageService } from '../../common/editSessions.js';
+import {
+  ChangeType,
+  FileType,
+  IEditSessionsLogService,
+  IEditSessionsStorageService,
+} from '../../common/editSessions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -35,8 +43,14 @@ import { Event } from '../../../../../base/common/event.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IEditorService, ISaveAllEditorsOptions } from '../../../../services/editor/common/editorService.js';
+import {
+  IDialogService,
+  IPrompt,
+} from '../../../../../platform/dialogs/common/dialogs.js';
+import {
+  IEditorService,
+  ISaveAllEditorsOptions,
+} from '../../../../services/editor/common/editorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -49,183 +63,256 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { IWorkspaceIdentityService, WorkspaceIdentityService } from '../../../../services/workspaces/common/workspaceIdentityService.js';
+import {
+  IWorkspaceIdentityService,
+  WorkspaceIdentityService,
+} from '../../../../services/workspaces/common/workspaceIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
 
 suite('Edit session sync', () => {
+  let instantiationService: TestInstantiationService;
+  let editSessionsContribution: EditSessionsContribution;
+  let fileService: FileService;
+  let sandbox: sinon.SinonSandbox;
 
-	let instantiationService: TestInstantiationService;
-	let editSessionsContribution: EditSessionsContribution;
-	let fileService: FileService;
-	let sandbox: sinon.SinonSandbox;
+  const disposables = new DisposableStore();
 
-	const disposables = new DisposableStore();
+  suiteSetup(() => {
+    sandbox = sinon.createSandbox();
 
-	suiteSetup(() => {
+    instantiationService = new TestInstantiationService();
 
-		sandbox = sinon.createSandbox();
+    // Set up filesystem
+    const logService = new NullLogService();
+    fileService = disposables.add(new FileService(logService));
+    const fileSystemProvider = disposables.add(
+      new InMemoryFileSystemProvider()
+    );
+    fileService.registerProvider(Schemas.file, fileSystemProvider);
 
-		instantiationService = new TestInstantiationService();
+    // Stub out all services
+    instantiationService.stub(IEditSessionsLogService, logService);
+    instantiationService.stub(IFileService, fileService);
+    instantiationService.stub(
+      ILifecycleService,
+      new (class extends mock<ILifecycleService>() {
+        override onWillShutdown = Event.None;
+      })()
+    );
+    instantiationService.stub(
+      INotificationService,
+      new TestNotificationService()
+    );
+    instantiationService.stub(IProductService, {
+      'editSessions.store': {
+        url: 'https://test.com',
+        canSwitch: true,
+        authenticationProviders: {},
+      },
+    });
+    instantiationService.stub(IStorageService, new TestStorageService());
+    instantiationService.stub(
+      IUriIdentityService,
+      new UriIdentityService(fileService)
+    );
+    instantiationService.stub(
+      IEditSessionsStorageService,
+      new (class extends mock<IEditSessionsStorageService>() {
+        override onDidSignIn = Event.None;
+        override onDidSignOut = Event.None;
+      })()
+    );
+    instantiationService.stub(
+      IExtensionService,
+      new (class extends mock<IExtensionService>() {
+        override onDidChangeExtensions = Event.None;
+      })()
+    );
+    instantiationService.stub(IProgressService, ProgressService);
+    instantiationService.stub(ISCMService, SCMService);
+    instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+    instantiationService.stub(ITelemetryService, NullTelemetryService);
+    instantiationService.stub(
+      IDialogService,
+      new (class extends mock<IDialogService>() {
+        override async prompt(prompt: IPrompt<any>) {
+          const result = prompt.buttons?.[0].run({ checkboxChecked: false });
+          return { result };
+        }
+        override async confirm() {
+          return { confirmed: false };
+        }
+      })()
+    );
+    instantiationService.stub(
+      IRemoteAgentService,
+      new (class extends mock<IRemoteAgentService>() {
+        override async getEnvironment() {
+          return null;
+        }
+      })()
+    );
+    instantiationService.stub(
+      IConfigurationService,
+      new TestConfigurationService({
+        workbench: { experimental: { editSessions: { enabled: true } } },
+      })
+    );
+    instantiationService.stub(
+      IWorkspaceContextService,
+      new (class extends mock<IWorkspaceContextService>() {
+        override getWorkspace() {
+          return {
+            id: 'workspace-id',
+            folders: [
+              {
+                uri: folderUri,
+                name: folderName,
+                index: 0,
+                toResource: (relativePath: string) =>
+                  joinPath(folderUri, relativePath),
+              },
+            ],
+          };
+        }
+        override getWorkbenchState() {
+          return WorkbenchState.FOLDER;
+        }
+      })()
+    );
 
-		// Set up filesystem
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.file, fileSystemProvider);
+    // Stub repositories
+    instantiationService.stub(ISCMService, '_repositories', new Map());
+    instantiationService.stub(IContextKeyService, new MockContextKeyService());
+    instantiationService.stub(
+      IThemeService,
+      new (class extends mock<IThemeService>() {
+        override onDidColorThemeChange = Event.None;
+        override onDidFileIconThemeChange = Event.None;
+      })()
+    );
+    instantiationService.stub(IViewDescriptorService, {
+      onDidChangeLocation: Event.None,
+    });
+    instantiationService.stub(
+      ITextModelService,
+      new (class extends mock<ITextModelService>() {
+        override registerTextModelContentProvider = () => ({
+          dispose: () => {},
+        });
+      })()
+    );
+    instantiationService.stub(
+      IEditorService,
+      new (class extends mock<IEditorService>() {
+        override saveAll = async (_options: ISaveAllEditorsOptions) => {
+          return { success: true, editors: [] };
+        };
+      })()
+    );
+    instantiationService.stub(
+      IEditSessionIdentityService,
+      new (class extends mock<IEditSessionIdentityService>() {
+        override async getEditSessionIdentifier() {
+          return 'test-identity';
+        }
+      })()
+    );
+    instantiationService.set(
+      IWorkspaceIdentityService,
+      instantiationService.createInstance(WorkspaceIdentityService)
+    );
+    instantiationService.stub(
+      IUserDataProfilesService,
+      new (class extends mock<IUserDataProfilesService>() {
+        override defaultProfile = {
+          id: 'default',
+          name: 'Default',
+          isDefault: true,
+          location: URI.file('location'),
+          globalStorageHome: URI.file('globalStorageHome'),
+          settingsResource: URI.file('settingsResource'),
+          keybindingsResource: URI.file('keybindingsResource'),
+          tasksResource: URI.file('tasksResource'),
+          snippetsHome: URI.file('snippetsHome'),
+          promptsHome: URI.file('promptsHome'),
+          extensionsResource: URI.file('extensionsResource'),
+          cacheHome: URI.file('cacheHome'),
+        };
+      })()
+    );
 
-		// Stub out all services
-		instantiationService.stub(IEditSessionsLogService, logService);
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-			override onWillShutdown = Event.None;
-		});
-		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IProductService, { 'editSessions.store': { url: 'https://test.com', canSwitch: true, authenticationProviders: {} } });
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
-			override onDidSignIn = Event.None;
-			override onDidSignOut = Event.None;
-		});
-		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
-			override onDidChangeExtensions = Event.None;
-		});
-		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(ISCMService, SCMService);
-		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
-			override async prompt(prompt: IPrompt<any>) {
-				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
-				return { result };
-			}
-			override async confirm() {
-				return { confirmed: false };
-			}
-		});
-		instantiationService.stub(IRemoteAgentService, new class extends mock<IRemoteAgentService>() {
-			override async getEnvironment() {
-				return null;
-			}
-		});
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
-		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-			override getWorkspace() {
-				return {
-					id: 'workspace-id',
-					folders: [{
-						uri: folderUri,
-						name: folderName,
-						index: 0,
-						toResource: (relativePath: string) => joinPath(folderUri, relativePath)
-					}]
-				};
-			}
-			override getWorkbenchState() {
-				return WorkbenchState.FOLDER;
-			}
-		});
+    editSessionsContribution = instantiationService.createInstance(
+      EditSessionsContribution
+    );
+  });
 
-		// Stub repositories
-		instantiationService.stub(ISCMService, '_repositories', new Map());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IThemeService, new class extends mock<IThemeService>() {
-			override onDidColorThemeChange = Event.None;
-			override onDidFileIconThemeChange = Event.None;
-		});
-		instantiationService.stub(IViewDescriptorService, {
-			onDidChangeLocation: Event.None
-		});
-		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() {
-			override registerTextModelContentProvider = () => ({ dispose: () => { } });
-		});
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override saveAll = async (_options: ISaveAllEditorsOptions) => { return { success: true, editors: [] }; };
-		});
-		instantiationService.stub(IEditSessionIdentityService, new class extends mock<IEditSessionIdentityService>() {
-			override async getEditSessionIdentifier() {
-				return 'test-identity';
-			}
-		});
-		instantiationService.set(IWorkspaceIdentityService, instantiationService.createInstance(WorkspaceIdentityService));
-		instantiationService.stub(IUserDataProfilesService, new class extends mock<IUserDataProfilesService>() {
-			override defaultProfile = {
-				id: 'default',
-				name: 'Default',
-				isDefault: true,
-				location: URI.file('location'),
-				globalStorageHome: URI.file('globalStorageHome'),
-				settingsResource: URI.file('settingsResource'),
-				keybindingsResource: URI.file('keybindingsResource'),
-				tasksResource: URI.file('tasksResource'),
-				snippetsHome: URI.file('snippetsHome'),
-				promptsHome: URI.file('promptsHome'),
-				extensionsResource: URI.file('extensionsResource'),
-				cacheHome: URI.file('cacheHome'),
-			};
-		});
+  teardown(() => {
+    sinon.restore();
+    disposables.clear();
+  });
 
-		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
-	});
+  suiteTeardown(() => {
+    disposables.dispose();
+  });
 
-	teardown(() => {
-		sinon.restore();
-		disposables.clear();
-	});
+  test('Can apply edit session', async function () {
+    const fileUri = joinPath(folderUri, 'dir1', 'README.md');
+    const fileContents = '# readme';
+    const editSession = {
+      version: 1,
+      folders: [
+        {
+          name: folderName,
+          workingChanges: [
+            {
+              relativeFilePath: 'dir1/README.md',
+              fileType: FileType.File,
+              contents: fileContents,
+              type: ChangeType.Addition,
+            },
+          ],
+        },
+      ],
+    };
 
-	suiteTeardown(() => {
-		disposables.dispose();
-	});
+    // Stub sync service to return edit session data
+    const readStub = sandbox
+      .stub()
+      .returns({ content: JSON.stringify(editSession), ref: '0' });
+    instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
-	test('Can apply edit session', async function () {
-		const fileUri = joinPath(folderUri, 'dir1', 'README.md');
-		const fileContents = '# readme';
-		const editSession = {
-			version: 1,
-			folders: [
-				{
-					name: folderName,
-					workingChanges: [
-						{
-							relativeFilePath: 'dir1/README.md',
-							fileType: FileType.File,
-							contents: fileContents,
-							type: ChangeType.Addition
-						}
-					]
-				}
-			]
-		};
+    // Create root folder
+    await fileService.createFolder(folderUri);
 
-		// Stub sync service to return edit session data
-		const readStub = sandbox.stub().returns({ content: JSON.stringify(editSession), ref: '0' });
-		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
+    // Resume edit session
+    await editSessionsContribution.resumeEditSession();
 
-		// Create root folder
-		await fileService.createFolder(folderUri);
+    // Verify edit session was correctly applied
+    assert.equal(
+      (await fileService.readFile(fileUri)).value.toString(),
+      fileContents
+    );
+  });
 
-		// Resume edit session
-		await editSessionsContribution.resumeEditSession();
+  test('Edit session not stored if there are no edits', async function () {
+    const writeStub = sandbox.stub();
+    instantiationService.stub(IEditSessionsStorageService, 'write', writeStub);
 
-		// Verify edit session was correctly applied
-		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
-	});
+    // Create root folder
+    await fileService.createFolder(folderUri);
 
-	test('Edit session not stored if there are no edits', async function () {
-		const writeStub = sandbox.stub();
-		instantiationService.stub(IEditSessionsStorageService, 'write', writeStub);
+    await editSessionsContribution.storeEditSession(
+      true,
+      CancellationToken.None
+    );
 
-		// Create root folder
-		await fileService.createFolder(folderUri);
+    // Verify that we did not attempt to write the edit session
+    assert.equal(writeStub.called, false);
+  });
 
-		await editSessionsContribution.storeEditSession(true, CancellationToken.None);
-
-		// Verify that we did not attempt to write the edit session
-		assert.equal(writeStub.called, false);
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+  ensureNoDisposablesAreLeakedInTestSuite();
 });

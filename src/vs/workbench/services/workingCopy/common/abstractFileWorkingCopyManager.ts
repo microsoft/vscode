@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import {
+  Disposable,
+  dispose,
+  IDisposable,
+} from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Promises } from '../../../../base/common/async.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -13,157 +17,170 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkingCopyBackupService } from './workingCopyBackup.js';
 import { IFileWorkingCopy, IFileWorkingCopyModel } from './fileWorkingCopy.js';
 
-export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable {
+export interface IBaseFileWorkingCopyManager<
+  M extends IFileWorkingCopyModel,
+  W extends IFileWorkingCopy<M>,
+> extends IDisposable {
+  /**
+   * An event for when a file working copy was created.
+   */
+  readonly onDidCreate: Event<W>;
 
-	/**
-	 * An event for when a file working copy was created.
-	 */
-	readonly onDidCreate: Event<W>;
+  /**
+   * Access to all known file working copies within the manager.
+   */
+  readonly workingCopies: readonly W[];
 
-	/**
-	 * Access to all known file working copies within the manager.
-	 */
-	readonly workingCopies: readonly W[];
+  /**
+   * Returns the file working copy for the provided resource
+   * or `undefined` if none.
+   */
+  get(resource: URI): W | undefined;
 
-	/**
-	 * Returns the file working copy for the provided resource
-	 * or `undefined` if none.
-	 */
-	get(resource: URI): W | undefined;
-
-	/**
-	 * Disposes all working copies of the manager and disposes the manager. This
-	 * method is different from `dispose` in that it will unregister any working
-	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
-	 * the method is `async` because it needs to trigger `save` for any dirty
-	 * working copy to preserve the data.
-	 *
-	 * Callers should make sure to e.g. close any editors associated with the
-	 * working copy.
-	 */
-	destroy(): Promise<void>;
+  /**
+   * Disposes all working copies of the manager and disposes the manager. This
+   * method is different from `dispose` in that it will unregister any working
+   * copy from the `IWorkingCopyService`. Since this impact things like backups,
+   * the method is `async` because it needs to trigger `save` for any dirty
+   * working copy to preserve the data.
+   *
+   * Callers should make sure to e.g. close any editors associated with the
+   * working copy.
+   */
+  destroy(): Promise<void>;
 }
 
-export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
+export abstract class BaseFileWorkingCopyManager<
+    M extends IFileWorkingCopyModel,
+    W extends IFileWorkingCopy<M>,
+  >
+  extends Disposable
+  implements IBaseFileWorkingCopyManager<M, W>
+{
+  private readonly _onDidCreate = this._register(new Emitter<W>());
+  readonly onDidCreate = this._onDidCreate.event;
 
-	private readonly _onDidCreate = this._register(new Emitter<W>());
-	readonly onDidCreate = this._onDidCreate.event;
+  private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
+  private readonly mapResourceToDisposeListener =
+    new ResourceMap<IDisposable>();
 
-	private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+  constructor(
+    @IFileService protected readonly fileService: IFileService,
+    @ILogService protected readonly logService: ILogService,
+    @IWorkingCopyBackupService
+    protected readonly workingCopyBackupService: IWorkingCopyBackupService
+  ) {
+    super();
+  }
 
-	constructor(
-		@IFileService protected readonly fileService: IFileService,
-		@ILogService protected readonly logService: ILogService,
-		@IWorkingCopyBackupService protected readonly workingCopyBackupService: IWorkingCopyBackupService
-	) {
-		super();
-	}
+  protected has(resource: URI): boolean {
+    return this.mapResourceToWorkingCopy.has(resource);
+  }
 
-	protected has(resource: URI): boolean {
-		return this.mapResourceToWorkingCopy.has(resource);
-	}
+  protected add(resource: URI, workingCopy: W): void {
+    const knownWorkingCopy = this.get(resource);
+    if (knownWorkingCopy === workingCopy) {
+      return; // already cached
+    }
 
-	protected add(resource: URI, workingCopy: W): void {
-		const knownWorkingCopy = this.get(resource);
-		if (knownWorkingCopy === workingCopy) {
-			return; // already cached
-		}
+    // Add to our working copy map
+    this.mapResourceToWorkingCopy.set(resource, workingCopy);
 
-		// Add to our working copy map
-		this.mapResourceToWorkingCopy.set(resource, workingCopy);
+    // Update our dispose listener to remove it on dispose
+    this.mapResourceToDisposeListener.get(resource)?.dispose();
+    this.mapResourceToDisposeListener.set(
+      resource,
+      workingCopy.onWillDispose(() => this.remove(resource))
+    );
 
-		// Update our dispose listener to remove it on dispose
-		this.mapResourceToDisposeListener.get(resource)?.dispose();
-		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
+    // Signal creation event
+    this._onDidCreate.fire(workingCopy);
+  }
 
-		// Signal creation event
-		this._onDidCreate.fire(workingCopy);
-	}
+  protected remove(resource: URI): boolean {
+    // Dispose any existing listener
+    const disposeListener = this.mapResourceToDisposeListener.get(resource);
+    if (disposeListener) {
+      dispose(disposeListener);
+      this.mapResourceToDisposeListener.delete(resource);
+    }
 
-	protected remove(resource: URI): boolean {
+    // Remove from our working copy map
+    return this.mapResourceToWorkingCopy.delete(resource);
+  }
 
-		// Dispose any existing listener
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			dispose(disposeListener);
-			this.mapResourceToDisposeListener.delete(resource);
-		}
+  //#region Get / Get all
 
-		// Remove from our working copy map
-		return this.mapResourceToWorkingCopy.delete(resource);
-	}
+  get workingCopies(): W[] {
+    return [...this.mapResourceToWorkingCopy.values()];
+  }
 
-	//#region Get / Get all
+  get(resource: URI): W | undefined {
+    return this.mapResourceToWorkingCopy.get(resource);
+  }
 
-	get workingCopies(): W[] {
-		return [...this.mapResourceToWorkingCopy.values()];
-	}
+  //#endregion
 
-	get(resource: URI): W | undefined {
-		return this.mapResourceToWorkingCopy.get(resource);
-	}
+  //#region Lifecycle
 
-	//#endregion
+  override dispose(): void {
+    super.dispose();
 
-	//#region Lifecycle
+    // Clear working copy caches
+    //
+    // Note: we are not explicitly disposing the working copies
+    // known to the manager because this can have unwanted side
+    // effects such as backups getting discarded once the working
+    // copy unregisters. We have an explicit `destroy`
+    // for that purpose (https://github.com/microsoft/vscode/pull/123555)
+    //
+    this.mapResourceToWorkingCopy.clear();
 
-	override dispose(): void {
-		super.dispose();
+    // Dispose the dispose listeners
+    dispose(this.mapResourceToDisposeListener.values());
+    this.mapResourceToDisposeListener.clear();
+  }
 
-		// Clear working copy caches
-		//
-		// Note: we are not explicitly disposing the working copies
-		// known to the manager because this can have unwanted side
-		// effects such as backups getting discarded once the working
-		// copy unregisters. We have an explicit `destroy`
-		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
-		//
-		this.mapResourceToWorkingCopy.clear();
+  async destroy(): Promise<void> {
+    // Make sure all dirty working copies are saved to disk
+    try {
+      await Promises.settled(
+        this.workingCopies.map(async (workingCopy) => {
+          if (workingCopy.isDirty()) {
+            await this.saveWithFallback(workingCopy);
+          }
+        })
+      );
+    } catch (error) {
+      this.logService.error(error);
+    }
 
-		// Dispose the dispose listeners
-		dispose(this.mapResourceToDisposeListener.values());
-		this.mapResourceToDisposeListener.clear();
-	}
+    // Dispose all working copies
+    dispose(this.mapResourceToWorkingCopy.values());
 
-	async destroy(): Promise<void> {
+    // Finally dispose manager
+    this.dispose();
+  }
 
-		// Make sure all dirty working copies are saved to disk
-		try {
-			await Promises.settled(this.workingCopies.map(async workingCopy => {
-				if (workingCopy.isDirty()) {
-					await this.saveWithFallback(workingCopy);
-				}
-			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
+  private async saveWithFallback(workingCopy: W): Promise<void> {
+    // First try regular save
+    let saveSuccess = false;
+    try {
+      saveSuccess = await workingCopy.save();
+    } catch (error) {
+      // Ignore
+    }
 
-		// Dispose all working copies
-		dispose(this.mapResourceToWorkingCopy.values());
+    // Then fallback to backup if that exists
+    if (!saveSuccess || workingCopy.isDirty()) {
+      const backup = await this.workingCopyBackupService.resolve(workingCopy);
+      if (backup) {
+        await this.fileService.writeFile(workingCopy.resource, backup.value, {
+          unlock: true,
+        });
+      }
+    }
+  }
 
-		// Finally dispose manager
-		this.dispose();
-	}
-
-	private async saveWithFallback(workingCopy: W): Promise<void> {
-
-		// First try regular save
-		let saveSuccess = false;
-		try {
-			saveSuccess = await workingCopy.save();
-		} catch (error) {
-			// Ignore
-		}
-
-		// Then fallback to backup if that exists
-		if (!saveSuccess || workingCopy.isDirty()) {
-			const backup = await this.workingCopyBackupService.resolve(workingCopy);
-			if (backup) {
-				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });
-			}
-		}
-	}
-
-	//#endregion
+  //#endregion
 }

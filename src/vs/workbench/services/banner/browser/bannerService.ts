@@ -10,23 +10,23 @@ import { ILinkDescriptor } from '../../../../platform/opener/browser/link.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export interface IBannerItem {
-	readonly id: string;
-	readonly icon: ThemeIcon | URI | undefined;
-	readonly message: string | MarkdownString;
-	readonly actions?: ILinkDescriptor[];
-	readonly ariaLabel?: string;
-	readonly onClose?: () => void;
-	readonly closeLabel?: string;
+  readonly id: string;
+  readonly icon: ThemeIcon | URI | undefined;
+  readonly message: string | MarkdownString;
+  readonly actions?: ILinkDescriptor[];
+  readonly ariaLabel?: string;
+  readonly onClose?: () => void;
+  readonly closeLabel?: string;
 }
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');
 
 export interface IBannerService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	focus(): void;
-	focusNextAction(): void;
-	focusPreviousAction(): void;
-	hide(id: string): void;
-	show(item: IBannerItem): void;
+  focus(): void;
+  focusNextAction(): void;
+  focusPreviousAction(): void;
+  hide(id: string): void;
+  show(item: IBannerItem): void;
 }

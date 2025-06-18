@@ -20,6 +20,18 @@ export { DoubleQuote } from './doubleQuote.js';
 export { ExclamationMark } from './exclamationMark.js';
 export { SimpleToken, SpacingToken } from './simpleToken.js';
 export { type TBracket, LeftBracket, RightBracket } from './brackets.js';
-export { type TCurlyBrace, LeftCurlyBrace, RightCurlyBrace } from './curlyBraces.js';
-export { type TParenthesis, LeftParenthesis, RightParenthesis } from './parentheses.js';
-export { type TAngleBracket, LeftAngleBracket, RightAngleBracket } from './angleBrackets.js';
+export {
+  type TCurlyBrace,
+  LeftCurlyBrace,
+  RightCurlyBrace,
+} from './curlyBraces.js';
+export {
+  type TParenthesis,
+  LeftParenthesis,
+  RightParenthesis,
+} from './parentheses.js';
+export {
+  type TAngleBracket,
+  LeftAngleBracket,
+  RightAngleBracket,
+} from './angleBrackets.js';

@@ -11,26 +11,33 @@ import type { IGpuRenderStrategy } from '../gpu.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import type { ViewGpuContext } from '../viewGpuContext.js';
 
-export abstract class BaseRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
+export abstract class BaseRenderStrategy
+  extends ViewEventHandler
+  implements IGpuRenderStrategy
+{
+  get glyphRasterizer() {
+    return this._glyphRasterizer.value;
+  }
 
-	get glyphRasterizer() { return this._glyphRasterizer.value; }
+  abstract type: string;
+  abstract wgsl: string;
+  abstract bindGroupEntries: GPUBindGroupEntry[];
 
-	abstract type: string;
-	abstract wgsl: string;
-	abstract bindGroupEntries: GPUBindGroupEntry[];
+  constructor(
+    protected readonly _context: ViewContext,
+    protected readonly _viewGpuContext: ViewGpuContext,
+    protected readonly _device: GPUDevice,
+    protected readonly _glyphRasterizer: { value: GlyphRasterizer }
+  ) {
+    super();
 
-	constructor(
-		protected readonly _context: ViewContext,
-		protected readonly _viewGpuContext: ViewGpuContext,
-		protected readonly _device: GPUDevice,
-		protected readonly _glyphRasterizer: { value: GlyphRasterizer },
-	) {
-		super();
+    this._context.addEventHandler(this);
+  }
 
-		this._context.addEventHandler(this);
-	}
-
-	abstract reset(): void;
-	abstract update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number;
-	abstract draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
+  abstract reset(): void;
+  abstract update(
+    viewportData: ViewportData,
+    viewLineOptions: ViewLineOptions
+  ): number;
+  abstract draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
 }

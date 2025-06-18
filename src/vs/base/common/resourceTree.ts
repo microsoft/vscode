@@ -10,178 +10,180 @@ import { extUri as defaultExtUri, IExtUri } from './resources.js';
 import { URI } from './uri.js';
 
 export interface IResourceNode<T, C = void> {
-	readonly uri: URI;
-	readonly relativePath: string;
-	readonly name: string;
-	readonly element: T | undefined;
-	readonly children: Iterable<IResourceNode<T, C>>;
-	readonly childrenCount: number;
-	readonly parent: IResourceNode<T, C> | undefined;
-	readonly context: C;
-	get(childName: string): IResourceNode<T, C> | undefined;
+  readonly uri: URI;
+  readonly relativePath: string;
+  readonly name: string;
+  readonly element: T | undefined;
+  readonly children: Iterable<IResourceNode<T, C>>;
+  readonly childrenCount: number;
+  readonly parent: IResourceNode<T, C> | undefined;
+  readonly context: C;
+  get(childName: string): IResourceNode<T, C> | undefined;
 }
 
 class Node<T, C> implements IResourceNode<T, C> {
+  private _children = new Map<string, Node<T, C>>();
 
-	private _children = new Map<string, Node<T, C>>();
+  get childrenCount(): number {
+    return this._children.size;
+  }
 
-	get childrenCount(): number {
-		return this._children.size;
-	}
+  get children(): Iterable<Node<T, C>> {
+    return this._children.values();
+  }
 
-	get children(): Iterable<Node<T, C>> {
-		return this._children.values();
-	}
+  @memoize
+  get name(): string {
+    return paths.posix.basename(this.relativePath);
+  }
 
-	@memoize
-	get name(): string {
-		return paths.posix.basename(this.relativePath);
-	}
+  constructor(
+    readonly uri: URI,
+    readonly relativePath: string,
+    readonly context: C,
+    public element: T | undefined = undefined,
+    readonly parent: IResourceNode<T, C> | undefined = undefined
+  ) {}
 
-	constructor(
-		readonly uri: URI,
-		readonly relativePath: string,
-		readonly context: C,
-		public element: T | undefined = undefined,
-		readonly parent: IResourceNode<T, C> | undefined = undefined
-	) { }
+  get(path: string): Node<T, C> | undefined {
+    return this._children.get(path);
+  }
 
-	get(path: string): Node<T, C> | undefined {
-		return this._children.get(path);
-	}
+  set(path: string, child: Node<T, C>): void {
+    this._children.set(path, child);
+  }
 
-	set(path: string, child: Node<T, C>): void {
-		this._children.set(path, child);
-	}
+  delete(path: string): void {
+    this._children.delete(path);
+  }
 
-	delete(path: string): void {
-		this._children.delete(path);
-	}
-
-	clear(): void {
-		this._children.clear();
-	}
+  clear(): void {
+    this._children.clear();
+  }
 }
 
 function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
-	if (typeof node.element !== 'undefined') {
-		result.push(node.element);
-	}
+  if (typeof node.element !== 'undefined') {
+    result.push(node.element);
+  }
 
-	for (const child of node.children) {
-		collect(child, result);
-	}
+  for (const child of node.children) {
+    collect(child, result);
+  }
 
-	return result;
+  return result;
 }
 
 export class ResourceTree<T extends NonNullable<any>, C> {
+  readonly root: Node<T, C>;
 
-	readonly root: Node<T, C>;
+  static getRoot<T, C>(node: IResourceNode<T, C>): IResourceNode<T, C> {
+    while (node.parent) {
+      node = node.parent;
+    }
 
-	static getRoot<T, C>(node: IResourceNode<T, C>): IResourceNode<T, C> {
-		while (node.parent) {
-			node = node.parent;
-		}
+    return node;
+  }
 
-		return node;
-	}
+  static collect<T, C>(node: IResourceNode<T, C>): T[] {
+    return collect(node, []);
+  }
 
-	static collect<T, C>(node: IResourceNode<T, C>): T[] {
-		return collect(node, []);
-	}
+  static isResourceNode<T, C>(obj: unknown): obj is IResourceNode<T, C> {
+    return obj instanceof Node;
+  }
 
-	static isResourceNode<T, C>(obj: unknown): obj is IResourceNode<T, C> {
-		return obj instanceof Node;
-	}
+  constructor(
+    context: C,
+    rootURI: URI = URI.file('/'),
+    private extUri: IExtUri = defaultExtUri
+  ) {
+    this.root = new Node(rootURI, '', context);
+  }
 
-	constructor(context: C, rootURI: URI = URI.file('/'), private extUri: IExtUri = defaultExtUri) {
-		this.root = new Node(rootURI, '', context);
-	}
+  add(uri: URI, element: T): void {
+    const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
+    const iterator = new PathIterator(false).reset(key);
+    let node = this.root;
+    let path = '';
 
-	add(uri: URI, element: T): void {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		let node = this.root;
-		let path = '';
+    while (true) {
+      const name = iterator.value();
+      path = path + '/' + name;
 
-		while (true) {
-			const name = iterator.value();
-			path = path + '/' + name;
+      let child = node.get(name);
 
-			let child = node.get(name);
+      if (!child) {
+        child = new Node(
+          this.extUri.joinPath(this.root.uri, path),
+          path,
+          this.root.context,
+          iterator.hasNext() ? undefined : element,
+          node
+        );
 
-			if (!child) {
-				child = new Node(
-					this.extUri.joinPath(this.root.uri, path),
-					path,
-					this.root.context,
-					iterator.hasNext() ? undefined : element,
-					node
-				);
+        node.set(name, child);
+      } else if (!iterator.hasNext()) {
+        child.element = element;
+      }
 
-				node.set(name, child);
-			} else if (!iterator.hasNext()) {
-				child.element = element;
-			}
+      node = child;
 
-			node = child;
+      if (!iterator.hasNext()) {
+        return;
+      }
 
-			if (!iterator.hasNext()) {
-				return;
-			}
+      iterator.next();
+    }
+  }
 
-			iterator.next();
-		}
-	}
+  delete(uri: URI): T | undefined {
+    const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
+    const iterator = new PathIterator(false).reset(key);
+    return this._delete(this.root, iterator);
+  }
 
-	delete(uri: URI): T | undefined {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		return this._delete(this.root, iterator);
-	}
+  private _delete(node: Node<T, C>, iterator: PathIterator): T | undefined {
+    const name = iterator.value();
+    const child = node.get(name);
 
-	private _delete(node: Node<T, C>, iterator: PathIterator): T | undefined {
-		const name = iterator.value();
-		const child = node.get(name);
+    if (!child) {
+      return undefined;
+    }
 
-		if (!child) {
-			return undefined;
-		}
+    if (iterator.hasNext()) {
+      const result = this._delete(child, iterator.next());
 
-		if (iterator.hasNext()) {
-			const result = this._delete(child, iterator.next());
+      if (typeof result !== 'undefined' && child.childrenCount === 0) {
+        node.delete(name);
+      }
 
-			if (typeof result !== 'undefined' && child.childrenCount === 0) {
-				node.delete(name);
-			}
+      return result;
+    }
 
-			return result;
-		}
+    node.delete(name);
+    return child.element;
+  }
 
-		node.delete(name);
-		return child.element;
-	}
+  clear(): void {
+    this.root.clear();
+  }
 
-	clear(): void {
-		this.root.clear();
-	}
+  getNode(uri: URI): IResourceNode<T, C> | undefined {
+    const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
+    const iterator = new PathIterator(false).reset(key);
+    let node = this.root;
 
-	getNode(uri: URI): IResourceNode<T, C> | undefined {
-		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
-		const iterator = new PathIterator(false).reset(key);
-		let node = this.root;
+    while (true) {
+      const name = iterator.value();
+      const child = node.get(name);
 
-		while (true) {
-			const name = iterator.value();
-			const child = node.get(name);
+      if (!child || !iterator.hasNext()) {
+        return child;
+      }
 
-			if (!child || !iterator.hasNext()) {
-				return child;
-			}
-
-			node = child;
-			iterator.next();
-		}
-	}
+      node = child;
+      iterator.next();
+    }
+  }
 }

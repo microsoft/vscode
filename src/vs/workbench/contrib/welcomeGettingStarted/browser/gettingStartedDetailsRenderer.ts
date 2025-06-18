@@ -6,7 +6,10 @@
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
+import {
+  DEFAULT_MARKDOWN_STYLES,
+  renderMarkdownDocument,
+} from '../../markdown/browser/markdownDocumentRenderer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { language } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -19,29 +22,31 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { gettingStartedContentRegistry } from '../common/gettingStartedContent.js';
 
-
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<string>();
-	private svgCache = new ResourceMap<string>();
+  private mdCache = new ResourceMap<string>();
+  private svgCache = new ResourceMap<string>();
 
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILanguageService private readonly languageService: ILanguageService,
-	) { }
+  constructor(
+    @IFileService private readonly fileService: IFileService,
+    @INotificationService
+    private readonly notificationService: INotificationService,
+    @IExtensionService private readonly extensionService: IExtensionService,
+    @ILanguageService private readonly languageService: ILanguageService
+  ) {}
 
-	async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path, base);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
+  async renderMarkdown(path: URI, base: URI): Promise<string> {
+    const content = await this.readAndCacheStepMarkdown(path, base);
+    const nonce = generateUuid();
+    const colorMap = TokenizationRegistry.getColorMap();
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+    const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 
-		const inDev = document.location.protocol === 'http:';
-		const imgSrcCsp = inDev ? 'img-src https: data: http:' : 'img-src https: data:';
+    const inDev = document.location.protocol === 'http:';
+    const imgSrcCsp = inDev
+      ? 'img-src https: data: http:'
+      : 'img-src https: data:';
 
-		return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -167,15 +172,15 @@ export class GettingStartedDetailsRenderer {
 				});
 		</script>
 		</html>`;
-	}
+  }
 
-	async renderSVG(path: URI): Promise<string> {
-		const content = await this.readAndCacheSVGFile(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
+  async renderSVG(path: URI): Promise<string> {
+    const content = await this.readAndCacheSVGFile(path);
+    const nonce = generateUuid();
+    const colorMap = TokenizationRegistry.getColorMap();
 
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
+    const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+    return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -199,12 +204,16 @@ export class GettingStartedDetailsRenderer {
 				${content}
 			</body>
 		</html>`;
-	}
+  }
 
-	async renderVideo(path: URI, poster?: URI, description?: string): Promise<string> {
-		const nonce = generateUuid();
+  async renderVideo(
+    path: URI,
+    poster?: URI,
+    description?: string
+  ): Promise<string> {
+    const nonce = generateUuid();
 
-		return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -223,83 +232,108 @@ export class GettingStartedDetailsRenderer {
 				</video>
 			</body>
 		</html>`;
-	}
+  }
 
-	private async readAndCacheSVGFile(path: URI): Promise<string> {
-		if (!this.svgCache.has(path)) {
-			const contents = await this.readContentsOfPath(path, false);
-			this.svgCache.set(path, contents);
-		}
-		return assertReturnsDefined(this.svgCache.get(path));
-	}
+  private async readAndCacheSVGFile(path: URI): Promise<string> {
+    if (!this.svgCache.has(path)) {
+      const contents = await this.readContentsOfPath(path, false);
+      this.svgCache.set(path, contents);
+    }
+    return assertReturnsDefined(this.svgCache.get(path));
+  }
 
-	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
-		if (!this.mdCache.has(path)) {
-			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
-			this.mdCache.set(path, markdownContents);
-		}
-		return assertReturnsDefined(this.mdCache.get(path));
-	}
+  private async readAndCacheStepMarkdown(
+    path: URI,
+    base: URI
+  ): Promise<string> {
+    if (!this.mdCache.has(path)) {
+      const contents = await this.readContentsOfPath(path);
+      const markdownContents = await renderMarkdownDocument(
+        transformUris(contents, base),
+        this.extensionService,
+        this.languageService,
+        { allowUnknownProtocols: true }
+      );
+      this.mdCache.set(path, markdownContents);
+    }
+    return assertReturnsDefined(this.mdCache.get(path));
+  }
 
-	private async readContentsOfPath(path: URI, useModuleId = true): Promise<string> {
-		try {
-			const moduleId = JSON.parse(path.query).moduleId;
-			if (useModuleId && moduleId) {
-				const contents = await new Promise<string>((resolve, reject) => {
-					const provider = gettingStartedContentRegistry.getProvider(moduleId);
-					if (!provider) {
-						reject(`Getting started: no provider registered for ${moduleId}`);
-					} else {
-						resolve(provider());
-					}
-				});
-				return contents;
-			}
-		} catch { }
+  private async readContentsOfPath(
+    path: URI,
+    useModuleId = true
+  ): Promise<string> {
+    try {
+      const moduleId = JSON.parse(path.query).moduleId;
+      if (useModuleId && moduleId) {
+        const contents = await new Promise<string>((resolve, reject) => {
+          const provider = gettingStartedContentRegistry.getProvider(moduleId);
+          if (!provider) {
+            reject(`Getting started: no provider registered for ${moduleId}`);
+          } else {
+            resolve(provider());
+          }
+        });
+        return contents;
+      }
+    } catch {}
 
-		try {
-			const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${language}.md`) });
+    try {
+      const localizedPath = path.with({
+        path: path.path.replace(/\.md$/, `.nls.${language}.md`),
+      });
 
-			const generalizedLocale = language?.replace(/-.*$/, '');
-			const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
+      const generalizedLocale = language?.replace(/-.*$/, '');
+      const generalizedLocalizedPath = path.with({
+        path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`),
+      });
 
-			const fileExists = (file: URI) => this.fileService
-				.stat(file)
-				.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
-				.catch(() => false);
+      const fileExists = (file: URI) =>
+        this.fileService
+          .stat(file)
+          .then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
+          .catch(() => false);
 
-			const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
-				fileExists(localizedPath),
-				fileExists(generalizedLocalizedPath),
-			]);
+      const [localizedFileExists, generalizedLocalizedFileExists] =
+        await Promise.all([
+          fileExists(localizedPath),
+          fileExists(generalizedLocalizedPath),
+        ]);
 
-			const bytes = await this.fileService.readFile(
-				localizedFileExists
-					? localizedPath
-					: generalizedLocalizedFileExists
-						? generalizedLocalizedPath
-						: path);
+      const bytes = await this.fileService.readFile(
+        localizedFileExists
+          ? localizedPath
+          : generalizedLocalizedFileExists
+            ? generalizedLocalizedPath
+            : path
+      );
 
-			return bytes.value.toString();
-		} catch (e) {
-			this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
-			return '';
-		}
-	}
+      return bytes.value.toString();
+    } catch (e) {
+      this.notificationService.error(
+        'Error reading markdown document at `' + path + '`: ' + e
+      );
+      return '';
+    }
+  }
 }
 
 const transformUri = (src: string, base: URI) => {
-	const path = joinPath(base, src);
-	return asWebviewUri(path).toString(true);
+  const path = joinPath(base, src);
+  return asWebviewUri(path).toString(true);
 };
 
-const transformUris = (content: string, base: URI): string => content
-	.replace(/src="([^"]*)"/g, (_, src: string) => {
-		if (src.startsWith('https://')) { return `src="${src}"`; }
-		return `src="${transformUri(src, base)}"`;
-	})
-	.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
-		if (src.startsWith('https://')) { return `![${title}](${src})`; }
-		return `![${title}](${transformUri(src, base)})`;
-	});
+const transformUris = (content: string, base: URI): string =>
+  content
+    .replace(/src="([^"]*)"/g, (_, src: string) => {
+      if (src.startsWith('https://')) {
+        return `src="${src}"`;
+      }
+      return `src="${transformUri(src, base)}"`;
+    })
+    .replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+      if (src.startsWith('https://')) {
+        return `![${title}](${src})`;
+      }
+      return `![${title}](${transformUri(src, base)})`;
+    });

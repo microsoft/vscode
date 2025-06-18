@@ -13,14 +13,28 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class WorkbenchEditorWorkerService extends EditorWorkerService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@ILogService logService: ILogService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-	) {
-		const workerDescriptor = new WebWorkerDescriptor(FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'), 'TextEditorWorker');
-		super(workerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
-	}
+  constructor(
+    @IModelService modelService: IModelService,
+    @ITextResourceConfigurationService
+    configurationService: ITextResourceConfigurationService,
+    @ILogService logService: ILogService,
+    @ILanguageConfigurationService
+    languageConfigurationService: ILanguageConfigurationService,
+    @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
+  ) {
+    const workerDescriptor = new WebWorkerDescriptor(
+      FileAccess.asBrowserUri(
+        'vs/editor/common/services/editorWebWorkerMain.js'
+      ),
+      'TextEditorWorker'
+    );
+    super(
+      workerDescriptor,
+      modelService,
+      configurationService,
+      logService,
+      languageConfigurationService,
+      languageFeaturesService
+    );
+  }
 }

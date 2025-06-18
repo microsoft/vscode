@@ -13,48 +13,46 @@ import { Range } from '../../../../../../../../../editor/common/core/range.js';
  * a `tab`, or a `new line`.
  */
 export class Word<TText extends string = string> extends BaseToken<TText> {
-	constructor(
-		/**
-		 * The word range.
-		 */
-		range: Range,
+  constructor(
+    /**
+     * The word range.
+     */
+    range: Range,
 
-		/**
-		 * The string value of the word.
-		 */
-		public readonly text: TText,
-	) {
-		super(range);
-	}
+    /**
+     * The string value of the word.
+     */
+    public readonly text: TText
+  ) {
+    super(range);
+  }
 
-	/**
-	 * Create new `Word` token with the given `text` and the range
-	 * inside the given `Line` at the specified `column number`.
-	 */
-	public static newOnLine(
-		text: string,
-		line: Line | number,
-		atColumnNumber: number,
-	): Word {
-		const startLineNumber = (typeof line === 'number')
-			? line
-			: line.range.startLineNumber;
+  /**
+   * Create new `Word` token with the given `text` and the range
+   * inside the given `Line` at the specified `column number`.
+   */
+  public static newOnLine(
+    text: string,
+    line: Line | number,
+    atColumnNumber: number
+  ): Word {
+    const startLineNumber =
+      typeof line === 'number' ? line : line.range.startLineNumber;
 
-		const range = new Range(
-			startLineNumber, atColumnNumber,
-			startLineNumber, atColumnNumber + text.length
-		);
+    const range = new Range(
+      startLineNumber,
+      atColumnNumber,
+      startLineNumber,
+      atColumnNumber + text.length
+    );
 
-		return new Word(
-			range,
-			text,
-		);
-	}
+    return new Word(range, text);
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `word("${this.shortText()}")${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `word("${this.shortText()}")${this.range}`;
+  }
 }

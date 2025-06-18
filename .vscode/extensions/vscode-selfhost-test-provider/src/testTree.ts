@@ -57,7 +57,7 @@ export class TestFile {
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		public readonly workspaceFolder: vscode.WorkspaceFolder
+		public readonly workspaceFolder: vscode.WorkspaceFolder,
 	) {}
 
 	public getId() {
@@ -84,7 +84,7 @@ export class TestFile {
 	public updateFromContents(
 		controller: vscode.TestController,
 		content: string,
-		file: vscode.TestItem
+		file: vscode.TestItem,
 	) {
 		try {
 			const diagnostics: vscode.Diagnostic[] = [];
@@ -93,7 +93,7 @@ export class TestFile {
 				content,
 				ts.ScriptTarget.ESNext,
 				false,
-				ts.ScriptKind.TS
+				ts.ScriptKind.TS,
 			);
 
 			const parents: { item: vscode.TestItem; children: vscode.TestItem[] }[] = [
@@ -120,13 +120,13 @@ export class TestFile {
 					const diagnostic = new vscode.Diagnostic(
 						childData.range,
 						'Duplicate tests cannot be run individually and will not be reported correctly by the test framework. Please rename them.',
-						vscode.DiagnosticSeverity.Warning
+						vscode.DiagnosticSeverity.Warning,
 					);
 
 					diagnostic.relatedInformation = [
 						new vscode.DiagnosticRelatedInformation(
 							new vscode.Location(existing.uri!, existing.range!),
-							'First declared here'
+							'First declared here',
 						),
 					];
 
@@ -163,7 +163,7 @@ export abstract class TestConstruct {
 	constructor(
 		public readonly name: string,
 		public readonly range: vscode.Range,
-		parent?: TestConstruct
+		parent?: TestConstruct,
 	) {
 		this.fullName = parent ? `${parent.fullName} ${name}` : name;
 	}

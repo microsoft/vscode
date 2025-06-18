@@ -69,4 +69,3 @@ import './contrib/diffEditorBreadcrumbs/browser/contribution.js';
 import './common/standaloneStrings.js';
 
 import '../base/browser/ui/codicons/codiconStyles.js'; // The codicons are defined here and must be loaded
-

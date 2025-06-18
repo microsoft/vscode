@@ -10,24 +10,24 @@ import { SimpleToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class LeftParenthesis extends SimpleToken<'('> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '(' = '(';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '(' = '(';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '(' {
-		return LeftParenthesis.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '(' {
+    return LeftParenthesis.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `left-parenthesis${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `left-parenthesis${this.range}`;
+  }
 }
 
 /**
@@ -35,24 +35,24 @@ export class LeftParenthesis extends SimpleToken<'('> {
  * value reflects the position of the token in the original data.
  */
 export class RightParenthesis extends SimpleToken<')'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: ')' = ')';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: ')' = ')';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): ')' {
-		return RightParenthesis.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): ')' {
+    return RightParenthesis.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `right-parenthesis${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `right-parenthesis${this.range}`;
+  }
 }
 
 /**

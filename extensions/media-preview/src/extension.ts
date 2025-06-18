@@ -10,10 +10,16 @@ import { registerImagePreviewSupport } from './imagePreview';
 import { registerVideoPreviewSupport } from './videoPreview';
 
 export function activate(context: vscode.ExtensionContext) {
-	const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
-	context.subscriptions.push(binarySizeStatusBarEntry);
+  const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
+  context.subscriptions.push(binarySizeStatusBarEntry);
 
-	context.subscriptions.push(registerImagePreviewSupport(context, binarySizeStatusBarEntry));
-	context.subscriptions.push(registerAudioPreviewSupport(context, binarySizeStatusBarEntry));
-	context.subscriptions.push(registerVideoPreviewSupport(context, binarySizeStatusBarEntry));
+  context.subscriptions.push(
+    registerImagePreviewSupport(context, binarySizeStatusBarEntry)
+  );
+  context.subscriptions.push(
+    registerAudioPreviewSupport(context, binarySizeStatusBarEntry)
+  );
+  context.subscriptions.push(
+    registerVideoPreviewSupport(context, binarySizeStatusBarEntry)
+  );
 }

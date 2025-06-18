@@ -5,7 +5,11 @@
 
 import { IReaderWithStore, IReader, IObservable } from '../base.js';
 import { IChangeTracker } from '../changeTracker.js';
-import { DisposableStore, IDisposable, toDisposable } from '../commonFacade/deps.js';
+import {
+  DisposableStore,
+  IDisposable,
+  toDisposable,
+} from '../commonFacade/deps.js';
 import { DebugNameData, IDebugNameData } from '../debugName.js';
 import { AutorunObserver } from './autorunImpl.js';
 
@@ -14,23 +18,30 @@ import { AutorunObserver } from './autorunImpl.js';
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
 export function autorun(fn: (reader: IReaderWithStore) => void): IDisposable {
-	return new AutorunObserver(
-		new DebugNameData(undefined, undefined, fn),
-		fn,
-		undefined
-	);
+  return new AutorunObserver(
+    new DebugNameData(undefined, undefined, fn),
+    fn,
+    undefined
+  );
 }
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReaderWithStore) => void): IDisposable {
-	return new AutorunObserver(
-		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
-		fn,
-		undefined
-	);
+export function autorunOpts(
+  options: IDebugNameData & {},
+  fn: (reader: IReaderWithStore) => void
+): IDisposable {
+  return new AutorunObserver(
+    new DebugNameData(
+      options.owner,
+      options.debugName,
+      options.debugReferenceFn ?? fn
+    ),
+    fn,
+    undefined
+  );
 }
 
 /**
@@ -45,44 +56,52 @@ export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReaderWi
  * @see autorun
  */
 export function autorunHandleChanges<TChangeSummary>(
-	options: IDebugNameData & {
-		changeTracker: IChangeTracker<TChangeSummary>;
-	},
-	fn: (reader: IReader, changeSummary: TChangeSummary) => void
+  options: IDebugNameData & {
+    changeTracker: IChangeTracker<TChangeSummary>;
+  },
+  fn: (reader: IReader, changeSummary: TChangeSummary) => void
 ): IDisposable {
-	return new AutorunObserver(
-		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
-		fn,
-		options.changeTracker
-	);
+  return new AutorunObserver(
+    new DebugNameData(
+      options.owner,
+      options.debugName,
+      options.debugReferenceFn ?? fn
+    ),
+    fn,
+    options.changeTracker
+  );
 }
 
 /**
  * @see autorunHandleChanges (but with a disposable store that is cleared before the next run or on dispose)
  */
 export function autorunWithStoreHandleChanges<TChangeSummary>(
-	options: IDebugNameData & {
-		changeTracker: IChangeTracker<TChangeSummary>;
-	},
-	fn: (reader: IReader, changeSummary: TChangeSummary, store: DisposableStore) => void
+  options: IDebugNameData & {
+    changeTracker: IChangeTracker<TChangeSummary>;
+  },
+  fn: (
+    reader: IReader,
+    changeSummary: TChangeSummary,
+    store: DisposableStore
+  ) => void
 ): IDisposable {
-	const store = new DisposableStore();
-	const disposable = autorunHandleChanges(
-		{
-			owner: options.owner,
-			debugName: options.debugName,
-			debugReferenceFn: options.debugReferenceFn ?? fn,
-			changeTracker: options.changeTracker,
-		},
-		(reader, changeSummary) => {
-			store.clear();
-			fn(reader, changeSummary, store);
-		}
-	);
-	return toDisposable(() => {
-		disposable.dispose();
-		store.dispose();
-	});
+  const store = new DisposableStore();
+  const disposable = autorunHandleChanges(
+    {
+      owner: options.owner,
+      debugName: options.debugName,
+      debugReferenceFn: options.debugReferenceFn ?? fn,
+      changeTracker: options.changeTracker,
+    },
+    (reader, changeSummary) => {
+      store.clear();
+      fn(reader, changeSummary, store);
+    }
+  );
+  return toDisposable(() => {
+    disposable.dispose();
+    store.dispose();
+  });
 }
 
 /**
@@ -90,62 +109,67 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
  *
  * @deprecated Use `autorun(reader => { reader.store.add(...) })` instead!
  */
-export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) => void): IDisposable {
-	const store = new DisposableStore();
-	const disposable = autorunOpts(
-		{
-			owner: undefined,
-			debugName: undefined,
-			debugReferenceFn: fn,
-		},
-		reader => {
-			store.clear();
-			fn(reader, store);
-		}
-	);
-	return toDisposable(() => {
-		disposable.dispose();
-		store.dispose();
-	});
+export function autorunWithStore(
+  fn: (reader: IReader, store: DisposableStore) => void
+): IDisposable {
+  const store = new DisposableStore();
+  const disposable = autorunOpts(
+    {
+      owner: undefined,
+      debugName: undefined,
+      debugReferenceFn: fn,
+    },
+    (reader) => {
+      store.clear();
+      fn(reader, store);
+    }
+  );
+  return toDisposable(() => {
+    disposable.dispose();
+    store.dispose();
+  });
 }
 
 export function autorunDelta<T>(
-	observable: IObservable<T>,
-	handler: (args: { lastValue: T | undefined; newValue: T }) => void
+  observable: IObservable<T>,
+  handler: (args: { lastValue: T | undefined; newValue: T }) => void
 ): IDisposable {
-	let _lastValue: T | undefined;
-	return autorunOpts({ debugReferenceFn: handler }, (reader) => {
-		const newValue = observable.read(reader);
-		const lastValue = _lastValue;
-		_lastValue = newValue;
-		handler({ lastValue, newValue });
-	});
+  let _lastValue: T | undefined;
+  return autorunOpts({ debugReferenceFn: handler }, (reader) => {
+    const newValue = observable.read(reader);
+    const lastValue = _lastValue;
+    _lastValue = newValue;
+    handler({ lastValue, newValue });
+  });
 }
 
 export function autorunIterableDelta<T>(
-	getValue: (reader: IReader) => Iterable<T>,
-	handler: (args: { addedValues: T[]; removedValues: T[] }) => void,
-	getUniqueIdentifier: (value: T) => unknown = v => v
+  getValue: (reader: IReader) => Iterable<T>,
+  handler: (args: { addedValues: T[]; removedValues: T[] }) => void,
+  getUniqueIdentifier: (value: T) => unknown = (v) => v
 ) {
-	const lastValues = new Map<unknown, T>();
-	return autorunOpts({ debugReferenceFn: getValue }, (reader) => {
-		const newValues = new Map();
-		const removedValues = new Map(lastValues);
-		for (const value of getValue(reader)) {
-			const id = getUniqueIdentifier(value);
-			if (lastValues.has(id)) {
-				removedValues.delete(id);
-			} else {
-				newValues.set(id, value);
-				lastValues.set(id, value);
-			}
-		}
-		for (const id of removedValues.keys()) {
-			lastValues.delete(id);
-		}
+  const lastValues = new Map<unknown, T>();
+  return autorunOpts({ debugReferenceFn: getValue }, (reader) => {
+    const newValues = new Map();
+    const removedValues = new Map(lastValues);
+    for (const value of getValue(reader)) {
+      const id = getUniqueIdentifier(value);
+      if (lastValues.has(id)) {
+        removedValues.delete(id);
+      } else {
+        newValues.set(id, value);
+        lastValues.set(id, value);
+      }
+    }
+    for (const id of removedValues.keys()) {
+      lastValues.delete(id);
+    }
 
-		if (newValues.size || removedValues.size) {
-			handler({ addedValues: [...newValues.values()], removedValues: [...removedValues.values()] });
-		}
-	});
+    if (newValues.size || removedValues.size) {
+      handler({
+        addedValues: [...newValues.values()],
+        removedValues: [...removedValues.values()],
+      });
+    }
+  });
 }

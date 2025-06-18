@@ -4,42 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+  // @alexr00 https://github.com/microsoft/vscode/issues/167253
 
-	// @alexr00 https://github.com/microsoft/vscode/issues/167253
+  export enum CommentThreadFocus {
+    /**
+     * Focus the comment editor if the thread supports replying.
+     */
+    Reply = 1,
+    /**
+     * Focus the revealed comment.
+     */
+    Comment = 2,
+  }
 
-	export enum CommentThreadFocus {
-		/**
-		 * Focus the comment editor if the thread supports replying.
-		 */
-		Reply = 1,
-		/**
-		 * Focus the revealed comment.
-		 */
-		Comment = 2
-	}
+  /**
+   * Options to reveal a comment thread in an editor.
+   */
+  export interface CommentThreadRevealOptions {
+    /**
+     * Where to move the focus to when revealing the comment thread.
+     * If undefined, the focus will not be changed.
+     */
+    focus?: CommentThreadFocus;
+  }
 
-	/**
-	 * Options to reveal a comment thread in an editor.
-	 */
-	export interface CommentThreadRevealOptions {
+  export interface CommentThread2 {
+    /**
+     * Reveal the comment thread in an editor. If no comment is provided, the first comment in the thread will be revealed.
+     */
+    reveal(
+      comment?: Comment,
+      options?: CommentThreadRevealOptions
+    ): Thenable<void>;
 
-		/**
-		 * Where to move the focus to when revealing the comment thread.
-		 * If undefined, the focus will not be changed.
-		 */
-		focus?: CommentThreadFocus;
-	}
-
-	export interface CommentThread2 {
-		/**
-		 * Reveal the comment thread in an editor. If no comment is provided, the first comment in the thread will be revealed.
-		 */
-		reveal(comment?: Comment, options?: CommentThreadRevealOptions): Thenable<void>;
-
-		/**
-		 * Collapse the comment thread in an editor.
-		 */
-		hide(): Thenable<void>;
-	}
-
+    /**
+     * Collapse the comment thread in an editor.
+     */
+    hide(): Thenable<void>;
+  }
 }

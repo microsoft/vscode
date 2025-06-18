@@ -6,46 +6,50 @@
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
+export const IExtensionHostDebugService =
+  createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
 export interface IAttachSessionEvent {
-	sessionId: string;
-	subId?: string;
-	port: number;
+  sessionId: string;
+  subId?: string;
+  port: number;
 }
 
 export interface ITerminateSessionEvent {
-	sessionId: string;
-	subId?: string;
+  sessionId: string;
+  subId?: string;
 }
 
 export interface IReloadSessionEvent {
-	sessionId: string;
+  sessionId: string;
 }
 
 export interface ICloseSessionEvent {
-	sessionId: string;
+  sessionId: string;
 }
 
 export interface IOpenExtensionWindowResult {
-	rendererDebugPort?: number;
-	success: boolean;
+  rendererDebugPort?: number;
+  success: boolean;
 }
 
 export interface IExtensionHostDebugService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	reload(sessionId: string): void;
-	readonly onReload: Event<IReloadSessionEvent>;
+  reload(sessionId: string): void;
+  readonly onReload: Event<IReloadSessionEvent>;
 
-	close(sessionId: string): void;
-	readonly onClose: Event<ICloseSessionEvent>;
+  close(sessionId: string): void;
+  readonly onClose: Event<ICloseSessionEvent>;
 
-	attachSession(sessionId: string, port: number, subId?: string): void;
-	readonly onAttachSession: Event<IAttachSessionEvent>;
+  attachSession(sessionId: string, port: number, subId?: string): void;
+  readonly onAttachSession: Event<IAttachSessionEvent>;
 
-	terminateSession(sessionId: string, subId?: string): void;
-	readonly onTerminateSession: Event<ITerminateSessionEvent>;
+  terminateSession(sessionId: string, subId?: string): void;
+  readonly onTerminateSession: Event<ITerminateSessionEvent>;
 
-	openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
+  openExtensionDevelopmentHostWindow(
+    args: string[],
+    debugRenderer: boolean
+  ): Promise<IOpenExtensionWindowResult>;
 }

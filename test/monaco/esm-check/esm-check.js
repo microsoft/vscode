@@ -20,77 +20,79 @@ const PORT = 8562;
 run();
 
 async function run() {
-	await extractSourcesWithoutCSS();
-	const server = await startServer();
+  await extractSourcesWithoutCSS();
+  const server = await startServer();
 
-	const browser = await playwright['chromium'].launch({
-		headless: !DEBUG_TESTS,
-		devtools: DEBUG_TESTS
-		// slowMo: DEBUG_TESTS ? 2000 : 0
-	});
+  const browser = await playwright['chromium'].launch({
+    headless: !DEBUG_TESTS,
+    devtools: DEBUG_TESTS,
+    // slowMo: DEBUG_TESTS ? 2000 : 0
+  });
 
-	const page = await browser.newPage({
-		viewport: {
-			width: 800,
-			height: 600
-		}
-	});
-	page.on('pageerror', (e) => {
-		console.error(`[esm-check] A page error occurred:`);
-		console.error(e);
-		process.exit(1);
-	});
+  const page = await browser.newPage({
+    viewport: {
+      width: 800,
+      height: 600,
+    },
+  });
+  page.on('pageerror', (e) => {
+    console.error(`[esm-check] A page error occurred:`);
+    console.error(e);
+    process.exit(1);
+  });
 
-	const URL = `http://127.0.0.1:${PORT}/index.html`;
-	console.log(`[esm-check] Navigating to ${URL}`);
-	const response = await page.goto(URL);
-	if (!response) {
-		console.error(`[esm-check] Missing response.`);
-		process.exit(1);
-	}
-	if (response.status() !== 200) {
-		console.error(`[esm-check] Response status ${response.status()} is not 200 .`);
-		process.exit(1);
-	}
-	console.log(`[esm-check] All appears good.`);
+  const URL = `http://127.0.0.1:${PORT}/index.html`;
+  console.log(`[esm-check] Navigating to ${URL}`);
+  const response = await page.goto(URL);
+  if (!response) {
+    console.error(`[esm-check] Missing response.`);
+    process.exit(1);
+  }
+  if (response.status() !== 200) {
+    console.error(
+      `[esm-check] Response status ${response.status()} is not 200 .`
+    );
+    process.exit(1);
+  }
+  console.log(`[esm-check] All appears good.`);
 
-	await page.close();
-	await browser.close();
+  await page.close();
+  await browser.close();
 
-	server.close();
+  server.close();
 }
 
 /**
  * @returns {Promise<http.Server>}
  */
 async function startServer() {
-	const staticServer = await yaserver.createServer({ rootDir: __dirname });
-	return new Promise((resolve, reject) => {
-		const server = http.createServer((request, response) => {
-			return staticServer.handle(request, response);
-		});
-		server.listen(PORT, '127.0.0.1', () => {
-			resolve(server);
-		});
-	});
+  const staticServer = await yaserver.createServer({ rootDir: __dirname });
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((request, response) => {
+      return staticServer.handle(request, response);
+    });
+    server.listen(PORT, '127.0.0.1', () => {
+      resolve(server);
+    });
+  });
 }
 
 async function extractSourcesWithoutCSS() {
-	await util.rimraf(DST_DIR);
+  await util.rimraf(DST_DIR);
 
-	const files = util.rreddir(SRC_DIR);
-	for (const file of files) {
-		const srcFilename = path.join(SRC_DIR, file);
-		if (!/\.js$/.test(srcFilename)) {
-			continue;
-		}
+  const files = util.rreddir(SRC_DIR);
+  for (const file of files) {
+    const srcFilename = path.join(SRC_DIR, file);
+    if (!/\.js$/.test(srcFilename)) {
+      continue;
+    }
 
-		const dstFilename = path.join(DST_DIR, file);
+    const dstFilename = path.join(DST_DIR, file);
 
-		let contents = fs.readFileSync(srcFilename).toString();
-		contents = contents.replace(/import '[^']+\.css';/g, '');
+    let contents = fs.readFileSync(srcFilename).toString();
+    contents = contents.replace(/import '[^']+\.css';/g, '');
 
-		util.ensureDir(path.dirname(dstFilename));
-		fs.writeFileSync(dstFilename, contents);
-	}
+    util.ensureDir(path.dirname(dstFilename));
+    fs.writeFileSync(dstFilename, contents);
+  }
 }

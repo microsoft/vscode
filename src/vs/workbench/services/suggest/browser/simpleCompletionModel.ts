@@ -6,192 +6,215 @@
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
-import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
+import {
+  FuzzyScore,
+  fuzzyScore,
+  fuzzyScoreGracefulAggressive,
+  FuzzyScoreOptions,
+  FuzzyScorer,
+} from '../../../../base/common/filters.js';
 
 export interface ISimpleCompletionStats {
-	pLabelLen: number;
+  pLabelLen: number;
 }
 
 export class LineContext {
-	constructor(
-		readonly leadingLineContent: string,
-		readonly characterCountDelta: number,
-	) { }
+  constructor(
+    readonly leadingLineContent: string,
+    readonly characterCountDelta: number
+  ) {}
 }
 
 const enum Refilter {
-	Nothing = 0,
-	All = 1,
-	Incr = 2
+  Nothing = 0,
+  All = 1,
+  Incr = 2,
 }
 
 export class SimpleCompletionModel<T extends SimpleCompletionItem> {
-	private _stats?: ISimpleCompletionStats;
-	private _filteredItems?: T[];
-	private _refilterKind: Refilter = Refilter.All;
-	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
-		...FuzzyScoreOptions.default,
-		firstMatchCanBeWeak: true
-	};
+  private _stats?: ISimpleCompletionStats;
+  private _filteredItems?: T[];
+  private _refilterKind: Refilter = Refilter.All;
+  private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
+    ...FuzzyScoreOptions.default,
+    firstMatchCanBeWeak: true,
+  };
 
-	// TODO: Pass in options
-	private _options: {
-		filterGraceful?: boolean;
-	} = {};
+  // TODO: Pass in options
+  private _options: {
+    filterGraceful?: boolean;
+  } = {};
 
-	constructor(
-		private readonly _items: T[],
-		private _lineContext: LineContext,
-		private readonly _rawCompareFn?: (leadingLineContent: string, a: T, b: T) => number,
-	) {
-	}
+  constructor(
+    private readonly _items: T[],
+    private _lineContext: LineContext,
+    private readonly _rawCompareFn?: (
+      leadingLineContent: string,
+      a: T,
+      b: T
+    ) => number
+  ) {}
 
-	get items(): T[] {
-		this._ensureCachedState();
-		return this._filteredItems!;
-	}
+  get items(): T[] {
+    this._ensureCachedState();
+    return this._filteredItems!;
+  }
 
-	get stats(): ISimpleCompletionStats {
-		this._ensureCachedState();
-		return this._stats!;
-	}
+  get stats(): ISimpleCompletionStats {
+    this._ensureCachedState();
+    return this._stats!;
+  }
 
+  get lineContext(): LineContext {
+    return this._lineContext;
+  }
 
-	get lineContext(): LineContext {
-		return this._lineContext;
-	}
+  set lineContext(value: LineContext) {
+    if (
+      this._lineContext.leadingLineContent !== value.leadingLineContent ||
+      this._lineContext.characterCountDelta !== value.characterCountDelta
+    ) {
+      this._refilterKind =
+        this._lineContext.characterCountDelta < value.characterCountDelta &&
+        this._filteredItems
+          ? Refilter.Incr
+          : Refilter.All;
+      this._lineContext = value;
+    }
+  }
 
-	set lineContext(value: LineContext) {
-		if (this._lineContext.leadingLineContent !== value.leadingLineContent
-			|| this._lineContext.characterCountDelta !== value.characterCountDelta
-		) {
-			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? Refilter.Incr : Refilter.All;
-			this._lineContext = value;
-		}
-	}
+  forceRefilterAll() {
+    this._refilterKind = Refilter.All;
+  }
 
-	forceRefilterAll() {
-		this._refilterKind = Refilter.All;
-	}
+  private _ensureCachedState(): void {
+    if (this._refilterKind !== Refilter.Nothing) {
+      this._createCachedState();
+    }
+  }
+  private _createCachedState(): void {
+    // this._providerInfo = new Map();
 
-	private _ensureCachedState(): void {
-		if (this._refilterKind !== Refilter.Nothing) {
-			this._createCachedState();
-		}
-	}
-	private _createCachedState(): void {
+    const labelLengths: number[] = [];
 
-		// this._providerInfo = new Map();
+    const { leadingLineContent, characterCountDelta } = this._lineContext;
+    let word = '';
+    let wordLow = '';
 
-		const labelLengths: number[] = [];
+    // incrementally filter less
+    const source =
+      this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
+    const target: T[] = [];
 
-		const { leadingLineContent, characterCountDelta } = this._lineContext;
-		let word = '';
-		let wordLow = '';
+    // picks a score function based on the number of
+    // items that we have to score/filter and based on the
+    // user-configuration
+    const scoreFn: FuzzyScorer =
+      !this._options.filterGraceful || source.length > 2000
+        ? fuzzyScore
+        : fuzzyScoreGracefulAggressive;
 
-		// incrementally filter less
-		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
-		const target: T[] = [];
+    for (let i = 0; i < source.length; i++) {
+      const item = source[i];
 
-		// picks a score function based on the number of
-		// items that we have to score/filter and based on the
-		// user-configuration
-		const scoreFn: FuzzyScorer = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
+      if (item.isInvalid) {
+        continue; // SKIP invalid items
+      }
 
-		for (let i = 0; i < source.length; i++) {
+      // collect all support, know if their result is incomplete
+      // this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
 
-			const item = source[i];
+      // 'word' is that remainder of the current line that we
+      // filter and score against. In theory each suggestion uses a
+      // different word, but in practice not - that's why we cache
+      // TODO: Fix
+      const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
+      const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
+      if (word.length !== wordLen) {
+        word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
+        wordLow = word.toLowerCase();
+      }
 
-			if (item.isInvalid) {
-				continue; // SKIP invalid items
-			}
+      // remember the word against which this item was
+      // scored. If word is undefined, then match against the empty string.
+      item.word = word;
+      if (wordLen === 0) {
+        // when there is nothing to score against, don't
+        // event try to do. Use a const rank and rely on
+        // the fallback-sort using the initial sort order.
+        // use a score of `-100` because that is out of the
+        // bound of values `fuzzyScore` will return
+        item.score = FuzzyScore.Default;
+      } else {
+        // skip word characters that are whitespace until
+        // we have hit the replace range (overwriteBefore)
+        let wordPos = 0;
+        while (wordPos < overwriteBefore) {
+          const ch = word.charCodeAt(wordPos);
+          if (ch === CharCode.Space || ch === CharCode.Tab) {
+            wordPos += 1;
+          } else {
+            break;
+          }
+        }
 
-			// collect all support, know if their result is incomplete
-			// this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
+        if (wordPos >= wordLen) {
+          // the wordPos at which scoring starts is the whole word
+          // and therefore the same rules as not having a word apply
+          item.score = FuzzyScore.Default;
 
-			// 'word' is that remainder of the current line that we
-			// filter and score against. In theory each suggestion uses a
-			// different word, but in practice not - that's why we cache
-			// TODO: Fix
-			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
-			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
-			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
-				wordLow = word.toLowerCase();
-			}
+          // } else if (typeof item.completion.filterText === 'string') {
+          // 	// when there is a `filterText` it must match the `word`.
+          // 	// if it matches we check with the label to compute highlights
+          // 	// and if that doesn't yield a result we have no highlights,
+          // 	// despite having the match
+          // 	const match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, this._fuzzyScoreOptions);
+          // 	if (!match) {
+          // 		continue; // NO match
+          // 	}
+          // 	if (compareIgnoreCase(item.completion.filterText, item.textLabel) === 0) {
+          // 		// filterText and label are actually the same -> use good highlights
+          // 		item.score = match;
+          // 	} else {
+          // 		// re-run the scorer on the label in the hope of a result BUT use the rank
+          // 		// of the filterText-match
+          // 		item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
+          // 		item.score[0] = match[0]; // use score from filterText
+          // 	}
+        } else {
+          // by default match `word` against the `label`
+          const match = scoreFn(
+            word,
+            wordLow,
+            wordPos,
+            item.textLabel,
+            item.labelLow,
+            0,
+            this._fuzzyScoreOptions
+          );
+          if (!match && word !== '') {
+            continue; // NO match
+          }
+          // Use default sorting when word is empty
+          item.score = match || FuzzyScore.Default;
+        }
+      }
+      item.idx = i;
+      target.push(item);
 
-			// remember the word against which this item was
-			// scored. If word is undefined, then match against the empty string.
-			item.word = word;
-			if (wordLen === 0) {
-				// when there is nothing to score against, don't
-				// event try to do. Use a const rank and rely on
-				// the fallback-sort using the initial sort order.
-				// use a score of `-100` because that is out of the
-				// bound of values `fuzzyScore` will return
-				item.score = FuzzyScore.Default;
+      // update stats
+      labelLengths.push(item.textLabel.length);
+    }
 
-			} else {
-				// skip word characters that are whitespace until
-				// we have hit the replace range (overwriteBefore)
-				let wordPos = 0;
-				while (wordPos < overwriteBefore) {
-					const ch = word.charCodeAt(wordPos);
-					if (ch === CharCode.Space || ch === CharCode.Tab) {
-						wordPos += 1;
-					} else {
-						break;
-					}
-				}
+    this._filteredItems = target.sort(
+      this._rawCompareFn?.bind(undefined, leadingLineContent)
+    );
+    this._refilterKind = Refilter.Nothing;
 
-				if (wordPos >= wordLen) {
-					// the wordPos at which scoring starts is the whole word
-					// and therefore the same rules as not having a word apply
-					item.score = FuzzyScore.Default;
-
-					// } else if (typeof item.completion.filterText === 'string') {
-					// 	// when there is a `filterText` it must match the `word`.
-					// 	// if it matches we check with the label to compute highlights
-					// 	// and if that doesn't yield a result we have no highlights,
-					// 	// despite having the match
-					// 	const match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, this._fuzzyScoreOptions);
-					// 	if (!match) {
-					// 		continue; // NO match
-					// 	}
-					// 	if (compareIgnoreCase(item.completion.filterText, item.textLabel) === 0) {
-					// 		// filterText and label are actually the same -> use good highlights
-					// 		item.score = match;
-					// 	} else {
-					// 		// re-run the scorer on the label in the hope of a result BUT use the rank
-					// 		// of the filterText-match
-					// 		item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
-					// 		item.score[0] = match[0]; // use score from filterText
-					// 	}
-
-				} else {
-					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
-					if (!match && word !== '') {
-						continue; // NO match
-					}
-					// Use default sorting when word is empty
-					item.score = match || FuzzyScore.Default;
-				}
-			}
-			item.idx = i;
-			target.push(item);
-
-			// update stats
-			labelLengths.push(item.textLabel.length);
-		}
-
-		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));
-		this._refilterKind = Refilter.Nothing;
-
-		this._stats = {
-			pLabelLen: labelLengths.length ?
-				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
-				: 0
-		};
-	}
+    this._stats = {
+      pLabelLen: labelLengths.length
+        ? quickSelect(labelLengths.length - 0.85, labelLengths, (a, b) => a - b)
+        : 0,
+    };
+  }
 }

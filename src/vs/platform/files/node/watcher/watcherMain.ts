@@ -12,10 +12,13 @@ import { UniversalWatcher } from './watcher.js';
 
 let server: ChildProcessServer<string> | UtilityProcessServer;
 if (isUtilityProcess(process)) {
-	server = new UtilityProcessServer();
+  server = new UtilityProcessServer();
 } else {
-	server = new ChildProcessServer('watcher');
+  server = new ChildProcessServer('watcher');
 }
 
 const service = new UniversalWatcher();
-server.registerChannel('watcher', ProxyChannel.fromService(service, new DisposableStore()));
+server.registerChannel(
+  'watcher',
+  ProxyChannel.fromService(service, new DisposableStore())
+);

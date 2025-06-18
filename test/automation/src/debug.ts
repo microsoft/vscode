@@ -25,136 +25,186 @@ const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-toolbar[aria-hidden="true"]`;
 const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
-const SPECIFIC_STACK_FRAME = (filename: string) => `${STACK_FRAME} .file[title*="${filename}"]`;
+const SPECIFIC_STACK_FRAME = (filename: string) =>
+  `${STACK_FRAME} .file[title*="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
 const CONSOLE_LINK = `.repl .value a.link`;
 
-const REPL_FOCUSED_NATIVE_EDIT_CONTEXT = '.repl-input-wrapper .monaco-editor .native-edit-context';
+const REPL_FOCUSED_NATIVE_EDIT_CONTEXT =
+  '.repl-input-wrapper .monaco-editor .native-edit-context';
 const REPL_FOCUSED_TEXTAREA = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
-	name: string;
-	lineNumber: number;
+  name: string;
+  lineNumber: number;
 }
 
 function toStackFrame(element: IElement): IStackFrame {
-	const name = findElement(element, e => /\bfile-name\b/.test(e.className))!;
-	const line = findElement(element, e => /\bline-number\b/.test(e.className))!;
-	const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
+  const name = findElement(element, (e) => /\bfile-name\b/.test(e.className))!;
+  const line = findElement(element, (e) =>
+    /\bline-number\b/.test(e.className)
+  )!;
+  const lineNumber = line.textContent
+    ? parseInt(line.textContent.split(':').shift() || '0')
+    : 0;
 
-	return {
-		name: name.textContent || '',
-		lineNumber
-	};
+  return {
+    name: name.textContent || '',
+    lineNumber,
+  };
 }
 
 export class Debug extends Viewlet {
+  constructor(
+    code: Code,
+    private commands: Commands,
+    private editors: Editors,
+    private editor: Editor
+  ) {
+    super(code);
+  }
 
-	constructor(code: Code, private commands: Commands, private editors: Editors, private editor: Editor) {
-		super(code);
-	}
+  async openDebugViewlet(): Promise<any> {
+    const accept = async () => {
+      await this.code.waitForElement(DEBUG_VIEW);
+    };
+    if (process.platform === 'darwin') {
+      await this.code.sendKeybinding('cmd+shift+d', accept);
+    } else {
+      await this.code.sendKeybinding('ctrl+shift+d', accept);
+    }
 
-	async openDebugViewlet(): Promise<any> {
-		const accept = async () => {
-			await this.code.waitForElement(DEBUG_VIEW);
-		};
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+shift+d', accept);
-		} else {
-			await this.code.sendKeybinding('ctrl+shift+d', accept);
-		}
+    await this.code.waitForElement(DEBUG_VIEW);
+  }
 
-		await this.code.waitForElement(DEBUG_VIEW);
-	}
+  async configure(): Promise<any> {
+    await this.code.waitAndClick(CONFIGURE);
+    await this.editors.waitForEditorFocus('launch.json');
+  }
 
-	async configure(): Promise<any> {
-		await this.code.waitAndClick(CONFIGURE);
-		await this.editors.waitForEditorFocus('launch.json');
-	}
+  async setBreakpointOnLine(lineNumber: number): Promise<any> {
+    await this.code.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
+    await this.code.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
+    await this.code.waitForElement(BREAKPOINT_GLYPH);
+  }
 
-	async setBreakpointOnLine(lineNumber: number): Promise<any> {
-		await this.code.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
-		await this.code.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
-		await this.code.waitForElement(BREAKPOINT_GLYPH);
-	}
+  async startDebugging(): Promise<number> {
+    await this.code.sendKeybinding('f5', async () => {
+      await this.code.waitForElement(PAUSE);
+      await this.code.waitForElement(DEBUG_STATUS_BAR);
+    });
+    const portPrefix = 'Port: ';
 
-	async startDebugging(): Promise<number> {
-		await this.code.sendKeybinding('f5', async () => {
-			await this.code.waitForElement(PAUSE);
-			await this.code.waitForElement(DEBUG_STATUS_BAR);
-		});
-		const portPrefix = 'Port: ';
+    const output = await this.waitForOutput((output) =>
+      output.some((line) => line.indexOf(portPrefix) >= 0)
+    );
+    const lastOutput = output.filter(
+      (line) => line.indexOf(portPrefix) >= 0
+    )[0];
 
-		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
-		const lastOutput = output.filter(line => line.indexOf(portPrefix) >= 0)[0];
+    return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
+  }
 
-		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
-	}
+  async stepOver(): Promise<any> {
+    await this.code.waitAndClick(STEP_OVER);
+  }
 
-	async stepOver(): Promise<any> {
-		await this.code.waitAndClick(STEP_OVER);
-	}
+  async stepIn(): Promise<any> {
+    await this.code.waitAndClick(STEP_IN);
+  }
 
-	async stepIn(): Promise<any> {
-		await this.code.waitAndClick(STEP_IN);
-	}
+  async stepOut(): Promise<any> {
+    await this.code.waitAndClick(STEP_OUT);
+  }
 
-	async stepOut(): Promise<any> {
-		await this.code.waitAndClick(STEP_OUT);
-	}
+  async continue(): Promise<any> {
+    await this.code.waitAndClick(CONTINUE);
+    await this.waitForStackFrameLength(0);
+  }
 
-	async continue(): Promise<any> {
-		await this.code.waitAndClick(CONTINUE);
-		await this.waitForStackFrameLength(0);
-	}
+  async stopDebugging(): Promise<any> {
+    await this.code.waitAndClick(STOP);
+    await this.code.waitForElement(TOOLBAR_HIDDEN);
+    await this.code.waitForElement(NOT_DEBUG_STATUS_BAR);
+  }
 
-	async stopDebugging(): Promise<any> {
-		await this.code.waitAndClick(STOP);
-		await this.code.waitForElement(TOOLBAR_HIDDEN);
-		await this.code.waitForElement(NOT_DEBUG_STATUS_BAR);
-	}
+  async waitForStackFrame(
+    func: (stackFrame: IStackFrame) => boolean,
+    message: string
+  ): Promise<IStackFrame> {
+    const elements = await this.code.waitForElements(
+      STACK_FRAME,
+      true,
+      (elements) => elements.some((e) => func(toStackFrame(e)))
+    );
+    return elements.map(toStackFrame).filter((s) => func(s))[0];
+  }
 
-	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
-		const elements = await this.code.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
-		return elements.map(toStackFrame).filter(s => func(s))[0];
-	}
+  async waitForStackFrameLength(length: number): Promise<any> {
+    await this.code.waitForElements(
+      STACK_FRAME,
+      false,
+      (result) => result.length === length
+    );
+  }
 
-	async waitForStackFrameLength(length: number): Promise<any> {
-		await this.code.waitForElements(STACK_FRAME, false, result => result.length === length);
-	}
+  async focusStackFrame(name: string, message: string): Promise<any> {
+    await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name), 0, 0);
+    await this.editors.waitForTab(name);
+  }
 
-	async focusStackFrame(name: string, message: string): Promise<any> {
-		await this.code.waitAndClick(SPECIFIC_STACK_FRAME(name), 0, 0);
-		await this.editors.waitForTab(name);
-	}
+  async waitForReplCommand(
+    text: string,
+    accept: (result: string) => boolean
+  ): Promise<void> {
+    await this.commands.runCommand('Debug: Focus on Debug Console View');
+    const selector = !this.code.editContextEnabled
+      ? REPL_FOCUSED_TEXTAREA
+      : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
+    await this.code.waitForActiveElement(selector);
+    await this.code.waitForSetValue(selector, text);
 
-	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
-		await this.commands.runCommand('Debug: Focus on Debug Console View');
-		const selector = !this.code.editContextEnabled ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
-		await this.code.waitForActiveElement(selector);
-		await this.code.waitForSetValue(selector, text);
+    // Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
+    await this.editor.waitForEditorContents(
+      'debug:replinput',
+      (s) => s.indexOf(text) >= 0
+    );
+    await this.code.sendKeybinding('enter', async () => {
+      await this.code.waitForElements(
+        CONSOLE_EVALUATION_RESULT,
+        false,
+        (elements) =>
+          !!elements.length && accept(elements[elements.length - 1].textContent)
+      );
+    });
+  }
 
-		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
-		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.sendKeybinding('enter', async () => {
-			await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-				elements => !!elements.length && accept(elements[elements.length - 1].textContent));
-		});
-	}
+  // Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
+  async waitForVariableCount(
+    count: number,
+    alternativeCount: number
+  ): Promise<void> {
+    await this.code.waitForElements(
+      VARIABLE,
+      false,
+      (els) => els.length === count || els.length === alternativeCount
+    );
+  }
 
-	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
-	async waitForVariableCount(count: number, alternativeCount: number): Promise<void> {
-		await this.code.waitForElements(VARIABLE, false, els => els.length === count || els.length === alternativeCount);
-	}
+  async waitForLink(): Promise<void> {
+    await this.code.waitForElement(CONSOLE_LINK);
+  }
 
-	async waitForLink(): Promise<void> {
-		await this.code.waitForElement(CONSOLE_LINK);
-	}
-
-	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {
-		const elements = await this.code.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
-		return elements.map(e => e.textContent);
-	}
+  private async waitForOutput(
+    fn: (output: string[]) => boolean
+  ): Promise<string[]> {
+    const elements = await this.code.waitForElements(
+      CONSOLE_OUTPUT,
+      false,
+      (elements) => fn(elements.map((e) => e.textContent))
+    );
+    return elements.map((e) => e.textContent);
+  }
 }

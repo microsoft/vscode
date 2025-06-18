@@ -11,51 +11,55 @@ const offlineName = 'Offline';
  * Checks if the given error is offline error
  */
 export function isOfflineError(error: unknown): boolean {
-	if (error instanceof OfflineError) {
-		return true;
-	}
-	return error instanceof Error && error.name === offlineName && error.message === offlineName;
+  if (error instanceof OfflineError) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    error.name === offlineName &&
+    error.message === offlineName
+  );
 }
 
 export class OfflineError extends Error {
-	constructor() {
-		super(offlineName);
-		this.name = this.message;
-	}
+  constructor() {
+    super(offlineName);
+    this.name = this.message;
+  }
 }
 
 export interface IHeaders {
-	'Proxy-Authorization'?: string;
-	'x-operation-id'?: string;
-	'retry-after'?: string;
-	etag?: string;
-	'Content-Length'?: string;
-	'activityid'?: string;
-	'X-Market-User-Id'?: string;
-	[header: string]: string | string[] | undefined;
+  'Proxy-Authorization'?: string;
+  'x-operation-id'?: string;
+  'retry-after'?: string;
+  etag?: string;
+  'Content-Length'?: string;
+  activityid?: string;
+  'X-Market-User-Id'?: string;
+  [header: string]: string | string[] | undefined;
 }
 
 export interface IRequestOptions {
-	type?: string;
-	url?: string;
-	user?: string;
-	password?: string;
-	headers?: IHeaders;
-	timeout?: number;
-	data?: string;
-	followRedirects?: number;
-	proxyAuthorization?: string;
-	/**
-	 * A signal to not cache the response. This may not
-	 * be supported in all implementations.
-	 */
-	disableCache?: boolean;
+  type?: string;
+  url?: string;
+  user?: string;
+  password?: string;
+  headers?: IHeaders;
+  timeout?: number;
+  data?: string;
+  followRedirects?: number;
+  proxyAuthorization?: string;
+  /**
+   * A signal to not cache the response. This may not
+   * be supported in all implementations.
+   */
+  disableCache?: boolean;
 }
 
 export interface IRequestContext {
-	res: {
-		headers: IHeaders;
-		statusCode?: number;
-	};
-	stream: VSBufferReadableStream;
+  res: {
+    headers: IHeaders;
+    statusCode?: number;
+  };
+  stream: VSBufferReadableStream;
 }

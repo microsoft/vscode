@@ -7,8 +7,8 @@ import { main } from './sign';
 import path from 'path';
 
 main([
-	process.env['EsrpCliDllPath']!,
-	'sign-windows',
-	path.dirname(process.argv[2]),
-	path.basename(process.argv[2])
+  process.env['EsrpCliDllPath']!,
+  'sign-windows',
+  path.dirname(process.argv[2]),
+  path.basename(process.argv[2]),
 ]);

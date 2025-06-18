@@ -11,80 +11,85 @@ import { ITextModel, ITextSnapshot } from '../model.js';
 import { IResolvableEditorModel } from '../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
-export const ITextModelService = createDecorator<ITextModelService>('textModelService');
+export const ITextModelService =
+  createDecorator<ITextModelService>('textModelService');
 
 export interface ITextModelService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	/**
-	 * Provided a resource URI, it will return a model reference
-	 * which should be disposed once not needed anymore.
-	 */
-	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>>;
+  /**
+   * Provided a resource URI, it will return a model reference
+   * which should be disposed once not needed anymore.
+   */
+  createModelReference(
+    resource: URI
+  ): Promise<IReference<IResolvedTextEditorModel>>;
 
-	/**
-	 * Registers a specific `scheme` content provider.
-	 */
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
+  /**
+   * Registers a specific `scheme` content provider.
+   */
+  registerTextModelContentProvider(
+    scheme: string,
+    provider: ITextModelContentProvider
+  ): IDisposable;
 
-	/**
-	 * Check if the given resource can be resolved to a text model.
-	 */
-	canHandleResource(resource: URI): boolean;
+  /**
+   * Check if the given resource can be resolved to a text model.
+   */
+  canHandleResource(resource: URI): boolean;
 }
 
 export interface ITextModelContentProvider {
-
-	/**
-	 * Given a resource, return the content of the resource as `ITextModel`.
-	 */
-	provideTextContent(resource: URI): Promise<ITextModel | null> | null;
+  /**
+   * Given a resource, return the content of the resource as `ITextModel`.
+   */
+  provideTextContent(resource: URI): Promise<ITextModel | null> | null;
 }
 
 export interface ITextEditorModel extends IResolvableEditorModel {
+  /**
+   * Emitted when the text model is about to be disposed.
+   */
+  readonly onWillDispose: Event<void>;
 
-	/**
-	 * Emitted when the text model is about to be disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+  /**
+   * Provides access to the underlying `ITextModel`.
+   */
+  readonly textEditorModel: ITextModel | null;
 
-	/**
-	 * Provides access to the underlying `ITextModel`.
-	 */
-	readonly textEditorModel: ITextModel | null;
+  /**
+   * Creates a snapshot of the model's contents.
+   */
+  createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
+  createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 
-	/**
-	 * Creates a snapshot of the model's contents.
-	 */
-	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
-	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
+  /**
+   * Signals if this model is readonly or not.
+   */
+  isReadonly(): boolean | IMarkdownString;
 
-	/**
-	 * Signals if this model is readonly or not.
-	 */
-	isReadonly(): boolean | IMarkdownString;
+  /**
+   * The language id of the text model if known.
+   */
+  getLanguageId(): string | undefined;
 
-	/**
-	 * The language id of the text model if known.
-	 */
-	getLanguageId(): string | undefined;
-
-	/**
-	 * Find out if this text model has been disposed.
-	 */
-	isDisposed(): boolean;
+  /**
+   * Find out if this text model has been disposed.
+   */
+  isDisposed(): boolean;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {
-
-	/**
-	 * Same as ITextEditorModel#textEditorModel, but never null.
-	 */
-	readonly textEditorModel: ITextModel;
+  /**
+   * Same as ITextEditorModel#textEditorModel, but never null.
+   */
+  readonly textEditorModel: ITextModel;
 }
 
-export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel {
-	const candidate = model as IResolvedTextEditorModel;
+export function isResolvedTextEditorModel(
+  model: ITextEditorModel
+): model is IResolvedTextEditorModel {
+  const candidate = model as IResolvedTextEditorModel;
 
-	return !!candidate.textEditorModel;
+  return !!candidate.textEditorModel;
 }

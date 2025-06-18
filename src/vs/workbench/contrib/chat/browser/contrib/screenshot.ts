@@ -9,11 +9,13 @@ import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 
 export const ScreenshotVariableId = 'screenshot-focused-window';
 
-export function convertBufferToScreenshotVariable(buffer: VSBuffer): IChatRequestVariableEntry {
-	return {
-		id: ScreenshotVariableId,
-		name: localize('screenshot', 'Screenshot'),
-		value: buffer.buffer,
-		kind: 'image'
-	};
+export function convertBufferToScreenshotVariable(
+  buffer: VSBuffer
+): IChatRequestVariableEntry {
+  return {
+    id: ScreenshotVariableId,
+    name: localize('screenshot', 'Screenshot'),
+    value: buffer.buffer,
+    kind: 'image',
+  };
 }

@@ -16,75 +16,85 @@ import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtHostDecorations', function () {
+  let mainThreadShape: MainThreadDecorationsShape;
+  let extHostDecorations: ExtHostDecorations;
+  const providers = new Set<number>();
 
-	let mainThreadShape: MainThreadDecorationsShape;
-	let extHostDecorations: ExtHostDecorations;
-	const providers = new Set<number>();
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  setup(function () {
+    providers.clear();
 
-	setup(function () {
+    mainThreadShape = new (class extends mock<MainThreadDecorationsShape>() {
+      override $registerDecorationProvider(handle: number) {
+        providers.add(handle);
+      }
+    })();
 
-		providers.clear();
+    extHostDecorations = new ExtHostDecorations(
+      new (class extends mock<IExtHostRpcService>() {
+        override getProxy(): any {
+          return mainThreadShape;
+        }
+      })(),
+      new NullLogService()
+    );
+  });
 
-		mainThreadShape = new class extends mock<MainThreadDecorationsShape>() {
-			override $registerDecorationProvider(handle: number) {
-				providers.add(handle);
-			}
-		};
+  test('SCM Decorations missing #100524', async function () {
+    let calledA = false;
+    let calledB = false;
 
-		extHostDecorations = new ExtHostDecorations(
-			new class extends mock<IExtHostRpcService>() {
-				override getProxy(): any {
-					return mainThreadShape;
-				}
-			},
-			new NullLogService()
-		);
-	});
+    // never returns
+    extHostDecorations.registerFileDecorationProvider(
+      {
+        provideFileDecoration() {
+          calledA = true;
+          return new Promise(() => {});
+        },
+      },
+      nullExtensionDescription
+    );
 
-	test('SCM Decorations missing #100524', async function () {
+    // always returns
+    extHostDecorations.registerFileDecorationProvider(
+      {
+        provideFileDecoration() {
+          calledB = true;
+          return new Promise((resolve) =>
+            resolve({ badge: 'H', tooltip: 'Hello' })
+          );
+        },
+      },
+      nullExtensionDescription
+    );
 
-		let calledA = false;
-		let calledB = false;
+    const requests = [...providers.values()].map((handle, idx) => {
+      return extHostDecorations.$provideDecorations(
+        handle,
+        [{ id: idx, uri: URI.parse('test:///file') }],
+        CancellationToken.None
+      );
+    });
 
-		// never returns
-		extHostDecorations.registerFileDecorationProvider({
+    assert.strictEqual(calledA, true);
+    assert.strictEqual(calledB, true);
 
-			provideFileDecoration() {
-				calledA = true;
-				return new Promise(() => { });
-			}
-		}, nullExtensionDescription);
+    assert.strictEqual(requests.length, 2);
+    const [first, second] = requests;
 
-		// always returns
-		extHostDecorations.registerFileDecorationProvider({
+    const firstResult = await Promise.race([
+      first,
+      timeout(30).then(() => false),
+    ]);
+    assert.strictEqual(typeof firstResult, 'boolean'); // never finishes...
 
-			provideFileDecoration() {
-				calledB = true;
-				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
-			}
-		}, nullExtensionDescription);
+    const secondResult = await Promise.race([
+      second,
+      timeout(30).then(() => false),
+    ]);
+    assert.strictEqual(typeof secondResult, 'object');
 
-
-		const requests = [...providers.values()].map((handle, idx) => {
-			return extHostDecorations.$provideDecorations(handle, [{ id: idx, uri: URI.parse('test:///file') }], CancellationToken.None);
-		});
-
-		assert.strictEqual(calledA, true);
-		assert.strictEqual(calledB, true);
-
-		assert.strictEqual(requests.length, 2);
-		const [first, second] = requests;
-
-		const firstResult = await Promise.race([first, timeout(30).then(() => false)]);
-		assert.strictEqual(typeof firstResult, 'boolean'); // never finishes...
-
-		const secondResult = await Promise.race([second, timeout(30).then(() => false)]);
-		assert.strictEqual(typeof secondResult, 'object');
-
-
-		await timeout(30);
-	});
-
+    await timeout(30);
+  });
 });

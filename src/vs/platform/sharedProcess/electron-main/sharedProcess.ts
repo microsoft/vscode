@@ -18,191 +18,226 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { parseSharedProcessDebugPort } from '../../environment/node/environmentService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
-import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from '../common/sharedProcess.js';
+import {
+  SharedProcessChannelConnection,
+  SharedProcessRawConnection,
+  SharedProcessLifecycle,
+} from '../common/sharedProcess.js';
 import { Emitter } from '../../../base/common/event.js';
 
 export class SharedProcess extends Disposable {
+  private readonly firstWindowConnectionBarrier = new Barrier();
 
-	private readonly firstWindowConnectionBarrier = new Barrier();
+  private utilityProcess: UtilityProcess | undefined = undefined;
+  private utilityProcessLogListener: IDisposable | undefined = undefined;
 
-	private utilityProcess: UtilityProcess | undefined = undefined;
-	private utilityProcessLogListener: IDisposable | undefined = undefined;
+  private readonly _onDidCrash = this._register(new Emitter<void>());
+  readonly onDidCrash = this._onDidCrash.event;
 
-	private readonly _onDidCrash = this._register(new Emitter<void>());
-	readonly onDidCrash = this._onDidCrash.event;
+  constructor(
+    private readonly machineId: string,
+    private readonly sqmId: string,
+    private readonly devDeviceId: string,
+    @IEnvironmentMainService
+    private readonly environmentMainService: IEnvironmentMainService,
+    @IUserDataProfilesService
+    private readonly userDataProfilesService: IUserDataProfilesService,
+    @ILifecycleMainService
+    private readonly lifecycleMainService: ILifecycleMainService,
+    @ILogService private readonly logService: ILogService,
+    @ILoggerMainService private readonly loggerMainService: ILoggerMainService,
+    @IPolicyService private readonly policyService: IPolicyService
+  ) {
+    super();
 
-	constructor(
-		private readonly machineId: string,
-		private readonly sqmId: string,
-		private readonly devDeviceId: string,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService,
-		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
-		@IPolicyService private readonly policyService: IPolicyService
-	) {
-		super();
+    this.registerListeners();
+  }
 
-		this.registerListeners();
-	}
+  private registerListeners(): void {
+    // Shared process channel connections from workbench windows
+    validatedIpcMain.on(
+      SharedProcessChannelConnection.request,
+      (e, nonce: string) =>
+        this.onWindowConnection(
+          e,
+          nonce,
+          SharedProcessChannelConnection.response
+        )
+    );
 
-	private registerListeners(): void {
+    // Shared process raw connections from workbench windows
+    validatedIpcMain.on(
+      SharedProcessRawConnection.request,
+      (e, nonce: string) =>
+        this.onWindowConnection(e, nonce, SharedProcessRawConnection.response)
+    );
 
-		// Shared process channel connections from workbench windows
-		validatedIpcMain.on(SharedProcessChannelConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessChannelConnection.response));
+    // Lifecycle
+    this._register(
+      this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown())
+    );
+  }
 
-		// Shared process raw connections from workbench windows
-		validatedIpcMain.on(SharedProcessRawConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessRawConnection.response));
+  private async onWindowConnection(
+    e: IpcMainEvent,
+    nonce: string,
+    responseChannel: string
+  ): Promise<void> {
+    this.logService.trace(
+      `[SharedProcess] onWindowConnection for: ${responseChannel}`
+    );
 
-		// Lifecycle
-		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
-	}
+    // release barrier if this is the first window connection
+    if (!this.firstWindowConnectionBarrier.isOpen()) {
+      this.firstWindowConnectionBarrier.open();
+    }
 
-	private async onWindowConnection(e: IpcMainEvent, nonce: string, responseChannel: string): Promise<void> {
-		this.logService.trace(`[SharedProcess] onWindowConnection for: ${responseChannel}`);
+    // await the shared process to be overall ready
+    // we do not just wait for IPC ready because the
+    // workbench window will communicate directly
 
-		// release barrier if this is the first window connection
-		if (!this.firstWindowConnectionBarrier.isOpen()) {
-			this.firstWindowConnectionBarrier.open();
-		}
+    await this.whenReady();
 
-		// await the shared process to be overall ready
-		// we do not just wait for IPC ready because the
-		// workbench window will communicate directly
+    // connect to the shared process passing the responseChannel
+    // as payload to give a hint what the connection is about
 
-		await this.whenReady();
+    const port = await this.connect(responseChannel);
 
-		// connect to the shared process passing the responseChannel
-		// as payload to give a hint what the connection is about
+    // Check back if the requesting window meanwhile closed
+    // Since shared process is delayed on startup there is
+    // a chance that the window close before the shared process
+    // was ready for a connection.
 
-		const port = await this.connect(responseChannel);
+    if (e.sender.isDestroyed()) {
+      return port.close();
+    }
 
-		// Check back if the requesting window meanwhile closed
-		// Since shared process is delayed on startup there is
-		// a chance that the window close before the shared process
-		// was ready for a connection.
+    // send the port back to the requesting window
+    e.sender.postMessage(responseChannel, nonce, [port]);
+  }
 
-		if (e.sender.isDestroyed()) {
-			return port.close();
-		}
+  private onWillShutdown(): void {
+    this.logService.trace('[SharedProcess] onWillShutdown');
 
-		// send the port back to the requesting window
-		e.sender.postMessage(responseChannel, nonce, [port]);
-	}
+    this.utilityProcess?.postMessage(SharedProcessLifecycle.exit);
+    this.utilityProcess = undefined;
+  }
 
-	private onWillShutdown(): void {
-		this.logService.trace('[SharedProcess] onWillShutdown');
+  private _whenReady: Promise<void> | undefined = undefined;
+  whenReady(): Promise<void> {
+    if (!this._whenReady) {
+      this._whenReady = (async () => {
+        // Wait for shared process being ready to accept connection
+        await this.whenIpcReady;
 
-		this.utilityProcess?.postMessage(SharedProcessLifecycle.exit);
-		this.utilityProcess = undefined;
-	}
+        // Overall signal that the shared process was loaded and
+        // all services within have been created.
 
-	private _whenReady: Promise<void> | undefined = undefined;
-	whenReady(): Promise<void> {
-		if (!this._whenReady) {
-			this._whenReady = (async () => {
+        const whenReady = new DeferredPromise<void>();
+        this.utilityProcess?.once(SharedProcessLifecycle.initDone, () =>
+          whenReady.complete()
+        );
 
-				// Wait for shared process being ready to accept connection
-				await this.whenIpcReady;
+        await whenReady.p;
+        this.utilityProcessLogListener?.dispose();
+        this.logService.trace('[SharedProcess] Overall ready');
+      })();
+    }
 
-				// Overall signal that the shared process was loaded and
-				// all services within have been created.
+    return this._whenReady;
+  }
 
-				const whenReady = new DeferredPromise<void>();
-				this.utilityProcess?.once(SharedProcessLifecycle.initDone, () => whenReady.complete());
+  private _whenIpcReady: Promise<void> | undefined = undefined;
+  private get whenIpcReady() {
+    if (!this._whenIpcReady) {
+      this._whenIpcReady = (async () => {
+        // Always wait for first window asking for connection
+        await this.firstWindowConnectionBarrier.wait();
 
-				await whenReady.p;
-				this.utilityProcessLogListener?.dispose();
-				this.logService.trace('[SharedProcess] Overall ready');
-			})();
-		}
+        // Spawn shared process
+        this.createUtilityProcess();
 
-		return this._whenReady;
-	}
+        // Wait for shared process indicating that IPC connections are accepted
+        const sharedProcessIpcReady = new DeferredPromise<void>();
+        this.utilityProcess?.once(SharedProcessLifecycle.ipcReady, () =>
+          sharedProcessIpcReady.complete()
+        );
 
-	private _whenIpcReady: Promise<void> | undefined = undefined;
-	private get whenIpcReady() {
-		if (!this._whenIpcReady) {
-			this._whenIpcReady = (async () => {
+        await sharedProcessIpcReady.p;
+        this.logService.trace('[SharedProcess] IPC ready');
+      })();
+    }
 
-				// Always wait for first window asking for connection
-				await this.firstWindowConnectionBarrier.wait();
+    return this._whenIpcReady;
+  }
 
-				// Spawn shared process
-				this.createUtilityProcess();
+  private createUtilityProcess(): void {
+    this.utilityProcess = this._register(
+      new UtilityProcess(
+        this.logService,
+        NullTelemetryService,
+        this.lifecycleMainService
+      )
+    );
 
-				// Wait for shared process indicating that IPC connections are accepted
-				const sharedProcessIpcReady = new DeferredPromise<void>();
-				this.utilityProcess?.once(SharedProcessLifecycle.ipcReady, () => sharedProcessIpcReady.complete());
+    // Install a log listener for very early shared process warnings and errors
+    this.utilityProcessLogListener = this.utilityProcess.onMessage((e: any) => {
+      if (typeof e.warning === 'string') {
+        this.logService.warn(e.warning);
+      } else if (typeof e.error === 'string') {
+        this.logService.error(e.error);
+      }
+    });
 
-				await sharedProcessIpcReady.p;
-				this.logService.trace('[SharedProcess] IPC ready');
-			})();
-		}
+    const inspectParams = parseSharedProcessDebugPort(
+      this.environmentMainService.args,
+      this.environmentMainService.isBuilt
+    );
+    let execArgv: string[] | undefined = undefined;
+    if (inspectParams.port) {
+      execArgv = ['--nolazy', '--experimental-network-inspection'];
+      if (inspectParams.break) {
+        execArgv.push(`--inspect-brk=${inspectParams.port}`);
+      } else {
+        execArgv.push(`--inspect=${inspectParams.port}`);
+      }
+    }
 
-		return this._whenIpcReady;
-	}
+    this.utilityProcess.start({
+      type: 'shared-process',
+      name: 'shared-process',
+      entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
+      payload: this.createSharedProcessConfiguration(),
+      respondToAuthRequestsFromMainProcess: true,
+      execArgv,
+    });
 
-	private createUtilityProcess(): void {
-		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
+    this._register(this.utilityProcess.onCrash(() => this._onDidCrash.fire()));
+  }
 
-		// Install a log listener for very early shared process warnings and errors
-		this.utilityProcessLogListener = this.utilityProcess.onMessage((e: any) => {
-			if (typeof e.warning === 'string') {
-				this.logService.warn(e.warning);
-			} else if (typeof e.error === 'string') {
-				this.logService.error(e.error);
-			}
-		});
+  private createSharedProcessConfiguration(): ISharedProcessConfiguration {
+    return {
+      machineId: this.machineId,
+      sqmId: this.sqmId,
+      devDeviceId: this.devDeviceId,
+      codeCachePath: this.environmentMainService.codeCachePath,
+      profiles: {
+        home: this.userDataProfilesService.profilesHome,
+        all: this.userDataProfilesService.profiles,
+      },
+      args: this.environmentMainService.args,
+      logLevel: this.loggerMainService.getLogLevel(),
+      loggers: this.loggerMainService.getGlobalLoggers(),
+      policiesData: this.policyService.serialize(),
+    };
+  }
 
-		const inspectParams = parseSharedProcessDebugPort(this.environmentMainService.args, this.environmentMainService.isBuilt);
-		let execArgv: string[] | undefined = undefined;
-		if (inspectParams.port) {
-			execArgv = ['--nolazy', '--experimental-network-inspection'];
-			if (inspectParams.break) {
-				execArgv.push(`--inspect-brk=${inspectParams.port}`);
-			} else {
-				execArgv.push(`--inspect=${inspectParams.port}`);
-			}
-		}
+  async connect(payload?: unknown): Promise<MessagePortMain> {
+    // Wait for shared process being ready to accept connection
+    await this.whenIpcReady;
 
-		this.utilityProcess.start({
-			type: 'shared-process',
-			name: 'shared-process',
-			entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
-			payload: this.createSharedProcessConfiguration(),
-			respondToAuthRequestsFromMainProcess: true,
-			execArgv
-		});
-
-		this._register(this.utilityProcess.onCrash(() => this._onDidCrash.fire()));
-	}
-
-	private createSharedProcessConfiguration(): ISharedProcessConfiguration {
-		return {
-			machineId: this.machineId,
-			sqmId: this.sqmId,
-			devDeviceId: this.devDeviceId,
-			codeCachePath: this.environmentMainService.codeCachePath,
-			profiles: {
-				home: this.userDataProfilesService.profilesHome,
-				all: this.userDataProfilesService.profiles,
-			},
-			args: this.environmentMainService.args,
-			logLevel: this.loggerMainService.getLogLevel(),
-			loggers: this.loggerMainService.getGlobalLoggers(),
-			policiesData: this.policyService.serialize()
-		};
-	}
-
-	async connect(payload?: unknown): Promise<MessagePortMain> {
-
-		// Wait for shared process being ready to accept connection
-		await this.whenIpcReady;
-
-		// Connect and return message port
-		const utilityProcess = assertReturnsDefined(this.utilityProcess);
-		return utilityProcess.connect(payload);
-	}
+    // Connect and return message port
+    const utilityProcess = assertReturnsDefined(this.utilityProcess);
+    return utilityProcess.connect(payload);
+  }
 }

@@ -12,5 +12,8 @@ import { FormFeed, SpacingToken } from '../simpleCodec/tokens/tokens.js';
  * records of a Front Matter header.
  */
 export const VALID_INTER_RECORD_SPACING_TOKENS = Object.freeze([
-	SpacingToken, CarriageReturn, NewLine, FormFeed,
+  SpacingToken,
+  CarriageReturn,
+  NewLine,
+  FormFeed,
 ]);

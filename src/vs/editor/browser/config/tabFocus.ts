@@ -6,18 +6,19 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 
 class TabFocusImpl {
-	private _tabFocus: boolean = false;
-	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
-	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
+  private _tabFocus: boolean = false;
+  private readonly _onDidChangeTabFocus = new Emitter<boolean>();
+  public readonly onDidChangeTabFocus: Event<boolean> =
+    this._onDidChangeTabFocus.event;
 
-	public getTabFocusMode(): boolean {
-		return this._tabFocus;
-	}
+  public getTabFocusMode(): boolean {
+    return this._tabFocus;
+  }
 
-	public setTabFocusMode(tabFocusMode: boolean): void {
-		this._tabFocus = tabFocusMode;
-		this._onDidChangeTabFocus.fire(this._tabFocus);
-	}
+  public setTabFocusMode(tabFocusMode: boolean): void {
+    this._tabFocus = tabFocusMode;
+    this._onDidChangeTabFocus.fire(this._tabFocus);
+  }
 }
 
 /**

@@ -11,47 +11,48 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { ExtHostFileSystemInfoShape } from './extHost.protocol.js';
 
 export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
+  declare readonly _serviceBrand: undefined;
 
-	declare readonly _serviceBrand: undefined;
+  private readonly _systemSchemes = new Set(Object.keys(Schemas));
+  private readonly _providerInfo = new Map<string, number>();
 
-	private readonly _systemSchemes = new Set(Object.keys(Schemas));
-	private readonly _providerInfo = new Map<string, number>();
+  readonly extUri: IExtUri;
 
-	readonly extUri: IExtUri;
+  constructor() {
+    this.extUri = new ExtUri((uri) => {
+      const capabilities = this._providerInfo.get(uri.scheme);
+      if (capabilities === undefined) {
+        // default: not ignore
+        return false;
+      }
+      if (capabilities & FileSystemProviderCapabilities.PathCaseSensitive) {
+        // configured as case sensitive
+        return false;
+      }
+      return true;
+    });
+  }
 
-	constructor() {
-		this.extUri = new ExtUri(uri => {
-			const capabilities = this._providerInfo.get(uri.scheme);
-			if (capabilities === undefined) {
-				// default: not ignore
-				return false;
-			}
-			if (capabilities & FileSystemProviderCapabilities.PathCaseSensitive) {
-				// configured as case sensitive
-				return false;
-			}
-			return true;
-		});
-	}
+  $acceptProviderInfos(uri: UriComponents, capabilities: number | null): void {
+    if (capabilities === null) {
+      this._providerInfo.delete(uri.scheme);
+    } else {
+      this._providerInfo.set(uri.scheme, capabilities);
+    }
+  }
 
-	$acceptProviderInfos(uri: UriComponents, capabilities: number | null): void {
-		if (capabilities === null) {
-			this._providerInfo.delete(uri.scheme);
-		} else {
-			this._providerInfo.set(uri.scheme, capabilities);
-		}
-	}
+  isFreeScheme(scheme: string): boolean {
+    return !this._providerInfo.has(scheme) && !this._systemSchemes.has(scheme);
+  }
 
-	isFreeScheme(scheme: string): boolean {
-		return !this._providerInfo.has(scheme) && !this._systemSchemes.has(scheme);
-	}
-
-	getCapabilities(scheme: string): number | undefined {
-		return this._providerInfo.get(scheme);
-	}
+  getCapabilities(scheme: string): number | undefined {
+    return this._providerInfo.get(scheme);
+  }
 }
 
 export interface IExtHostFileSystemInfo extends ExtHostFileSystemInfo {
-	readonly extUri: IExtUri;
+  readonly extUri: IExtUri;
 }
-export const IExtHostFileSystemInfo = createDecorator<IExtHostFileSystemInfo>('IExtHostFileSystemInfo');
+export const IExtHostFileSystemInfo = createDecorator<IExtHostFileSystemInfo>(
+  'IExtHostFileSystemInfo'
+);

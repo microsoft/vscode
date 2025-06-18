@@ -12,7 +12,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.mjs"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {

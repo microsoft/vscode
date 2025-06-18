@@ -7,10 +7,9 @@ import { isMacintosh, isWindows } from '../../common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('Browsers', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('all', () => {
-		assert(!(isWindows && isMacintosh));
-	});
+  test('all', () => {
+    assert(!(isWindows && isMacintosh));
+  });
 });

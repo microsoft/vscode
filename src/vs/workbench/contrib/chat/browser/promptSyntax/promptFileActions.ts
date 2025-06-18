@@ -9,14 +9,13 @@ import { registerRunPromptActions } from './runPromptAction.js';
 import { registerSaveToPromptActions } from './saveToPromptAction.js';
 import { registerNewPromptFileActions } from './newPromptFileActions.js';
 
-
 /**
  * Helper to register all actions related to reusable prompt files.
  */
 export function registerPromptActions(): void {
-	registerRunPromptActions();
-	registerAttachPromptActions();
-	registerSaveToPromptActions();
-	registerChatModeActions();
-	registerNewPromptFileActions();
+  registerRunPromptActions();
+  registerAttachPromptActions();
+  registerSaveToPromptActions();
+  registerChatModeActions();
+  registerNewPromptFileActions();
 }

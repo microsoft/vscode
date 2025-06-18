@@ -5,17 +5,17 @@
 
 div.share-dialog-input-text,
 div.share-dialog-input-link {
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 2px;
-	color: var(--vscode-input-foreground);
-	background-color: var(--vscode-input-background);
-	padding: 2px;
-	user-select: all;
-	line-height: 24px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  color: var(--vscode-input-foreground);
+  background-color: var(--vscode-input-background);
+  padding: 2px;
+  user-select: all;
+  line-height: 24px;
 }
 
 div.share-dialog-input-link {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

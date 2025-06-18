@@ -6,66 +6,85 @@
 import { Code } from './code';
 
 export class Editors {
+  constructor(private code: Code) {}
 
-	constructor(private code: Code) { }
+  async saveOpenedFile(): Promise<any> {
+    if (process.platform === 'darwin') {
+      await this.code.sendKeybinding('cmd+s');
+    } else {
+      await this.code.sendKeybinding('ctrl+s');
+    }
+  }
 
-	async saveOpenedFile(): Promise<any> {
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+s');
-		} else {
-			await this.code.sendKeybinding('ctrl+s');
-		}
-	}
+  async selectTab(fileName: string): Promise<void> {
+    // Selecting a tab and making an editor have keyboard focus
+    // is critical to almost every test. As such, we try our
+    // best to retry this task in case some other component steals
+    // focus away from the editor while we attempt to get focus
 
-	async selectTab(fileName: string): Promise<void> {
+    let error: unknown | undefined = undefined;
+    let retries = 0;
+    while (retries < 10) {
+      await this.code.waitAndClick(
+        `.tabs-container div.tab[data-resource-name$="${fileName}"]`
+      );
 
-		// Selecting a tab and making an editor have keyboard focus
-		// is critical to almost every test. As such, we try our
-		// best to retry this task in case some other component steals
-		// focus away from the editor while we attempt to get focus
+      try {
+        await this.waitForEditorFocus(
+          fileName,
+          5 /* 5 retries * 100ms delay = 0.5s */
+        );
+        return;
+      } catch (e) {
+        error = e;
+        retries++;
+      }
+    }
 
-		let error: unknown | undefined = undefined;
-		let retries = 0;
-		while (retries < 10) {
-			await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
+    // We failed after 10 retries
+    throw error;
+  }
 
-			try {
-				await this.waitForEditorFocus(fileName, 5 /* 5 retries * 100ms delay = 0.5s */);
-				return;
-			} catch (e) {
-				error = e;
-				retries++;
-			}
-		}
+  async waitForEditorFocus(
+    fileName: string,
+    retryCount?: number
+  ): Promise<void> {
+    await this.waitForActiveTab(fileName, undefined, retryCount);
+    await this.waitForActiveEditor(fileName, retryCount);
+  }
 
-		// We failed after 10 retries
-		throw error;
-	}
+  async waitForActiveTab(
+    fileName: string,
+    isDirty: boolean = false,
+    retryCount?: number
+  ): Promise<void> {
+    await this.code.waitForElement(
+      `.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`,
+      undefined,
+      retryCount
+    );
+  }
 
-	async waitForEditorFocus(fileName: string, retryCount?: number): Promise<void> {
-		await this.waitForActiveTab(fileName, undefined, retryCount);
-		await this.waitForActiveEditor(fileName, retryCount);
-	}
+  async waitForActiveEditor(
+    fileName: string,
+    retryCount?: number
+  ): Promise<any> {
+    const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
+    return this.code.waitForActiveElement(selector, retryCount);
+  }
 
-	async waitForActiveTab(fileName: string, isDirty: boolean = false, retryCount?: number): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`, undefined, retryCount);
-	}
+  async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
+    await this.code.waitForElement(
+      `.tabs-container div.tab${isDirty ? '.dirty' : ''}[data-resource-name$="${fileName}"]`
+    );
+  }
 
-	async waitForActiveEditor(fileName: string, retryCount?: number): Promise<any> {
-		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
-		return this.code.waitForActiveElement(selector, retryCount);
-	}
-
-	async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[data-resource-name$="${fileName}"]`);
-	}
-
-	async newUntitledFile(): Promise<void> {
-		const accept = () => this.waitForEditorFocus('Untitled-1');
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+n', accept);
-		} else {
-			await this.code.sendKeybinding('ctrl+n', accept);
-		}
-	}
+  async newUntitledFile(): Promise<void> {
+    const accept = () => this.waitForEditorFocus('Untitled-1');
+    if (process.platform === 'darwin') {
+      await this.code.sendKeybinding('cmd+n', accept);
+    } else {
+      await this.code.sendKeybinding('ctrl+n', accept);
+    }
+  }
 }

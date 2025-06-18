@@ -5,7 +5,10 @@
 
 import { assertDefined } from '../../../../../base/common/types.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import {
+  Action2,
+  registerAction2,
+} from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -14,12 +17,14 @@ import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { chatSubcommandLeader, IParsedChatRequest } from '../../common/chatParserTypes.js';
+import {
+  chatSubcommandLeader,
+  IParsedChatRequest,
+} from '../../common/chatParserTypes.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidget } from '../chat.js';
-
 
 /**
  * Action ID for the `Save Prompt` action.
@@ -35,104 +40,104 @@ export const SAVE_TO_PROMPT_SLASH_COMMAND_NAME = 'save';
  * Options for the {@link SaveToPromptAction} action.
  */
 interface ISaveToPromptActionOptions {
-	/**
-	 * Chat widget reference to save session of.
-	 */
-	chat: IChatWidget;
+  /**
+   * Chat widget reference to save session of.
+   */
+  chat: IChatWidget;
 }
 
 /**
  * Class that defines the `Save Prompt` action.
  */
 class SaveToPromptAction extends Action2 {
-	constructor() {
-		super({
-			id: SAVE_TO_PROMPT_ACTION_ID,
-			title: localize2(
-				'workbench.actions.save-to-prompt.label',
-				"Save chat session to a prompt file",
-			),
-			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-			category: CHAT_CATEGORY,
-		});
-	}
+  constructor() {
+    super({
+      id: SAVE_TO_PROMPT_ACTION_ID,
+      title: localize2(
+        'workbench.actions.save-to-prompt.label',
+        'Save chat session to a prompt file'
+      ),
+      f1: false,
+      precondition: ContextKeyExpr.and(
+        PromptsConfig.enabledCtx,
+        ChatContextKeys.enabled
+      ),
+      category: CHAT_CATEGORY,
+    });
+  }
 
-	public async run(
-		accessor: ServicesAccessor,
-		options: ISaveToPromptActionOptions,
-	): Promise<IEditorPane> {
-		const logService = accessor.get(ILogService);
-		const editorService = accessor.get(IEditorService);
-		const toolsService = accessor.get(ILanguageModelToolsService);
+  public async run(
+    accessor: ServicesAccessor,
+    options: ISaveToPromptActionOptions
+  ): Promise<IEditorPane> {
+    const logService = accessor.get(ILogService);
+    const editorService = accessor.get(IEditorService);
+    const toolsService = accessor.get(ILanguageModelToolsService);
 
-		const logPrefix = 'save to prompt';
-		const { chat } = options;
+    const logPrefix = 'save to prompt';
+    const { chat } = options;
 
-		const { viewModel } = chat;
-		assertDefined(
-			viewModel,
-			'No view model found on currently the active chat widget.',
-		);
+    const { viewModel } = chat;
+    assertDefined(
+      viewModel,
+      'No view model found on currently the active chat widget.'
+    );
 
-		const { model } = viewModel;
+    const { model } = viewModel;
 
-		const turns: ITurn[] = [];
-		for (const request of model.getRequests()) {
-			const { message, response: responseModel } = request;
+    const turns: ITurn[] = [];
+    for (const request of model.getRequests()) {
+      const { message, response: responseModel } = request;
 
-			if (isSaveToPromptSlashCommand(message)) {
-				continue;
-			}
+      if (isSaveToPromptSlashCommand(message)) {
+        continue;
+      }
 
-			if (responseModel === undefined) {
-				logService.warn(
-					`[${logPrefix}]: skipping request '${request.id}' with no response`,
-				);
+      if (responseModel === undefined) {
+        logService.warn(
+          `[${logPrefix}]: skipping request '${request.id}' with no response`
+        );
 
-				continue;
-			}
+        continue;
+      }
 
-			const { response } = responseModel;
+      const { response } = responseModel;
 
-			const tools = new Set<string>();
-			for (const record of response.value) {
-				if (('toolId' in record === false) || !record.toolId) {
-					continue;
-				}
+      const tools = new Set<string>();
+      for (const record of response.value) {
+        if ('toolId' in record === false || !record.toolId) {
+          continue;
+        }
 
-				const tool = toolsService.getTool(record.toolId);
-				if ((tool === undefined) || (!tool.toolReferenceName)) {
-					continue;
-				}
+        const tool = toolsService.getTool(record.toolId);
+        if (tool === undefined || !tool.toolReferenceName) {
+          continue;
+        }
 
-				tools.add(tool.toolReferenceName);
-			}
+        tools.add(tool.toolReferenceName);
+      }
 
-			turns.push({
-				request: message.text,
-				response: response.getMarkdown(),
-				tools,
-			});
-		}
+      turns.push({
+        request: message.text,
+        response: response.getMarkdown(),
+        tools,
+      });
+    }
 
-		const promptText = renderPrompt(turns);
+    const promptText = renderPrompt(turns);
 
-		const editor = await editorService.openEditor({
-			resource: undefined,
-			contents: promptText,
-			languageId: PROMPT_LANGUAGE_ID,
-		});
+    const editor = await editorService.openEditor({
+      resource: undefined,
+      contents: promptText,
+      languageId: PROMPT_LANGUAGE_ID,
+    });
 
-		assertDefined(
-			editor,
-			'Failed to open untitled editor for the prompt.',
-		);
+    assertDefined(editor, 'Failed to open untitled editor for the prompt.');
 
-		editor.focus();
+    editor.focus();
 
-		return editor;
-	}
+    return editor;
+  }
 }
 
 /**
@@ -140,111 +145,105 @@ class SaveToPromptAction extends Action2 {
  * command itself that was run in the chat to invoke this action.
  */
 function isSaveToPromptSlashCommand(message: IParsedChatRequest): boolean {
-	const { parts } = message;
-	if (parts.length < 1) {
-		return false;
-	}
+  const { parts } = message;
+  if (parts.length < 1) {
+    return false;
+  }
 
-	const firstPart = parts[0];
-	if (firstPart.kind !== 'slash') {
-		return false;
-	}
+  const firstPart = parts[0];
+  if (firstPart.kind !== 'slash') {
+    return false;
+  }
 
-	if (firstPart.text !== `${chatSubcommandLeader}${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`) {
-		return false;
-	}
+  if (
+    firstPart.text !==
+    `${chatSubcommandLeader}${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`
+  ) {
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 /**
  * Render the response part of a `request`/`response` turn pair.
  */
 function renderResponse(response: string): string {
-	// if response starts with a code block, add an extra new line
-	// before it, to prevent full blockquote from being be broken
-	const delimiter = (response.startsWith('```'))
-		? '\n>'
-		: ' ';
+  // if response starts with a code block, add an extra new line
+  // before it, to prevent full blockquote from being be broken
+  const delimiter = response.startsWith('```') ? '\n>' : ' ';
 
-	// add `>` to the beginning of each line of the response
-	// so it looks like a blockquote citing Copilot
-	const quotedResponse = response.replaceAll('\n', '\n> ');
+  // add `>` to the beginning of each line of the response
+  // so it looks like a blockquote citing Copilot
+  const quotedResponse = response.replaceAll('\n', '\n> ');
 
-	return `> Copilot:${delimiter}${quotedResponse}`;
+  return `> Copilot:${delimiter}${quotedResponse}`;
 }
 
 /**
  * Render a single `request`/`response` turn of the chat session.
  */
 function renderTurn(turn: ITurn): string {
-	const { request, response } = turn;
+  const { request, response } = turn;
 
-	return `\n${request}\n\n${renderResponse(response)}`;
+  return `\n${request}\n\n${renderResponse(response)}`;
 }
 
 /**
  * Render the entire chat session as a markdown prompt.
  */
 function renderPrompt(turns: readonly ITurn[]): string {
-	const content: string[] = [];
-	const allTools = new Set<string>();
+  const content: string[] = [];
+  const allTools = new Set<string>();
 
-	// render each turn and collect tool names
-	// that were used in the each turn
-	for (const turn of turns) {
-		content.push(renderTurn(turn));
+  // render each turn and collect tool names
+  // that were used in the each turn
+  for (const turn of turns) {
+    content.push(renderTurn(turn));
 
-		// collect all used tools into a set of strings
-		for (const tool of turn.tools) {
-			allTools.add(tool);
-		}
-	}
+    // collect all used tools into a set of strings
+    for (const tool of turn.tools) {
+      allTools.add(tool);
+    }
+  }
 
-	const result = [];
+  const result = [];
 
-	// add prompt header
-	if (allTools.size !== 0) {
-		result.push(renderHeader(allTools));
-	}
+  // add prompt header
+  if (allTools.size !== 0) {
+    result.push(renderHeader(allTools));
+  }
 
-	// add chat request/response turns
-	result.push(
-		content.join('\n'),
-	);
+  // add chat request/response turns
+  result.push(content.join('\n'));
 
-	// add trailing empty line
-	result.push('');
+  // add trailing empty line
+  result.push('');
 
-	return result.join('\n');
+  return result.join('\n');
 }
-
 
 /**
  * Render the `tools` metadata inside prompt header.
  */
 function renderTools(tools: Set<string>): string {
-	const toolStrings = [...tools].map((tool) => {
-		return `'${tool}'`;
-	});
+  const toolStrings = [...tools].map((tool) => {
+    return `'${tool}'`;
+  });
 
-	return `tools: [${toolStrings.join(', ')}]`;
+  return `tools: [${toolStrings.join(', ')}]`;
 }
 
 /**
  * Render prompt header.
  */
 function renderHeader(tools: Set<string>): string {
-	// skip rendering the header if no tools provided
-	if (tools.size === 0) {
-		return '';
-	}
+  // skip rendering the header if no tools provided
+  if (tools.size === 0) {
+    return '';
+  }
 
-	return [
-		'---',
-		renderTools(tools),
-		'---',
-	].join('\n');
+  return ['---', renderTools(tools), '---'].join('\n');
 }
 
 /**
@@ -252,9 +251,9 @@ function renderHeader(tools: Set<string>): string {
  * of a chat session.
  */
 interface ITurn {
-	request: string;
-	response: string;
-	tools: Set<string>;
+  request: string;
+  response: string;
+  tools: Set<string>;
 }
 
 /**
@@ -263,18 +262,15 @@ interface ITurn {
  * encapsulate/enforce the correct options to be passed to the action.
  */
 export function runSaveToPromptAction(
-	options: ISaveToPromptActionOptions,
-	commandService: ICommandService,
+  options: ISaveToPromptActionOptions,
+  commandService: ICommandService
 ) {
-	return commandService.executeCommand(
-		SAVE_TO_PROMPT_ACTION_ID,
-		options,
-	);
+  return commandService.executeCommand(SAVE_TO_PROMPT_ACTION_ID, options);
 }
 
 /**
  * Helper to register all the `Save Prompt` actions.
  */
 export function registerSaveToPromptActions(): void {
-	registerAction2(SaveToPromptAction);
+  registerAction2(SaveToPromptAction);
 }

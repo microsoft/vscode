@@ -4,23 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../editorExtensions.js';
+import {
+  EditorContributionInstantiation,
+  registerEditorContribution,
+} from '../editorExtensions.js';
 import { ICodeEditor } from '../editorBrowser.js';
 import { IEditorContribution } from '../../common/editorCommon.js';
 
 export class MarkerDecorationsContribution implements IEditorContribution {
+  public static readonly ID: string = 'editor.contrib.markerDecorations';
 
-	public static readonly ID: string = 'editor.contrib.markerDecorations';
+  constructor(
+    _editor: ICodeEditor,
+    @IMarkerDecorationsService
+    _markerDecorationsService: IMarkerDecorationsService
+  ) {
+    // Doesn't do anything, just requires `IMarkerDecorationsService` to make sure it gets instantiated
+  }
 
-	constructor(
-		_editor: ICodeEditor,
-		@IMarkerDecorationsService _markerDecorationsService: IMarkerDecorationsService
-	) {
-		// Doesn't do anything, just requires `IMarkerDecorationsService` to make sure it gets instantiated
-	}
-
-	dispose(): void {
-	}
+  dispose(): void {}
 }
 
-registerEditorContribution(MarkerDecorationsContribution.ID, MarkerDecorationsContribution, EditorContributionInstantiation.Eager); // eager because it instantiates IMarkerDecorationsService which is responsible for rendering squiggles
+registerEditorContribution(
+  MarkerDecorationsContribution.ID,
+  MarkerDecorationsContribution,
+  EditorContributionInstantiation.Eager
+); // eager because it instantiates IMarkerDecorationsService which is responsible for rendering squiggles

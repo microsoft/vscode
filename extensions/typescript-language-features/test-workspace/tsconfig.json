@@ -1,6 +1,6 @@
 {
-	"compilerOptions": {
-		"target": "es2018",
-		"noEmit": true
-	}
+  "compilerOptions": {
+    "target": "es2018",
+    "noEmit": true
+  }
 }

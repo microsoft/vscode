@@ -19,26 +19,28 @@ import { Schemas } from '../../../../../../base/common/network.js';
  * Get prompt contents provider object based on the prompt type.
  */
 function getContentsProvider(
-	uri: URI,
-	options: Partial<IPromptParserOptions>,
-	modelService: IModelService,
-	instaService: IInstantiationService
+  uri: URI,
+  options: Partial<IPromptParserOptions>,
+  modelService: IModelService,
+  instaService: IInstantiationService
 ): IPromptContentsProvider {
-	// use text model contents provider for `untitled` documents
-	if (uri.scheme === Schemas.untitled) {
-		const model = modelService.getModel(uri);
+  // use text model contents provider for `untitled` documents
+  if (uri.scheme === Schemas.untitled) {
+    const model = modelService.getModel(uri);
 
-		assertDefined(
-			model,
-			`Cannot find model of untitled document '${uri.path}'.`,
-		);
+    assertDefined(
+      model,
+      `Cannot find model of untitled document '${uri.path}'.`
+    );
 
-		return instaService
-			.createInstance(TextModelContentsProvider, model, options);
-	}
+    return instaService.createInstance(
+      TextModelContentsProvider,
+      model,
+      options
+    );
+  }
 
-	return instaService
-		.createInstance(FilePromptContentProvider, uri, options);
+  return instaService.createInstance(FilePromptContentProvider, uri, options);
 }
 
 /**
@@ -46,38 +48,43 @@ function getContentsProvider(
  * contents provider type by the type of provided prompt URI.
  */
 export class PromptParser extends BasePromptParser<IPromptContentsProvider> {
-	/**
-	 * Underlying prompt contents provider instance.
-	 */
-	private readonly contentsProvider: IPromptContentsProvider;
+  /**
+   * Underlying prompt contents provider instance.
+   */
+  private readonly contentsProvider: IPromptContentsProvider;
 
-	constructor(
-		uri: URI,
-		options: Partial<IPromptParserOptions>,
-		@ILogService logService: ILogService,
-		@IModelService modelService: IModelService,
-		@IInstantiationService instaService: IInstantiationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-	) {
-		const contentsProvider = getContentsProvider(uri, options, modelService, instaService);
+  constructor(
+    uri: URI,
+    options: Partial<IPromptParserOptions>,
+    @ILogService logService: ILogService,
+    @IModelService modelService: IModelService,
+    @IInstantiationService instaService: IInstantiationService,
+    @IWorkspaceContextService workspaceService: IWorkspaceContextService
+  ) {
+    const contentsProvider = getContentsProvider(
+      uri,
+      options,
+      modelService,
+      instaService
+    );
 
-		super(
-			contentsProvider,
-			options,
-			instaService,
-			workspaceService,
-			logService,
-		);
+    super(
+      contentsProvider,
+      options,
+      instaService,
+      workspaceService,
+      logService
+    );
 
-		this.contentsProvider = this._register(contentsProvider);
-	}
+    this.contentsProvider = this._register(contentsProvider);
+  }
 
-	/**
-	 * Returns a string representation of this object.
-	 */
-	public override toString(): string {
-		const { sourceName } = this.contentsProvider;
+  /**
+   * Returns a string representation of this object.
+   */
+  public override toString(): string {
+    const { sourceName } = this.contentsProvider;
 
-		return `prompt-parser:${sourceName}:${this.uri.path}`;
-	}
+    return `prompt-parser:${sourceName}:${this.uri.path}`;
+  }
 }

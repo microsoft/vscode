@@ -19,150 +19,191 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
-	constructor(configurationService: IConfigurationService, notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		// super(notificationService, storageService, commandService);
-		super(configurationService);
+  constructor(
+    configurationService: IConfigurationService,
+    notificationService: INotificationService,
+    storageService: IStorageService,
+    commandService: ICommandService
+  ) {
+    // super(notificationService, storageService, commandService);
+    super(configurationService);
 
-		const keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
-		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
-		this._mru = this._keymapInfos;
-		this._initialized = true;
-		this.setLayoutFromBrowserAPI();
-		const usLayout = this.getUSStandardLayout();
-		if (usLayout) {
-			this.setActiveKeyMapping(usLayout.mapping);
-		}
-	}
+    const keymapInfos: IKeymapInfo[] =
+      KeyboardLayoutContribution.INSTANCE.layoutInfos;
+    this._keymapInfos.push(
+      ...keymapInfos.map(
+        (info) =>
+          new KeymapInfo(
+            info.layout,
+            info.secondaryLayouts,
+            info.mapping,
+            info.isUserKeyboardLayout
+          )
+      )
+    );
+    this._mru = this._keymapInfos;
+    this._initialized = true;
+    this.setLayoutFromBrowserAPI();
+    const usLayout = this.getUSStandardLayout();
+    if (usLayout) {
+      this.setActiveKeyMapping(usLayout.mapping);
+    }
+  }
 }
 
 suite('keyboard layout loader', () => {
-	const ds = ensureNoDisposablesAreLeakedInTestSuite();
-	let instantiationService: TestInstantiationService;
-	let instance: TestKeyboardMapperFactory;
+  const ds = ensureNoDisposablesAreLeakedInTestSuite();
+  let instantiationService: TestInstantiationService;
+  let instance: TestKeyboardMapperFactory;
 
-	setup(() => {
-		instantiationService = new TestInstantiationService();
-		const storageService = new TestStorageService();
-		const notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
-		const configurationService = instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		const commandService = instantiationService.stub(ICommandService, {});
+  setup(() => {
+    instantiationService = new TestInstantiationService();
+    const storageService = new TestStorageService();
+    const notitifcationService = instantiationService.stub(
+      INotificationService,
+      new TestNotificationService()
+    );
+    const configurationService = instantiationService.stub(
+      IConfigurationService,
+      new TestConfigurationService()
+    );
+    const commandService = instantiationService.stub(ICommandService, {});
 
-		ds.add(instantiationService);
-		ds.add(storageService);
+    ds.add(instantiationService);
+    ds.add(storageService);
 
-		instance = new TestKeyboardMapperFactory(configurationService, notitifcationService, storageService, commandService);
-		ds.add(instance);
-	});
+    instance = new TestKeyboardMapperFactory(
+      configurationService,
+      notitifcationService,
+      storageService,
+      commandService
+    );
+    ds.add(instance);
+  });
 
-	teardown(() => {
-		instantiationService.dispose();
-	});
+  teardown(() => {
+    instantiationService.dispose();
+  });
 
-	test('load default US keyboard layout', () => {
-		assert.notStrictEqual(instance.activeKeyboardLayout, null);
-	});
+  test('load default US keyboard layout', () => {
+    assert.notStrictEqual(instance.activeKeyboardLayout, null);
+  });
 
-	test('isKeyMappingActive', () => {
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.isKeyMappingActive({
-			KeyA: {
-				value: 'a',
-				valueIsDeadKey: false,
-				withShift: 'A',
-				withShiftIsDeadKey: false,
-				withAltGr: 'å',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Å',
-				withShiftAltGrIsDeadKey: false
-			}
-		}), true);
+  test('isKeyMappingActive', () => {
+    instance.setUSKeyboardLayout();
+    assert.strictEqual(
+      instance.isKeyMappingActive({
+        KeyA: {
+          value: 'a',
+          valueIsDeadKey: false,
+          withShift: 'A',
+          withShiftIsDeadKey: false,
+          withAltGr: 'å',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: 'Å',
+          withShiftAltGrIsDeadKey: false,
+        },
+      }),
+      true
+    );
 
-		assert.strictEqual(instance.isKeyMappingActive({
-			KeyA: {
-				value: 'a',
-				valueIsDeadKey: false,
-				withShift: 'A',
-				withShiftIsDeadKey: false,
-				withAltGr: 'å',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Å',
-				withShiftAltGrIsDeadKey: false
-			},
-			KeyZ: {
-				value: 'z',
-				valueIsDeadKey: false,
-				withShift: 'Z',
-				withShiftIsDeadKey: false,
-				withAltGr: 'Ω',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: '¸',
-				withShiftAltGrIsDeadKey: false
-			}
-		}), true);
+    assert.strictEqual(
+      instance.isKeyMappingActive({
+        KeyA: {
+          value: 'a',
+          valueIsDeadKey: false,
+          withShift: 'A',
+          withShiftIsDeadKey: false,
+          withAltGr: 'å',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: 'Å',
+          withShiftAltGrIsDeadKey: false,
+        },
+        KeyZ: {
+          value: 'z',
+          valueIsDeadKey: false,
+          withShift: 'Z',
+          withShiftIsDeadKey: false,
+          withAltGr: 'Ω',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: '¸',
+          withShiftAltGrIsDeadKey: false,
+        },
+      }),
+      true
+    );
 
-		assert.strictEqual(instance.isKeyMappingActive({
-			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
-				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
-			},
-		}), false);
+    assert.strictEqual(
+      instance.isKeyMappingActive({
+        KeyZ: {
+          value: 'y',
+          valueIsDeadKey: false,
+          withShift: 'Y',
+          withShiftIsDeadKey: false,
+          withAltGr: '¥',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: 'Ÿ',
+          withShiftAltGrIsDeadKey: false,
+        },
+      }),
+      false
+    );
+  });
 
-	});
+  test('Switch keymapping', () => {
+    instance.setActiveKeyMapping({
+      KeyZ: {
+        value: 'y',
+        valueIsDeadKey: false,
+        withShift: 'Y',
+        withShiftIsDeadKey: false,
+        withAltGr: '¥',
+        withAltGrIsDeadKey: false,
+        withShiftAltGr: 'Ÿ',
+        withShiftAltGrIsDeadKey: false,
+      },
+    });
+    assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
+    assert.strictEqual(
+      instance.isKeyMappingActive({
+        KeyZ: {
+          value: 'y',
+          valueIsDeadKey: false,
+          withShift: 'Y',
+          withShiftIsDeadKey: false,
+          withAltGr: '¥',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: 'Ÿ',
+          withShiftAltGrIsDeadKey: false,
+        },
+      }),
+      true
+    );
 
-	test('Switch keymapping', () => {
-		instance.setActiveKeyMapping({
-			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
-				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
-			}
-		});
-		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.strictEqual(instance.isKeyMappingActive({
-			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
-				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
-			},
-		}), true);
+    instance.setUSKeyboardLayout();
+    assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
+  });
 
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
-	});
+  test('Switch keyboard layout info', () => {
+    instance.setKeyboardLayout('com.apple.keylayout.German');
+    assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
+    assert.strictEqual(
+      instance.isKeyMappingActive({
+        KeyZ: {
+          value: 'y',
+          valueIsDeadKey: false,
+          withShift: 'Y',
+          withShiftIsDeadKey: false,
+          withAltGr: '¥',
+          withAltGrIsDeadKey: false,
+          withShiftAltGr: 'Ÿ',
+          withShiftAltGrIsDeadKey: false,
+        },
+      }),
+      true
+    );
 
-	test('Switch keyboard layout info', () => {
-		instance.setKeyboardLayout('com.apple.keylayout.German');
-		assert.strictEqual(!!instance.activeKeyboardLayout!.isUSStandard, false);
-		assert.strictEqual(instance.isKeyMappingActive({
-			KeyZ: {
-				value: 'y',
-				valueIsDeadKey: false,
-				withShift: 'Y',
-				withShiftIsDeadKey: false,
-				withAltGr: '¥',
-				withAltGrIsDeadKey: false,
-				withShiftAltGr: 'Ÿ',
-				withShiftAltGrIsDeadKey: false
-			},
-		}), true);
-
-		instance.setUSKeyboardLayout();
-		assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
-	});
+    instance.setUSKeyboardLayout();
+    assert.strictEqual(instance.activeKeyboardLayout!.isUSStandard, true);
+  });
 });

@@ -6,7 +6,6 @@ There are several ways in which you can contribute, beyond writing code. The goa
 
 ## Asking Questions
 
-
 Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
 
 The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
@@ -35,8 +34,8 @@ Be sure to scan through the [most popular](https://github.com/microsoft/vscode/i
 
 If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
 
-* 👍 - upvote
-* 👎 - downvote
+- 👍 - upvote
+- 👎 - downvote
 
 If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
 
@@ -52,27 +51,27 @@ The built-in tool for reporting an issue, which you can access by using `Report 
 
 Please include the following with each issue:
 
-* Version of VS Code
-* Your operating system
-* List of extensions that you have installed
-* Reproducible steps (1... 2... 3...) that cause the issue
-* What you expected to see, versus what you actually saw
-* Images, animations, or a link to a video showing the issue occurring
-* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
-  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
-* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
+- Version of VS Code
+- Your operating system
+- List of extensions that you have installed
+- Reproducible steps (1... 2... 3...) that cause the issue
+- What you expected to see, versus what you actually saw
+- Images, animations, or a link to a video showing the issue occurring
+- A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
+  - **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+- Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
 
 ### Creating Pull Requests
 
-* Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
+- Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
 
 ### Final Checklist
 
 Please remember to do the following:
 
-* [ ] Search the issue repository to ensure your report is a new issue
-* [ ] Recreate the issue after disabling all extensions
-* [ ] Simplify your code around the issue to better isolate the problem
+- [ ] Search the issue repository to ensure your report is a new issue
+- [ ] Recreate the issue after disabling all extensions
+- [ ] Simplify your code around the issue to better isolate the problem
 
 Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
 
@@ -84,9 +83,9 @@ Once submitted, your report will go into the [issue tracking](https://github.com
 
 We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
 
-* Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
-* Automatically lock issues 45 days after they are closed.
-* Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
+- Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
+- Automatically lock issues 45 days after they are closed.
+- Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
 
 If you believe the bot got something wrong, please open a new issue and let us know.
 

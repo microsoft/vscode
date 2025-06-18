@@ -13,13 +13,13 @@ import { URI } from '../../../../base/common/uri.js';
  * This would make monaco-editor consumption much more difficult though.
  */
 export interface IWorkbenchUIElementFactory {
-	createResourceLabel?(element: HTMLElement): IResourceLabel;
+  createResourceLabel?(element: HTMLElement): IResourceLabel;
 }
 
 export interface IResourceLabel extends IDisposable {
-	setUri(uri: URI | undefined, options?: IResourceLabelOptions): void;
+  setUri(uri: URI | undefined, options?: IResourceLabelOptions): void;
 }
 
 export interface IResourceLabelOptions {
-	strikethrough?: boolean;
+  strikethrough?: boolean;
 }

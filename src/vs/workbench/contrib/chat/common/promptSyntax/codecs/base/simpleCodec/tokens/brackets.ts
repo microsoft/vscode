@@ -10,24 +10,24 @@ import { SimpleToken } from './simpleToken.js';
  * value reflects the position of the token in the original data.
  */
 export class LeftBracket extends SimpleToken<'['> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: '[' = '[';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: '[' = '[';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): '[' {
-		return LeftBracket.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): '[' {
+    return LeftBracket.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `left-bracket${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `left-bracket${this.range}`;
+  }
 }
 
 /**
@@ -35,24 +35,24 @@ export class LeftBracket extends SimpleToken<'['> {
  * value reflects the position of the token in the original data.
  */
 export class RightBracket extends SimpleToken<']'> {
-	/**
-	 * The underlying symbol of the token.
-	 */
-	public static override readonly symbol: ']' = ']';
+  /**
+   * The underlying symbol of the token.
+   */
+  public static override readonly symbol: ']' = ']';
 
-	/**
-	 * Return text representation of the token.
-	 */
-	public override get text(): ']' {
-		return RightBracket.symbol;
-	}
+  /**
+   * Return text representation of the token.
+   */
+  public override get text(): ']' {
+    return RightBracket.symbol;
+  }
 
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public override toString(): string {
-		return `right-bracket${this.range}`;
-	}
+  /**
+   * Returns a string representation of the token.
+   */
+  public override toString(): string {
+    return `right-bracket${this.range}`;
+  }
 }
 
 /**

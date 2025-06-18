@@ -8,4 +8,4 @@ import { BaseToken } from '../base/baseToken.js';
 /**
  * Common base token that all chatbot `prompt` tokens should inherit from.
  */
-export abstract class PromptToken extends BaseToken { }
+export abstract class PromptToken extends BaseToken {}

@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin {
-	background-color: var(--vscode-editorGutter-background);
+  background-color: var(--vscode-editorGutter-background);
 }

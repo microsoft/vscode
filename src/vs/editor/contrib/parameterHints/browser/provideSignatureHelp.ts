@@ -17,58 +17,72 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
-	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
+  Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
+  MultipleSignatures: new RawContextKey<boolean>(
+    'parameterHintsMultipleSignatures',
+    false
+  ),
 };
 
 export async function provideSignatureHelp(
-	registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>,
-	model: ITextModel,
-	position: Position,
-	context: languages.SignatureHelpContext,
-	token: CancellationToken
+  registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>,
+  model: ITextModel,
+  position: Position,
+  context: languages.SignatureHelpContext,
+  token: CancellationToken
 ): Promise<languages.SignatureHelpResult | undefined> {
+  const supports = registry.ordered(model);
 
-	const supports = registry.ordered(model);
-
-	for (const support of supports) {
-		try {
-			const result = await support.provideSignatureHelp(model, position, token, context);
-			if (result) {
-				return result;
-			}
-		} catch (err) {
-			onUnexpectedExternalError(err);
-		}
-	}
-	return undefined;
+  for (const support of supports) {
+    try {
+      const result = await support.provideSignatureHelp(
+        model,
+        position,
+        token,
+        context
+      );
+      if (result) {
+        return result;
+      }
+    } catch (err) {
+      onUnexpectedExternalError(err);
+    }
+  }
+  return undefined;
 }
 
-CommandsRegistry.registerCommand('_executeSignatureHelpProvider', async (accessor, ...args: [URI, IPosition, string?]) => {
-	const [uri, position, triggerCharacter] = args;
-	assertType(URI.isUri(uri));
-	assertType(Position.isIPosition(position));
-	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
+CommandsRegistry.registerCommand(
+  '_executeSignatureHelpProvider',
+  async (accessor, ...args: [URI, IPosition, string?]) => {
+    const [uri, position, triggerCharacter] = args;
+    assertType(URI.isUri(uri));
+    assertType(Position.isIPosition(position));
+    assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
 
-	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+    const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 
-	const ref = await accessor.get(ITextModelService).createModelReference(uri);
-	try {
+    const ref = await accessor.get(ITextModelService).createModelReference(uri);
+    try {
+      const result = await provideSignatureHelp(
+        languageFeaturesService.signatureHelpProvider,
+        ref.object.textEditorModel,
+        Position.lift(position),
+        {
+          triggerKind: languages.SignatureHelpTriggerKind.Invoke,
+          isRetrigger: false,
+          triggerCharacter,
+        },
+        CancellationToken.None
+      );
 
-		const result = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, ref.object.textEditorModel, Position.lift(position), {
-			triggerKind: languages.SignatureHelpTriggerKind.Invoke,
-			isRetrigger: false,
-			triggerCharacter,
-		}, CancellationToken.None);
+      if (!result) {
+        return undefined;
+      }
 
-		if (!result) {
-			return undefined;
-		}
-
-		setTimeout(() => result.dispose(), 0);
-		return result.value;
-
-	} finally {
-		ref.dispose();
-	}
-});
+      setTimeout(() => result.dispose(), 0);
+      return result.value;
+    } finally {
+      ref.dispose();
+    }
+  }
+);

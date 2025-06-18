@@ -7,20 +7,23 @@ import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export const INativeMcpDiscoveryHelperService = createDecorator<INativeMcpDiscoveryHelperService>('INativeMcpDiscoveryHelperService');
+export const INativeMcpDiscoveryHelperService =
+  createDecorator<INativeMcpDiscoveryHelperService>(
+    'INativeMcpDiscoveryHelperService'
+  );
 
 export const NativeMcpDiscoveryHelperChannelName = 'NativeMcpDiscoveryHelper';
 
 export interface INativeMcpDiscoveryData {
-	// platform and homedir are duplicated by the remote/native environment, but here for convenience
-	platform: Platform;
-	homedir: URI;
-	winAppData?: URI;
-	xdgHome?: URI;
+  // platform and homedir are duplicated by the remote/native environment, but here for convenience
+  platform: Platform;
+  homedir: URI;
+  winAppData?: URI;
+  xdgHome?: URI;
 }
 
 export interface INativeMcpDiscoveryHelperService {
-	readonly _serviceBrand: undefined;
+  readonly _serviceBrand: undefined;
 
-	load(): Promise<INativeMcpDiscoveryData>;
+  load(): Promise<INativeMcpDiscoveryData>;
 }

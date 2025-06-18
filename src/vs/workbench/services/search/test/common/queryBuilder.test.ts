@@ -12,21 +12,41 @@ import { resolveResourcesForSearchIncludes } from '../../common/queryBuilder.js'
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('QueryBuilderCommon', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-	let context: IWorkspaceContextService;
+  ensureNoDisposablesAreLeakedInTestSuite();
+  let context: IWorkspaceContextService;
 
-	setup(() => {
-		const workspace = testWorkspace(URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace'));
-		context = new TestContextService(workspace);
-	});
+  setup(() => {
+    const workspace = testWorkspace(
+      URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace')
+    );
+    context = new TestContextService(workspace);
+  });
 
-	test('resolveResourcesForSearchIncludes passes through paths without special glob characters', () => {
-		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? "C:\\testWorkspace\\pages\\blog" : "/testWorkspace/pages/blog")], context);
-		assert.deepStrictEqual(actual, ["./pages/blog"]);
-	});
+  test('resolveResourcesForSearchIncludes passes through paths without special glob characters', () => {
+    const actual = resolveResourcesForSearchIncludes(
+      [
+        URI.file(
+          isWindows
+            ? 'C:\\testWorkspace\\pages\\blog'
+            : '/testWorkspace/pages/blog'
+        ),
+      ],
+      context
+    );
+    assert.deepStrictEqual(actual, ['./pages/blog']);
+  });
 
-	test('resolveResourcesForSearchIncludes escapes paths with special characters', () => {
-		const actual = resolveResourcesForSearchIncludes([URI.file(isWindows ? "C:\\testWorkspace\\pages\\blog\\[postId]" : "/testWorkspace/pages/blog/[postId]")], context);
-		assert.deepStrictEqual(actual, ["./pages/blog/[[]postId[]]"]);
-	});
+  test('resolveResourcesForSearchIncludes escapes paths with special characters', () => {
+    const actual = resolveResourcesForSearchIncludes(
+      [
+        URI.file(
+          isWindows
+            ? 'C:\\testWorkspace\\pages\\blog\\[postId]'
+            : '/testWorkspace/pages/blog/[postId]'
+        ),
+      ],
+      context
+    );
+    assert.deepStrictEqual(actual, ['./pages/blog/[[]postId[]]']);
+  });
 });

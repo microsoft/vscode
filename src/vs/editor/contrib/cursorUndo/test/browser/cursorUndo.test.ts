@@ -5,58 +5,77 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import {
+  CoreEditingCommands,
+  CoreNavigationCommands,
+} from '../../../../browser/coreCommands.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
-import { CursorUndo, CursorUndoRedoController } from '../../browser/cursorUndo.js';
+import {
+  CursorUndo,
+  CursorUndoRedoController,
+} from '../../browser/cursorUndo.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindController', () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+  const cursorUndoAction = new CursorUndo();
 
-	const cursorUndoAction = new CursorUndo();
+  test('issue #82535: Edge case with cursorUndo', () => {
+    withTestCodeEditor('', {}, (editor) => {
+      editor.registerAndInstantiateContribution(
+        CursorUndoRedoController.ID,
+        CursorUndoRedoController
+      );
 
-	test('issue #82535: Edge case with cursorUndo', () => {
-		withTestCodeEditor('', {}, (editor) => {
+      // type hello
+      editor.trigger('test', Handler.Type, { text: 'hello' });
 
-			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
+      // press left
+      CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
 
-			// type hello
-			editor.trigger('test', Handler.Type, { text: 'hello' });
+      // press Delete
+      CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
+      assert.deepStrictEqual(editor.getValue(), 'hell');
+      assert.deepStrictEqual(editor.getSelections(), [
+        new Selection(1, 5, 1, 5),
+      ]);
 
-			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+      // press left
+      CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+      assert.deepStrictEqual(editor.getSelections(), [
+        new Selection(1, 4, 1, 4),
+      ]);
 
-			// press Delete
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
-			assert.deepStrictEqual(editor.getValue(), 'hell');
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
+      // press Ctrl+U
+      cursorUndoAction.run(null!, editor, {});
+      assert.deepStrictEqual(editor.getSelections(), [
+        new Selection(1, 5, 1, 5),
+      ]);
+    });
+  });
 
-			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
+  test('issue #82535: Edge case with cursorUndo (reverse)', () => {
+    withTestCodeEditor('', {}, (editor) => {
+      editor.registerAndInstantiateContribution(
+        CursorUndoRedoController.ID,
+        CursorUndoRedoController
+      );
 
-			// press Ctrl+U
-			cursorUndoAction.run(null!, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
-		});
-	});
+      // type hello
+      editor.trigger('test', Handler.Type, { text: 'hell' });
+      editor.trigger('test', Handler.Type, { text: 'o' });
+      assert.deepStrictEqual(editor.getValue(), 'hello');
+      assert.deepStrictEqual(editor.getSelections(), [
+        new Selection(1, 6, 1, 6),
+      ]);
 
-	test('issue #82535: Edge case with cursorUndo (reverse)', () => {
-		withTestCodeEditor('', {}, (editor) => {
-
-			editor.registerAndInstantiateContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
-
-			// type hello
-			editor.trigger('test', Handler.Type, { text: 'hell' });
-			editor.trigger('test', Handler.Type, { text: 'o' });
-			assert.deepStrictEqual(editor.getValue(), 'hello');
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
-
-			// press Ctrl+U
-			cursorUndoAction.run(null!, editor, {});
-			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
-		});
-	});
+      // press Ctrl+U
+      cursorUndoAction.run(null!, editor, {});
+      assert.deepStrictEqual(editor.getSelections(), [
+        new Selection(1, 6, 1, 6),
+      ]);
+    });
+  });
 });

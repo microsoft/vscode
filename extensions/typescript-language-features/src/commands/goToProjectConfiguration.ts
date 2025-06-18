@@ -10,33 +10,41 @@ import { openProjectConfigForFile, ProjectType } from '../tsconfig';
 import { Command } from './commandManager';
 
 export class TypeScriptGoToProjectConfigCommand implements Command {
-	public readonly id = 'typescript.goToProjectConfig';
+  public readonly id = 'typescript.goToProjectConfig';
 
-	public constructor(
-		private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	) { }
+  public constructor(
+    private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+    private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+  ) {}
 
-	public execute() {
-		const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
-		if (editor) {
-			openProjectConfigForFile(ProjectType.TypeScript, this.lazyClientHost.value.serviceClient, editor.document.uri);
-		}
-	}
+  public execute() {
+    const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
+    if (editor) {
+      openProjectConfigForFile(
+        ProjectType.TypeScript,
+        this.lazyClientHost.value.serviceClient,
+        editor.document.uri
+      );
+    }
+  }
 }
 
 export class JavaScriptGoToProjectConfigCommand implements Command {
-	public readonly id = 'javascript.goToProjectConfig';
+  public readonly id = 'javascript.goToProjectConfig';
 
-	public constructor(
-		private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	) { }
+  public constructor(
+    private readonly activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+    private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
+  ) {}
 
-	public execute() {
-		const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
-		if (editor) {
-			openProjectConfigForFile(ProjectType.JavaScript, this.lazyClientHost.value.serviceClient, editor.document.uri);
-		}
-	}
+  public execute() {
+    const editor = this.activeJsTsEditorTracker.activeJsTsEditor;
+    if (editor) {
+      openProjectConfigForFile(
+        ProjectType.JavaScript,
+        this.lazyClientHost.value.serviceClient,
+        editor.document.uri
+      );
+    }
+  }
 }
