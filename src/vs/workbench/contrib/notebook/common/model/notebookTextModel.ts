@@ -399,15 +399,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._bindCellContentHandler(cell, e);
 		}));
 		disposable.add(toDisposable(() => this._cellEOL.delete(cell.handle)));
+		const textModelChangeDisposable = disposable.add(new DisposableStore());
 		if (cell.textModel) {
-			disposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
+			textModelChangeDisposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
 		} else {
-			cell.onDidChangeTextModel(e => {
-				disposable.clear();
-				if (cell.textModel) {
-					disposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
-				}
-			});
+			disposable.add(
+				cell.onDidChangeTextModel(e => {
+					textModelChangeDisposable.clear();
+					if (cell.textModel) {
+						textModelChangeDisposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
+					}
+				}));
 		}
 		this._cellListeners.set(cell.handle, disposable);
 	}
