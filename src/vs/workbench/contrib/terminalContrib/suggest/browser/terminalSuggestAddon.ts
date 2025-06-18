@@ -668,14 +668,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
-		const selectionMode: SuggestSelectionMode = this._configurationService.getValue(TerminalSuggestSettingId.SelectionMode);
 
 		const xtermBox = this._screen!.getBoundingClientRect();
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
-		}, selectionMode === SuggestSelectionMode.Never);
+		});
 	}
 
 
