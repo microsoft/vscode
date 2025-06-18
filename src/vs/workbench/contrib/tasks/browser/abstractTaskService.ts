@@ -344,9 +344,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 
-
-
-
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
