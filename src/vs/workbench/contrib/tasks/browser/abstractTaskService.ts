@@ -2028,37 +2028,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private async _findUpdatedTaskByIdentifier(task: Task): Promise<Task | undefined> {
-		try {
-			// Use the existing _findWorkspaceTasks method to find a matching task
-			const matchedTasks = await this._findWorkspaceTasks((candidateTask, workspaceFolder) => {
-				// Check if the candidate task matches the original task
-				const taskDefinition = task.getDefinition(true);
-				if (taskDefinition) {
-					return candidateTask.matches(taskDefinition);
-				}
-				// Fallback to matching by label
-				return candidateTask.matches(task._label);
-			});
-
-			if (matchedTasks.length > 0) {
-				// Take the first match, prioritizing non-extension tasks
-				matchedTasks.sort(t => t._source.kind === TaskSourceKind.Extension ? 1 : -1);
-				const matchedTask = matchedTasks[0];
-				
-				// If it's a configuring task, resolve it
-				if (ConfiguringTask.is(matchedTask)) {
-					return await this.tryResolveTask(matchedTask);
-				} else {
-					return matchedTask;
-				}
-			}
-		} catch (error) {
-			// If there's an error getting workspace tasks, fall back to the original task
-		}
-		return undefined;
-	}
-
 	private async _restart(task: Task): Promise<void> {
 		if (!this._taskSystem) {
 			return;
@@ -2066,9 +2035,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				// Try to find the updated task definition from workspace configuration
-				const updatedTask = await this._findUpdatedTaskByIdentifier(task);
-				await this.run(updatedTask || task);
+				// Re-read tasks.json to get any updated configuration
+				await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+				await this.run(task);
 			} catch {
 				// eat the error, we don't care about it here
 			}
