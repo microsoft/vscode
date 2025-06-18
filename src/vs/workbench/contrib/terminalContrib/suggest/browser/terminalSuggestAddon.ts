@@ -247,7 +247,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				break;
 			case TerminalSelectionMode.Never:
-				this._suggestWidget.element.domNode.classList.add(partialClassName);
+				this._suggestWidget.element.domNode.classList.remove(partialClassName);
 				break;
 		}
 	}

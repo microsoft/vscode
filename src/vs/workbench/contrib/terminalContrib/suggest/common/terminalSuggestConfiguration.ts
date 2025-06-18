@@ -132,7 +132,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SelectionMode]: {
-		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how selection works in the integrated terminal. Also see {0}.", `\`#${TerminalSuggestSettingId.RunOnEnter}#\``),
+		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal. Also see {0}.", `\`#${TerminalSuggestSettingId.RunOnEnter}#\``),
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
 		enumDescriptions: [
