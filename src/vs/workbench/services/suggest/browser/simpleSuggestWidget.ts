@@ -86,7 +86,6 @@ export interface IWorkbenchSuggestWidgetOptions {
  * Controls how suggest selection works
 */
 export const enum SuggestSelectionMode {
-	/**Add commentMore actions
 	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
 	 */
 	Partial = 'partial',
