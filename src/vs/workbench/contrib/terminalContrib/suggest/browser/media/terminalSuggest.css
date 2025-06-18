@@ -10,6 +10,3 @@
 	outline-offset: -1px;
 }
 
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon {
-	color: var(--vscode-icon-foreground);
-}
