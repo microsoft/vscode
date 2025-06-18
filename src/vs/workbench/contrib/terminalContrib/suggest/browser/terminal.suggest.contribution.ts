@@ -404,11 +404,16 @@ registerActiveInstanceAction({
 	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Insert'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
+	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
+	{
+		primary: KeyCode.Enter,
+		when: ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated)),
+		weight: KeybindingWeight.WorkbenchContrib + 1
+	}],
 	menu: {
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		order: 1,
@@ -426,7 +431,7 @@ registerActiveInstanceAction({
 		primary: KeyCode.Enter,
 		// Enter is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'never'),
 	},
 	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
