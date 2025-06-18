@@ -6,7 +6,7 @@
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
 import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { TerminalSuggestSelectionMode, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
@@ -60,7 +60,7 @@ export interface ITerminalSuggestConfiguration {
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
-	selectionMode: TerminalSuggestSelectionMode;
+	selectionMode: 'partial' | 'always' | 'never';
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {

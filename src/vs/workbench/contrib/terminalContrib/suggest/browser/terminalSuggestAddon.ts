@@ -22,9 +22,9 @@ import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
-import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { ISimpleSelectedSuggestion, SimpleSuggestWidget, SuggestSelectionMode } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
-import { TerminalSuggestSelectionMode, TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -49,7 +49,6 @@ export interface ISuggestController {
 	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 
-const partialClassName = 'partial-selection';
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
 
@@ -140,8 +139,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _shouldSyncWhenReady: boolean = false;
 	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
-	private _hasNavigated: boolean = false;
-
 	constructor(
 		shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -225,31 +222,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _updateSelectionMode(): void {
-		const selectionMode: TerminalSuggestSelectionMode | undefined = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).selectionMode;
+		const selectionMode: 'partial' | 'always' | 'never' | undefined = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).selectionMode;
 		if (selectionMode) {
-			this._setSelectionMode(selectionMode);
+			this._setSelectionMode(selectionMode as SuggestSelectionMode);
 		}
 	}
 
-	private _setSelectionMode(selectionMode: TerminalSuggestSelectionMode): void {
+	private _setSelectionMode(selectionMode: SuggestSelectionMode): void {
 		if (!this._suggestWidget) {
 			return;
 		}
-		switch (selectionMode) {
-			case TerminalSuggestSelectionMode.Always:
-				this._suggestWidget.element.domNode.classList.remove(partialClassName);
-				break;
-			case TerminalSuggestSelectionMode.Partial:
-				if (!this._hasNavigated) {
-					this._suggestWidget.element.domNode.classList.add(partialClassName);
-				} else {
-					this._suggestWidget.element.domNode.classList.remove(partialClassName);
-				}
-				break;
-			case TerminalSuggestSelectionMode.Never:
-				this._suggestWidget.element.domNode.classList.remove(partialClassName);
-				break;
-		}
+		this._suggestWidget.setSelectionMode(selectionMode);
 	}
 
 	activate(xterm: Terminal): void {
@@ -690,7 +673,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		suggestWidget.setCompletionModel(model);
 		this._register(suggestWidget.onDidFocus(() => {
-			this._hasNavigated = this._hasNavigated || !this._suggestWidget?.firstItemFocused();
 			this._updateSelectionMode();
 			this._terminal?.focus();
 		}));
@@ -702,14 +684,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
-		const selectionMode: TerminalSuggestSelectionMode = this._configurationService.getValue(TerminalSuggestSettingId.SelectionMode);
+		const selectionMode: SuggestSelectionMode = this._configurationService.getValue(TerminalSuggestSettingId.SelectionMode);
 
 		const xtermBox = this._screen!.getBoundingClientRect();
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
-		}, selectionMode === TerminalSuggestSelectionMode.Never);
+		}, selectionMode === SuggestSelectionMode.Never);
 		this._updateSelectionMode();
 	}
 
@@ -722,7 +704,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{
 					statusBarMenuId: MenuId.MenubarTerminalSuggestStatusMenu,
-					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
+					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar,
+					selectionMode: true
 				},
 				this._getFontInfo.bind(this),
 				this._onDidFontConfigurationChange.event.bind(this),
@@ -886,7 +869,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
-		this._hasNavigated = false;
 	}
 }
 

@@ -71,7 +71,34 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * The setting for showing the status bar.
 	 */
 	showStatusBarSettingId?: string;
+
+	/**
+	 * Has selection mode support
+	 */
+	selectionMode?: boolean;
 }
+
+const partialClassName = 'partial-selection';
+
+/**
+ * Controls how suggest selection works
+ */
+export const enum SuggestSelectionMode {
+	/**
+	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
+	 */
+	Partial = 'partial',
+	/**
+	 * Always select, what enter does depends on runOnEnter.
+	 */
+	Always = 'always',
+	/**
+	 * User needs to press down to select.
+	 */
+	Never = 'never'
+}
+
+
 
 export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TItem extends SimpleCompletionItem> extends Disposable {
 
@@ -114,6 +141,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
+
+	private _hasNavigated: boolean = false;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -356,6 +385,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 			}).catch();
 		}
+
+		this._hasNavigated = this._hasNavigated || !this._firstItemFocused();
+
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
@@ -382,6 +414,27 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	resetWidgetSize(): void {
 		this._persistedSize.reset();
+	}
+
+	setSelectionMode(selectionMode: SuggestSelectionMode): void {
+		if (!this._options.selectionMode) {
+			return; // No selection mode support
+		}
+		switch (selectionMode) {
+			case SuggestSelectionMode.Always:
+				this.element.domNode.classList.remove(partialClassName);
+				break;
+			case SuggestSelectionMode.Partial:
+				if (this._hasNavigated) {
+					this.element.domNode.classList.remove(partialClassName);
+				} else {
+					this.element.domNode.classList.add(partialClassName);
+				}
+				break;
+			case SuggestSelectionMode.Never:
+				this.element.domNode.classList.remove(partialClassName);
+				break;
+		}
 	}
 
 	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }, noFocus?: boolean): void {
@@ -614,6 +667,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	hide(): void {
+		this._hasNavigated = false;
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
@@ -854,7 +908,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		return true;
 	}
 
-	firstItemFocused(): boolean {
+	private _firstItemFocused(): boolean {
 		const selected = this.getFocusedItem()?.item;
 		return selected ? this._list.indexOf(selected) === 0 : false;
 	}

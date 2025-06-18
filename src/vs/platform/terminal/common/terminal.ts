@@ -1212,20 +1212,3 @@ export interface ITerminalLogService extends ILogService {
 	readonly _logBrand: undefined;
 }
 
-/**
- * Controls how suggest selection works in the integrated terminal.
- */
-export const enum TerminalSuggestSelectionMode {
-	/**
-	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
-	 */
-	Partial = 'partial',
-	/**
-	 * Always select, what enter does depends on runOnEnter.
-	 */
-	Always = 'always',
-	/**
-	 * User needs to press down to select.
-	 */
-	Never = 'never'
-}
