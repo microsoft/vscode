@@ -1851,11 +1851,11 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 		const llmResults = await this.getLLMRankedResults(query, token);
-		if (!llmResults) {
+		if (token.isCancellationRequested) {
 			return null;
 		}
 		return {
-			filterMatches: embeddingsResults.filterMatches.concat(llmResults.filterMatches),
+			filterMatches: embeddingsResults.filterMatches.concat(llmResults?.filterMatches ?? []),
 			exactMatch: false
 		};
 	}
