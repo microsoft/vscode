@@ -36,6 +36,7 @@ export interface IDefaultAccount {
 	readonly can_signup_for_limited?: boolean;
 	readonly chat_enabled?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
+	readonly mcp?: boolean;
 	readonly analytics_tracking_id?: string;
 	readonly limited_user_quotas?: {
 		readonly chat: number;
@@ -189,7 +190,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		}
 	}
 
-	private extractFromToken(token: string, key: string): string | undefined {
+	private extractFromToken(token: string): Map<string, string> {
 		const result = new Map<string, string>();
 		const firstPart = token?.split(':')[0];
 		const fields = firstPart?.split(';');
@@ -197,7 +198,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		return result.get(key);
+		return result;
 	}
 
 	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string): Promise<IDefaultAccount | null> {
@@ -243,9 +244,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 			const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
 			if (chatData) {
+				const tokenMap = this.extractFromToken(chatData.token);
 				return {
 					// Editor preview features are disabled if the flag is present and set to 0
-					chat_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
+					chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
+					// MCP is disabled if the flag is present and set to 0
+					mcp: tokenMap.get('mcp') !== '0',
 				};
 			}
 			this.logService.error('Failed to fetch token entitlements', 'No data returned');
