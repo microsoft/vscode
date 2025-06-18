@@ -69,6 +69,7 @@ import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFac
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -80,7 +81,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		languageService: ILanguageService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, languageService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, languageService, DefaultEndOfLine.LF);
 	}
 }
 
