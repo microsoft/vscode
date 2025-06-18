@@ -1861,7 +1861,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
 					// Try if possible to go through the existing `replacePreviousChar` command
-					if (replaceNextCharCnt || positionDelta) {
+					const editContextEnabled = this.getOption(EditorOption.effectiveEditContext);
+					if (replaceNextCharCnt || positionDelta || editContextEnabled) {
 						// must be handled through the new command
 						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
 						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);

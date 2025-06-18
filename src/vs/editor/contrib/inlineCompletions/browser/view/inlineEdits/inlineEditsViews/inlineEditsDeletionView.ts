@@ -26,6 +26,7 @@ const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
+const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
 const BORDER_RADIUS = 4;
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
@@ -46,6 +47,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _uiState: IObservable<{
 			originalRange: LineRange;
 			deletions: Range[];
+			inDiffEditor: boolean;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
@@ -159,7 +161,8 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			return rect.intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER));
 		});
 
-		const separatorRect = overlayRect.map(rect => rect.withMargin(WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH));
+		const separatorWidth = this._uiState.map(s => s?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
+		const separatorRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
 		return [
 			n.div({
@@ -167,7 +170,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 				style: {
 					...separatorRect.read(reader).toStyles(),
 					borderRadius: `${BORDER_RADIUS}px`,
-					border: `${BORDER_WIDTH + WIDGET_SEPARATOR_WIDTH}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
 					boxSizing: 'border-box',
 				}
 			}),

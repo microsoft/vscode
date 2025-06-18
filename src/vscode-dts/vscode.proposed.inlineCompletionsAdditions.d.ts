@@ -92,12 +92,15 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
 
+		/**
+		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
+
 		onDidChange?: Event<void>;
 
 		// #region Deprecated methods
-
-		/** @deprecated */
-		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -132,6 +135,14 @@ declare module 'vscode' {
 		supersededBy?: InlineCompletionItem;
 		userTypingDisagreed: boolean;
 	};
+
+	export enum InlineCompletionsDisposeReasonKind {
+		Other = 0,
+		tokenCancellation = 1,
+		LostRace = 2,
+	}
+
+	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
 
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
