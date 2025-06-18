@@ -6,10 +6,10 @@
 import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extname, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -20,6 +20,7 @@ import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
@@ -201,7 +202,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onWillAddRemoveCells = this._onWillAddRemoveCells.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 	private _cellhandlePool: number = 0;
-	private readonly _cellListeners: Map<number, IDisposable> = new Map();
+	private readonly _cellListeners = new DisposableMap<number, DisposableStore>();
+	private readonly _cellEOL = new Map<number, string | undefined>();
 	private _cells: NotebookCellTextModel[] = [];
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
 
@@ -252,11 +254,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.transientOptions = options;
 		this.metadata = metadata;
 		this._initialize(cells);
+		this._sendCellEOLTelemetry('contentLoad');
 
 		const maybeUpdateCellTextModel = (textModel: ITextModel) => {
 			if (textModel.uri.scheme === Schemas.vscodeNotebookCell && textModel instanceof TextModel) {
@@ -328,11 +332,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
-			const dirtyStateListener = mainCells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(mainCells[i], e);
-			});
-
-			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
+			this._addCellListeners(mainCells[i]);
 			this._register(mainCells[i]);
 		}
 
@@ -392,6 +392,101 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
+	private _addCellListeners(cell: NotebookCellTextModel) {
+		this._cellEOL.set(cell.handle, cell.textBuffer.getEOL());
+		const disposable = new DisposableStore();
+		disposable.add(cell.onDidChangeContent((e) => {
+			this._bindCellContentHandler(cell, e);
+		}));
+		disposable.add(toDisposable(() => this._cellEOL.delete(cell.handle)));
+		if (cell.textModel) {
+			disposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
+		} else {
+			cell.onDidChangeTextModel(e => {
+				disposable.clear();
+				if (cell.textModel) {
+					disposable.add(cell.textModel.onDidChangeContent(this._handleCellTextModelContentChange.bind(this, cell)));
+				}
+			});
+		}
+		this._cellListeners.set(cell.handle, disposable);
+	}
+
+	private _handleCellTextModelContentChange(cell: NotebookCellTextModel, e: IModelContentChangedEvent) {
+		if (!e.isEolChange) {
+			return;
+		}
+		if (cell.textBuffer.getEOL() === this._cellEOL.get(cell.handle)) {
+			return;
+		}
+		this._cellEOL.set(cell.handle, cell.textBuffer.getEOL());
+		this._sendCellEOLTelemetry('contentChange');
+	}
+
+	private _sendCellEOLTelemetry(eventSource: 'contentChange' | 'contentLoad') {
+		let codeCellWithLf = 0;
+		let mdCellWithLf = 0;
+		let codeCellWithCrLF = 0;
+		let mdCellWithCrLF = 0;
+		for (const cell of this._cells) {
+			if (cell.textBuffer.getEOL() === '\n') {
+				if (cell.cellKind === CellKind.Code) {
+					codeCellWithLf++;
+				} else {
+					mdCellWithLf++;
+				}
+			} else {
+				if (cell.cellKind === CellKind.Code) {
+					codeCellWithCrLF++;
+				} else {
+					mdCellWithCrLF++;
+				}
+			}
+		}
+		type NotebookCellEOLChangeEventClassification = {
+			owner: 'donjayamanne';
+			comment: 'Metrics for how often line endings change in notebook cells';
+			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the notebook resource' };
+			ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the notebook resource' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view type of the notebook editor' };
+			codeCellCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of code cell' };
+			mdCellCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of markdown cell' };
+			codeCellWithLf: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of code cells with lf line ending' };
+			mdCellWithLf: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of markdown cells with lf line ending' };
+			codeCellWithCrLF: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of code cells with crlf line ending' };
+			mdCellWithCrLF: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total number of markdown cells with crlf line ending' };
+			eventSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the event triggering the telemetry, whether this is the initial data or whether change in EOL via text change' };
+		};
+
+		type NotebookCellEOLChangeEvent = {
+			scheme: string;
+			ext: string;
+			viewType: string;
+			eventSource: 'contentChange' | 'contentLoad';
+			codeCellCount: number;
+			mdCellCount: number;
+			codeCellWithLf: number;
+			mdCellWithLf: number;
+			codeCellWithCrLF: number;
+			mdCellWithCrLF: number;
+		};
+
+
+		this._telemetryService.publicLog2<NotebookCellEOLChangeEvent, NotebookCellEOLChangeEventClassification>('notebook/cellEOLChanges', {
+			scheme: this.uri.scheme,
+			ext: extname(this.uri),
+			viewType: this.viewType,
+			eventSource,
+			codeCellCount: codeCellWithCrLF + codeCellWithLf,
+			mdCellCount: mdCellWithCrLF + mdCellWithLf,
+			codeCellWithLf,
+			mdCellWithLf,
+			codeCellWithCrLF,
+			mdCellWithCrLF
+		});
+
+	}
+
 	private _generateAlternativeId() {
 		return `${this._notebookSpecificAlternativeId}_` + this.cells.map(cell => cell.handle + ',' + cell.alternativeId).join(';');
 	}
@@ -406,8 +501,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onWillDispose.fire();
 		this._undoService.removeElements(this.uri);
 
-		dispose(this._cellListeners.values());
-		this._cellListeners.clear();
+		this._cellListeners.dispose();
 
 		dispose(this._cells);
 		this._cells = [];
@@ -840,8 +934,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// prepare remove
 		for (let i = index; i < Math.min(index + count, this._cells.length); i++) {
 			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(cell.handle);
 		}
 
 		// prepare add
@@ -862,12 +955,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				cell.textModel.setValue(cellDto.source);
 				cell.resetTextBuffer(cell.textModel.getTextBuffer());
 			}
-			const dirtyStateListener = cell.onDidChangeContent((e) => {
-				this._bindCellContentHandler(cell, e);
-			});
-
 			this.newCellsFromLastEdit.add(cell.handle);
-			this._cellListeners.set(cell.handle, dirtyStateListener);
+			this._addCellListeners(cell);
 			this._register(cell);
 			return cell;
 		});
@@ -956,11 +1045,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined): void {
 		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(cells[i], e);
-			});
-
-			this._cellListeners.set(cells[i].handle, dirtyStateListener);
+			this._addCellListeners(cells[i]);
 		}
 
 		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, 0, cells]];
@@ -979,8 +1064,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _removeCell(index: number, count: number, synchronous: boolean, endSelections: ISelectionState | undefined) {
 		for (let i = index; i < index + count; i++) {
 			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(cell.handle);
 		}
 		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, count, []]];
 		this._onWillAddRemoveCells.fire({ rawEvent: { kind: NotebookCellsChangeType.ModelChange, changes } });
@@ -995,17 +1079,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _replaceNewCells(index: number, count: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined) {
 		for (let i = index; i < index + count; i++) {
-			const cell = this._cells[i];
-			this._cellListeners.get(cell.handle)?.dispose();
-			this._cellListeners.delete(cell.handle);
+			this._cellListeners.deleteAndDispose(this._cells[i].handle);
 		}
 
 		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
-				this._bindCellContentHandler(cells[i], e);
-			});
-
-			this._cellListeners.set(cells[i].handle, dirtyStateListener);
+			this._addCellListeners(cells[i]);
 		}
 
 		const changes: NotebookCellTextModelSplice<ICell>[] = [[index, count, cells]];
