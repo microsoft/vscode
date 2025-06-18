@@ -1850,7 +1850,14 @@ export class SettingsEditor2 extends EditorPane {
 		if (!embeddingsResults || token.isCancellationRequested) {
 			return null;
 		}
-		return await this.getLLMRankedResults(query, token);
+		const llmResults = await this.getLLMRankedResults(query, token);
+		if (!llmResults) {
+			return null;
+		}
+		return {
+			filterMatches: embeddingsResults.filterMatches.concat(llmResults.filterMatches),
+			exactMatch: false
+		};
 	}
 
 	private async getLLMRankedResults(query: string, token: CancellationToken): Promise<ISearchResult | null> {
