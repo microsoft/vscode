@@ -816,7 +816,7 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand(TestCommandId.ReRunLastRun, element.results.id),
 				));
 
-				const hasFailedTests = Array.from(element.results.tests).some((test: TestResultItem) => isFailedState(test.ownComputedState));
+				const hasFailedTests = Iterable.some(element.results.tests, test => isFailedState(test.ownComputedState));
 				if (hasFailedTests) {
 					primary.push(new Action(
 						'testing.outputPeek.rerunFailed',
@@ -867,7 +867,7 @@ class TreeActionsProvider {
 				() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
 			));
 
-			const hasFailedTests = Array.from(element.value.tests).some((test: TestResultItem) => isFailedState(test.ownComputedState));
+			const hasFailedTests = Iterable.some(element.value.tests, test => isFailedState(test.ownComputedState));
 			if (hasFailedTests) {
 				primary.push(new Action(
 					'testing.outputPeek.rerunFailedResult',
