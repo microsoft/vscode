@@ -21,3 +21,7 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
+
+# Python artifacts
+__pycache__/
+generated_articles/
