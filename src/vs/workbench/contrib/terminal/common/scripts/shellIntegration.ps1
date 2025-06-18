@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent installing more than once per session
-if (Test-Path variable:Script:__VSCodeState.OriginalPrompt) {
+if (Test-Path variable:global:__VSCodeState.OriginalPrompt) {
 	return;
 }
 
@@ -13,7 +13,7 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
 }
 
-$Script:__VSCodeState = @{
+$Global:__VSCodeState = @{
 	OriginalPrompt = $function:Prompt
 	LastHistoryId = -1
 	IsInExecution = $false
@@ -23,22 +23,24 @@ $Script:__VSCodeState = @{
 	IsWindows10 = $false
 }
 
-# Store the nonce in script scope and unset the global
-$Script:__VSCodeState.Nonce = $env:VSCODE_NONCE
+# Store the nonce in a regular variable and unset the environment variable. It's by design that
+# anything that can execute PowerShell code can read the nonce, as it's basically impossible to hide
+# in PowerShell. The most important thing is getting it out of the environment.
+$Global:__VSCodeState.Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
-$Script:__VSCodeState.IsStable = $env:VSCODE_STABLE
+$Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
 if ($__vscode_shell_env_reporting) {
-	$Script:__VSCodeState.EnvVarsToReport = $__vscode_shell_env_reporting.Split(',')
+	$Global:__VSCodeState.EnvVarsToReport = $__vscode_shell_env_reporting.Split(',')
 }
 Remove-Variable -Name __vscode_shell_env_reporting -ErrorAction SilentlyContinue
 
 $osVersion = [System.Environment]::OSVersion.Version
-$Script:__VSCodeState.IsWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+$Global:__VSCodeState.IsWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 Remove-Variable -Name osVersion -ErrorAction SilentlyContinue
 
 if ($env:VSCODE_ENV_REPLACE) {
@@ -86,9 +88,9 @@ function Global:Prompt() {
 	$Result = ""
 	# Skip finishing the command if the first command has not yet started or an execution has not
 	# yet begun
-	if ($Script:__VSCodeState.LastHistoryId -ne -1 -and $Script:__VSCodeState.IsInExecution -eq $true) {
-		$Script:__VSCodeState.IsInExecution = $false
-		if ($LastHistoryEntry.Id -eq $Script:__VSCodeState.LastHistoryId) {
+	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and $Global:__VSCodeState.IsInExecution -eq $true) {
+		$Global:__VSCodeState.IsInExecution = $false
+		if ($LastHistoryEntry.Id -eq $Global:__VSCodeState.LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
 			$Result += "$([char]0x1b)]633;D`a"
 		}
@@ -107,15 +109,15 @@ function Global:Prompt() {
 
 	# Send current environment variables as JSON
 	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
-	if ($Script:__VSCodeState.EnvVarsToReport.Count -gt 0) {
+	if ($Global:__VSCodeState.EnvVarsToReport.Count -gt 0) {
 		$envMap = @{}
-        foreach ($varName in $Script:__VSCodeState.EnvVarsToReport) {
+        foreach ($varName in $Global:__VSCodeState.EnvVarsToReport) {
             if (Test-Path "env:$varName") {
                 $envMap[$varName] = (Get-Item "env:$varName").Value
             }
         }
         $envJson = $envMap | ConvertTo-Json -Compress
-        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$($Script:__VSCodeState.Nonce)`a"
+        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$($Global:__VSCodeState.Nonce)`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
@@ -123,18 +125,18 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$OriginalPrompt += $Script:__VSCodeState.OriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__VSCodeState.OriginalPrompt.Invoke()
 	$Result += $OriginalPrompt
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	if ($Script:__VSCodeState.IsStable -eq "0") {
+	if ($Global:__VSCodeState.IsStable -eq "0") {
 		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
 	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
-	$Script:__VSCodeState.LastHistoryId = $LastHistoryEntry.Id
+	$Global:__VSCodeState.LastHistoryId = $LastHistoryEntry.Id
 	return $Result
 }
 
@@ -154,10 +156,10 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 if (Get-Module -Name PSReadLine) {
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 
-	$Script:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	$Global:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
-		$CommandLine = $Script:__VSCodeState.OriginalPSConsoleHostReadLine.Invoke()
-		$Script:__VSCodeState.IsInExecution = $true
+		$CommandLine = $Global:__VSCodeState.OriginalPSConsoleHostReadLine.Invoke()
+		$Global:__VSCodeState.IsInExecution = $true
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
@@ -165,8 +167,8 @@ if (Get-Module -Name PSReadLine) {
 		$Result += $(__VSCode-Escape-Value $CommandLine)
 		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
 		# sometimes
-		if ($Script:__VSCodeState.IsWindows10 -eq $false) {
-			$Result += ";$($Script:__VSCodeState.Nonce)"
+		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
+			$Result += ";$($Global:__VSCodeState.Nonce)"
 		}
 		$Result += "`a"
 
@@ -181,9 +183,9 @@ if (Get-Module -Name PSReadLine) {
 	}
 
 	# Set ContinuationPrompt property
-	$Script:__VSCodeState.ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-	if ($Script:__VSCodeState.ContinuationPrompt) {
-		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $Script:__VSCodeState.ContinuationPrompt)`a")
+	$Global:__VSCodeState.ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($Global:__VSCodeState.ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $Global:__VSCodeState.ContinuationPrompt)`a")
 	}
 }
 

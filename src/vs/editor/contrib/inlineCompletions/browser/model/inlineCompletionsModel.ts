@@ -45,6 +45,7 @@ import { InlineCompletionContextWithoutUuid } from './provideInlineCompletions.j
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditReason } from '../../../../common/textModelEditReason.js';
+import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -87,6 +88,7 @@ export class InlineCompletionsModel extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
@@ -522,6 +524,13 @@ export class InlineCompletionsModel extends Disposable {
 			return s.cursorAtInlineEdit.read(reader);
 		});
 
+		const [diffEditor] = this._codeEditorService.listDiffEditors()
+			.filter(d =>
+				d.getOriginalEditor().getId() === this._editor.getId() ||
+				d.getModifiedEditor().getId() === this._editor.getId());
+
+		this.isInDiffEditor = !!diffEditor;
+
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
 		this._register(autorun(reader => {
@@ -739,6 +748,8 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly tabShouldJumpToInlineEdit;
 
 	public readonly tabShouldAcceptInlineEdit;
+
+	public readonly isInDiffEditor;
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
