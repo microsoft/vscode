@@ -32,6 +32,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('NotebookViewModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +65,7 @@ suite('NotebookViewModel', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService, notebookExecutionStateService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService, notebookExecutionStateService, NullTelemetryService);
 		const model = new NotebookEditorTestModel(notebook);
 		const options = new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService));
 		const eventDispatcher = new NotebookEventDispatcher();
