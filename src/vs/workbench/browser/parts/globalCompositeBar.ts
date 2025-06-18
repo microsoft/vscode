@@ -33,7 +33,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../services/authentication/browser/authenticationService.js';
-import { AuthenticationSessionAccount, IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSessionAccount, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { ILifecycleService, LifecyclePhase } from '../../services/lifecycle/common/lifecycle.js';
@@ -363,16 +363,19 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		let menus: IAction[] = [];
 
 		for (const providerId of providers) {
+			if (providerId.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+				continue;
+			}
 			if (!this.initialized) {
 				const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false));
 				menus.push(noAccountsAvailableAction);
 				break;
 			}
-			const providerLabel = this.authenticationService.getProvider(providerId).label;
+			const provider = this.authenticationService.getProvider(providerId);
 			const accounts = this.groupedAccounts.get(providerId);
 			if (!accounts) {
 				if (this.problematicProviders.has(providerId)) {
-					const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', providerLabel), undefined, false));
+					const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', provider.label), undefined, false));
 					menus.push(providerUnavailableAction);
 					// try again in the background so that if the failure was intermittent, we can resolve it on the next showing of the menu
 					try {
@@ -384,6 +387,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				continue;
 			}
 
+			const canUseMcp = !!provider.authorizationServers?.length;
 			for (const account of accounts) {
 				const manageExtensionsAction = toAction({
 					id: `configureSessions${account.label}`,
@@ -392,15 +396,17 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
 				});
 
-				const manageMCPAction = toAction({
-					id: `configureSessions${account.label}`,
-					label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
-					enabled: true,
-					run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
-				});
 
-				const providerSubMenuActions: IAction[] = [manageExtensionsAction, manageMCPAction];
-
+				const providerSubMenuActions: IAction[] = [manageExtensionsAction];
+				if (canUseMcp) {
+					const manageMCPAction = toAction({
+						id: `configureSessions${account.label}`,
+						label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+						enabled: true,
+						run: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel: account.label })
+					});
+					providerSubMenuActions.push(manageMCPAction);
+				}
 				if (account.canSignOut) {
 					providerSubMenuActions.push(toAction({
 						id: 'signOut',
@@ -410,7 +416,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					}));
 				}
 
-				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${providerLabel})`, providerSubMenuActions);
+				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${provider.label})`, providerSubMenuActions);
 				menus.push(providerSubMenu);
 			}
 		}
