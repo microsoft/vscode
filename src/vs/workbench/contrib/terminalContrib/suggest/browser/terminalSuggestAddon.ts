@@ -22,7 +22,7 @@ import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
-import { ISimpleSelectedSuggestion, SimpleSuggestWidget, SuggestSelectionMode } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
+import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
