@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { basename, dirname } from '../../../../base/common/path.js';
@@ -56,6 +56,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -482,7 +483,6 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 	private hintElement: HTMLElement;
 
 	constructor(
-		resource: URI,
 		attachment: IPromptFileVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
@@ -503,9 +503,9 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.updateLabel(attachment);
 
 		this.instantiationService.invokeFunction(accessor => {
-			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, attachment.value));
 		});
-		this.addResourceOpenHandlers(resource, undefined);
+		this.addResourceOpenHandlers(attachment.value, undefined);
 
 		this.attachClearButton();
 	}
@@ -558,6 +558,46 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 
 
 		this.element.ariaLabel = ariaLabel;
+	}
+}
+
+export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	constructor(
+		attachment: IPromptTextVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		if (attachment.settingId) {
+			const openSettings = () => preferencesService.openSettings({ jsonEditor: false, query: `@id:${attachment.settingId}` });
+
+			this.element.style.cursor = 'pointer';
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async (e: MouseEvent) => {
+				dom.EventHelper.stop(e, true);
+				openSettings();
+			}));
+
+			this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					dom.EventHelper.stop(e, true);
+					openSettings();
+				}
+			}));
+		}
+		this.label.setLabel(localize('instructions.label', 'Additional Instructions'), undefined, undefined);
+
+		this._register(hoverService.setupManagedHover(hoverDelegate, this.element, attachment.value, { trapFocus: true }));
+
 	}
 }
 

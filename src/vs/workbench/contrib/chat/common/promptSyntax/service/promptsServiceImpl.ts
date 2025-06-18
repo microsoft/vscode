@@ -6,12 +6,10 @@
 import { localize } from '../../../../../../nls.js';
 import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptParser } from '../parsers/promptParser.js';
-import { match, splitGlobAware } from '../../../../../../base/common/glob.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { type IPromptFileReference } from '../parsers/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -25,11 +23,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import type { IChatPromptSlashCommand, ICustomChatMode, IMetadata, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { isObject, isString } from '../../../../../../base/common/types.js';
 
 /**
  * Provides prompt services.
@@ -262,118 +259,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-
-	public async findInstructionFilesFor(files: readonly URI[], ignoreInstructions?: ResourceSet): Promise<readonly { uri: URI; reason: string }[]> {
-		const instructionFiles = await this.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		if (instructionFiles.length === 0) {
-			this.logger.trace('[PromptsService#findInstructionFilesFor] No instruction files available.');
-			return [];
-		}
-		this.logger.trace(`[PromptsService#findInstructionFilesFor] ${files.length} input files provided. ${files.map(file => file.toString()).join(', ')}`);
-		this.logger.trace(`[PromptsService#findInstructionFilesFor] ${instructionFiles.length} instruction files available.`);
-
-		const result: { uri: URI; reason: string }[] = [];
-		const foundFiles = new ResourceSet();
-		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this.parse(instructionFile.uri, CancellationToken.None);
-
-			if (metadata?.promptType !== PromptsType.instructions) {
-				this.logger.trace(`[PromptsService#findInstructionFilesFor] Not an instruction file: ${uri}`);
-				continue;
-			}
-
-			if (ignoreInstructions?.has(uri) || foundFiles.has(uri)) {
-				// the instruction file is already part of the input or has already been processed
-				this.logger.trace(`[PromptsService#findInstructionFilesFor] Skipping already processed instruction file: ${uri}`);
-				continue;
-			}
-
-
-			const { applyTo } = metadata;
-			if (applyTo === undefined) {
-				continue;
-			}
-
-			const patterns = splitGlobAware(applyTo, ',');
-			const patterMatches = (pattern: string): URI | true | false => {
-				pattern = pattern.trim();
-				if (pattern.length === 0) {
-					// if glob pattern is empty, skip it
-					return false;
-				}
-				if (pattern === '**' || pattern === '**/*' || pattern === '*') {
-					// if glob pattern is one of the special wildcard values,
-					// add the instructions file event if no files are attached
-					return true;
-				}
-				if (!pattern.startsWith('/') && !pattern.startsWith('**/')) {
-					// support relative glob patterns, e.g. `src/**/*.js`
-					pattern = '**/' + pattern;
-				}
-
-				// match each attached file with each glob pattern and
-				// add the instructions file if its rule matches the file
-				for (const file of files) {
-					// if the file is not a valid URI, skip it
-					if (match(pattern, file.path)) {
-						return file;
-					}
-				}
-				return false;
-			};
-
-
-			let matches = false;
-			for (const pattern of patterns) {
-				const matchResult = patterMatches(pattern);
-				if (matchResult !== false) {
-					const reason = matchResult === true ?
-						localize('instruction.file.reason.allFiles', 'Automatically attached as pattern is **') :
-						localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this.labelService.getUriLabel(matchResult, { relative: true }));
-
-					result.push({ uri, reason });
-					foundFiles.add(uri);
-					this.logger.trace(`[PromptsService#findInstructionFilesFor] ${uri} selected: ${reason}`);
-					matches = true;
-					break;
-				}
-			}
-			if (!matches) {
-				this.logger.trace(`[PromptsService#findInstructionFilesFor]  ${uri} no match: pattern: ${applyTo}`);
-			}
-		}
-		return result;
-	}
-
-	public async findCopilotInstructions(): Promise<readonly URI[]> {
-		const instructionMessages: string[] = [];
-		const instructionFiles = new Set<string>();
-
-		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-		if (useCopilotInstructionsFiles) {
-			instructionFiles.add(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-		}
-
-		const config = this.configurationService.inspect(PromptsConfig.COPILOT_INSTRUCTIONS);
-
-		[config.workspaceFolderValue, config.workspaceValue, config.userValue].forEach((value: any) => {
-			if (Array.isArray(value)) {
-				for (const item of value) {
-					if (isString(item)) {
-						instructionMessages.push(item);
-					} else if (item && isObject(item)) {
-						if (isString(item.text)) {
-							instructionMessages.push(item.text);
-						} else if (isString(item.file)) {
-							instructionFiles.add(item.file);
-						}
-					}
-				}
-			}
-		});
-
-		return this.fileLocator.getCopilotInstructionsFiles(instructionFiles);
-	}
 
 	public async getAllMetadata(promptUris: readonly URI[]): Promise<IMetadata[]> {
 		const metadata = await Promise.all(
