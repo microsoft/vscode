@@ -41,7 +41,6 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _useCodeShifting;
 	private readonly _renderSideBySide;
-	private readonly _useMultiLineGhostText;
 
 	private readonly _tabAction;
 
@@ -70,6 +69,7 @@ export class InlineEditsView extends Disposable {
 			edit: InlineEditWithChanges;
 			newText: string;
 			newTextLineCount: number;
+			isInDiffEditor: boolean;
 		} | undefined>(this, reader => {
 			const model = this._model.read(reader);
 			if (!model || !this._constructorDone.read(reader)) {
@@ -115,6 +115,7 @@ export class InlineEditsView extends Disposable {
 				edit: inlineEdit,
 				newText,
 				newTextLineCount: inlineEdit.modifiedLineRange.length,
+				isInDiffEditor: model.isInDiffEditor,
 			};
 		});
 		this._previewTextModel = this._register(this._instantiationService.createInstance(
@@ -206,6 +207,7 @@ export class InlineEditsView extends Disposable {
 			this._previewTextModel,
 			this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
 				newTextLineCount: s.newTextLineCount,
+				isInDiffEditor: s.isInDiffEditor,
 			}) : undefined),
 			this._tabAction,
 		));
@@ -215,6 +217,7 @@ export class InlineEditsView extends Disposable {
 			this._uiState.map(s => s && s.state?.kind === 'deletion' ? ({
 				originalRange: s.state.originalRange,
 				deletions: s.state.deletions,
+				inDiffEditor: s.isInDiffEditor,
 			}) : undefined),
 			this._tabAction,
 		));
@@ -224,13 +227,14 @@ export class InlineEditsView extends Disposable {
 				lineNumber: s.state.lineNumber,
 				startColumn: s.state.column,
 				text: s.state.text,
+				inDiffEditor: s.isInDiffEditor,
 			}) : undefined),
 			this._tabAction,
 		));
 		this._inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 			const e = this._uiState.read(reader);
 			if (!e || !e.state) { return undefined; }
-			if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom') {
+			if (e.state.kind === 'wordReplacements' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom') {
 				return undefined;
 			}
 			return {
@@ -238,6 +242,7 @@ export class InlineEditsView extends Disposable {
 				diff: e.diff,
 				mode: e.state.kind,
 				modifiedCodeEditor: this._sideBySide.previewEditor,
+				isInDiffEditor: e.isInDiffEditor,
 			};
 		});
 		this._inlineCollapsedView = this._register(this._instantiationService.createInstance(InlineEditsCollapsedView,
@@ -261,12 +266,12 @@ export class InlineEditsView extends Disposable {
 				modifiedLines: s.state.modifiedLines,
 				replacements: s.state.replacements,
 			}) : undefined),
+			this._uiState.map(s => s?.isInDiffEditor ?? false),
 			this._tabAction,
 		));
 
 		this._useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.allowCodeShifting);
 		this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
-		this._useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 		this._register(autorunWithStore((reader, store) => {
 			const model = this._model.read(reader);
@@ -358,46 +363,48 @@ export class InlineEditsView extends Disposable {
 
 		// Determine the view based on the edit / diff
 
-		const inner = diff.flatMap(d => d.innerChanges ?? []);
-		const isSingleInnerEdit = inner.length === 1;
-		if (
-			isSingleInnerEdit
-			&& this._useCodeShifting.read(reader) !== 'never'
-			&& isSingleLineInsertion(diff)
-		) {
-			if (isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)) {
-				return 'insertionInline';
-			}
-
-			// If we have a single line insertion before the cursor position, we do not want to move the cursor by inserting
-			// the suggestion inline. Use a line replacement view instead. Do not use word replacement view.
-			return 'lineReplacement';
-		}
-
-		const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
-		if (innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''))) {
-			return 'deletion';
-		}
-
-		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader) === 'always') {
-			return 'insertionMultiLine';
-		}
-
 		const numOriginalLines = inlineEdit.originalLineRange.length;
 		const numModifiedLines = inlineEdit.modifiedLineRange.length;
-		const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH && TextLength.ofRange(m.modifiedRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH);
-		if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-			// Make sure there is no insertion, even if we grow them
+		const inner = diff.flatMap(d => d.innerChanges ?? []);
+		const isSingleInnerEdit = inner.length === 1;
+
+		if (!model.isInDiffEditor) {
 			if (
-				!inner.some(m => m.originalRange.isEmpty()) ||
-				!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
+				isSingleInnerEdit
+				&& this._useCodeShifting.read(reader) !== 'never'
+				&& isSingleLineInsertion(diff)
 			) {
-				return 'wordReplacements';
+				if (isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)) {
+					return 'insertionInline';
+				}
+
+				// If we have a single line insertion before the cursor position, we do not want to move the cursor by inserting
+				// the suggestion inline. Use a line replacement view instead. Do not use word replacement view.
+				return 'lineReplacement';
+			}
+
+			if (isDeletion(inner, inlineEdit, newText)) {
+				return 'deletion';
+			}
+
+			if (isSingleMultiLineInsertion(diff) && this._useCodeShifting.read(reader) === 'always') {
+				return 'insertionMultiLine';
+			}
+
+			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH && TextLength.ofRange(m.modifiedRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH);
+			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
+				// Make sure there is no insertion, even if we grow them
+				if (
+					!inner.some(m => m.originalRange.isEmpty()) ||
+					!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
+				) {
+					return 'wordReplacements';
+				}
 			}
 		}
 
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
-			if (numOriginalLines === 1 && numModifiedLines === 1) {
+			if (numOriginalLines === 1 && numModifiedLines === 1 && !model.isInDiffEditor /* prefer side by side in diff editor */) {
 				return 'lineReplacement';
 			}
 
@@ -406,6 +413,16 @@ export class InlineEditsView extends Disposable {
 			}
 
 			return 'lineReplacement';
+		}
+
+		if (model.isInDiffEditor) {
+			if (isDeletion(inner, inlineEdit, newText)) {
+				return 'deletion';
+			}
+
+			if (isSingleMultiLineInsertion(diff) && this._useCodeShifting.read(reader) === 'always') {
+				return 'insertionMultiLine';
+			}
 		}
 
 		return 'sideBySide';
@@ -543,6 +560,11 @@ function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
 	}
 
 	return true;
+}
+
+function isDeletion(inner: RangeMapping[], inlineEdit: InlineEditWithChanges, newText: StringText) {
+	const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
+	return innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''));
 }
 
 function growEditsToEntireWord(replacements: TextReplacement[], originalText: AbstractText): TextReplacement[] {

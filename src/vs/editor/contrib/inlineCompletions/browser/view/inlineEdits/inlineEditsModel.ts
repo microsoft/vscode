@@ -22,6 +22,7 @@ export class InlineEditModel implements IInlineEditModel {
 	readonly action: Command | undefined;
 	readonly displayName: string;
 	readonly extensionCommands: InlineCompletionCommand[];
+	readonly isInDiffEditor: boolean;
 
 	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
 	readonly showCollapsed: IObservable<boolean>;
@@ -34,6 +35,7 @@ export class InlineEditModel implements IInlineEditModel {
 		this.action = this.inlineEdit.inlineCompletion.action;
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
+		this.isInDiffEditor = this._model.isInDiffEditor;
 
 		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
 		this.showCollapsed = this._model.showCollapsed;
