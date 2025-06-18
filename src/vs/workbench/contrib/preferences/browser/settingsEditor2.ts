@@ -349,6 +349,7 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (alreadyVisible) {
 			this.searchInputActionBar.pull(0);
 			this.searchContainer.classList.remove('with-ai-toggle');
+			this.showAiResultsAction.checked = false;
 		}
 	}
 
