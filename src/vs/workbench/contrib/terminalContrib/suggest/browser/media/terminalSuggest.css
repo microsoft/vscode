@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-#terminal .partial-selection.workbench-suggest-widget .monaco-list .monaco-list-row.focused {
+#terminal .workbench-suggest-widget.partial-selection .monaco-list .monaco-list-row.focused {
 	color: inherit;
 	background: none;
 	outline: 1px solid var(--vscode-focusBorder);
