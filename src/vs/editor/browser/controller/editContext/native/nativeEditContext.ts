@@ -61,7 +61,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
-
+	private _isComposing: boolean = false;
 
 	private _targetWindowId: number = -1;
 	private _scrollTop: number = 0;
@@ -185,6 +185,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -192,6 +193,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -406,7 +408,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
-		if (typeInput.replacePrevCharCnt || typeInput.replaceNextCharCnt || typeInput.positionDelta) {
+		if (typeInput.replacePrevCharCnt || typeInput.replaceNextCharCnt || typeInput.positionDelta || this._isComposing) {
 			viewController.compositionType(typeInput.text, typeInput.replacePrevCharCnt, typeInput.replaceNextCharCnt, typeInput.positionDelta);
 		} else {
 			viewController.type(typeInput.text);
