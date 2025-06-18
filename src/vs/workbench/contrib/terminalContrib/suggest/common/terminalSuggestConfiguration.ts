@@ -135,7 +135,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'string',
 		enum: ['partial', 'always', 'never'],
 		enumDescriptions: [
-			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
+			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via Tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
 			localize('terminal.integrated.selectionMode.always', "Always select."),
 			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
 		],
