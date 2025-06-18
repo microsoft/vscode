@@ -2053,14 +2053,40 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const response = await this._taskSystem.terminate(task);
 		if (response.success) {
 			try {
-				// await this.run(task, undefined, TaskRunSource.User); // check if this is really needed.
-				await this.run(task);
+				// Before restarting, check if the task still exists and get updated version
+				const updatedTask = await this._findUpdatedTask(task);
+				if (updatedTask) {
+					await this.run(updatedTask);
+				} else {
+					// Task no longer exists, show warning
+					this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
+				}
 			} catch {
 				// eat the error, we don't care about it here
 			}
 		} else {
 			this._notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
 		}
+	}
+
+	private async _findUpdatedTask(originalTask: Task): Promise<Task | undefined> {
+		const mapStringToFolderTasks = await this._updateWorkspaceTasks(TaskRunSource.System);
+
+		// Look for the task in current workspace configuration
+		for (const [folderUri, folderResult] of mapStringToFolderTasks) {
+			if (!folderResult.set?.tasks?.length) {
+				continue;
+			}
+
+			for (const task of folderResult.set.tasks) {
+				// Check if this is the same task by ID
+				if (task._id === originalTask._id && folderUri !== 'setting') {
+					return task;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	public async terminate(task: Task): Promise<ITaskTerminateResponse> {
