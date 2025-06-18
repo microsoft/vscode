@@ -117,7 +117,7 @@
 	touch-action: none;
 }
 
-.workbench-suggest-widget .monaco-list .monaco-list-row.focused .codicon {
+.workbench-suggest-widget:not(.partial-selection) .monaco-list .monaco-list-row.focused .codicon {
 	color: var(--vscode-editorSuggestWidget-selectedIconForeground);
 }
 
