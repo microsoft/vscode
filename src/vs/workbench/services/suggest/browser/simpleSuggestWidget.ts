@@ -13,7 +13,7 @@ import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
 import { getAriaId, SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../base/common/event.js';
-import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -98,6 +98,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
+	private _isAuto: boolean = false;
+	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
@@ -403,11 +405,22 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
+	showTriggered(auto: boolean, delay: number, cursorPosition: { top: number; left: number; height: number }) {
+		if (this._state !== State.Hidden) {
+			return;
+		}
+		this._cursorPosition = cursorPosition;
+		this._isAuto = !!auto;
+
+		if (!this._isAuto) {
+			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+		}
+	}
+
 	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
 		this._cursorPosition = cursorPosition;
 
-		// this._contentWidget.setPosition(this.editor.getPosition());
-		// this._loadingTimeout?.dispose();
+		this._loadingTimeout?.dispose();
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -503,6 +516,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SimpleSuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -637,7 +651,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	hide(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
-		// this._loadingTimeout?.dispose();
+		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
