@@ -265,6 +265,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
+		// Show loading indicator before making async completion request
+		const suggestWidget = this._ensureSuggestWidget(terminal);
+		const dimensions = this._getTerminalDimensions();
+		if (dimensions.width && dimensions.height) {
+			const xtermBox = this._screen!.getBoundingClientRect();
+			const cursorPosition = {
+				left: xtermBox.left + terminal.buffer.active.cursorX * dimensions.width,
+				top: xtermBox.top + terminal.buffer.active.cursorY * dimensions.height,
+				height: dimensions.height
+			};
+			suggestWidget.showTriggered(!explicitlyInvoked, explicitlyInvoked ? 50 : 250, cursorPosition);
+		}
+
 		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
 		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
