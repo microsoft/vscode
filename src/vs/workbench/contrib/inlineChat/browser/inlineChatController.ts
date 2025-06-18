@@ -60,7 +60,7 @@ import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js'
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { resolveImageEditorAttachContext } from '../../chat/browser/chatAttachmentResolve.js';
+import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 
@@ -212,6 +212,7 @@ export class InlineChatController1 implements IEditorContribution {
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
+		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxEditing = CTX_INLINE_CHAT_EDITING.bindTo(contextKeyService);
@@ -1188,12 +1189,12 @@ export class InlineChatController1 implements IEditorContribution {
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
 		if (attachment.scheme === Schemas.file) {
 			if (await this._fileService.canHandleResource(attachment)) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
 			}
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
 			}
 		}
 
@@ -1233,7 +1234,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 	) {
@@ -1483,12 +1484,12 @@ export class InlineChatController2 implements IEditorContribution {
 		}
 		if (attachment.scheme === Schemas.file) {
 			if (await this._fileService.canHandleResource(attachment)) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
 			}
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await resolveImageEditorAttachContext(this._fileService, this._dialogService, attachment, extractedImages);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
 			}
 		}
 		return undefined;

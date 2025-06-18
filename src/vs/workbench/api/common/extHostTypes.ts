@@ -1879,7 +1879,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 export class InlineSuggestionList implements vscode.InlineCompletionList {
 	items: vscode.InlineCompletionItem[];
 
-	commands: vscode.Command[] | undefined = undefined;
+	commands: (vscode.Command | { command: vscode.Command; icon: vscode.ThemeIcon })[] | undefined = undefined;
 
 	suppressSuggestions: boolean | undefined = undefined;
 

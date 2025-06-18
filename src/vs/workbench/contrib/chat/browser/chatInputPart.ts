@@ -431,7 +431,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
-		this._register(this.onDidChangeCurrentChatMode(() => this.accessibilityService.alert(this._currentMode.kind)));
+		this._register(this.onDidChangeCurrentChatMode(() => {
+			this.accessibilityService.alert(this._currentMode.kind);
+			if (this._inputEditor) {
+				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+		}));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
 			if (this._currentLanguageModel?.metadata.name) {
 				this.accessibilityService.alert(this._currentLanguageModel.metadata.name);
@@ -604,7 +609,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 		if (verbose) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type to ask questions or type / for topics, press enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
+			let modeLabel = '';
+			switch (this.currentMode) {
+				case ChatMode.Agent:
+					modeLabel = localize('chatInput.mode.agent', "(Agent Mode), edit files in your workspace.");
+					break;
+				case ChatMode.Edit:
+					modeLabel = localize('chatInput.mode.edit', "(Edit Mode), edit files in your workspace.");
+					break;
+				case ChatMode.Ask:
+				default:
+					modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
+					break;
+			}
+			return kbLabel
+				? localize('actions.chat.accessibiltyHelp', "Chat Input {0} Press Enter to send out the request. Use {1} for Chat Accessibility Help.", modeLabel, kbLabel)
+				: localize('chatInput.accessibilityHelpNoKb', "Chat Input {0} Press Enter to send out the request. Use the Chat Accessibility Help command for more information.", modeLabel);
 		}
 		return localize('chatInput', "Chat Input");
 	}
