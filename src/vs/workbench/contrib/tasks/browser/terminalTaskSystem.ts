@@ -224,12 +224,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._taskTerminalActive = TASK_TERMINAL_ACTIVE.bindTo(contextKeyService);
 		this._register(this._terminalService.onDidChangeActiveInstance((e) => this._taskTerminalActive.set(e?.shellLaunchConfig.type === 'Task')));
 	}
-	get LastTask(): VerifiedTask | undefined {
-		throw new Error('Method not implemented.');
-	}
-	set LastTask(task: VerifiedTask | undefined) {
-		throw new Error('Method not implemented.');
-	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
@@ -297,11 +291,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	public get lastTask(): VerifiedTask | undefined {
+	get lastTask(): VerifiedTask | undefined {
 		return this._lastTask;
 	}
 
-	public set lastTask(task: VerifiedTask | undefined) {
+	set lastTask(task: VerifiedTask | undefined) {
 		this._lastTask = task;
 	}
 

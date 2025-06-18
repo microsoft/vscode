@@ -152,6 +152,6 @@ export interface ITaskSystem {
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
 	getFirstInstance(task: Task): Task | undefined;
-	get LastTask(): VerifiedTask | undefined;
-	set LastTask(task: VerifiedTask);
+	get lastTask(): VerifiedTask | undefined;
+	set lastTask(task: VerifiedTask);
 }

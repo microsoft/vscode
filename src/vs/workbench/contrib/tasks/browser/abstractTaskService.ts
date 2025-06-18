@@ -339,7 +339,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							const realUniqueId = task._id;
 
 							console.log(`  Task Label: '${task._label}', Unique ID: ${uniqueId}`);
-							const last_task = this._taskSystem?.LastTask?.task._id;
+							const last_task = this._taskSystem?.lastTask?.task._id;
 
 							console.log(`  Last Task ID: ${last_task}`);
 
@@ -348,8 +348,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								// TODO: Replace last_task with updated task.
 								if (folderUri !== 'setting') {
 									// this._taskSystem!._lastTask = task;
-									const verified_last_task = new VerifiedTask(task, this._taskSystem!.LastTask!.resolver, Triggers.command);
-									this._taskSystem!.LastTask = verified_last_task;
+									const verified_last_task = new VerifiedTask(task, this._taskSystem!.lastTask!.resolver, Triggers.command);
+									this._taskSystem!.lastTask = verified_last_task;
 								}
 							}
 
