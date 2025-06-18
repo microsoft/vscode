@@ -6,7 +6,7 @@
 import './media/suggest.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list.js';
-import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { IListStyles, List } from '../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
@@ -26,6 +26,9 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
+import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -58,6 +61,7 @@ const enum WidgetPositionPreference {
 export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
+	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -82,6 +86,10 @@ export interface IWorkbenchSuggestWidgetOptions {
  * Controls how suggest selection works
 */
 export const enum SuggestSelectionMode {
+	/**
+	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
+	 */
+	Partial = 'partial',
 	/**
 	 * Always select, what enter does depends on runOnEnter.
 	 */
@@ -133,6 +141,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
+	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -153,6 +162,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._container.appendChild(this.element.domNode);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
+		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -375,6 +385,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 			}).catch();
 		}
+
+		this._ctxFirstSuggestionFocused.set(index === 0);
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
@@ -453,7 +465,15 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
 		});
+		this._updateListStyles();
 		this._afterRender();
+	}
+
+	private _updateListStyles(): void {
+		if (this._options.selectionModeSettingId) {
+			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
+			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
+		}
 	}
 
 	setLineContext(lineContext: LineContext): void {
@@ -639,6 +659,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
+		this._ctxFirstSuggestionFocused.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
@@ -840,6 +861,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
+		this._list.style(getListStylesWithMode(false));
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -903,5 +925,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	stopForceRenderingAbove() {
 		this._forceRenderingAbove = false;
+	}
+}
+
+function getListStylesWithMode(partial?: boolean): IListStyles {
+	if (partial) {
+		return getListStyles({ listInactiveFocusOutline: focusBorder });
+	} else {
+		return getListStyles({ listInactiveFocusBackground: editorSuggestWidgetSelectedBackground, listInactiveFocusOutline: activeContrastBorder });
 	}
 }

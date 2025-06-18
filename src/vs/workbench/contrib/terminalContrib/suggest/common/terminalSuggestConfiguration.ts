@@ -120,7 +120,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
 		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
-		enum: ['ignore', 'never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
 			localize('runOnEnter.never', "Never run on `Enter`."),
 			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
@@ -133,12 +133,13 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.SelectionMode]: {
 		markdownDescription: localize('terminal.integrated.selectionMode', "Controls how suggestion selection works in the integrated terminal."),
 		type: 'string',
-		enum: ['always', 'never'],
+		enum: ['partial', 'always', 'never'],
 		enumDescriptions: [
+			localize('terminal.integrated.selectionMode.partial', "Will show a border and only insert the suggestion via Tab until navigation has occurred. After that, it will show selection and insert via Enter or Tab."),
 			localize('terminal.integrated.selectionMode.always', "Always select."),
 			localize('terminal.integrated.selectionMode.never', "No selection will occur until the user explicitly navigates the suggestions."),
 		],
-		default: 'always',
+		default: 'partial',
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.WindowsExecutableExtensions]: {
